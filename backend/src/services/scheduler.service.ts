@@ -1,16 +1,12 @@
-import { Queue, Worker } from 'bullmq';
-import { env } from '../config/env';
+import { Queue } from 'bullmq';
+import { redisConnection } from '../config/redis';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const redisOptions = {
-  url: env.REDIS_URL,
-};
-
-export const publishQueue = new Queue('publish-post', { connection: redisOptions });
-export const insightsQueue = new Queue('collect-insights', { connection: redisOptions });
-export const competitorsQueue = new Queue('collect-competitors', { connection: redisOptions });
+export const publishQueue = new Queue('publish-post', { connection: redisConnection });
+export const insightsQueue = new Queue('collect-insights', { connection: redisConnection });
+export const competitorsQueue = new Queue('collect-competitors', { connection: redisConnection });
 
 export const schedulePost = async (scheduledPostId: string, publishAt: Date) => {
   const delay = publishAt.getTime() - Date.now();
@@ -33,15 +29,21 @@ export const reschedulePost = async (scheduledPostId: string, newPublishAt: Date
 };
 
 export const setupRecurringJobs = async () => {
-  await insightsQueue.add('collect-all-insights', {}, {
-    repeat: {
-      pattern: '0 2 * * *' // Run at 2 AM every day
+  // Insights: every 6 hours
+  await insightsQueue.add(
+    'collect-insights-recurring', 
+    {}, 
+    { 
+      repeat: { pattern: '0 */6 * * *' } 
     }
-  });
+  );
 
-  await competitorsQueue.add('collect-all-competitors', {}, {
-    repeat: {
-      pattern: '0 3 * * *' // Run at 3 AM every day
+  // Competitors: daily at 3 AM
+  await competitorsQueue.add(
+    'collect-competitors-recurring', 
+    {}, 
+    { 
+      repeat: { pattern: '0 3 * * *' } 
     }
-  });
+  );
 };

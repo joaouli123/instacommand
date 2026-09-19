@@ -72,7 +72,11 @@ export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engage
     };
   });
 
-  processed.sort((a, b) => b.metrics[sortBy as keyof typeof b.metrics] - a.metrics[sortBy as keyof typeof a.metrics]);
+  processed.sort((a, b) => {
+    const valA = Number(a.metrics[sortBy as keyof typeof a.metrics]) || 0;
+    const valB = Number(b.metrics[sortBy as keyof typeof b.metrics]) || 0;
+    return valB - valA;
+  });
   return processed.slice(0, limit);
 };
 

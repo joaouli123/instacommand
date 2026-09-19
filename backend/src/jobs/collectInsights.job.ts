@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { env } from '../config/env';
+import { redisConnection } from '../config/redis';
 import { PrismaClient } from '@prisma/client';
 import { saveProfileSnapshot, savePostInsights } from '../services/instagram/insights.service';
 
@@ -23,7 +23,7 @@ export const setupCollectInsightsWorker = () => {
       }
     }
   }, {
-    connection: { url: env.REDIS_URL },
+    connection: redisConnection,
   });
 
   return worker;

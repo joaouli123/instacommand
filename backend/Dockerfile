@@ -5,6 +5,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+RUN apk add --no-cache openssl
+
 # Copy package files
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
@@ -26,6 +28,8 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
+RUN apk add --no-cache openssl
+
 ENV NODE_ENV=production
 
 # Copy built output and deps
@@ -40,4 +44,4 @@ RUN mkdir -p /app/uploads
 EXPOSE 3001
 
 # Run migrations and start
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/server.js"]

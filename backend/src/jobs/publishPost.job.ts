@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { env } from '../config/env';
+import { redisConnection } from '../config/redis';
 import { publishPost } from '../services/instagram/publish.service';
 
 export const setupPublishPostWorker = () => {
@@ -15,7 +15,7 @@ export const setupPublishPostWorker = () => {
       throw error;
     }
   }, {
-    connection: { url: env.REDIS_URL },
+    connection: redisConnection,
     concurrency: 5,
   });
 

@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { env } from '../config/env';
+import { redisConnection } from '../config/redis';
 import { PrismaClient } from '@prisma/client';
 import { collectCompetitorData } from '../services/instagram/discovery.service';
 
@@ -22,7 +22,7 @@ export const setupCollectCompetitorsWorker = () => {
       }
     }
   }, {
-    connection: { url: env.REDIS_URL },
+    connection: redisConnection,
   });
 
   return worker;

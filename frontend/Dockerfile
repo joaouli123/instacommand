@@ -8,11 +8,14 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies with legacy peer deps
+RUN npm install --legacy-peer-deps
 
 # Copy source
 COPY . .
+
+# Ensure public folder exists
+RUN mkdir -p /app/public
 
 # Build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
