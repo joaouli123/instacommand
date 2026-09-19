@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String             @id @default(uuid())
+  email          String             @unique
+  name           String
+  avatarUrl      String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  accounts       InstagramAccount[]
+  scheduledPosts ScheduledPost[]
+}
+
+model InstagramAccount {
+  id                   String                @id @default(uuid())
+  userId               String
+  igUserId             String                @unique // Instagram business account ID
+  igUsername           String
+  igName               String?
+  igProfilePicUrl      String?
+  igBio                String?
+  igFollowersCount     Int                   @default(0)
+  igFollowsCount       Int                   @default(0)
+  igMediaCount         Int                   @default(0)
+  pageId               String // Facebook page ID
+  pageAccessToken      String // Encrypted access token
+  tokenExpiresAt       DateTime?
+  isActive             Boolean               @default(true)
+  connectedAt          DateTime              @default(now())
+  lastSyncAt           DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  user                 User                  @relation(fields: [userId], references: [id])
+  scheduledPosts       ScheduledPost[]
+  publishedPosts       PublishedPost[]
+  profileInsights      ProfileInsight[]
+  audienceDemographics AudienceDemographic[]
+  competitors          Competitor[]
+
+  @@index([userId])
+}
+
+enum MediaType {
+  IMAGE
+  CAROUSEL
+  REEL
+  STORY
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
+model ScheduledPost {
+  id               String            @id @default(uuid())
+  userId           String
+  accountId        String
+  mediaType        MediaType
+  mediaUrls        String[]
+  thumbnailUrl     String?
+  caption          String?
+  hashtags         String[]
+  scheduledFor     DateTime
+  status           PostStatus        @default(DRAFT)
+  errorMessage     String?
+  publishedPostId  String?           @unique
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id])
+  account          InstagramAccount  @relation(fields: [accountId], references: [id])
+  publishedPost    PublishedPost?    @relation(fields: [publishedPostId], references: [id])
+
+  @@index([accountId])
+  @@index([userId])
+  @@index([status, scheduledFor])
+}
+
+model PublishedPost {
+  id            String             @id @default(uuid())
+  accountId     String
+  igMediaId     String             @unique
+  igMediaUrl    String?
+  igPermalink   String?
+  mediaType     MediaType
+  caption       String?
+  publishedAt   DateTime           @default(now())
+  createdAt     DateTime           @default(now())
+
+  account       InstagramAccount   @relation(fields: [accountId], references: [id])
+  scheduledPost ScheduledPost?
+  insights      PostInsight[]
+
+  @@index([accountId])
+}
+
+model PostInsight {
+  id          String        @id @default(uuid())
+  postId      String
+  impressions Int           @default(0)
+  reach       Int           @default(0)
+  likes       Int           @default(0)
+  comments    Int           @default(0)
+  shares      Int           @default(0)
+  saves       Int           @default(0)
+  engagement  Float         @default(0)
+  collectedAt DateTime      @default(now())
+
+  post        PublishedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model ProfileInsight {
+  id            String           @id @default(uuid())
+  accountId     String
+  followers     Int              @default(0)
+  following     Int              @default(0)
+  mediaCount    Int              @default(0)
+  reach         Int              @default(0)
+  impressions   Int              @default(0)
+  profileViews  Int              @default(0)
+  websiteClicks Int              @default(0)
+  emailClicks   Int              @default(0)
+  phoneClicks   Int              @default(0)
+  collectedAt   DateTime         @default(now())
+
+  account       InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+}
+
+enum DemographicType {
+  AGE
+  GENDER
+  CITY
+  COUNTRY
+}
+
+model AudienceDemographic {
+  id          String           @id @default(uuid())
+  accountId   String
+  type        DemographicType
+  label       String
+  value       Float
+  collectedAt DateTime         @default(now())
+
+  account     InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+}
+
+model Competitor {
+  id               String              @id @default(uuid())
+  accountId        String
+  igUsername       String
+  igName           String?
+  igProfilePicUrl  String?
+  igBio            String?
+  igFollowersCount Int                 @default(0)
+  igMediaCount     Int                 @default(0)
+  isActive         Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  account          InstagramAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  insights         CompetitorInsight[]
+
+  @@unique([accountId, igUsername])
+}
+
+model CompetitorInsight {
+  id              String     @id @default(uuid())
+  competitorId    String
+  followers       Int        @default(0)
+  mediaCount      Int        @default(0)
+  avgLikes        Int        @default(0)
+  avgComments     Int        @default(0)
+  engagementRate  Float      @default(0)
+  recentPostsData Json?
+  collectedAt     DateTime   @default(now())
+
+  competitor      Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@index([competitorId])
+}
+
+model HashtagSearch {
+  id               String            @id @default(uuid())
+  accountId        String?
+  hashtag          String
+  igHashtagId      String?
+  topMediaCount    Int               @default(0)
+  recentMediaCount Int               @default(0)
+  lastSearchedAt   DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+
+  @@index([hashtag])
+}
