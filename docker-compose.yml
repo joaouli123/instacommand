@@ -43,14 +43,14 @@ services:
       META_APP_ID: ${META_APP_ID:-}
       META_APP_SECRET: ${META_APP_SECRET:-}
       META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v25.0}
-      BACKEND_URL: ${BACKEND_URL:-http://localhost:3001}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      BACKEND_URL: ${BACKEND_URL:-https://api-instacommand.179.198.98.63.sslip.io}
+      FRONTEND_URL: ${FRONTEND_URL:-https://instagram.uxcode.com.br}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://instagram.uxcode.com.br}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       FB_REDIRECT_URI: ${FB_REDIRECT_URI:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-this-encryption-key-before-production}
       MEDIA_UPLOAD_DIR: /app/uploads
-      MEDIA_PUBLIC_URL: ${MEDIA_PUBLIC_URL:-http://localhost:3001/uploads}
+      MEDIA_PUBLIC_URL: ${MEDIA_PUBLIC_URL:-https://api-instacommand.179.198.98.63.sslip.io/uploads}
       WEBHOOK_VERIFY_TOKEN: ${WEBHOOK_VERIFY_TOKEN:-change-this-webhook-token}
     depends_on:
       postgres:
@@ -73,13 +73,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:3001}
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-https://api-instacommand.179.198.98.63.sslip.io}
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
-      NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:3001}
+      NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-https://api-instacommand.179.198.98.63.sslip.io}
     depends_on:
       backend:
         condition: service_healthy

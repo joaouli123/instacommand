@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, RefreshCw, Trash2, CheckCircle2, Users, Activity, Instagram } from "lucide-react"
 import toast from "react-hot-toast"
 import { fetchApi, api } from "@/lib/api"
+import { BACKEND_ORIGIN } from "@/lib/config"
 
 type ConnectedAccount = {
   id: string
@@ -23,8 +24,7 @@ export default function AccountsPage() {
   const [syncingId, setSyncingId] = useState<string | null>(null)
 
   const connectAccount = () => {
-    const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001").replace(/\/api\/?$/, "").replace(/\/$/, "")
-    window.location.assign(`${backendUrl}/api/auth/facebook`)
+    window.location.assign(`${BACKEND_ORIGIN}/api/auth/facebook`)
   }
 
   useEffect(() => {

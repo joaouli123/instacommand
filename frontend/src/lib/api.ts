@@ -1,6 +1,5 @@
-const BACKEND_ORIGIN = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001')
-  .replace(/\/api\/?$/, '')
-  .replace(/\/$/, '');
+import { BACKEND_ORIGIN } from './config';
+
 const BASE_URL = `${BACKEND_ORIGIN}/api`;
 
 export async function fetchApi(path: string, options: RequestInit = {}) {

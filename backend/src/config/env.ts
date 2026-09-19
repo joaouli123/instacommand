@@ -11,7 +11,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32).default('change-this-development-secret-32-chars'),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
-  META_GRAPH_API_VERSION: z.string().default('v22.0'),
+  META_GRAPH_API_VERSION: z.string().default('v25.0'),
   // Legacy names remain supported so existing Coolify variables keep working.
   FB_APP_ID: z.string().optional(),
   FB_APP_SECRET: z.string().optional(),

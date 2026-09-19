@@ -19,7 +19,7 @@ RUN mkdir -p /app/public
 
 # Build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
+ARG NEXT_PUBLIC_BACKEND_URL=https://api-instacommand.179.198.98.63.sslip.io
 ENV NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
 RUN npm run build
 

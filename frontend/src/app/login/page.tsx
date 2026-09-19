@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Facebook, Lock, Mail, ArrowRight, ShieldCheck, Instagram } from "lucide-react"
 import toast from "react-hot-toast"
+import { BACKEND_ORIGIN } from "@/lib/config"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -19,8 +20,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001").replace(/\/api\/?$/, "").replace(/\/$/, "")
-      const res = await fetch(`${backendUrl}/api/auth/login`, {
+      const res = await fetch(`${BACKEND_ORIGIN}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -44,8 +44,7 @@ export default function LoginPage() {
   }
 
   const handleFacebookLogin = () => {
-    const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001").replace(/\/api\/?$/, "").replace(/\/$/, "")
-    window.location.href = `${backendUrl}/api/auth/facebook`
+    window.location.href = `${BACKEND_ORIGIN}/api/auth/facebook`
   }
 
   return (
