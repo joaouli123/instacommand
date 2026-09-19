@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,30 +7,121 @@ import { Badge } from "@/components/ui/badge"
 import { 
   ImagePlus, Hash, Calendar as CalendarIcon, Send, 
   Heart, MessageCircle, Bookmark, Share2, MoreHorizontal,
-  Layers, Video, Image as ImageIcon, Sparkles, Check, Clock
+  Layers, Video, Image as ImageIcon, Sparkles
 } from "lucide-react"
 import { useDropzone } from "react-dropzone"
 import toast from "react-hot-toast"
 
+type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY"
+
+type MediaItem = {
+  id: string
+  src: string
+  name: string
+  kind: "image" | "video"
+  isObjectUrl: boolean
+}
+
 export default function ComposerPage() {
   const [caption, setCaption] = useState("")
-  const [postType, setPostType] = useState<"FEED" | "CAROUSEL" | "REEL" | "STORY">("FEED")
+  const [postType, setPostType] = useState<PostType>("FEED")
   const [selectedDate, setSelectedDate] = useState("2026-09-21T18:30")
   const [hashtags, setHashtags] = useState<string[]>(["marketingdigital", "designgrafico", "estrategia"])
   const [tagInput, setTagInput] = useState("")
-  const [mediaPreview, setMediaPreview] = useState<string | null>("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80")
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0)
+  const mediaItemsRef = useRef<MediaItem[]>([])
+
+  useEffect(() => {
+    mediaItemsRef.current = mediaItems
+  }, [mediaItems])
+
+  useEffect(() => {
+    return () => {
+      mediaItemsRef.current.forEach(item => {
+        if (item.isObjectUrl) URL.revokeObjectURL(item.src)
+      })
+    }
+  }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { 'image/*': [], 'video/*': [] },
-    onDrop: (acceptedFiles) => {
-      if (acceptedFiles.length > 0) {
-        const file = acceptedFiles[0]
-        const previewUrl = URL.createObjectURL(file)
-        setMediaPreview(previewUrl)
-        toast.success(`Mídia carregada: ${file.name}`)
+    accept: { "image/*": [], "video/*": [] },
+    multiple: true,
+    maxFiles: 10,
+    maxSize: 100 * 1024 * 1024,
+    onDrop: (acceptedFiles, fileRejections) => {
+      if (fileRejections.length > 0) {
+        toast.error("Alguns arquivos foram rejeitados. Use imagens ou vídeos de até 100MB.")
       }
-    }
+
+      if (acceptedFiles.length === 0) return
+
+      const incomingItems = acceptedFiles.map((file, index): MediaItem => ({
+        id: `${file.name}-${file.lastModified}-${index}`,
+        src: URL.createObjectURL(file),
+        name: file.name,
+        kind: file.type.startsWith("video/") ? "video" : "image",
+        isObjectUrl: true,
+      }))
+
+      if (postType === "CAROUSEL") {
+        const availableSlots = Math.max(0, 10 - mediaItems.length)
+        const itemsToAdd = incomingItems.slice(0, availableSlots)
+        incomingItems.slice(availableSlots).forEach(item => URL.revokeObjectURL(item.src))
+
+        if (itemsToAdd.length === 0) {
+          toast.error("O carrossel já está completo. Remova uma mídia para adicionar outra.")
+          return
+        }
+
+        setMediaItems(current => [...current, ...itemsToAdd])
+        toast.success(`${itemsToAdd.length} ${itemsToAdd.length === 1 ? "mídia adicionada" : "mídias adicionadas"} ao carrossel`)
+        return
+      }
+
+      const nextItem = incomingItems[0]
+      incomingItems.slice(1).forEach(item => URL.revokeObjectURL(item.src))
+      mediaItems.forEach(item => {
+        if (item.isObjectUrl) URL.revokeObjectURL(item.src)
+      })
+      setMediaItems([nextItem])
+      setActiveMediaIndex(0)
+      toast.success(`Mídia carregada: ${nextItem.name}`)
+    },
   })
+
+  const activeMedia = mediaItems[activeMediaIndex] ?? null
+
+  const changePostType = (nextType: PostType) => {
+    setPostType(nextType)
+
+    if (nextType !== "CAROUSEL" && mediaItems.length > 1) {
+      mediaItems.slice(1).forEach(item => {
+        if (item.isObjectUrl) URL.revokeObjectURL(item.src)
+      })
+      setMediaItems([mediaItems[0]])
+      setActiveMediaIndex(0)
+    }
+  }
+
+  const removeMedia = (id: string) => {
+    const itemToRemove = mediaItems.find(item => item.id === id)
+    if (itemToRemove?.isObjectUrl) URL.revokeObjectURL(itemToRemove.src)
+
+    const nextItems = mediaItems.filter(item => item.id !== id)
+    setMediaItems(nextItems)
+    setActiveMediaIndex(current => Math.min(current, Math.max(0, nextItems.length - 1)))
+  }
+
+  const moveActiveMedia = (direction: -1 | 1) => {
+    const targetIndex = activeMediaIndex + direction
+    if (targetIndex < 0 || targetIndex >= mediaItems.length) return
+
+    const nextItems = [...mediaItems]
+    ;[nextItems[activeMediaIndex], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[activeMediaIndex]]
+    setMediaItems(nextItems)
+    setActiveMediaIndex(targetIndex)
+  }
 
   const addHashtag = () => {
     if (!tagInput) return
@@ -46,10 +137,18 @@ export default function ComposerPage() {
   }
 
   const handlePublishNow = () => {
+    if (mediaItems.length === 0) {
+      toast.error("Adicione pelo menos uma imagem ou vídeo antes de publicar.")
+      return
+    }
     toast.success("Publicação enviada com sucesso para processamento!")
   }
 
   const handleSchedule = () => {
+    if (mediaItems.length === 0) {
+      toast.error("Adicione pelo menos uma imagem ou vídeo antes de agendar.")
+      return
+    }
     toast.success("Publicação programada com sucesso na fila de agendamento!")
   }
 
@@ -73,7 +172,7 @@ export default function ComposerPage() {
                 <button
                   key={type.id}
                   type="button"
-                  onClick={() => setPostType(type.id as any)}
+                  onClick={() => changePostType(type.id as PostType)}
                   className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-xs font-semibold transition-all ${
                     postType === type.id
                       ? "border-indigo-600 bg-indigo-50/70 text-indigo-700 shadow-xs ring-1 ring-indigo-600"
@@ -92,24 +191,97 @@ export default function ComposerPage() {
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5 block">
               Mídia Visual
             </label>
-            <div 
-              {...getRootProps()} 
-              className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
-                isDragActive 
-                  ? "border-indigo-500 bg-indigo-50/50" 
+            {mediaItems.length > 0 && (
+              <div className="space-y-3 mb-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {mediaItems.map((item, index) => (
+                    <div key={item.id} className="relative aspect-square group">
+                      <button
+                        type="button"
+                        onClick={() => setActiveMediaIndex(index)}
+                        title={item.name}
+                        className={`w-full h-full overflow-hidden rounded-xl border bg-slate-100 transition-all ${
+                          index === activeMediaIndex
+                            ? "border-indigo-600 ring-2 ring-indigo-500/25"
+                            : "border-slate-200 hover:border-indigo-300"
+                        }`}
+                      >
+                        {item.kind === "video" ? (
+                          <video src={item.src} muted playsInline className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={item.src} alt={item.name} className="w-full h-full object-cover" />
+                        )}
+                      </button>
+                      <span className="absolute left-2 top-2 min-w-5 h-5 px-1 rounded-full bg-slate-950/75 text-white text-[10px] font-bold flex items-center justify-center">
+                        {index + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeMedia(item.id)}
+                        aria-label={`Remover ${item.name}`}
+                        className="absolute right-2 top-2 w-6 h-6 rounded-full bg-white/95 text-slate-700 shadow-sm text-sm leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-rose-50 hover:text-rose-600"
+                      >
+                        ×
+                      </button>
+                      {item.kind === "video" && (
+                        <span className="absolute bottom-2 left-2 rounded-md bg-slate-950/75 text-white text-[9px] font-bold px-1.5 py-0.5">
+                          VÍDEO
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {postType === "CAROUSEL" && (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2">
+                    <span className="text-xs font-medium text-indigo-800">
+                      {mediaItems.length}/10 itens • selecione uma miniatura para editar a ordem
+                    </span>
+                    <div className="flex gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => moveActiveMedia(-1)}
+                        disabled={activeMediaIndex === 0}
+                        className="w-7 h-7 rounded-lg border border-indigo-200 bg-white text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-50"
+                        aria-label="Mover mídia para a esquerda"
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveActiveMedia(1)}
+                        disabled={activeMediaIndex === mediaItems.length - 1}
+                        className="w-7 h-7 rounded-lg border border-indigo-200 bg-white text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-50"
+                        aria-label="Mover mídia para a direita"
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div
+              {...getRootProps()}
+              className={`border-2 border-dashed rounded-2xl ${mediaItems.length > 0 ? "p-4" : "p-8"} flex items-center justify-center text-center cursor-pointer transition-all ${
+                isDragActive
+                  ? "border-indigo-500 bg-indigo-50/50"
                   : "border-slate-200 bg-slate-50/60 hover:bg-slate-50 hover:border-slate-300"
               }`}
             >
               <input {...getInputProps()} />
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-3 shadow-xs">
+              <div className={`w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs ${mediaItems.length > 0 ? "mr-3" : "mb-3"}`}>
                 <ImagePlus size={22} />
               </div>
-              <p className="text-sm font-semibold text-slate-800">
-                Arraste imagens ou vídeos aqui
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                Suporta PNG, JPG, MP4 ou MOV até 100MB
-              </p>
+              <div className={mediaItems.length > 0 ? "text-left" : "text-center"}>
+                <p className="text-sm font-semibold text-slate-800">
+                  {isDragActive ? "Solte os arquivos aqui" : mediaItems.length > 0 ? "Adicionar mais mídias" : "Arraste imagens ou vídeos aqui"}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {postType === "CAROUSEL" ? "Até 10 itens • PNG, JPG, MP4 ou MOV" : "PNG, JPG, MP4 ou MOV até 100MB"}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -240,21 +412,52 @@ export default function ComposerPage() {
 
           {/* Media Container */}
           <div className="w-full aspect-square bg-slate-100 relative overflow-hidden flex items-center justify-center">
-            {mediaPreview ? (
-              <img 
-                src={mediaPreview} 
-                alt="Post Preview" 
-                className="w-full h-full object-cover"
-              />
+            {activeMedia ? (
+              activeMedia.kind === "video" ? (
+                <video src={activeMedia.src} autoPlay muted loop playsInline className="w-full h-full object-cover" />
+              ) : (
+                <img src={activeMedia.src} alt="Prévia da publicação" className="w-full h-full object-cover" />
+              )
             ) : (
               <div className="text-center p-6">
                 <ImageIcon size={32} className="mx-auto text-slate-300 mb-2" />
-                <p className="text-xs text-slate-400 font-medium">Sua imagem aparecerá aqui</p>
+                <p className="text-xs text-slate-400 font-medium">Adicione uma mídia para ver a prévia</p>
               </div>
             )}
             <div className="absolute top-3 right-3 bg-white/90 text-slate-700 border border-slate-200 text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-xs shadow-sm">
-              {postType}
+              {postType === "CAROUSEL" && mediaItems.length > 0 ? `${postType} ${activeMediaIndex + 1}/${mediaItems.length}` : postType}
             </div>
+            {mediaItems.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setActiveMediaIndex(current => (current - 1 + mediaItems.length) % mediaItems.length)}
+                  aria-label="Ver mídia anterior"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 text-slate-800 shadow-sm hover:bg-white"
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMediaIndex(current => (current + 1) % mediaItems.length)}
+                  aria-label="Ver próxima mídia"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 text-slate-800 shadow-sm hover:bg-white"
+                >
+                  →
+                </button>
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 rounded-full bg-slate-950/45 px-2 py-1">
+                  {mediaItems.map((item, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActiveMediaIndex(index)}
+                      aria-label={`Ver mídia ${index + 1}`}
+                      className={`w-1.5 h-1.5 rounded-full transition-colors ${index === activeMediaIndex ? "bg-white" : "bg-white/45"}`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Action Buttons */}

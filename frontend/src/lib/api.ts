@@ -5,7 +5,9 @@ const BASE_URL = `${BACKEND_ORIGIN}/api`;
 
 export async function fetchApi(path: string, options: RequestInit = {}) {
   // Mock token retrieval
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token = typeof window !== 'undefined'
+    ? localStorage.getItem('instacommand_token') || localStorage.getItem('token')
+    : null;
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',

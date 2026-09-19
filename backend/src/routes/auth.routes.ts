@@ -80,9 +80,12 @@ router.post('/login', async (req, res, next) => {
 });
 
 // This endpoint redirects to FB login
-router.get('/facebook', (req, res) => {
+router.get('/facebook', async (req: any, res) => {
   try {
-    const url = getOAuthUrl();
+    // InstaCommand is currently a personal workspace, so the OAuth flow uses
+    // the same default user that owns the settings panel and connected accounts.
+    const user = await getOrCreateDefaultUser();
+    const url = await getOAuthUrl(user.id);
     res.redirect(url);
   } catch (error) {
     res.status(503).json({ message: error instanceof Error ? error.message : 'Meta OAuth indisponível' });

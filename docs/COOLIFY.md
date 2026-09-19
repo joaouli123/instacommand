@@ -23,7 +23,7 @@ ENCRYPTION_KEY=outra-chave-aleatoria-com-mais-de-32-caracteres
 
 META_APP_ID=seu_app_id
 META_APP_SECRET=seu_app_secret
-META_GRAPH_API_VERSION=v22.0
+META_GRAPH_API_VERSION=v25.0
 FB_REDIRECT_URI=https://api-instacommand.seudominio.com/api/auth/facebook/callback
 
 BACKEND_URL=https://api-instacommand.seudominio.com
@@ -55,3 +55,9 @@ O botão “Conectar nova conta” faz o fluxo completo: abre a autorização da
 - Frontend: `/`
 
 Depois do deploy, valide primeiro a API e então o frontend. Se o callback da Meta retornar erro, confira se o domínio, `FB_REDIRECT_URI` e as permissões do app são idênticos aos cadastrados no Meta Developers.
+
+## Configuração pelo painel
+
+Depois de entrar no InstaCommand, abra `Configurações > Conexão com a Meta`. O App ID, App Secret e Client Token podem ser salvos pela interface. O App Secret e o Client Token são criptografados no backend e nunca são devolvidos para o navegador em texto aberto; quando já estiverem configurados, deixe os campos secretos vazios para mantê-los.
+
+O botão `Entrar com a Meta` em `Contas conectadas` usa automaticamente as credenciais salvas para iniciar o OAuth. Para desenvolvimento local, cadastre `http://localhost:3001/api/auth/facebook/callback` no campo de callback do Meta Developers. Para produção, substitua pelo callback do domínio público da API.

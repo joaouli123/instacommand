@@ -25,8 +25,66 @@ function decrypt(text: string): string {
   return decrypted;
 }
 
-export const getOAuthUrl = () => {
-  if (!env.FB_APP_ID || !env.FB_APP_SECRET) {
+type MetaCredentials = {
+  appId: string;
+  appSecret: string;
+  clientToken: string;
+};
+
+const getMetaCredentials = async (userId?: string): Promise<MetaCredentials> => {
+  const user = userId
+    ? await prisma.user.findUnique({
+        where: { id: userId },
+        select: { metaAppId: true, metaAppSecret: true, metaClientToken: true },
+      })
+    : null;
+
+  return {
+    appId: user?.metaAppId || env.FB_APP_ID,
+    appSecret: user?.metaAppSecret ? decrypt(user.metaAppSecret) : env.FB_APP_SECRET,
+    clientToken: user?.metaClientToken ? decrypt(user.metaClientToken) : '',
+  };
+};
+
+export const getMetaCredentialStatus = async (userId: string) => {
+  const credentials = await getMetaCredentials(userId);
+  return {
+    appId: credentials.appId,
+    appIdConfigured: Boolean(credentials.appId),
+    appSecretConfigured: Boolean(credentials.appSecret),
+    clientTokenConfigured: Boolean(credentials.clientToken),
+  };
+};
+
+export const saveMetaCredentials = async (userId: string, values: { appId: string; appSecret?: string; clientToken?: string }) => {
+  const current = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { metaAppSecret: true, metaClientToken: true },
+  });
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      metaAppId: values.appId.trim(),
+      ...(values.appSecret?.trim()
+        ? { metaAppSecret: encrypt(values.appSecret.trim()) }
+        : current?.metaAppSecret
+          ? {}
+          : { metaAppSecret: null }),
+      ...(values.clientToken?.trim()
+        ? { metaClientToken: encrypt(values.clientToken.trim()) }
+        : current?.metaClientToken
+          ? {}
+          : { metaClientToken: null }),
+    },
+  });
+
+  return getMetaCredentialStatus(userId);
+};
+
+export const getOAuthUrl = async (userId?: string) => {
+  const credentials = await getMetaCredentials(userId);
+  if (!credentials.appId || !credentials.appSecret) {
     throw new Error('Meta App não configurado. Defina META_APP_ID e META_APP_SECRET no ambiente.');
   }
 
@@ -39,7 +97,7 @@ export const getOAuthUrl = () => {
   ].join(',');
 
   const params = new URLSearchParams({
-    client_id: env.FB_APP_ID,
+    client_id: credentials.appId,
     redirect_uri: env.FB_REDIRECT_URI,
     scope: scopes,
     response_type: 'code',
@@ -49,11 +107,13 @@ export const getOAuthUrl = () => {
 };
 
 export const handleOAuthCallback = async (code: string, userId: string) => {
+  const credentials = await getMetaCredentials(userId);
+
   // Exchange code for short-lived token
   const tokenParams = new URLSearchParams({
-    client_id: env.FB_APP_ID,
+    client_id: credentials.appId,
     redirect_uri: env.FB_REDIRECT_URI,
-    client_secret: env.FB_APP_SECRET,
+    client_secret: credentials.appSecret,
     code,
   });
   const tokenUrl = `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/oauth/access_token?${tokenParams.toString()}`;
@@ -66,8 +126,8 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
   // Get long-lived token
   const longLivedParams = new URLSearchParams({
     grant_type: 'fb_exchange_token',
-    client_id: env.FB_APP_ID,
-    client_secret: env.FB_APP_SECRET,
+    client_id: credentials.appId,
+    client_secret: credentials.appSecret,
     fb_exchange_token: tokenResponse.access_token,
   });
   const longLivedUrl = `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/oauth/access_token?${longLivedParams.toString()}`;

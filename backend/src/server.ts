@@ -17,6 +17,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import competitorsRoutes from './routes/competitors.routes';
 import trendsRoutes from './routes/trends.routes';
 import schedulerRoutes from './routes/scheduler.routes';
+import settingsRoutes from './routes/settings.routes';
 
 // Workers
 import { setupPublishPostWorker } from './jobs/publishPost.job';
@@ -65,6 +66,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/competitors', competitorsRoutes);
 app.use('/api/trends', trendsRoutes);
 app.use('/api/scheduler', schedulerRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Error handling
 app.use(errorHandler);
