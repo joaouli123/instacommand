@@ -8,7 +8,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 60 * 1000, // 1 minute
+        staleTime: 60 * 1000,
         refetchOnWindowFocus: false,
       },
     },
@@ -20,7 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <Toaster
         position="top-right"
         toastOptions={{
-          className: '!bg-surface !text-white !border !border-border',
+          className: '!bg-white !text-slate-900 !border !border-slate-200 !shadow-lg text-sm font-medium rounded-xl',
           duration: 4000,
         }}
       />

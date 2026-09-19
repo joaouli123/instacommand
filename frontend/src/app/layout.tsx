@@ -8,8 +8,8 @@ import { Providers } from './providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'InstaCommand - Instagram Management Platform',
-  description: 'Gerencie seu Instagram com eficiência e dados reais.',
+  title: 'InstaCommand - Gestão Inteligente de Instagram',
+  description: 'Gerencie múltiplas contas do Instagram com agendamento, analytics e inteligência competitiva.',
 }
 
 export default function RootLayout({
@@ -18,13 +18,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR" className="dark">
-      <body className={`${inter.className} bg-background text-text min-h-screen flex`}>
+    <html lang="pt-BR" className="light">
+      <body className={`${inter.className} bg-background text-text min-h-screen flex antialiased selection:bg-indigo-100 selection:text-indigo-900`}>
         <Providers>
           <Sidebar />
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 flex min-h-screen min-w-0 flex-col bg-[#f8fafc]">
             <Header />
-            <main className="flex-1 overflow-auto p-6">
+            <main className="flex-1 overflow-auto p-4 sm:p-6 md:p-8">
               {children}
             </main>
           </div>

@@ -27,8 +27,8 @@ const engagementByDay = [
 ]
 
 const genderData = [
-  { name: 'Mulheres', value: 62, color: '#8b5cf6' },
-  { name: 'Homens', value: 35, color: '#06b6d4' },
+  { name: 'Mulheres', value: 62, color: '#4f46e5' },
+  { name: 'Homens', value: 35, color: '#0284c7' },
   { name: 'Outros', value: 3, color: '#94a3b8' },
 ]
 
@@ -65,7 +65,7 @@ const heatmapData: number[][] = [
 ]
 
 function getHeatColor(val: number) {
-  const colors = ['bg-border', 'bg-primary/20', 'bg-primary/40', 'bg-primary/60', 'bg-primary/80', 'bg-primary']
+  const colors = ['bg-slate-100', 'bg-indigo-100', 'bg-indigo-200', 'bg-indigo-300', 'bg-indigo-500', 'bg-indigo-700']
   return colors[val] || colors[0]
 }
 
@@ -73,7 +73,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-white">Análise de Desempenho</h2>
+        <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Performance</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Análise de desempenho</h2><p className="mt-1 text-sm text-slate-500">Acompanhe o que está gerando alcance, interação e crescimento.</p></div>
         <div className="w-48">
           <Select defaultValue="30d">
             <SelectTrigger>
@@ -104,12 +104,12 @@ export default function AnalyticsPage() {
               { label: 'Visitas ao Perfil', value: '3.1k', change: '+8%', icon: Eye, positive: true },
               { label: 'Cliques no Link', value: '842', change: '-3%', icon: Share2, positive: false },
             ].map((stat) => (
-              <Card key={stat.label} className="p-4">
+              <Card key={stat.label} className="border-slate-200/80 bg-white p-5">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted">{stat.label}</p>
-                  <stat.icon size={16} className="text-muted" />
+                  <p className="text-sm font-medium text-slate-500">{stat.label}</p>
+                  <stat.icon size={16} className="text-slate-400" />
                 </div>
-                <h4 className="text-2xl font-bold mt-1">{stat.value}</h4>
+                <h4 className="mt-1 text-2xl font-bold text-slate-900">{stat.value}</h4>
                 <span className={`text-xs font-medium ${stat.positive ? 'text-success' : 'text-danger'}`}>
                   {stat.change} vs período anterior
                 </span>
@@ -119,39 +119,39 @@ export default function AnalyticsPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Alcance e Impressões</h3>
+              <h3 className="mb-4 text-lg font-bold text-slate-900">Alcance e impressões</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={reachData}>
                   <defs>
                     <linearGradient id="colorAlcance" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="colorImpress" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#0284c7" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#0284c7" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2e" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
                   <YAxis stroke="#94a3b8" fontSize={12} />
-                  <Tooltip contentStyle={{ backgroundColor: '#12121a', border: '1px solid #1e1e2e', borderRadius: '8px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 8px 24px rgba(15,23,42,0.08)' }} />
                   <Legend />
-                  <Area type="monotone" dataKey="alcance" name="Alcance" stroke="#8b5cf6" fill="url(#colorAlcance)" />
-                  <Area type="monotone" dataKey="impressoes" name="Impressões" stroke="#06b6d4" fill="url(#colorImpress)" />
+                  <Area type="monotone" dataKey="alcance" name="Alcance" stroke="#4f46e5" fill="url(#colorAlcance)" />
+                  <Area type="monotone" dataKey="impressoes" name="Impressões" stroke="#0284c7" fill="url(#colorImpress)" />
                 </AreaChart>
               </ResponsiveContainer>
             </Card>
 
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Engajamento por Dia</h3>
+              <h3 className="mb-4 text-lg font-bold text-slate-900">Engajamento por dia</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={engagementByDay}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2e" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
                   <YAxis stroke="#94a3b8" fontSize={12} unit="%" />
-                  <Tooltip contentStyle={{ backgroundColor: '#12121a', border: '1px solid #1e1e2e', borderRadius: '8px' }} />
-                  <Bar dataKey="er" name="Taxa de Engajamento" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
+                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 8px 24px rgba(15,23,42,0.08)' }} />
+                  <Bar dataKey="er" name="Taxa de Engajamento" fill="#4f46e5" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
@@ -161,11 +161,11 @@ export default function AnalyticsPage() {
         {/* ============ CONTEÚDO / POSTS ============ */}
         <TabsContent value="posts" className="space-y-6">
           <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Performance de Publicações</h3>
+            <h3 className="mb-4 text-lg font-bold text-slate-900">Performance de publicações</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-muted">
+                  <tr className="border-b border-slate-200 text-slate-500">
                     <th className="text-left py-3 px-2">Post</th>
                     <th className="text-left py-3 px-2">Tipo</th>
                     <th className="text-left py-3 px-2">Data</th>
@@ -179,7 +179,7 @@ export default function AnalyticsPage() {
                 </thead>
                 <tbody>
                   {postsMock.map((post) => (
-                    <tr key={post.id} className="border-b border-border/50 hover:bg-surface/50 transition-colors">
+                    <tr key={post.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50/80">
                       <td className="py-3 px-2">
                         <div className="flex items-center gap-3">
                           <img src={post.img} alt="" className="w-10 h-10 rounded object-cover" />
@@ -191,7 +191,7 @@ export default function AnalyticsPage() {
                           {post.type === 'REEL' ? 'Reel' : post.type === 'CAROUSEL' ? 'Carrossel' : 'Imagem'}
                         </Badge>
                       </td>
-                      <td className="py-3 px-2 text-muted">{post.date}</td>
+                      <td className="py-3 px-2 text-slate-500">{post.date}</td>
                       <td className="py-3 px-2 text-right font-medium">{post.likes.toLocaleString('pt-BR')}</td>
                       <td className="py-3 px-2 text-right font-medium">{post.comments}</td>
                       <td className="py-3 px-2 text-right font-medium">{post.saves}</td>
@@ -215,7 +215,7 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Gênero */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Distribuição por Gênero</h3>
+              <h3 className="mb-4 text-lg font-bold text-slate-900">Distribuição por gênero</h3>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie data={genderData} innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, value }) => `${name}: ${value}%`}>
@@ -223,20 +223,20 @@ export default function AnalyticsPage() {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#12121a', border: '1px solid #1e1e2e', borderRadius: '8px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px' }} />
                 </PieChart>
               </ResponsiveContainer>
             </Card>
 
             {/* Faixas Etárias */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Faixas Etárias</h3>
+              <h3 className="mb-4 text-lg font-bold text-slate-900">Faixas etárias</h3>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={ageData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2e" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis type="number" stroke="#94a3b8" fontSize={12} unit="%" />
                   <YAxis type="category" dataKey="faixa" stroke="#94a3b8" fontSize={12} width={50} />
-                  <Tooltip contentStyle={{ backgroundColor: '#12121a', border: '1px solid #1e1e2e', borderRadius: '8px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px' }} />
                   <Bar dataKey="pct" name="%" fill="#06b6d4" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -244,31 +244,31 @@ export default function AnalyticsPage() {
 
             {/* Top Cidades */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Top Cidades</h3>
+              <h3 className="mb-4 text-lg font-bold text-slate-900">Top cidades</h3>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={cityData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2e" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="cidade" stroke="#94a3b8" fontSize={11} angle={-20} textAnchor="end" height={60} />
                   <YAxis stroke="#94a3b8" fontSize={12} unit="%" />
-                  <Tooltip contentStyle={{ backgroundColor: '#12121a', border: '1px solid #1e1e2e', borderRadius: '8px' }} />
-                  <Bar dataKey="pct" name="%" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
+                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px' }} />
+                  <Bar dataKey="pct" name="%" fill="#4f46e5" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
 
             {/* Melhores Horários — Heatmap */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Melhores Horários para Postar</h3>
+              <h3 className="mb-4 text-lg font-bold text-slate-900">Melhores horários para postar</h3>
               <div className="overflow-x-auto">
                 <div className="min-w-[500px]">
                   <div className="flex gap-1 mb-1 pl-10">
                     {hours.filter((_, i) => i % 3 === 0).map(h => (
-                      <div key={h} className="text-[10px] text-muted" style={{ width: `${(3/24)*100}%` }}>{String(h).padStart(2,'0')}h</div>
+                      <div key={h} className="text-[10px] text-slate-400" style={{ width: `${(3/24)*100}%` }}>{String(h).padStart(2,'0')}h</div>
                     ))}
                   </div>
                   {days.map((day, di) => (
                     <div key={day} className="flex items-center gap-1 mb-1">
-                      <span className="text-xs text-muted w-8 shrink-0">{day}</span>
+                      <span className="w-8 shrink-0 text-xs text-slate-500">{day}</span>
                       <div className="flex gap-[2px] flex-1">
                         {heatmapData[di].map((val, hi) => (
                           <div
@@ -281,11 +281,11 @@ export default function AnalyticsPage() {
                     </div>
                   ))}
                   <div className="flex items-center gap-2 mt-3 justify-end">
-                    <span className="text-xs text-muted">Menos</span>
+                    <span className="text-xs text-slate-500">Menos</span>
                     {[0,1,2,3,4,5].map(v => (
                       <div key={v} className={`w-4 h-4 rounded-sm ${getHeatColor(v)}`} />
                     ))}
-                    <span className="text-xs text-muted">Mais</span>
+                    <span className="text-xs text-slate-500">Mais</span>
                   </div>
                 </div>
               </div>

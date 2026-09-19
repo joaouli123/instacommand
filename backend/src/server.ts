@@ -25,10 +25,20 @@ import { setupCollectCompetitorsWorker } from './jobs/collectCompetitors.job';
 import { setupRecurringJobs } from './services/scheduler.service';
 
 const app = express();
+const uploadDir = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);
+const allowAllOrigins = env.CORS_ORIGINS.includes('*');
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowAllOrigins || env.CORS_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origin not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(morgan('dev'));
 app.use(compression());
 app.use(cookieParser());
@@ -37,7 +47,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use(rateLimit());
 
 // Static files (uploads)
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(uploadDir));
+
+// Coolify and reverse proxies use this endpoint to determine if the API is ready.
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'instacommand-api' });
+});
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'instacommand-api' });
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -62,7 +80,7 @@ const startServer = async () => {
     // Setup cron jobs
     await setupRecurringJobs();
 
-    app.listen(env.BACKEND_PORT, () => {
+    app.listen(Number(env.BACKEND_PORT), '0.0.0.0', () => {
       console.log(`Server is running on port ${env.BACKEND_PORT}`);
     });
   } catch (error) {

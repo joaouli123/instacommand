@@ -57,6 +57,13 @@ router.post('/login', async (req, res, next) => {
       { expiresIn: '7d' }
     );
 
+    res.cookie('instacommand_token', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.COOKIE_SECURE === 'true',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
     res.json({
       message: 'Login realizado com sucesso',
       token,
@@ -74,8 +81,12 @@ router.post('/login', async (req, res, next) => {
 
 // This endpoint redirects to FB login
 router.get('/facebook', (req, res) => {
-  const url = getOAuthUrl();
-  res.redirect(url);
+  try {
+    const url = getOAuthUrl();
+    res.redirect(url);
+  } catch (error) {
+    res.status(503).json({ message: error instanceof Error ? error.message : 'Meta OAuth indisponível' });
+  }
 });
 
 // FB callback
@@ -95,13 +106,23 @@ router.get('/facebook/callback', async (req, res, next) => {
       { expiresIn: '7d' }
     );
 
-    res.json({ message: 'Autenticação com Facebook concluída', token, accounts });
+    res.cookie('instacommand_token', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.COOKIE_SECURE === 'true',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    const destination = `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=${accounts.length > 0 ? '1' : '0'}`;
+    return res.redirect(destination);
   } catch (error) {
-    next(error);
+    console.error('Meta OAuth callback failed:', error);
+    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/login?error=meta_connection`);
   }
 });
 
 router.post('/logout', authenticate, (req, res) => {
+  res.clearCookie('instacommand_token');
   res.json({ message: 'Logged out successfully' });
 });
 

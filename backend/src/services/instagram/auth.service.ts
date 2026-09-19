@@ -26,6 +26,10 @@ function decrypt(text: string): string {
 }
 
 export const getOAuthUrl = () => {
+  if (!env.FB_APP_ID || !env.FB_APP_SECRET) {
+    throw new Error('Meta App não configurado. Defina META_APP_ID e META_APP_SECRET no ambiente.');
+  }
+
   const scopes = [
     'instagram_basic',
     'instagram_content_publish',
@@ -34,12 +38,25 @@ export const getOAuthUrl = () => {
     'pages_read_engagement',
   ].join(',');
 
-  return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_APP_ID}&redirect_uri=${env.FB_REDIRECT_URI}&scope=${scopes}&response_type=code`;
+  const params = new URLSearchParams({
+    client_id: env.FB_APP_ID,
+    redirect_uri: env.FB_REDIRECT_URI,
+    scope: scopes,
+    response_type: 'code',
+  });
+
+  return `https://www.facebook.com/${env.META_GRAPH_API_VERSION}/dialog/oauth?${params.toString()}`;
 };
 
 export const handleOAuthCallback = async (code: string, userId: string) => {
   // Exchange code for short-lived token
-  const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${env.FB_APP_ID}&redirect_uri=${env.FB_REDIRECT_URI}&client_secret=${env.FB_APP_SECRET}&code=${code}`;
+  const tokenParams = new URLSearchParams({
+    client_id: env.FB_APP_ID,
+    redirect_uri: env.FB_REDIRECT_URI,
+    client_secret: env.FB_APP_SECRET,
+    code,
+  });
+  const tokenUrl = `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/oauth/access_token?${tokenParams.toString()}`;
   const tokenResponse = await fetch(tokenUrl).then((res) => res.json());
 
   if (tokenResponse.error) {
@@ -47,7 +64,13 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
   }
 
   // Get long-lived token
-  const longLivedUrl = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${env.FB_APP_ID}&client_secret=${env.FB_APP_SECRET}&fb_exchange_token=${tokenResponse.access_token}`;
+  const longLivedParams = new URLSearchParams({
+    grant_type: 'fb_exchange_token',
+    client_id: env.FB_APP_ID,
+    client_secret: env.FB_APP_SECRET,
+    fb_exchange_token: tokenResponse.access_token,
+  });
+  const longLivedUrl = `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/oauth/access_token?${longLivedParams.toString()}`;
   const longLivedResponse = await fetch(longLivedUrl).then((res) => res.json());
   const userToken = longLivedResponse.access_token;
 

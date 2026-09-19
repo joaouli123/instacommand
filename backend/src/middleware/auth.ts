@@ -13,11 +13,12 @@ export interface AuthRequest extends Request {
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+    const token = bearerToken || req.cookies?.instacommand_token;
+
+    if (!token) {
       throw new UnauthorizedError('No token provided');
     }
-
-    const token = authHeader.split(' ')[1];
     
     const decoded = jwt.verify(token, env.JWT_SECRET) as { id: string; email: string };
     req.user = decoded;

@@ -3,14 +3,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   LayoutDashboard, PenSquare, Calendar, BarChart3, 
-  Users, TrendingUp, Settings, ChevronLeft, ChevronRight 
+  Users, TrendingUp, Settings, ChevronLeft, ChevronRight,
+  Instagram, ShieldCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Criar Post', href: '/composer', icon: PenSquare },
+  { name: 'Criar Publicação', href: '/composer', icon: PenSquare },
   { name: 'Calendário', href: '/calendar', icon: Calendar },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Concorrentes', href: '/competitors', icon: Users },
@@ -24,24 +25,44 @@ export function Sidebar() {
 
   return (
     <aside className={cn(
-      "flex flex-col border-r border-border bg-card transition-all duration-300",
+      "flex flex-col border-r border-slate-200/80 bg-white transition-all duration-300 shadow-sm select-none",
       collapsed ? "w-20" : "w-64"
     )}>
-      <div className="flex h-16 items-center justify-between px-4 border-b border-border">
+      {/* Brand Header */}
+      <div className="flex h-16 items-center justify-between px-4 border-b border-slate-100">
         {!collapsed && (
-          <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            InstaCommand
-          </span>
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 flex items-center justify-center text-white shadow-sm shrink-0">
+              <Instagram size={18} strokeWidth={2.5} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-base font-bold tracking-tight text-slate-900 leading-tight">
+                InstaCommand
+              </span>
+              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">
+                Gestão Profissional
+              </span>
+            </div>
+          </Link>
         )}
+
+        {collapsed && (
+          <div className="w-8 h-8 mx-auto rounded-lg bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 flex items-center justify-center text-white shadow-sm">
+            <Instagram size={18} strokeWidth={2.5} />
+          </div>
+        )}
+
         <button 
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-md hover:bg-surface text-muted"
+          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+          title={collapsed ? "Expandir menu" : "Recolher menu"}
         >
-          {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
       </div>
 
-      <nav className="flex-1 py-4 space-y-1 overflow-y-auto px-2">
+      {/* Navigation Links */}
+      <nav className="flex-1 py-4 space-y-1 overflow-y-auto px-3">
         {navItems.map((item) => {
           const isActive = pathname === item.href
           return (
@@ -49,34 +70,41 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors group",
+                "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group relative",
                 isActive 
-                  ? "bg-primary/10 text-primary font-medium" 
-                  : "text-text hover:bg-surface hover:text-white"
+                  ? "bg-indigo-50 text-indigo-700 font-semibold shadow-xs" 
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               )}
+              title={collapsed ? item.name : undefined}
             >
               <item.icon className={cn(
-                "h-5 w-5", 
-                isActive ? "text-primary" : "text-muted group-hover:text-white"
+                "h-5 w-5 shrink-0 transition-colors", 
+                isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-700"
               )} />
+              
               {!collapsed && <span>{item.name}</span>}
-              {isActive && !collapsed && (
-                <div className="absolute left-0 w-1 h-8 bg-primary rounded-r-md" />
+
+              {isActive && (
+                <div className="absolute right-0 top-2 bottom-2 w-1 bg-indigo-600 rounded-l-full" />
               )}
             </Link>
           )
         })}
       </nav>
 
-      <div className="p-4 border-t border-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-accent flex items-center justify-center shrink-0">
-            <span className="font-bold text-white text-sm">JL</span>
+      {/* User Footer */}
+      <div className="p-3 border-t border-slate-100 bg-slate-50/50">
+        <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-slate-200/60">
+          <div className="w-9 h-9 rounded-full bg-indigo-600 text-white font-semibold text-xs flex items-center justify-center shadow-xs shrink-0">
+            JL
           </div>
           {!collapsed && (
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-text">João Lucas</span>
-              <span className="text-xs text-muted">Plano Pro</span>
+            <div className="flex flex-col min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-slate-900 truncate">João Lucas</span>
+                <ShieldCheck size={14} className="text-indigo-600 shrink-0" />
+              </div>
+              <span className="text-[11px] text-slate-500 font-medium">Administrador</span>
             </div>
           )}
         </div>

@@ -1,4 +1,7 @@
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001/api';
+const BACKEND_ORIGIN = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001')
+  .replace(/\/api\/?$/, '')
+  .replace(/\/$/, '');
+const BASE_URL = `${BACKEND_ORIGIN}/api`;
 
 export async function fetchApi(path: string, options: RequestInit = {}) {
   // Mock token retrieval
@@ -12,6 +15,7 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
 
   const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
+    credentials: 'include',
     headers,
   });
 

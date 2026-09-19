@@ -1,27 +1,26 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
-  darkMode: ['class'],
   content: [
     './src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       colors: {
-        background: '#0a0a0f',
-        card: '#12121a',
-        surface: '#12121a',
-        border: '#1e1e2e',
+        background: '#f8fafc',
+        card: '#ffffff',
+        surface: '#f1f5f9',
+        border: '#e2e8f0',
         primary: {
-          DEFAULT: '#8b5cf6',
-          hover: '#7c3aed',
+          DEFAULT: '#4f46e5',
+          hover: '#4338ca',
         },
-        accent: '#06b6d4',
+        accent: '#0284c7',
         success: '#10b981',
         warning: '#f59e0b',
         danger: '#ef4444',
-        text: '#e2e8f0',
-        muted: '#94a3b8',
+        text: '#0f172a',
+        muted: '#64748b',
       },
       keyframes: {
         'fade-in': {
@@ -34,9 +33,14 @@ const config: Config = {
         },
       },
       animation: {
-        'fade-in': 'fade-in 0.3s ease-out',
-        'slide-up': 'slide-up 0.4s ease-out',
+        'fade-in': 'fade-in 0.2s ease-out',
+        'slide-up': 'slide-up 0.3s ease-out',
       },
+      boxShadow: {
+        'subtle': '0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05)',
+        'card': '0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04)',
+        'hover': '0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07)',
+      }
     },
   },
   plugins: [
