@@ -28,12 +28,19 @@ import { setupRecurringJobs } from './services/scheduler.service';
 const app = express();
 const uploadDir = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);
 const allowAllOrigins = env.CORS_ORIGINS.includes('*');
+const allowedOrigins = new Set([
+  ...env.CORS_ORIGINS,
+  env.FRONTEND_URL.replace(/\/$/, ''),
+  'https://instagram.uxcode.com.br',
+  'http://instacommand.179.198.98.63.sslip.io',
+  'https://instacommand.179.198.98.63.sslip.io',
+]);
 
 // Middleware
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowAllOrigins || env.CORS_ORIGINS.includes(origin)) {
+    if (!origin || allowAllOrigins || allowedOrigins.has(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Origin not allowed by CORS'));
