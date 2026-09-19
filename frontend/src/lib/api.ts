@@ -8,8 +8,9 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
     ? localStorage.getItem('instacommand_token') || localStorage.getItem('token')
     : null;
   
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
@@ -21,7 +22,8 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(`API Error: ${response.statusText}`);
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.error || payload?.message || `API Error: ${response.statusText}`);
   }
 
   return response.json();
@@ -29,6 +31,15 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
 
 export const api = {
   getAccounts: () => fetchApi('/accounts'),
+  getThreadsAccounts: () => fetchApi('/accounts/threads'),
+  uploadMedia: (files: File[]) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    return fetchApi('/posts/upload', { method: 'POST', body: formData });
+  },
+  createPost: (data: Record<string, unknown>) => fetchApi('/posts', { method: 'POST', body: JSON.stringify(data) }),
+  publishPost: (id: string) => fetchApi(`/posts/${id}/publish`, { method: 'POST' }),
+  getPosts: (params = '') => fetchApi(`/posts${params ? `?${params}` : ''}`),
   getDashboard: (accountId: string) => fetchApi(`/dashboard/${accountId}`),
   getGrowth: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/growth?days=${days}`),
 };

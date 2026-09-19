@@ -1,51 +1,60 @@
-import axios, { AxiosError } from 'axios';
+import { env } from '../config/env';
 import { InstagramApiError } from './errors';
 
-const GRAPH_API_VERSION = 'v18.0';
-const BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+const graphBaseUrl = () => `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}`;
 
-const igApi = axios.create({
-  baseURL: BASE_URL,
-  timeout: 10000,
-});
-
-const handleApiError = (error: unknown): never => {
-  if (axios.isAxiosError(error)) {
-    const message = error.response?.data?.error?.message || error.message;
-    throw new InstagramApiError(message, error.response?.status);
-  }
-  throw new InstagramApiError('Unknown error occurred');
+const encodeValue = (value: unknown) => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'boolean' || typeof value === 'number') return String(value);
+  return JSON.stringify(value);
 };
 
-export const graphGet = async (path: string, token: string, params: Record<string, any> = {}) => {
+const requestGraph = async (
+  method: 'GET' | 'POST' | 'DELETE',
+  path: string,
+  token: string,
+  params: Record<string, unknown> = {},
+) => {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = new URL(`${graphBaseUrl()}${normalizedPath}`);
+  const body = new URLSearchParams();
+
+  for (const [key, value] of Object.entries({ ...params, access_token: token })) {
+    if (value !== undefined && value !== null) body.set(key, encodeValue(value));
+  }
+
+  if (method === 'GET' || method === 'DELETE') {
+    for (const [key, value] of body.entries()) url.searchParams.set(key, value);
+  }
+
   try {
-    const response = await igApi.get(path, {
-      params: { ...params, access_token: token },
+    const response = await fetch(url, {
+      method,
+      headers: method === 'POST' ? { 'Content-Type': 'application/x-www-form-urlencoded' } : undefined,
+      body: method === 'POST' ? body : undefined,
+      signal: AbortSignal.timeout(30_000),
     });
-    return response.data;
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data?.error) {
+      throw new InstagramApiError(
+        data?.error?.message || `Graph API request failed with status ${response.status}`,
+        response.status,
+      );
+    }
+
+    return data;
   } catch (error) {
-    handleApiError(error);
+    if (error instanceof InstagramApiError) throw error;
+    throw new InstagramApiError(error instanceof Error ? error.message : 'Unknown Graph API error');
   }
 };
 
-export const graphPost = async (path: string, token: string, data: Record<string, any> = {}) => {
-  try {
-    const response = await igApi.post(path, null, {
-      params: { ...data, access_token: token },
-    });
-    return response.data;
-  } catch (error) {
-    handleApiError(error);
-  }
-};
+export const graphGet = (path: string, token: string, params: Record<string, unknown> = {}) =>
+  requestGraph('GET', path, token, params);
 
-export const graphDelete = async (path: string, token: string) => {
-  try {
-    const response = await igApi.delete(path, {
-      params: { access_token: token },
-    });
-    return response.data;
-  } catch (error) {
-    handleApiError(error);
-  }
-};
+export const graphPost = (path: string, token: string, data: Record<string, unknown> = {}) =>
+  requestGraph('POST', path, token, data);
+
+export const graphDelete = (path: string, token: string) =>
+  requestGraph('DELETE', path, token);

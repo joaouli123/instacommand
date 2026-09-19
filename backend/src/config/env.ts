@@ -12,6 +12,9 @@ const envSchema = z.object({
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_GRAPH_API_VERSION: z.string().default('v25.0'),
+  THREADS_APP_ID: z.string().optional(),
+  THREADS_APP_SECRET: z.string().optional(),
+  THREADS_REDIRECT_URI: z.string().optional(),
   // Legacy names remain supported so existing Coolify variables keep working.
   FB_APP_ID: z.string().optional(),
   FB_APP_SECRET: z.string().optional(),
@@ -34,6 +37,7 @@ export const env = {
   FB_APP_ID: parsed.META_APP_ID || parsed.FB_APP_ID || '',
   FB_APP_SECRET: parsed.META_APP_SECRET || parsed.FB_APP_SECRET || '',
   FB_REDIRECT_URI: parsed.FB_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/facebook/callback`,
+  THREADS_REDIRECT_URI: parsed.THREADS_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/threads/callback`,
   MEDIA_PUBLIC_URL: parsed.MEDIA_PUBLIC_URL || `${parsed.BACKEND_URL.replace(/\/$/, '')}/uploads`,
   CORS_ORIGINS: parsed.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
 };

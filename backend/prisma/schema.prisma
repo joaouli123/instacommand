@@ -19,6 +19,7 @@ model User {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   accounts       InstagramAccount[]
+  threadsAccounts ThreadsAccount[]
   scheduledPosts ScheduledPost[]
 }
 
@@ -34,6 +35,7 @@ model InstagramAccount {
   igFollowsCount       Int                   @default(0)
   igMediaCount         Int                   @default(0)
   pageId               String // Facebook page ID
+  pageName             String?
   pageAccessToken      String // Encrypted access token
   tokenExpiresAt       DateTime?
   isActive             Boolean               @default(true)
@@ -48,6 +50,27 @@ model InstagramAccount {
   profileInsights      ProfileInsight[]
   audienceDemographics AudienceDemographic[]
   competitors          Competitor[]
+
+  @@index([userId])
+}
+
+model ThreadsAccount {
+  id                   String         @id @default(uuid())
+  userId               String
+  threadsUserId        String         @unique
+  username             String
+  name                 String?
+  profilePicUrl        String?
+  accessToken          String
+  tokenExpiresAt       DateTime?
+  isActive             Boolean        @default(true)
+  connectedAt          DateTime       @default(now())
+  lastSyncAt           DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  user                 User           @relation(fields: [userId], references: [id])
+  scheduledPosts       ScheduledPost[]
 
   @@index([userId])
 }
@@ -71,11 +94,13 @@ model ScheduledPost {
   id               String            @id @default(uuid())
   userId           String
   accountId        String
+  threadsAccountId String?
   mediaType        MediaType
   mediaUrls        String[]
   thumbnailUrl     String?
   caption          String?
   hashtags         String[]
+  platforms        String[]          @default(["INSTAGRAM"])
   scheduledFor     DateTime
   status           PostStatus        @default(DRAFT)
   errorMessage     String?
@@ -85,17 +110,22 @@ model ScheduledPost {
 
   user             User              @relation(fields: [userId], references: [id])
   account          InstagramAccount  @relation(fields: [accountId], references: [id])
+  threadsAccount   ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id])
   publishedPost    PublishedPost?    @relation(fields: [publishedPostId], references: [id])
 
   @@index([accountId])
   @@index([userId])
   @@index([status, scheduledFor])
+  @@index([threadsAccountId])
 }
 
 model PublishedPost {
   id            String             @id @default(uuid())
   accountId     String
-  igMediaId     String             @unique
+  igMediaId     String?            @unique
+  facebookPostId String?
+  threadsPostId  String?
+  publishResults Json?
   igMediaUrl    String?
   igPermalink   String?
   mediaType     MediaType

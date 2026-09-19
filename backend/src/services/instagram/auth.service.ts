@@ -46,6 +46,30 @@ const getMetaCredentials = async (userId?: string): Promise<MetaCredentials> => 
   };
 };
 
+const getThreadsCredentials = async (userId?: string): Promise<MetaCredentials> => {
+  // Threads apps can use the same Meta app credentials when the Threads use
+  // case is enabled. The optional dedicated environment variables allow a
+  // separate Threads app without changing the settings screen contract.
+  const credentials = await getMetaCredentials(userId);
+  return {
+    appId: process.env.THREADS_APP_ID || credentials.appId,
+    appSecret: process.env.THREADS_APP_SECRET || credentials.appSecret,
+    clientToken: credentials.clientToken,
+  };
+};
+
+const threadsApiRequest = async (path: string, options: RequestInit = {}) => {
+  const response = await fetch(`https://graph.threads.net${path}`, {
+    ...options,
+    signal: options.signal || AbortSignal.timeout(30_000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error) {
+    throw new Error(data?.error?.message || `Threads API request failed with status ${response.status}`);
+  }
+  return data;
+};
+
 export const getMetaCredentialStatus = async (userId: string) => {
   const credentials = await getMetaCredentials(userId);
   return {
@@ -94,6 +118,7 @@ export const getOAuthUrl = async (userId?: string) => {
     'instagram_manage_insights',
     'pages_show_list',
     'pages_read_engagement',
+    'pages_manage_posts',
   ].join(',');
 
   const params = new URLSearchParams({
@@ -132,10 +157,10 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
   });
   const longLivedUrl = `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/oauth/access_token?${longLivedParams.toString()}`;
   const longLivedResponse = await fetch(longLivedUrl).then((res) => res.json());
-  const userToken = longLivedResponse.access_token;
+  const userToken = longLivedResponse.access_token || tokenResponse.access_token;
 
   // Get user's pages
-  const pagesData = await graphGet('/me/accounts', userToken);
+  const pagesData = await graphGet('/me/accounts', userToken, { fields: 'id,name,access_token' });
 
   const connectedAccounts = [];
 
@@ -168,6 +193,7 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
           igFollowsCount: profileData.follows_count,
           igMediaCount: profileData.media_count,
           pageId: page.id,
+          pageName: page.name,
           pageAccessToken: encryptedToken,
           isActive: true,
           userId,
@@ -182,6 +208,7 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
           igFollowsCount: profileData.follows_count,
           igMediaCount: profileData.media_count,
           pageId: page.id,
+          pageName: page.name,
           pageAccessToken: encryptedToken,
           userId,
         },
@@ -196,6 +223,22 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
 export const getConnectedAccounts = async (userId: string) => {
   return prisma.instagramAccount.findMany({
     where: { userId, isActive: true },
+    select: {
+      id: true,
+      igUserId: true,
+      igUsername: true,
+      igName: true,
+      igProfilePicUrl: true,
+      igBio: true,
+      igFollowersCount: true,
+      igFollowsCount: true,
+      igMediaCount: true,
+      pageId: true,
+      pageName: true,
+      isActive: true,
+      connectedAt: true,
+      lastSyncAt: true,
+    },
   });
 };
 
@@ -212,4 +255,106 @@ export const getDecryptedToken = async (accountId: string) => {
   });
   if (!account) throw new Error('Account not found');
   return decrypt(account.pageAccessToken);
+};
+
+export const getThreadsOAuthUrl = async (userId: string) => {
+  const credentials = await getThreadsCredentials(userId);
+  if (!credentials.appId || !credentials.appSecret) {
+    throw new Error('Configure as credenciais da Meta antes de conectar o Threads.');
+  }
+
+  const params = new URLSearchParams({
+    client_id: credentials.appId,
+    redirect_uri: env.THREADS_REDIRECT_URI,
+    scope: 'threads_basic,threads_content_publish',
+    response_type: 'code',
+  });
+
+  return `https://threads.net/oauth/authorize?${params.toString()}`;
+};
+
+export const handleThreadsOAuthCallback = async (code: string, userId: string) => {
+  const credentials = await getThreadsCredentials(userId);
+  const redirectUri = env.THREADS_REDIRECT_URI;
+
+  const shortToken = await threadsApiRequest('/oauth/access_token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: credentials.appId,
+      client_secret: credentials.appSecret,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+    }),
+  });
+
+  let accessToken = shortToken.access_token as string;
+  let expiresIn: number | undefined;
+
+  try {
+    const longToken = await threadsApiRequest(`/access_token?grant_type=th_exchange_token&client_secret=${encodeURIComponent(credentials.appSecret)}&access_token=${encodeURIComponent(accessToken)}`);
+    accessToken = longToken.access_token || accessToken;
+    expiresIn = Number(longToken.expires_in) || undefined;
+  } catch {
+    // A short-lived token is still useful for development/test apps.
+  }
+
+  const profile = await threadsApiRequest(`/me?fields=id,username,name,threads_profile_picture_url&access_token=${encodeURIComponent(accessToken)}`);
+  const encryptedToken = encrypt(accessToken);
+  const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+
+  return prisma.threadsAccount.upsert({
+    where: { threadsUserId: profile.id },
+    update: {
+      username: profile.username,
+      name: profile.name,
+      profilePicUrl: profile.threads_profile_picture_url,
+      accessToken: encryptedToken,
+      tokenExpiresAt,
+      isActive: true,
+      lastSyncAt: new Date(),
+      userId,
+    },
+    create: {
+      userId,
+      threadsUserId: profile.id,
+      username: profile.username,
+      name: profile.name,
+      profilePicUrl: profile.threads_profile_picture_url,
+      accessToken: encryptedToken,
+      tokenExpiresAt,
+      isActive: true,
+      lastSyncAt: new Date(),
+    },
+  });
+};
+
+export const getConnectedThreadsAccounts = async (userId: string) => {
+  return prisma.threadsAccount.findMany({
+    where: { userId, isActive: true },
+    select: {
+      id: true,
+      threadsUserId: true,
+      username: true,
+      name: true,
+      profilePicUrl: true,
+      isActive: true,
+      connectedAt: true,
+      lastSyncAt: true,
+    },
+  });
+};
+
+export const getDecryptedThreadsToken = async (accountId: string) => {
+  const account = await prisma.threadsAccount.findUnique({ where: { id: accountId } });
+  if (!account) throw new Error('Conta do Threads não encontrada');
+  return decrypt(account.accessToken);
+};
+
+export const disconnectThreadsAccount = async (accountId: string, userId: string) => {
+  return prisma.threadsAccount.updateMany({
+    where: { id: accountId, userId },
+    data: { isActive: false },
+  });
 };

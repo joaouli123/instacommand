@@ -7,10 +7,12 @@ import { Badge } from "@/components/ui/badge"
 import { 
   ImagePlus, Hash, Calendar as CalendarIcon, Send, 
   Heart, MessageCircle, Bookmark, Share2, MoreHorizontal,
-  Layers, Video, Image as ImageIcon, Sparkles
+  Layers, Video, Image as ImageIcon, Sparkles, Instagram, Facebook, AtSign
 } from "lucide-react"
 import { useDropzone } from "react-dropzone"
 import toast from "react-hot-toast"
+import { api } from "@/lib/api"
+import { BACKEND_ORIGIN } from "@/lib/config"
 
 type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY"
 
@@ -19,18 +21,50 @@ type MediaItem = {
   src: string
   name: string
   kind: "image" | "video"
+  file: File
   isObjectUrl: boolean
+}
+
+type ConnectedAccount = { id: string; igUsername: string; igProfilePicUrl?: string | null; isActive: boolean }
+type ThreadsAccount = { id: string; username: string; name?: string | null; isActive: boolean }
+
+const getDefaultDate = () => {
+  const date = new Date(Date.now() + 60 * 60 * 1000)
+  date.setMinutes(0, 0, 0)
+  return date.toISOString().slice(0, 16)
 }
 
 export default function ComposerPage() {
   const [caption, setCaption] = useState("")
   const [postType, setPostType] = useState<PostType>("FEED")
-  const [selectedDate, setSelectedDate] = useState("2026-09-21T18:30")
+  const [selectedDate, setSelectedDate] = useState("")
   const [hashtags, setHashtags] = useState<string[]>(["marketingdigital", "designgrafico", "estrategia"])
   const [tagInput, setTagInput] = useState("")
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [activeMediaIndex, setActiveMediaIndex] = useState(0)
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
+  const [threadsAccounts, setThreadsAccounts] = useState<ThreadsAccount[]>([])
+  const [accountId, setAccountId] = useState("")
+  const [threadsAccountId, setThreadsAccountId] = useState("")
+  const [platforms, setPlatforms] = useState<string[]>(["INSTAGRAM"])
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const mediaItemsRef = useRef<MediaItem[]>([])
+
+  useEffect(() => {
+    setSelectedDate(getDefaultDate())
+    Promise.all([api.getAccounts(), api.getThreadsAccounts()])
+      .then(([instagramAccounts, threadAccounts]) => {
+        const nextAccounts = (instagramAccounts as ConnectedAccount[]).filter((account) => account.isActive)
+        const nextThreads = (threadAccounts as ThreadsAccount[]).filter((account) => account.isActive)
+        setAccounts(nextAccounts)
+        setThreadsAccounts(nextThreads)
+        if (nextAccounts[0]) setAccountId(nextAccounts[0].id)
+        if (nextThreads[0]) setThreadsAccountId(nextThreads[0].id)
+      })
+      .catch(() => {
+        toast.error("Entre na plataforma e conecte uma conta antes de criar uma publicação.")
+      })
+  }, [])
 
   useEffect(() => {
     mediaItemsRef.current = mediaItems
@@ -61,6 +95,7 @@ export default function ComposerPage() {
         src: URL.createObjectURL(file),
         name: file.name,
         kind: file.type.startsWith("video/") ? "video" : "image",
+        file,
         isObjectUrl: true,
       }))
 
@@ -136,20 +171,65 @@ export default function ComposerPage() {
     setHashtags(hashtags.filter(t => t !== tag))
   }
 
-  const handlePublishNow = () => {
-    if (mediaItems.length === 0) {
-      toast.error("Adicione pelo menos uma imagem ou vídeo antes de publicar.")
-      return
-    }
-    toast.success("Publicação enviada com sucesso para processamento!")
+  const togglePlatform = (platform: string) => {
+    setPlatforms((current) => current.includes(platform)
+      ? current.filter((item) => item !== platform)
+      : [...current, platform])
   }
 
-  const handleSchedule = () => {
+  const submitPost = async (mode: "publish" | "schedule") => {
     if (mediaItems.length === 0) {
-      toast.error("Adicione pelo menos uma imagem ou vídeo antes de agendar.")
+      toast.error(`Adicione pelo menos uma imagem ou vídeo antes de ${mode === "publish" ? "publicar" : "agendar"}.`)
       return
     }
-    toast.success("Publicação programada com sucesso na fila de agendamento!")
+    if (!accountId) {
+      toast.error("Conecte uma conta do Instagram antes de continuar.")
+      return
+    }
+    if (!platforms.length) {
+      toast.error("Selecione pelo menos uma plataforma de publicação.")
+      return
+    }
+    if (platforms.includes("THREADS") && !threadsAccountId) {
+      toast.error("Conecte uma conta do Threads ou remova o Threads da seleção.")
+      return
+    }
+    const scheduledFor = mode === "publish" ? new Date() : new Date(selectedDate)
+    if (Number.isNaN(scheduledFor.getTime()) || (mode === "schedule" && scheduledFor <= new Date())) {
+      toast.error("Escolha uma data futura válida para o agendamento.")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const upload = await api.uploadMedia(mediaItems.map((item) => item.file)) as { urls: string[] }
+      const finalCaption = [caption.trim(), hashtags.length ? hashtags.map((tag) => `#${tag}`).join(" ") : ""]
+        .filter(Boolean)
+        .join("\n\n")
+      const created = await api.createPost({
+        accountId,
+        threadsAccountId: platforms.includes("THREADS") ? threadsAccountId : undefined,
+        mediaType: postType === "FEED" ? "IMAGE" : postType,
+        mediaUrls: upload.urls,
+        caption: finalCaption,
+        hashtags,
+        platforms,
+        scheduledFor: scheduledFor.toISOString(),
+        status: mode === "schedule" ? "SCHEDULED" : "DRAFT",
+      }) as { id: string }
+
+      if (mode === "publish") await api.publishPost(created.id)
+      toast.success(mode === "publish" ? "Publicação enviada para todas as plataformas selecionadas." : "Publicação agendada com sucesso.")
+      if (mode === "publish") {
+        setCaption("")
+        setMediaItems([])
+        setActiveMediaIndex(0)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível concluir a publicação.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -184,6 +264,53 @@ export default function ComposerPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Publication targets */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-700">Onde publicar</p>
+                <p className="mt-1 text-xs text-slate-500">Escolha uma ou várias redes para este conteúdo.</p>
+              </div>
+              <select
+                value={accountId}
+                onChange={(event) => setAccountId(event.target.value)}
+                className="h-9 max-w-[210px] rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500"
+                aria-label="Conta do Instagram"
+              >
+                <option value="">Selecione a conta</option>
+                {accounts.map((account) => <option key={account.id} value={account.id}>@{account.igUsername}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {[
+                { id: "INSTAGRAM", label: "Instagram", icon: Instagram, help: "Feed, carrossel, Reels e Stories" },
+                { id: "FACEBOOK", label: "Facebook", icon: Facebook, help: "Página vinculada à conta" },
+                { id: "THREADS", label: "Threads", icon: AtSign, help: threadsAccounts.length ? `@${threadsAccounts[0].username}` : "Conecte uma conta" },
+              ].map((target) => {
+                const selected = platforms.includes(target.id)
+                const unavailable = target.id === "THREADS" && !threadsAccounts.length
+                return (
+                  <button
+                    key={target.id}
+                    type="button"
+                    onClick={() => !unavailable && togglePlatform(target.id)}
+                    className={`rounded-xl border p-3 text-left transition-all ${selected ? "border-indigo-500 bg-white ring-1 ring-indigo-500/20" : "border-slate-200 bg-white/60 hover:border-indigo-300"} ${unavailable ? "cursor-not-allowed opacity-60" : ""}`}
+                    aria-pressed={selected}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><target.icon size={16} className={selected ? "text-indigo-600" : "text-slate-400"} />{target.label}<span className={`ml-auto h-2 w-2 rounded-full ${selected ? "bg-emerald-500" : "bg-slate-300"}`} /></div>
+                    <p className="mt-1 text-[11px] text-slate-500">{target.help}</p>
+                  </button>
+                )
+              })}
+            </div>
+            {platforms.includes("THREADS") && threadsAccounts.length > 1 && (
+              <select value={threadsAccountId} onChange={(event) => setThreadsAccountId(event.target.value)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700" aria-label="Conta do Threads">
+                {threadsAccounts.map((account) => <option key={account.id} value={account.id}>Threads @{account.username}</option>)}
+              </select>
+            )}
+            {!threadsAccounts.length && <a href={`${BACKEND_ORIGIN}/api/auth/threads`} className="inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar conta do Threads →</a>}
           </div>
 
           {/* Media Upload */}
@@ -358,18 +485,20 @@ export default function ComposerPage() {
             <div className="w-full sm:w-auto flex gap-2.5 pt-4 sm:pt-0">
               <Button 
                 variant="outline" 
-                onClick={handleSchedule}
+                onClick={() => submitPost("schedule")}
+                disabled={isSubmitting}
                 className="flex-1 sm:flex-initial gap-2 rounded-xl border-slate-200 text-slate-700 font-semibold h-11 px-5 shadow-xs"
               >
                 <CalendarIcon size={16} />
                 Agendar Post
               </Button>
               <Button 
-                onClick={handlePublishNow}
+                onClick={() => submitPost("publish")}
+                disabled={isSubmitting}
                 className="flex-1 sm:flex-initial gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold h-11 px-6 shadow-xs shadow-indigo-200"
               >
                 <Send size={16} />
-                Publicar Agora
+                {isSubmitting ? "Enviando..." : "Publicar Agora"}
               </Button>
             </div>
           </div>

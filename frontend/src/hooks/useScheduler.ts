@@ -1,22 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 
 export function useScheduler(accountId: string) {
   const queryClient = useQueryClient()
 
-  // Mock fetching scheduled posts
   const { data: scheduledPosts, isLoading } = useQuery({
     queryKey: ['scheduledPosts', accountId],
     queryFn: async () => {
-      return []
+      const posts = await api.getPosts(accountId ? `accountId=${encodeURIComponent(accountId)}` : '')
+      return posts
     },
     enabled: !!accountId
   })
 
-  // Mock scheduling a post
   const schedulePostMutation = useMutation({
     mutationFn: async (data: any) => {
-      // return api.schedulePost(data)
-      return { success: true }
+      return api.createPost({ ...data, accountId, status: 'SCHEDULED' })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduledPosts', accountId] })

@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,26 +8,50 @@ import {
   Clock, Video, Image as ImageIcon, Layers, Eye
 } from "lucide-react"
 import Link from "next/link"
+import { api } from "@/lib/api"
+
+type CalendarPost = {
+  id: string
+  mediaType: string
+  caption?: string | null
+  scheduledFor: string
+  status: string
+}
 
 export default function CalendarPage() {
-  const [monthDate, setMonthDate] = useState(new Date(2026, 8, 1))
+  const [monthDate, setMonthDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+  const [posts, setPosts] = useState<CalendarPost[]>([])
+  const [loading, setLoading] = useState(true)
   const currentMonth = monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^./, (letter) => letter.toUpperCase())
   const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-  const dates = Array.from({ length: 35 }, (_, i) => i - 1) // 35 slots
+  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1).getDay()
+  const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate()
+  const dates = Array.from({ length: 42 }, (_, i) => i - firstDay + 1)
 
-  const scheduledEvents: Record<number, Array<{ title: string; time: string; type: string; status: 'published' | 'scheduled' | 'draft' }>> = {
-    5: [{ title: 'Case de Sucesso Cliente', time: '18:00', type: 'Reel', status: 'published' }],
-    8: [{ title: 'Dicas de Posicionamento', time: '11:30', type: 'Carrossel', status: 'published' }],
-    12: [{ title: 'Novidades da Semana #28', time: '19:00', type: 'Reel', status: 'published' }],
-    16: [{ title: 'Infográfico de Métricas', time: '14:00', type: 'Feed', status: 'published' }],
-    19: [{ title: 'Lançamento de Produto', time: '18:30', type: 'Reel', status: 'scheduled' }],
-    21: [
-      { title: 'Dica Prática de Copywriting', time: '10:00', type: 'Carrossel', status: 'scheduled' },
-      { title: 'Story Interativo / Enquete', time: '17:00', type: 'Story', status: 'scheduled' }
-    ],
-    24: [{ title: 'Bastidores da Operação', time: '16:45', type: 'Reel', status: 'scheduled' }],
-    28: [{ title: 'Checklist de Crescimento', time: '12:00', type: 'Carrossel', status: 'draft' }],
-  }
+  useEffect(() => {
+    let active = true
+    api.getPosts().then((data) => {
+      if (active) setPosts(data as CalendarPost[])
+    }).catch(() => {
+      if (active) setPosts([])
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => { active = false }
+  }, [])
+
+  const eventsByDay = useMemo(() => {
+    const result: Record<number, Array<{ title: string; time: string; type: string; status: 'published' | 'scheduled' | 'draft' }>> = {}
+    posts.forEach((post) => {
+      const date = new Date(post.scheduledFor)
+      if (date.getFullYear() !== monthDate.getFullYear() || date.getMonth() !== monthDate.getMonth()) return
+      const status = post.status === 'PUBLISHED' ? 'published' : post.status === 'SCHEDULED' ? 'scheduled' : 'draft'
+      const type = post.mediaType === 'CAROUSEL' ? 'Carrossel' : post.mediaType === 'REEL' ? 'Reel' : post.mediaType === 'STORY' ? 'Story' : 'Feed'
+      if (!result[date.getDate()]) result[date.getDate()] = []
+      result[date.getDate()].push({ title: post.caption?.split('\n')[0] || 'Publicação sem legenda', time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), type, status })
+    })
+    return result
+  }, [monthDate, posts])
 
   return (
     <div className="h-full flex flex-col gap-6 animate-fade-in">
@@ -93,9 +117,10 @@ export default function CalendarPage() {
         {/* Day Cells */}
         <div className="grid grid-cols-7 flex-1 auto-rows-fr divide-x divide-y divide-slate-100 bg-slate-50/20">
           {dates.map((date, i) => {
-            const isCurrentMonth = date > 0 && date <= 30
-            const isToday = date === 19
-            const dayEvents = isCurrentMonth ? scheduledEvents[date] : undefined
+            const isCurrentMonth = date > 0 && date <= daysInMonth
+            const now = new Date()
+            const isToday = isCurrentMonth && date === now.getDate() && monthDate.getMonth() === now.getMonth() && monthDate.getFullYear() === now.getFullYear()
+            const dayEvents = isCurrentMonth ? eventsByDay[date] : undefined
 
             return (
               <div 
@@ -149,6 +174,7 @@ export default function CalendarPage() {
             )
           })}
         </div>
+        {loading && <div className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">Carregando publicações reais...</div>}
       </Card>
     </div>
   )

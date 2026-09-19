@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { graphPost, graphGet, graphDelete as apiDelete } from '../../utils/instagram-api';
-import { getDecryptedToken } from './auth.service';
+import { getDecryptedToken, getDecryptedThreadsToken } from './auth.service';
 
 const prisma = new PrismaClient();
 
@@ -18,10 +18,16 @@ export const createMediaContainer = async (
   } else if (mediaType === 'REEL') {
     params.media_type = 'REELS';
     params.video_url = mediaUrls[0];
+  } else if (mediaType === 'STORY') {
+    params.media_type = 'STORIES';
+    if (mediaUrls[0]?.match(/\.(mp4|mov)(\?|$)/i)) params.video_url = mediaUrls[0];
+    else params.image_url = mediaUrls[0];
   } else if (mediaType === 'CAROUSEL') {
     const childrenContainers = [];
     for (const url of mediaUrls) {
-      const childParams = url.endsWith('.mp4') ? { media_type: 'VIDEO', video_url: url } : { image_url: url };
+      const childParams = url.match(/\.(mp4|mov)(\?|$)/i)
+        ? { media_type: 'VIDEO', video_url: url, is_carousel_item: true }
+        : { image_url: url, is_carousel_item: true };
       const child = await graphPost(`/${igUserId}/media`, token, childParams);
       childrenContainers.push(child.id);
     }
@@ -53,10 +59,126 @@ export const publishContainer = async (igUserId: string, containerId: string, to
   return response.id; // Returns igMediaId
 };
 
+const threadsPost = async (path: string, token: string, params: Record<string, unknown>) => {
+  const url = new URL(`https://graph.threads.net${path}`);
+  const body = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...params, access_token: token })) {
+    if (value !== undefined && value !== null) body.set(key, typeof value === 'string' ? value : JSON.stringify(value));
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+    signal: AbortSignal.timeout(30_000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error) throw new Error(data?.error?.message || `Threads API error ${response.status}`);
+  return data;
+};
+
+const threadsGet = async (path: string, token: string, params: Record<string, string> = {}) => {
+  const url = new URL(`https://graph.threads.net${path}`);
+  url.searchParams.set('access_token', token);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error) throw new Error(data?.error?.message || `Threads API error ${response.status}`);
+  return data;
+};
+
+const waitForThreadsContainer = async (containerId: string, token: string) => {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const status = await threadsGet(`/${containerId}`, token, { fields: 'status,error_message' });
+    if (['FINISHED', 'PUBLISHED'].includes(status.status)) return;
+    if (status.status === 'ERROR') throw new Error(status.error_message || 'Threads não conseguiu processar a mídia');
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+  }
+  throw new Error('Threads demorou mais que o esperado para processar a mídia');
+};
+
+export const publishFacebookPost = async (post: any, token: string) => {
+  const pageId = post.account.pageId;
+  if (!pageId) throw new Error('A conta conectada não possui uma Página do Facebook vinculada.');
+
+  const caption = post.caption || '';
+  if (post.mediaType === 'REEL') {
+    const response = await graphPost(`/${pageId}/videos`, token, {
+      file_url: post.mediaUrls[0],
+      description: caption,
+    });
+    return response.id || response.post_id;
+  }
+
+  if (post.mediaType === 'CAROUSEL') {
+    const uploaded = [];
+    for (const url of post.mediaUrls) {
+      const photo = await graphPost(`/${pageId}/photos`, token, { url, published: false });
+      uploaded.push(photo.id);
+    }
+    const attachedMedia: Record<string, string> = {};
+    uploaded.forEach((id, index) => {
+      attachedMedia[`attached_media[${index}]`] = JSON.stringify({ media_fbid: id });
+    });
+    const response = await graphPost(`/${pageId}/feed`, token, { message: caption, ...attachedMedia });
+    return response.id || response.post_id;
+  }
+
+  if (post.mediaType === 'STORY') {
+    throw new Error('Stories do Facebook ainda não são publicados pela API usada neste workspace.');
+  }
+
+  const response = await graphPost(`/${pageId}/photos`, token, { url: post.mediaUrls[0], message: caption });
+  return response.id || response.post_id;
+};
+
+export const publishThreadsPost = async (post: any, token: string) => {
+  const caption = post.caption || '';
+  if (!post.mediaUrls?.length) {
+    const response = await threadsPost('/me/threads', token, {
+      media_type: 'TEXT',
+      text: caption,
+      auto_publish_text: true,
+    });
+    return response.id;
+  }
+
+  let containerId: string;
+  if (post.mediaType === 'CAROUSEL') {
+    const children = [];
+    for (const url of post.mediaUrls) {
+      const child = await threadsPost('/me/threads', token, {
+        media_type: url.match(/\.(mp4|mov)(\?|$)/i) ? 'VIDEO' : 'IMAGE',
+        ...(url.match(/\.(mp4|mov)(\?|$)/i) ? { video_url: url } : { image_url: url }),
+        is_carousel_item: true,
+      });
+      children.push(child.id);
+    }
+    const parent = await threadsPost('/me/threads', token, {
+      media_type: 'CAROUSEL',
+      children: children.join(','),
+      text: caption,
+    });
+    containerId = parent.id;
+  } else {
+    const isVideo = post.mediaType === 'REEL' || post.mediaUrls[0].match(/\.(mp4|mov)(\?|$)/i);
+    const response = await threadsPost('/me/threads', token, {
+      media_type: isVideo ? 'VIDEO' : 'IMAGE',
+      ...(isVideo ? { video_url: post.mediaUrls[0] } : { image_url: post.mediaUrls[0] }),
+      text: caption,
+    });
+    containerId = response.id;
+  }
+
+  await waitForThreadsContainer(containerId, token);
+  const published = await threadsPost('/me/threads_publish', token, { creation_id: containerId });
+  return published.id;
+};
+
 export const publishPost = async (scheduledPostId: string) => {
   const post = await prisma.scheduledPost.findUnique({
     where: { id: scheduledPostId },
-    include: { account: true },
+    include: { account: true, threadsAccount: true },
   });
 
   if (!post) throw new Error('Post not found');
@@ -67,28 +189,60 @@ export const publishPost = async (scheduledPostId: string) => {
       data: { status: 'PROCESSING' },
     });
 
-    const token = await getDecryptedToken(post.accountId);
-    const containerId = await createMediaContainer(
-      post.account.igUserId,
-      token,
-      post.mediaType,
-      post.mediaUrls,
-      post.caption || undefined
-    );
+    const platforms = post.platforms?.length ? post.platforms : ['INSTAGRAM'];
+    const results: Record<string, unknown> = {};
+    const errors: string[] = [];
 
-    const isReady = await checkContainerStatus(containerId, token);
-    if (!isReady) throw new Error('Media container processing failed');
+    if (platforms.includes('INSTAGRAM')) {
+      try {
+        const token = await getDecryptedToken(post.accountId);
+        const containerId = await createMediaContainer(post.account.igUserId, token, post.mediaType, post.mediaUrls, post.caption || undefined);
+        const isReady = await checkContainerStatus(containerId, token);
+        if (!isReady) throw new Error('A mídia não foi processada pelo Instagram.');
+        const igMediaId = await publishContainer(post.account.igUserId, containerId, token);
+        const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_url' });
+        results.INSTAGRAM = { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaDetails.media_url };
+      } catch (error) {
+        errors.push(`Instagram: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+      }
+    }
 
-    const igMediaId = await publishContainer(post.account.igUserId, containerId, token);
-    
-    const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_url' });
+    if (platforms.includes('FACEBOOK')) {
+      try {
+        const token = await getDecryptedToken(post.accountId);
+        const facebookPostId = await publishFacebookPost(post, token);
+        results.FACEBOOK = { id: facebookPostId };
+      } catch (error) {
+        errors.push(`Facebook: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+      }
+    }
 
+    if (platforms.includes('THREADS')) {
+      try {
+        if (!post.threadsAccount) throw new Error('Conecte uma conta do Threads antes de publicar.');
+        const token = await getDecryptedThreadsToken(post.threadsAccount.id);
+        const threadsPostId = await publishThreadsPost(post, token);
+        results.THREADS = { id: threadsPostId };
+      } catch (error) {
+        errors.push(`Threads: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+      }
+    }
+
+    const successfulPlatforms = Object.keys(results);
+    if (!successfulPlatforms.length) throw new Error(errors.join(' | ') || 'Nenhuma plataforma publicou o conteúdo.');
+
+    const instagramResult = results.INSTAGRAM as { id?: string; permalink?: string; mediaUrl?: string } | undefined;
+    const facebookResult = results.FACEBOOK as { id?: string } | undefined;
+    const threadsResult = results.THREADS as { id?: string } | undefined;
     const published = await prisma.publishedPost.create({
       data: {
         accountId: post.accountId,
-        igMediaId,
-        igMediaUrl: mediaDetails.media_url,
-        igPermalink: mediaDetails.permalink,
+        igMediaId: instagramResult?.id,
+        facebookPostId: facebookResult?.id,
+        threadsPostId: threadsResult?.id,
+        publishResults: JSON.parse(JSON.stringify(results)),
+        igMediaUrl: instagramResult?.mediaUrl,
+        igPermalink: instagramResult?.permalink,
         mediaType: post.mediaType,
         caption: post.caption,
       },
@@ -96,7 +250,11 @@ export const publishPost = async (scheduledPostId: string) => {
 
     await prisma.scheduledPost.update({
       where: { id: scheduledPostId },
-      data: { status: 'PUBLISHED', publishedPostId: published.id },
+      data: {
+        status: errors.length ? 'PUBLISHED' : 'PUBLISHED',
+        publishedPostId: published.id,
+        errorMessage: errors.length ? errors.join(' | ') : null,
+      },
     });
 
     return published;

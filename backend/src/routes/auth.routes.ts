@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getOAuthUrl, handleOAuthCallback } from '../services/instagram/auth.service';
+import { getOAuthUrl, handleOAuthCallback, getThreadsOAuthUrl, handleThreadsOAuthCallback } from '../services/instagram/auth.service';
 import { authenticate } from '../middleware/auth';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
@@ -121,6 +121,40 @@ router.get('/facebook/callback', async (req, res, next) => {
   } catch (error) {
     console.error('Meta OAuth callback failed:', error);
     return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/login?error=meta_connection`);
+  }
+});
+
+router.get('/threads', async (_req, res) => {
+  try {
+    const user = await getOrCreateDefaultUser();
+    const url = await getThreadsOAuthUrl(user.id);
+    res.redirect(url);
+  } catch (error) {
+    res.status(503).json({ message: error instanceof Error ? error.message : 'Threads OAuth indisponível' });
+  }
+});
+
+router.get('/threads/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code || typeof code !== 'string') {
+      return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0`);
+    }
+
+    const user = await getOrCreateDefaultUser();
+    await handleThreadsOAuthCallback(code, user.id);
+
+    const token = jwt.sign({ id: user.id, email: user.email }, env.JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('instacommand_token', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.COOKIE_SECURE === 'true',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=1`);
+  } catch (error) {
+    console.error('Threads OAuth callback failed:', error);
+    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0`);
   }
 });
 

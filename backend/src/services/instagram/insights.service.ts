@@ -69,6 +69,7 @@ export const savePostInsights = async (accountId: string) => {
   });
 
   for (const post of posts) {
+    if (!post.igMediaId) continue;
     try {
       const mediaData = await graphGet(`/${post.igMediaId}`, token, {
         fields: 'like_count,comments_count',
