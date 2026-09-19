@@ -6,7 +6,7 @@ import crypto from 'crypto';
 const prisma = new PrismaClient();
 
 const algorithm = 'aes-256-cbc';
-const key = Buffer.from(env.ENCRYPTION_KEY, 'hex');
+const key = crypto.createHash('sha256').update(env.ENCRYPTION_KEY).digest();
 
 function encrypt(text: string): string {
   const iv = crypto.randomBytes(16);
