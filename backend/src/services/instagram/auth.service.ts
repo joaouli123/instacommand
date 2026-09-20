@@ -47,13 +47,16 @@ const getMetaCredentials = async (userId?: string): Promise<MetaCredentials> => 
 };
 
 const getThreadsCredentials = async (userId?: string): Promise<MetaCredentials> => {
-  // Threads apps can use the same Meta app credentials when the Threads use
-  // case is enabled. The optional dedicated environment variables allow a
-  // separate Threads app without changing the settings screen contract.
+  const user = userId
+    ? await prisma.user.findUnique({
+        where: { id: userId },
+        select: { threadsAppId: true, threadsAppSecret: true },
+      })
+    : null;
   const credentials = await getMetaCredentials(userId);
   return {
-    appId: process.env.THREADS_APP_ID || credentials.appId,
-    appSecret: process.env.THREADS_APP_SECRET || credentials.appSecret,
+    appId: process.env.THREADS_APP_ID || user?.threadsAppId || credentials.appId,
+    appSecret: process.env.THREADS_APP_SECRET || (user?.threadsAppSecret ? decrypt(user.threadsAppSecret) : credentials.appSecret),
     clientToken: credentials.clientToken,
   };
 };
@@ -104,6 +107,36 @@ export const saveMetaCredentials = async (userId: string, values: { appId: strin
   });
 
   return getMetaCredentialStatus(userId);
+};
+
+export const getThreadsCredentialStatus = async (userId: string) => {
+  const credentials = await getThreadsCredentials(userId);
+  return {
+    appId: credentials.appId,
+    appIdConfigured: Boolean(credentials.appId),
+    appSecretConfigured: Boolean(credentials.appSecret),
+  };
+};
+
+export const saveThreadsCredentials = async (userId: string, values: { appId: string; appSecret?: string }) => {
+  const current = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { threadsAppSecret: true },
+  });
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      threadsAppId: values.appId.trim(),
+      ...(values.appSecret?.trim()
+        ? { threadsAppSecret: encrypt(values.appSecret.trim()) }
+        : current?.threadsAppSecret
+          ? {}
+          : { threadsAppSecret: null }),
+    },
+  });
+
+  return getThreadsCredentialStatus(userId);
 };
 
 export const getOAuthUrl = async (userId?: string) => {

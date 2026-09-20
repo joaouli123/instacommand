@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Bell, Database, ShieldCheck, Save, Instagram, KeyRound, CheckCircle2 } from "lucide-react"
+import { Bell, Database, ShieldCheck, Save, Instagram, KeyRound, CheckCircle2, AtSign } from "lucide-react"
 import toast from "react-hot-toast"
 import { fetchApi } from "@/lib/api"
 
@@ -18,18 +18,30 @@ type MetaConfigStatus = {
   clientTokenConfigured: boolean
 }
 
+type ThreadsConfigStatus = {
+  appId: string
+  appIdConfigured: boolean
+  appSecretConfigured: boolean
+}
+
 export default function SettingsPage() {
   const [metaConfig, setMetaConfig] = useState({ appId: "", appSecret: "", clientToken: "" })
   const [metaStatus, setMetaStatus] = useState<MetaConfigStatus | null>(null)
   const [loadingMeta, setLoadingMeta] = useState(true)
   const [savingMeta, setSavingMeta] = useState(false)
+  const [threadsConfig, setThreadsConfig] = useState({ appId: "", appSecret: "" })
+  const [threadsStatus, setThreadsStatus] = useState<ThreadsConfigStatus | null>(null)
+  const [savingThreads, setSavingThreads] = useState(false)
 
   useEffect(() => {
-    fetchApi("/settings/meta")
-      .then((data) => {
-        const status = data as MetaConfigStatus
+    Promise.all([fetchApi("/settings/meta"), fetchApi("/settings/threads")])
+      .then(([metaData, threadsData]) => {
+        const status = metaData as MetaConfigStatus
+        const threads = threadsData as ThreadsConfigStatus
         setMetaStatus(status)
         setMetaConfig((current) => ({ ...current, appId: status.appId || "" }))
+        setThreadsStatus(threads)
+        setThreadsConfig((current) => ({ ...current, appId: threads.appId || "" }))
       })
       .catch(() => toast.error("Entre na plataforma para configurar a Meta"))
       .finally(() => setLoadingMeta(false))
@@ -59,6 +71,33 @@ export default function SettingsPage() {
       toast.error("Não foi possível salvar as credenciais da Meta")
     } finally {
       setSavingMeta(false)
+    }
+  }
+
+  const saveThreadsConfig = async () => {
+    if (!threadsConfig.appId.trim()) {
+      toast.error("Informe o App ID do Threads")
+      return
+    }
+
+    if (!threadsConfig.appSecret.trim() && !threadsStatus?.appSecretConfigured) {
+      toast.error("Informe o App Secret do Threads")
+      return
+    }
+
+    setSavingThreads(true)
+    try {
+      const status = await fetchApi("/settings/threads", {
+        method: "PUT",
+        body: JSON.stringify(threadsConfig),
+      }) as ThreadsConfigStatus
+      setThreadsStatus(status)
+      setThreadsConfig((current) => ({ ...current, appId: status.appId, appSecret: "" }))
+      toast.success("Credenciais do Threads salvas com segurança")
+    } catch {
+      toast.error("Não foi possível salvar as credenciais do Threads")
+    } finally {
+      setSavingThreads(false)
     }
   }
 
@@ -105,6 +144,40 @@ export default function SettingsPage() {
             <div className="flex flex-col gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 text-xs text-indigo-900 sm:flex-row sm:items-center sm:justify-between">
               <span>Depois de salvar, use “Entrar com a Meta” em Contas conectadas.</span>
               <Button onClick={saveMetaConfig} disabled={savingMeta || loadingMeta} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Save size={15} />{savingMeta ? "Salvando..." : "Salvar Meta"}</Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-start gap-3 border-b border-slate-100 p-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white"><AtSign size={19} /></div>
+            <div>
+              <h3 className="font-bold text-slate-900">Conexão com o Threads</h3>
+              <p className="mt-1 text-xs text-slate-500">Use o App ID e o App Secret exibidos no caso de uso “Acessar a API do Threads”.</p>
+            </div>
+            {threadsStatus?.appSecretConfigured && <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={13} />Configurado</span>}
+          </div>
+
+          <div className="space-y-4 p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="threads-app-id">App ID do Threads</Label>
+                <Input id="threads-app-id" value={threadsConfig.appId} onChange={(event) => setThreadsConfig((current) => ({ ...current, appId: event.target.value }))} placeholder="Ex.: 1051962054293446" disabled={loadingMeta} />
+                <p className="text-[11px] text-slate-500">É diferente do App ID principal do Meta.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="threads-app-secret">App Secret do Threads</Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Input id="threads-app-secret" type="password" className="pl-9" value={threadsConfig.appSecret} onChange={(event) => setThreadsConfig((current) => ({ ...current, appSecret: event.target.value }))} placeholder={threadsStatus?.appSecretConfigured ? "Segredo salvo — preencha só para trocar" : "Cole o App Secret do Threads"} disabled={loadingMeta} autoComplete="new-password" />
+                </div>
+                <p className="text-[11px] text-slate-500">Fica criptografado e nunca é exibido novamente.</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-700 sm:flex-row sm:items-center sm:justify-between">
+              <span>Depois de salvar, use “Entrar com Threads” em Contas conectadas.</span>
+              <Button onClick={saveThreadsConfig} disabled={savingThreads || loadingMeta} className="gap-2 bg-slate-900 text-white hover:bg-slate-800"><Save size={15} />{savingThreads ? "Salvando..." : "Salvar Threads"}</Button>
             </div>
           </div>
         </Card>

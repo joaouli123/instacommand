@@ -26,6 +26,9 @@ META_APP_SECRET=seu_app_secret
 META_GRAPH_API_VERSION=v25.0
 FB_LOGIN_CONFIG_ID=identificador_da_configuracao_do_login_para_empresas
 FB_REDIRECT_URI=https://api-instacommand.seudominio.com/api/auth/facebook/callback
+THREADS_APP_ID=identificador_do_app_do_threads
+THREADS_APP_SECRET=segredo_do_app_do_threads
+THREADS_REDIRECT_URI=https://api-instacommand.seudominio.com/api/auth/threads/callback
 
 BACKEND_URL=https://api-instacommand.seudominio.com
 FRONTEND_URL=https://instacommand.seudominio.com

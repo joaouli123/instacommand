@@ -16,6 +16,8 @@ model User {
   metaAppId      String?
   metaAppSecret  String?
   metaClientToken String?
+  threadsAppId      String?
+  threadsAppSecret  String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   accounts       InstagramAccount[]
