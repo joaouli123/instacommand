@@ -81,8 +81,8 @@ router.post('/:id/sync', async (req: any, res, next) => {
     });
     if (!account) return res.status(404).json({ error: 'Account not found' });
 
-    await saveProfileSnapshot(account.id);
-    res.json({ message: 'Account synced' });
+    const sync = await saveProfileSnapshot(account.id);
+    res.json({ message: 'Account synced', sync });
   } catch (error) {
     next(error);
   }

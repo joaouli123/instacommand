@@ -61,8 +61,10 @@ export default function AccountsPage() {
   const syncAccount = async (id: string) => {
     setSyncingId(id)
     try {
-      await fetchApi(`/accounts/${id}/sync`, { method: "POST" })
-      toast.success("Sincronização iniciada")
+      const result = await fetchApi(`/accounts/${id}/sync`, { method: "POST" }) as { sync?: { importedMedia?: number; profileInsightsAvailable?: boolean } }
+      const importedMedia = result.sync?.importedMedia ?? 0
+      const insightsMessage = result.sync?.profileInsightsAvailable ? " métricas de perfil atualizadas." : " perfil atualizado; Insights ainda não liberado no app Meta."
+      toast.success(`${importedMedia} publicações importadas.${insightsMessage}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível sincronizar esta conta")
     } finally {

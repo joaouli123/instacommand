@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { graphGet } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
+import { MediaType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -71,6 +72,92 @@ export const saveProfileSnapshot = async (accountId: string) => {
       lastSyncAt: new Date(),
     },
   });
+
+  const mediaSync = await syncAccountMedia(accountId);
+  return {
+    profileInsightsAvailable: insights.length > 0,
+    importedMedia: mediaSync.importedMedia,
+    mediaInsightsAvailable: mediaSync.mediaInsightsAvailable,
+  };
+};
+
+const toPublishedMediaType = (mediaType: string): MediaType => {
+  if (mediaType === 'VIDEO') return MediaType.REEL;
+  if (mediaType === 'CAROUSEL_ALBUM') return MediaType.CAROUSEL;
+  return MediaType.IMAGE;
+};
+
+export const syncAccountMedia = async (accountId: string) => {
+  const account = await prisma.instagramAccount.findUnique({ where: { id: accountId } });
+  if (!account) return { importedMedia: 0, mediaInsightsAvailable: false };
+
+  const token = await getDecryptedToken(accountId);
+  const response = await graphGet(`/${account.igUserId}/media`, token, {
+    fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
+    limit: 50,
+  });
+  const media = Array.isArray(response.data) ? response.data : [];
+  let mediaInsightsAvailable = false;
+
+  for (const item of media) {
+    const mediaType = toPublishedMediaType(item.media_type);
+    const publishedAt = item.timestamp && !Number.isNaN(new Date(item.timestamp).getTime())
+      ? new Date(item.timestamp)
+      : new Date();
+    const post = await prisma.publishedPost.upsert({
+      where: { igMediaId: item.id },
+      update: {
+        accountId,
+        mediaType,
+        caption: item.caption || null,
+        igMediaUrl: item.media_url || item.thumbnail_url || null,
+        igPermalink: item.permalink || null,
+        publishedAt,
+      },
+      create: {
+        accountId,
+        igMediaId: item.id,
+        mediaType,
+        caption: item.caption || null,
+        igMediaUrl: item.media_url || item.thumbnail_url || null,
+        igPermalink: item.permalink || null,
+        publishedAt,
+      },
+    });
+
+    let reach = 0;
+    let impressions = 0;
+    let saves = 0;
+    try {
+      const insights = await getPostInsights(item.id, token);
+      mediaInsightsAvailable = true;
+      for (const insight of insights) {
+        const value = Number(insight.values?.[0]?.value || 0);
+        if (insight.name === 'reach') reach = value;
+        if (insight.name === 'impressions') impressions = value;
+        if (insight.name === 'saved') saves = value;
+      }
+    } catch (error) {
+      console.error(`Media insights unavailable for ${item.id}:`, error);
+    }
+
+    const likes = Number(item.like_count || 0);
+    const comments = Number(item.comments_count || 0);
+    const engagement = reach > 0 ? ((likes + comments + saves) / reach) * 100 : 0;
+    await prisma.postInsight.create({
+      data: {
+        postId: post.id,
+        likes,
+        comments,
+        saves,
+        reach,
+        impressions,
+        engagement,
+      },
+    });
+  }
+
+  return { importedMedia: media.length, mediaInsightsAvailable };
 };
 
 export const savePostInsights = async (accountId: string) => {

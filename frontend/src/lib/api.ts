@@ -51,6 +51,8 @@ export const api = {
   createPost: (data: Record<string, unknown>) => fetchApi('/posts', { method: 'POST', body: JSON.stringify(data) }),
   publishPost: (id: string) => fetchApi(`/posts/${id}/publish`, { method: 'POST' }),
   getPosts: (params = '') => fetchApi(`/posts${params ? `?${params}` : ''}`),
-  getDashboard: (accountId: string) => fetchApi(`/dashboard/${accountId}`),
+  getDashboard: (accountId: string) => fetchApi(`/analytics/${accountId}/dashboard`),
   getGrowth: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/growth?days=${days}`),
+  getEngagement: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/engagement?days=${days}`),
+  getAnalyticsPosts: (accountId: string, page = 1, limit = 20) => fetchApi(`/analytics/${accountId}/posts?page=${page}&limit=${limit}`),
 };

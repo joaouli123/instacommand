@@ -116,8 +116,10 @@ export const getOAuthUrl = async (userId?: string) => {
     'business_management',
     'instagram_basic',
     'instagram_content_publish',
+    'instagram_manage_insights',
     'pages_show_list',
     'pages_read_engagement',
+    'pages_manage_posts',
   ].join(',');
 
   const params = new URLSearchParams({
