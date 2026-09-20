@@ -19,6 +19,8 @@ const envSchema = z.object({
   FB_APP_ID: z.string().optional(),
   FB_APP_SECRET: z.string().optional(),
   FB_REDIRECT_URI: z.string().optional(),
+  // Facebook Login for Business configuration that contains the app's assets and permissions.
+  FB_LOGIN_CONFIG_ID: z.string().optional(),
   BACKEND_URL: z.string().default('http://localhost:3001'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
@@ -37,6 +39,8 @@ export const env = {
   FB_APP_ID: parsed.META_APP_ID || parsed.FB_APP_ID || '',
   FB_APP_SECRET: parsed.META_APP_SECRET || parsed.FB_APP_SECRET || '',
   FB_REDIRECT_URI: parsed.FB_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/facebook/callback`,
+  // Public Meta configuration ID for this personal deployment; override it in Coolify when using another app.
+  FB_LOGIN_CONFIG_ID: parsed.FB_LOGIN_CONFIG_ID || '1443592261011561',
   THREADS_REDIRECT_URI: parsed.THREADS_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/threads/callback`,
   MEDIA_PUBLIC_URL: parsed.MEDIA_PUBLIC_URL || `${parsed.BACKEND_URL.replace(/\/$/, '')}/uploads`,
   CORS_ORIGINS: parsed.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),

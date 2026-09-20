@@ -113,12 +113,11 @@ export const getOAuthUrl = async (userId?: string) => {
   }
 
   const scopes = [
+    'business_management',
     'instagram_basic',
     'instagram_content_publish',
-    'instagram_manage_insights',
     'pages_show_list',
     'pages_read_engagement',
-    'pages_manage_posts',
   ].join(',');
 
   const params = new URLSearchParams({
@@ -127,6 +126,10 @@ export const getOAuthUrl = async (userId?: string) => {
     scope: scopes,
     response_type: 'code',
   });
+
+  if (env.FB_LOGIN_CONFIG_ID) {
+    params.set('config_id', env.FB_LOGIN_CONFIG_ID);
+  }
 
   return `https://www.facebook.com/${env.META_GRAPH_API_VERSION}/dialog/oauth?${params.toString()}`;
 };
