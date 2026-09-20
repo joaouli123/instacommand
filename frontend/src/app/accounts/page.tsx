@@ -36,9 +36,12 @@ export default function AccountsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const connected = params.get("connected")
+    const reason = params.get("reason")
     const threadsConnected = params.get("threads_connected")
     if (connected === "1") toast.success("Conta do Instagram conectada com sucesso")
-    if (connected === "0") toast.error("Nenhuma conta profissional do Instagram foi encontrada")
+    if (connected === "0") toast.error(reason === "no_professional_instagram"
+      ? "A Meta não encontrou uma conta Instagram profissional vinculada à Página escolhida. Converta a conta em Profissional e vincule-a ao mesmo portfólio Meta."
+      : "A Meta recusou a conexão. Revise a Página, o portfólio e as permissões do aplicativo.")
     if (threadsConnected === "1") toast.success("Conta do Threads conectada com sucesso")
     if (threadsConnected === "0") toast.error("Não foi possível conectar a conta do Threads")
     if (connected || threadsConnected) window.history.replaceState({}, "", "/accounts")

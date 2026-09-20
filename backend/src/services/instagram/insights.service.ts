@@ -214,9 +214,56 @@ export const calculateEngagementRate = async (accountId: string) => {
 };
 
 export const getBestTimeToPost = async (accountId: string) => {
-  return []; // Placeholder
+  const posts = await prisma.publishedPost.findMany({
+    where: { accountId },
+    include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
+  });
+  const groups = new Map<string, { day: string; hour: number; posts: number; score: number; interactions: number }>();
+  const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+  for (const post of posts) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo', weekday: 'short', hour: '2-digit', hour12: false,
+    }).formatToParts(post.publishedAt);
+    const weekday = parts.find((part) => part.type === 'weekday')?.value || 'Sun';
+    const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0) % 24;
+    const dayIndex = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
+    const key = `${dayIndex}-${hour}`;
+    const insight = post.insights[0];
+    const interactions = (insight?.likes || 0) + (insight?.comments || 0) + (insight?.saves || 0);
+    const current = groups.get(key) || { day: dayNames[dayIndex] || weekday, hour, posts: 0, score: 0, interactions: 0 };
+    current.posts += 1;
+    current.interactions += interactions;
+    current.score += insight?.reach ? insight.engagement : interactions;
+    groups.set(key, current);
+  }
+
+  return Array.from(groups.values())
+    .map((item) => ({ ...item, score: Number((item.score / item.posts).toFixed(2)), averageInteractions: Math.round(item.interactions / item.posts) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
 };
 
 export const getContentTypeAnalysis = async (accountId: string) => {
-  return {}; // Placeholder
+  const posts = await prisma.publishedPost.findMany({
+    where: { accountId },
+    include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
+  });
+  const groups = new Map<string, { type: string; posts: number; likes: number; comments: number; saves: number; reach: number; impressions: number; engagement: number }>();
+  for (const post of posts) {
+    const insight = post.insights[0];
+    const current = groups.get(post.mediaType) || { type: post.mediaType, posts: 0, likes: 0, comments: 0, saves: 0, reach: 0, impressions: 0, engagement: 0 };
+    current.posts += 1;
+    current.likes += insight?.likes || 0;
+    current.comments += insight?.comments || 0;
+    current.saves += insight?.saves || 0;
+    current.reach += insight?.reach || 0;
+    current.impressions += insight?.impressions || 0;
+    current.engagement += insight?.engagement || 0;
+    groups.set(post.mediaType, current);
+  }
+  return Array.from(groups.values()).map((item) => ({
+    ...item,
+    engagement: item.posts ? Number((item.engagement / item.posts).toFixed(2)) : 0,
+  })).sort((a, b) => b.likes + b.comments - (a.likes + a.comments));
 };

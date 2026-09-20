@@ -117,11 +117,13 @@ router.get('/facebook/callback', async (req, res, next) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    const destination = `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=${accounts.length > 0 ? '1' : '0'}`;
+    const destination = accounts.length > 0
+      ? `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=1`
+      : `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=no_professional_instagram`;
     return res.redirect(destination);
   } catch (error) {
     console.error('Meta OAuth callback failed:', error);
-    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/login?error=meta_connection`);
+    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=meta_connection`);
   }
 });
 

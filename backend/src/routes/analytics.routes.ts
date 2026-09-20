@@ -11,6 +11,7 @@ import {
 import { getAudienceDemographics, getBestTimeToPost, getContentTypeAnalysis } from '../services/instagram/insights.service';
 import { getDecryptedToken } from '../services/instagram/auth.service';
 import { PrismaClient } from '@prisma/client';
+import { InstagramApiError } from '../utils/errors';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -64,7 +65,14 @@ router.get('/:accountId/audience', async (req: any, res, next) => {
     const token = await getDecryptedToken(req.params.accountId);
     const data = await getAudienceDemographics(req.account.igUserId, token);
     res.json(data);
-  } catch (error) { next(error); }
+  } catch (error) {
+    // Audience demographics are an optional Meta permission. Keep analytics
+    // usable and tell the UI precisely why this panel is unavailable.
+    if (error instanceof InstagramApiError) {
+      return res.json({ available: false, data: [], message: 'A Meta ainda não liberou os dados demográficos para esta conexão.' });
+    }
+    next(error);
+  }
 });
 
 router.get('/:accountId/best-times', async (req, res, next) => {

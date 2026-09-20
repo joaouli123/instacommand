@@ -49,8 +49,55 @@ export const getGrowthData = async (accountId: string, days = 30) => {
 };
 
 export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
-  // Mock logic - would aggregate post insights by day
-  return [];
+  const dateFrom = new Date();
+  dateFrom.setDate(dateFrom.getDate() - days);
+
+  const posts = await prisma.publishedPost.findMany({
+    where: { accountId, publishedAt: { gte: dateFrom } },
+    orderBy: { publishedAt: 'asc' },
+    include: {
+      insights: { orderBy: { collectedAt: 'desc' }, take: 1 },
+    },
+  });
+
+  const grouped = new Map<string, {
+    date: string;
+    likes: number;
+    comments: number;
+    saves: number;
+    reach: number;
+    impressions: number;
+    engagement: number;
+    posts: number;
+  }>();
+
+  for (const post of posts) {
+    const date = post.publishedAt.toISOString().slice(0, 10);
+    const insight = post.insights[0];
+    const current = grouped.get(date) || {
+      date,
+      likes: 0,
+      comments: 0,
+      saves: 0,
+      reach: 0,
+      impressions: 0,
+      engagement: 0,
+      posts: 0,
+    };
+    current.likes += insight?.likes || 0;
+    current.comments += insight?.comments || 0;
+    current.saves += insight?.saves || 0;
+    current.reach += insight?.reach || 0;
+    current.impressions += insight?.impressions || 0;
+    current.engagement += insight?.engagement || 0;
+    current.posts += 1;
+    grouped.set(date, current);
+  }
+
+  return Array.from(grouped.values()).map((item) => ({
+    ...item,
+    engagement: item.posts ? Number((item.engagement / item.posts).toFixed(2)) : 0,
+  }));
 };
 
 export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engagement') => {
@@ -106,8 +153,44 @@ export const getPostPerformanceTable = async (accountId: string, page = 1, limit
 };
 
 export const getRecommendations = async (accountId: string) => {
-  return [
-    { type: 'TIME', message: 'Posting at 6 PM gives you 20% more engagement.' },
-    { type: 'FORMAT', message: 'Reels are performing 3x better than carousels.' }
-  ];
+  const posts = await prisma.publishedPost.findMany({
+    where: { accountId },
+    orderBy: { publishedAt: 'desc' },
+    take: 50,
+    include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
+  });
+
+  if (!posts.length) return [];
+
+  const recommendations: Array<{ type: string; message: string; basedOn: number }> = [];
+  const withReach = posts.filter((post) => (post.insights[0]?.reach || 0) > 0);
+  if (!withReach.length) {
+    recommendations.push({
+      type: 'DATA',
+      message: 'A Meta ainda não liberou Alcance e Impressões para este token. Likes e comentários já estão sendo acompanhados.',
+      basedOn: posts.length,
+    });
+  }
+
+  const byType = new Map<string, { posts: number; interactions: number }>();
+  for (const post of posts) {
+    const current = byType.get(post.mediaType) || { posts: 0, interactions: 0 };
+    current.posts += 1;
+    current.interactions += (post.insights[0]?.likes || 0) + (post.insights[0]?.comments || 0) + (post.insights[0]?.saves || 0);
+    byType.set(post.mediaType, current);
+  }
+  const bestType = Array.from(byType.entries()).sort(([, a], [, b]) => {
+    const scoreA = a.posts ? a.interactions / a.posts : 0;
+    const scoreB = b.posts ? b.interactions / b.posts : 0;
+    return scoreB - scoreA;
+  })[0];
+  if (bestType) {
+    recommendations.push({
+      type: 'FORMAT',
+      message: `${bestType[0]} é o formato com mais interações médias no histórico importado (${Math.round(bestType[1].interactions / bestType[1].posts).toLocaleString('pt-BR')} por publicação).`,
+      basedOn: bestType[1].posts,
+    });
+  }
+
+  return recommendations;
 };
