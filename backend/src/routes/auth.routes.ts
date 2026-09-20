@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getOAuthUrl, handleOAuthCallback, getThreadsOAuthUrl, handleThreadsOAuthCallback } from '../services/instagram/auth.service';
-import { authenticate } from '../middleware/auth';
+import { authenticate, verifyAuthToken } from '../middleware/auth';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -10,116 +10,153 @@ import { randomUUID } from 'node:crypto';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Helper to ensure default admin user exists
-async function getOrCreateDefaultUser() {
-  let user = await prisma.user.findFirst();
-  if (!user) {
-    const hashedPassword = await bcrypt.hash('InstaAdmin2026!', 10);
-    user = await prisma.user.create({
+type OAuthPurpose = 'meta' | 'threads';
+
+const normalizeEmail = (email: unknown) => String(email || '').trim().toLowerCase();
+
+const sessionCookieOptions = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: env.COOKIE_SECURE === 'true',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+const issueSession = (res: any, user: { id: string; email: string }) => {
+  const token = jwt.sign({ id: user.id, email: user.email }, env.JWT_SECRET, { expiresIn: '7d' });
+  res.cookie('instacommand_token', token, sessionCookieOptions);
+  return token;
+};
+
+const loginUrl = (next = '/accounts') => {
+  const base = `${env.FRONTEND_URL.replace(/\/$/, '')}/login`;
+  return `${base}?next=${encodeURIComponent(next)}`;
+};
+
+const getAuthenticatedUser = async (req: any) => {
+  const payload = verifyAuthToken(req);
+  if (!payload) return null;
+  return prisma.user.findUnique({ where: { id: payload.id } });
+};
+
+const createOAuthState = (userId: string, purpose: OAuthPurpose) => jwt.sign(
+  { sub: userId, purpose, nonce: randomUUID() },
+  env.JWT_SECRET,
+  { expiresIn: '10m' },
+);
+
+const getOAuthUserId = (value: unknown, purpose: OAuthPurpose) => {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    const payload = jwt.verify(value, env.JWT_SECRET) as { sub?: string; purpose?: OAuthPurpose };
+    return payload.purpose === purpose && payload.sub ? payload.sub : null;
+  } catch {
+    return null;
+  }
+};
+
+const getPublicUser = (user: { id: string; email: string; name: string; avatarUrl: string | null }) => ({
+  id: user.id,
+  email: user.email,
+  name: user.name,
+  avatarUrl: user.avatarUrl,
+});
+
+// Public account creation for the future SaaS onboarding flow.
+router.post('/register', async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const password = String(req.body?.password || '');
+    const name = String(req.body?.name || '').trim();
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'Informe um e-mail válido.' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'A senha precisa ter pelo menos 8 caracteres.' });
+    }
+    if (name.length < 2) {
+      return res.status(400).json({ error: 'Informe seu nome.' });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
+    }
+
+    const user = await prisma.user.create({
       data: {
-        email: 'admin@instacommand.com',
-        name: 'João Lucas',
-        password: hashedPassword,
+        email,
+        name,
+        password: await bcrypt.hash(password, 12),
       },
     });
-  }
-  return user;
-}
+    const token = issueSession(res, user);
 
-// Normal Email/Password Login
+    return res.status(201).json({
+      message: 'Conta criada com sucesso',
+      token,
+      user: getPublicUser(user),
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Normal email/password login. No default user or fallback password is accepted.
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body?.email);
+    const password = String(req.body?.password || '');
+    const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
 
-    let user = await prisma.user.findUnique({
-      where: { email: email || 'admin@instacommand.com' },
-    });
-
-    if (!user) {
-      user = await getOrCreateDefaultUser();
+    if (!user?.password || !password || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
     }
 
-    // Check password if provided or accept default passwords
-    let isValid = true;
-    if (user.password && password) {
-      isValid = await bcrypt.compare(password, user.password);
-      if (!isValid && (password === 'admin123' || password === 'InstaAdmin2026!')) {
-        isValid = true;
-      }
-    }
-
-    if (!isValid) {
-      return res.status(401).json({ error: 'Credenciais inválidas' });
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.cookie('instacommand_token', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: env.COOKIE_SECURE === 'true',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    res.json({
+    const token = issueSession(res, user);
+    return res.json({
       message: 'Login realizado com sucesso',
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatarUrl: user.avatarUrl,
-      },
+      user: getPublicUser(user),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
-// This endpoint redirects to FB login
-router.get('/facebook', async (req: any, res) => {
+// Start Meta Login for the currently authenticated SaaS user.
+router.get('/facebook', async (req: any, res, next) => {
   try {
-    // InstaCommand is currently a personal workspace, so the OAuth flow uses
-    // the same default user that owns the settings panel and connected accounts.
-    const user = await getOrCreateDefaultUser();
-    const url = await getOAuthUrl(user.id);
-    res.redirect(url);
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.redirect(loginUrl('/accounts'));
+
+    const state = createOAuthState(user.id, 'meta');
+    const url = await getOAuthUrl(user.id, state);
+    return res.redirect(url);
   } catch (error) {
-    res.status(503).json({ message: error instanceof Error ? error.message : 'Meta OAuth indisponível' });
+    return next(error);
   }
 });
 
-// FB callback
-router.get('/facebook/callback', async (req, res, next) => {
+// Meta callback: the signed state decides which user receives the connection.
+router.get('/facebook/callback', async (req, res) => {
+  const stateUserId = getOAuthUserId(req.query.state, 'meta');
+  if (!stateUserId) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
+
   try {
     const { code, error } = req.query;
     if (error) {
       return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=meta_denied`);
     }
     if (!code || typeof code !== 'string') {
-      return res.status(400).json({ error: 'Code is missing' });
+      return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=meta_code`);
     }
 
-    const user = await getOrCreateDefaultUser();
+    const user = await prisma.user.findUnique({ where: { id: stateUserId } });
+    if (!user) return res.redirect(loginUrl('/accounts'));
+
     const accounts = await handleOAuthCallback(code, user.id);
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.cookie('instacommand_token', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: env.COOKIE_SECURE === 'true',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
+    issueSession(res, user);
     const destination = accounts.length > 0
       ? `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=1`
       : `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=no_professional_instagram`;
@@ -130,33 +167,35 @@ router.get('/facebook/callback', async (req, res, next) => {
   }
 });
 
-router.get('/threads', async (_req, res) => {
+// Start Threads Login for the currently authenticated SaaS user.
+router.get('/threads', async (req: any, res, next) => {
   try {
-    const user = await getOrCreateDefaultUser();
-    const url = await getThreadsOAuthUrl(user.id);
-    res.redirect(url);
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.redirect(loginUrl('/accounts'));
+
+    const state = createOAuthState(user.id, 'threads');
+    const url = await getThreadsOAuthUrl(user.id, state);
+    return res.redirect(url);
   } catch (error) {
-    res.status(503).json({ message: error instanceof Error ? error.message : 'Threads OAuth indisponível' });
+    return next(error);
   }
 });
 
 router.get('/threads/callback', async (req, res) => {
+  const stateUserId = getOAuthUserId(req.query.state, 'threads');
+  if (!stateUserId) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
+
   try {
     const { code } = req.query;
     if (!code || typeof code !== 'string') {
       return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0`);
     }
 
-    const user = await getOrCreateDefaultUser();
-    await handleThreadsOAuthCallback(code, user.id);
+    const user = await prisma.user.findUnique({ where: { id: stateUserId } });
+    if (!user) return res.redirect(loginUrl('/accounts'));
 
-    const token = jwt.sign({ id: user.id, email: user.email }, env.JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('instacommand_token', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: env.COOKIE_SECURE === 'true',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    await handleThreadsOAuthCallback(code, user.id);
+    issueSession(res, user);
     return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=1`);
   } catch (error) {
     console.error('Threads OAuth callback failed:', error);
@@ -164,31 +203,28 @@ router.get('/threads/callback', async (req, res) => {
   }
 });
 
-// Meta calls these endpoints when a user removes the app or requests data
-// deletion. This is a personal workspace, so the default user's Threads
-// connections are the complete scope of the deletion request.
-async function removeDefaultThreadsConnections() {
-  const user = await getOrCreateDefaultUser();
+// Meta calls these endpoints when a user removes the app or requests data deletion.
+async function removeThreadsConnection(threadsUserId: string | undefined) {
+  if (!threadsUserId) return;
   const accounts = await prisma.threadsAccount.findMany({
-    where: { userId: user.id },
+    where: { threadsUserId },
     select: { id: true },
   });
   const accountIds = accounts.map((account) => account.id);
+  if (!accountIds.length) return;
 
-  if (accountIds.length > 0) {
-    await prisma.$transaction([
-      prisma.scheduledPost.updateMany({
-        where: { threadsAccountId: { in: accountIds } },
-        data: { threadsAccountId: null },
-      }),
-      prisma.threadsAccount.deleteMany({ where: { id: { in: accountIds } } }),
-    ]);
-  }
+  await prisma.$transaction([
+    prisma.scheduledPost.updateMany({
+      where: { threadsAccountId: { in: accountIds } },
+      data: { threadsAccountId: null },
+    }),
+    prisma.threadsAccount.deleteMany({ where: { id: { in: accountIds } } }),
+  ]);
 }
 
-router.post('/threads/uninstall', async (_req, res) => {
+router.post('/threads/uninstall', async (req, res) => {
   try {
-    await removeDefaultThreadsConnections();
+    await removeThreadsConnection(String(req.body?.user_id || req.query.user_id || '') || undefined);
     return res.status(200).send('OK');
   } catch (error) {
     console.error('Threads uninstall callback failed:', error);
@@ -196,9 +232,9 @@ router.post('/threads/uninstall', async (_req, res) => {
   }
 });
 
-router.post('/threads/delete', async (_req, res) => {
+router.post('/threads/delete', async (req, res) => {
   try {
-    await removeDefaultThreadsConnections();
+    await removeThreadsConnection(String(req.body?.user_id || req.query.user_id || '') || undefined);
     return res.status(200).json({
       url: `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts`,
       confirmation_code: randomUUID(),

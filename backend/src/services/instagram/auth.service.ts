@@ -139,7 +139,7 @@ export const saveThreadsCredentials = async (userId: string, values: { appId: st
   return getThreadsCredentialStatus(userId);
 };
 
-export const getOAuthUrl = async (userId?: string) => {
+export const getOAuthUrl = async (userId: string, state?: string) => {
   const credentials = await getMetaCredentials(userId);
   if (!credentials.appId || !credentials.appSecret) {
     throw new Error('Meta App não configurado. Defina META_APP_ID e META_APP_SECRET no ambiente.');
@@ -152,6 +152,7 @@ export const getOAuthUrl = async (userId?: string) => {
     redirect_uri: env.FB_REDIRECT_URI,
     scope: scopes,
     response_type: 'code',
+    ...(state ? { state } : {}),
   });
 
   if (env.FB_LOGIN_CONFIG_ID) {
@@ -211,6 +212,14 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
       });
 
       const encryptedToken = encrypt(pageToken);
+
+      const existingAccount = await prisma.instagramAccount.findUnique({
+        where: { igUserId: igId },
+        select: { userId: true },
+      });
+      if (existingAccount && existingAccount.userId !== userId) {
+        throw new Error('Esta conta do Instagram já está conectada a outro usuário.');
+      }
 
       const account = await prisma.instagramAccount.upsert({
         where: { igUserId: igId },
@@ -287,7 +296,7 @@ export const getDecryptedToken = async (accountId: string) => {
   return decrypt(account.pageAccessToken);
 };
 
-export const getThreadsOAuthUrl = async (userId: string) => {
+export const getThreadsOAuthUrl = async (userId: string, state?: string) => {
   const credentials = await getThreadsCredentials(userId);
   if (!credentials.appId || !credentials.appSecret) {
     throw new Error('Configure as credenciais da Meta antes de conectar o Threads.');
@@ -298,6 +307,7 @@ export const getThreadsOAuthUrl = async (userId: string) => {
     redirect_uri: env.THREADS_REDIRECT_URI,
     scope: 'threads_basic,threads_content_publish',
     response_type: 'code',
+    ...(state ? { state } : {}),
   });
 
   return `https://threads.net/oauth/authorize?${params.toString()}`;
@@ -333,6 +343,14 @@ export const handleThreadsOAuthCallback = async (code: string, userId: string) =
   const profile = await threadsApiRequest(`/me?fields=id,username,name,threads_profile_picture_url&access_token=${encodeURIComponent(accessToken)}`);
   const encryptedToken = encrypt(accessToken);
   const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+
+  const existingAccount = await prisma.threadsAccount.findUnique({
+    where: { threadsUserId: profile.id },
+    select: { userId: true },
+  });
+  if (existingAccount && existingAccount.userId !== userId) {
+    throw new Error('Esta conta do Threads já está conectada a outro usuário.');
+  }
 
   return prisma.threadsAccount.upsert({
     where: { threadsUserId: profile.id },

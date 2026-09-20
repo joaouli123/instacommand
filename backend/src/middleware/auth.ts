@@ -10,19 +10,31 @@ export interface AuthRequest extends Request {
   };
 }
 
-export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const authHeader = req.headers.authorization;
-    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
-    const token = bearerToken || req.cookies?.instacommand_token;
+export const getBearerOrCookieToken = (req: Request) => {
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+  return bearerToken || req.cookies?.instacommand_token;
+};
 
-    if (!token) {
+export const verifyAuthToken = (req: Request) => {
+  const token = getBearerOrCookieToken(req);
+  if (!token) return null;
+
+  try {
+    return jwt.verify(token, env.JWT_SECRET) as { id: string; email: string };
+  } catch {
+    return null;
+  }
+};
+
+export const authenticate = (req: AuthRequest, _res: Response, next: NextFunction) => {
+  try {
+    const decoded = verifyAuthToken(req);
+    if (!decoded) {
       throw new UnauthorizedError('No token provided');
     }
-    
-    const decoded = jwt.verify(token, env.JWT_SECRET) as { id: string; email: string };
+
     req.user = decoded;
-    
     next();
   } catch (error) {
     next(new UnauthorizedError('Invalid or expired token'));
