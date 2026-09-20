@@ -33,8 +33,14 @@ export const saveProfileSnapshot = async (accountId: string) => {
     fields: 'followers_count,follows_count,media_count',
   });
 
-  // Insights
-  const insights = await getProfileInsights(account.igUserId, token);
+  // Insights require the advanced instagram_manage_insights permission. Keep
+  // the profile sync useful when that optional permission is not available yet.
+  let insights: any[] = [];
+  try {
+    insights = await getProfileInsights(account.igUserId, token);
+  } catch (error) {
+    console.error(`Profile insights unavailable for ${account.igUsername}:`, error);
+  }
   let reach = 0, impressions = 0, profileViews = 0;
   
   insights.forEach((insight: any) => {
@@ -53,6 +59,16 @@ export const saveProfileSnapshot = async (accountId: string) => {
       reach,
       impressions,
       profileViews,
+    },
+  });
+
+  await prisma.instagramAccount.update({
+    where: { id: accountId },
+    data: {
+      igFollowersCount: profileData.followers_count,
+      igFollowsCount: profileData.follows_count,
+      igMediaCount: profileData.media_count,
+      lastSyncAt: new Date(),
     },
   });
 };

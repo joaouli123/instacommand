@@ -63,8 +63,8 @@ export default function AccountsPage() {
     try {
       await fetchApi(`/accounts/${id}/sync`, { method: "POST" })
       toast.success("Sincronização iniciada")
-    } catch {
-      toast.error("Não foi possível sincronizar esta conta")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível sincronizar esta conta")
     } finally {
       setSyncingId(null)
     }
