@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { env } from '../config/env';
+import { randomUUID } from 'node:crypto';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -155,6 +156,51 @@ router.get('/threads/callback', async (req, res) => {
   } catch (error) {
     console.error('Threads OAuth callback failed:', error);
     return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0`);
+  }
+});
+
+// Meta calls these endpoints when a user removes the app or requests data
+// deletion. This is a personal workspace, so the default user's Threads
+// connections are the complete scope of the deletion request.
+async function removeDefaultThreadsConnections() {
+  const user = await getOrCreateDefaultUser();
+  const accounts = await prisma.threadsAccount.findMany({
+    where: { userId: user.id },
+    select: { id: true },
+  });
+  const accountIds = accounts.map((account) => account.id);
+
+  if (accountIds.length > 0) {
+    await prisma.$transaction([
+      prisma.scheduledPost.updateMany({
+        where: { threadsAccountId: { in: accountIds } },
+        data: { threadsAccountId: null },
+      }),
+      prisma.threadsAccount.deleteMany({ where: { id: { in: accountIds } } }),
+    ]);
+  }
+}
+
+router.post('/threads/uninstall', async (_req, res) => {
+  try {
+    await removeDefaultThreadsConnections();
+    return res.status(200).send('OK');
+  } catch (error) {
+    console.error('Threads uninstall callback failed:', error);
+    return res.status(500).send('Unable to process uninstall callback');
+  }
+});
+
+router.post('/threads/delete', async (_req, res) => {
+  try {
+    await removeDefaultThreadsConnections();
+    return res.status(200).json({
+      url: `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts`,
+      confirmation_code: randomUUID(),
+    });
+  } catch (error) {
+    console.error('Threads data deletion callback failed:', error);
+    return res.status(500).json({ error: 'Unable to process data deletion request' });
   }
 });
 
