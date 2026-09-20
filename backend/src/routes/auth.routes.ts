@@ -157,8 +157,9 @@ router.get('/facebook/callback', async (req, res) => {
 
     const accounts = await handleOAuthCallback(code, user.id);
     issueSession(res, user);
+    const hasPendingSelection = accounts.some((account: any) => account.selectionPending);
     const destination = accounts.length > 0
-      ? `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=1`
+      ? `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=${hasPendingSelection ? 'pending' : '1'}`
       : `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=no_professional_instagram`;
     return res.redirect(destination);
   } catch (error) {

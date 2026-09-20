@@ -12,6 +12,7 @@ import { BACKEND_ORIGIN } from "@/lib/config"
 type ConnectedAccount = {
   id: string
   igUsername: string
+  pageName?: string | null
   igProfilePicUrl?: string | null
   igFollowersCount: number
   lastSyncAt?: string | null
@@ -21,6 +22,9 @@ type ConnectedThreadsAccount = { id: string; username: string; name?: string | n
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
+  const [pendingAccounts, setPendingAccounts] = useState<ConnectedAccount[]>([])
+  const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([])
+  const [savingSelection, setSavingSelection] = useState(false)
   const [threadsAccounts, setThreadsAccounts] = useState<ConnectedThreadsAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [syncingId, setSyncingId] = useState<string | null>(null)
@@ -39,6 +43,7 @@ export default function AccountsPage() {
     const reason = params.get("reason")
     const threadsConnected = params.get("threads_connected")
     if (connected === "1") toast.success("Conta do Instagram conectada com sucesso")
+    if (connected === "pending") toast.success("A Meta encontrou contas profissionais. Escolha quais deseja vincular.")
     if (connected === "0") toast.error(reason === "no_professional_instagram"
       ? "A Meta não encontrou uma conta Instagram profissional vinculada à Página escolhida. Converta a conta em Profissional e vincule-a ao mesmo portfólio Meta."
       : reason === "meta_denied"
@@ -49,11 +54,14 @@ export default function AccountsPage() {
     if (connected || threadsConnected) window.history.replaceState({}, "", "/accounts")
 
     let active = true
-    Promise.all([api.getAccounts(), api.getThreadsAccounts()])
-      .then(([data, threads]) => {
+    Promise.all([api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts()])
+      .then(([data, threads, pending]) => {
         if (!active) return
         setAccounts(data as ConnectedAccount[])
         setThreadsAccounts(threads as ConnectedThreadsAccount[])
+        const pendingList = pending as ConnectedAccount[]
+        setPendingAccounts(pendingList)
+        setSelectedPendingIds(pendingList.map((account) => account.id))
       })
       .catch(() => { if (active) toast.error("Entre na plataforma para carregar suas contas") })
       .finally(() => { if (active) setLoading(false) })
@@ -77,6 +85,21 @@ export default function AccountsPage() {
     }
   }
 
+  const finishPendingSelection = async (accountIds: string[]) => {
+    setSavingSelection(true)
+    try {
+      const result = await api.selectAccounts(accountIds) as { accounts?: ConnectedAccount[] }
+      setAccounts(result.accounts || [])
+      setPendingAccounts([])
+      setSelectedPendingIds([])
+      toast.success(accountIds.length ? `${accountIds.length} conta(s) vinculada(s) com sucesso` : "Seleção descartada")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar sua seleção")
+    } finally {
+      setSavingSelection(false)
+    }
+  }
+
   const disconnectAccount = async (account: ConnectedAccount) => {
     if (!window.confirm(`Desconectar @${account.igUsername}?`)) return
     try {
@@ -91,6 +114,15 @@ export default function AccountsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Conexões</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Contas conectadas</h2><p className="mt-1 text-sm text-slate-500">Conecte Instagram, Facebook e Threads para publicar em conjunto.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={connectThreads} className="gap-2"><AtSign size={16} />Conectar Threads</Button><Button onClick={connectAccount} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />Conectar Instagram</Button></div></div>
+
+      {pendingAccounts.length > 0 && <Card className="border-indigo-200 bg-indigo-50/60 p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-700">Nova conexão</p><h3 className="mt-1 text-lg font-bold text-slate-900">Escolha quais contas deseja vincular</h3><p className="mt-1 text-sm text-slate-600">A Meta encontrou {pendingAccounts.length} conta(s) profissional(is). Você pode selecionar todas ou apenas algumas.</p></div>
+          <Button variant="outline" onClick={() => setSelectedPendingIds(pendingAccounts.map((account) => account.id))}>Selecionar todas</Button>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{pendingAccounts.map((account) => <label key={account.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-indigo-100 bg-white p-3 transition hover:border-indigo-300"><input type="checkbox" checked={selectedPendingIds.includes(account.id)} onChange={(event) => setSelectedPendingIds((current) => event.target.checked ? [...current, account.id] : current.filter((id) => id !== account.id))} className="h-4 w-4 accent-indigo-600" /><div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 text-sm font-bold text-white">{account.igProfilePicUrl ? <img src={account.igProfilePicUrl} alt="" className="h-full w-full object-cover" /> : account.igUsername[0].toUpperCase()}</div><div className="min-w-0"><p className="truncate font-bold text-slate-900">@{account.igUsername}</p><p className="truncate text-xs text-slate-500">{account.pageName || "Instagram profissional"}</p></div></label>)}</div>
+        <div className="mt-4 flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={() => finishPendingSelection([])} disabled={savingSelection}>Agora não</Button><Button onClick={() => finishPendingSelection(selectedPendingIds)} disabled={savingSelection}>{savingSelection ? "Salvando..." : `Vincular selecionadas (${selectedPendingIds.length})`}</Button></div>
+      </Card>}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">{[{ label: "Contas ativas", value: accounts.length.toString().padStart(2, "0"), icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" }, { label: "Seguidores totais", value: totalFollowers.toLocaleString("pt-BR"), icon: Users, tone: "bg-indigo-50 text-indigo-600" }, { label: "Última sincronização", value: accounts[0]?.lastSyncAt ? new Date(accounts[0].lastSyncAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "Aguardando", icon: Activity, tone: "bg-sky-50 text-sky-600" }].map((stat) => (<Card key={stat.label} className="flex items-center gap-4 p-4"><div className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.tone}`}><stat.icon size={19} /></div><div><p className="text-xs font-medium text-slate-500">{stat.label}</p><p className="text-xl font-bold tracking-tight text-slate-900">{stat.value}</p></div></Card>))}</div>
 

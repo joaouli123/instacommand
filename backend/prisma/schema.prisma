@@ -41,6 +41,7 @@ model InstagramAccount {
   pageAccessToken      String // Encrypted access token
   tokenExpiresAt       DateTime?
   isActive             Boolean               @default(true)
+  selectionPending     Boolean               @default(false)
   connectedAt          DateTime              @default(now())
   lastSyncAt           DateTime?
   createdAt            DateTime              @default(now())

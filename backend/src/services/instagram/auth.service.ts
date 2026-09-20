@@ -190,12 +190,26 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
   const longLivedResponse = await fetch(longLivedUrl).then((res) => res.json());
   const userToken = longLivedResponse.access_token || tokenResponse.access_token;
 
-  // Get user's pages
-  const pagesData = await graphGet('/me/accounts', userToken, { fields: 'id,name,access_token' });
+  // Meta paginates this endpoint. Follow all pages so a customer can connect
+  // every eligible Instagram profile in one authorization flow.
+  const pages: Array<{ id: string; name: string; access_token: string }> = [];
+  let nextPath: string | null = '/me/accounts';
+  let firstPage = true;
+  while (nextPath && pages.length < 100) {
+    const pagesData = await graphGet(nextPath, userToken, firstPage ? { fields: 'id,name,access_token' } : {});
+    pages.push(...(pagesData.data || []));
+    firstPage = false;
+    if (pagesData.paging?.next) {
+      const nextUrl = new URL(pagesData.paging.next);
+      nextPath = `${nextUrl.pathname}${nextUrl.search}`;
+    } else {
+      nextPath = null;
+    }
+  }
 
   const connectedAccounts = [];
 
-  for (const page of pagesData.data) {
+  for (const page of pages) {
     const pageToken = page.access_token;
     
     // Get linked Instagram Business Account
@@ -215,11 +229,15 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
 
       const existingAccount = await prisma.instagramAccount.findUnique({
         where: { igUserId: igId },
-        select: { userId: true },
+        select: { userId: true, isActive: true, selectionPending: true },
       });
       if (existingAccount && existingAccount.userId !== userId) {
-        throw new Error('Esta conta do Instagram já está conectada a outro usuário.');
+        // One account owned by another customer must not block the rest of
+        // the accounts returned by the same Meta authorization.
+        continue;
       }
+
+      const selectionPending = existingAccount ? existingAccount.selectionPending || !existingAccount.isActive : true;
 
       const account = await prisma.instagramAccount.upsert({
         where: { igUserId: igId },
@@ -234,7 +252,8 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
           pageId: page.id,
           pageName: page.name,
           pageAccessToken: encryptedToken,
-          isActive: true,
+          isActive: existingAccount?.isActive ?? false,
+          selectionPending,
           userId,
         },
         create: {
@@ -250,6 +269,8 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
           pageName: page.name,
           pageAccessToken: encryptedToken,
           userId,
+          isActive: false,
+          selectionPending: true,
         },
       });
       connectedAccounts.push(account);
@@ -279,6 +300,50 @@ export const getConnectedAccounts = async (userId: string) => {
       lastSyncAt: true,
     },
   });
+};
+
+export const getPendingConnectedAccounts = async (userId: string) => {
+  return prisma.instagramAccount.findMany({
+    where: { userId, selectionPending: true },
+    orderBy: { connectedAt: 'asc' },
+    select: {
+      id: true,
+      igUserId: true,
+      igUsername: true,
+      igName: true,
+      igProfilePicUrl: true,
+      igBio: true,
+      igFollowersCount: true,
+      igFollowsCount: true,
+      igMediaCount: true,
+      pageId: true,
+      pageName: true,
+      isActive: true,
+      connectedAt: true,
+    },
+  });
+};
+
+export const selectConnectedAccounts = async (userId: string, accountIds: string[]) => {
+  const pending = await prisma.instagramAccount.findMany({
+    where: { userId, selectionPending: true },
+    select: { id: true },
+  });
+  const pendingIds = new Set(pending.map((account) => account.id));
+  const selectedIds = [...new Set(accountIds)].filter((id) => pendingIds.has(id));
+
+  await prisma.$transaction([
+    prisma.instagramAccount.updateMany({
+      where: { userId, selectionPending: true, id: { in: selectedIds } },
+      data: { isActive: true, selectionPending: false },
+    }),
+    prisma.instagramAccount.updateMany({
+      where: { userId, selectionPending: true, id: { notIn: selectedIds } },
+      data: { isActive: false, selectionPending: false },
+    }),
+  ]);
+
+  return getConnectedAccounts(userId);
 };
 
 export const disconnectAccount = async (accountId: string, userId: string) => {

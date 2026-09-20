@@ -42,6 +42,8 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
 
 export const api = {
   getAccounts: () => fetchApi('/accounts'),
+  getPendingAccounts: () => fetchApi('/accounts/pending'),
+  selectAccounts: (accountIds: string[]) => fetchApi('/accounts/select', { method: 'POST', body: JSON.stringify({ accountIds }) }),
   getThreadsAccounts: () => fetchApi('/accounts/threads'),
   uploadMedia: (files: File[]) => {
     const formData = new FormData();
