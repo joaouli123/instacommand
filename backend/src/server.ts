@@ -29,8 +29,9 @@ const app = express();
 const uploadDir = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);
 const allowAllOrigins = env.CORS_ORIGINS.includes('*');
 const allowedOrigins = new Set([
-  ...env.CORS_ORIGINS,
+  ...env.CORS_ORIGINS.filter((origin) => origin !== '*').map((origin) => origin.replace(/\/$/, '')),
   env.FRONTEND_URL.replace(/\/$/, ''),
+  'http://instagram.uxcode.com.br',
   'https://instagram.uxcode.com.br',
   'http://instacommand.179.198.98.63.sslip.io',
   'https://instacommand.179.198.98.63.sslip.io',
@@ -41,9 +42,13 @@ app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowAllOrigins || allowedOrigins.has(origin)) {
-      return callback(null, true);
+      // With credentials enabled, reflect the concrete origin instead of returning
+      // `*`, which browsers reject during credentialed preflight requests.
+      return callback(null, origin || true);
     }
-    return callback(new Error('Origin not allowed by CORS'));
+    // A rejected browser origin is expected CORS behavior, not an application
+    // failure. Returning false keeps the API healthy and simply omits CORS headers.
+    return callback(null, false);
   },
   credentials: true,
 }));
