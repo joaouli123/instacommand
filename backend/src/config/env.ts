@@ -46,7 +46,7 @@ export const env = {
   FB_LOGIN_CONFIG_ID: parsed.FB_LOGIN_CONFIG_ID || '1443592261011561',
   FB_OAUTH_SCOPES:
     parsed.FB_OAUTH_SCOPES ||
-    'business_management,instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
+    'business_management,instagram_basic,instagram_content_publish,instagram_business_manage_insights,pages_show_list,pages_read_engagement',
   THREADS_REDIRECT_URI: parsed.THREADS_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/threads/callback`,
   MEDIA_PUBLIC_URL: parsed.MEDIA_PUBLIC_URL || `${parsed.BACKEND_URL.replace(/\/$/, '')}/uploads`,
   CORS_ORIGINS: parsed.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
