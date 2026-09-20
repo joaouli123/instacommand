@@ -96,7 +96,10 @@ router.get('/facebook', async (req: any, res) => {
 // FB callback
 router.get('/facebook/callback', async (req, res, next) => {
   try {
-    const { code } = req.query;
+    const { code, error } = req.query;
+    if (error) {
+      return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=meta_denied`);
+    }
     if (!code || typeof code !== 'string') {
       return res.status(400).json({ error: 'Code is missing' });
     }
