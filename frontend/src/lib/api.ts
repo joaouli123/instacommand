@@ -21,6 +21,17 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
     headers,
   });
 
+  if (response.status === 401 && typeof window !== 'undefined') {
+    localStorage.removeItem('instacommand_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('instacommand_user');
+
+    if (window.location.pathname !== '/login') {
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+    }
+  }
+
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload?.error || payload?.message || `API Error: ${response.statusText}`);
