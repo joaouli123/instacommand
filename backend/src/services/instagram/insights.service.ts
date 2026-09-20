@@ -73,7 +73,10 @@ export const saveProfileSnapshot = async (accountId: string) => {
     },
   });
 
-  const mediaSync = await syncAccountMedia(accountId);
+  // When Insights is not available, importing the media should still finish
+  // quickly. Calling the Insights endpoint once per post can otherwise leave
+  // the account stuck in "Sincronizando" for a long time.
+  const mediaSync = await syncAccountMedia(accountId, { fetchInsights: insights.length > 0 });
   return {
     profileInsightsAvailable: insights.length > 0,
     importedMedia: mediaSync.importedMedia,
@@ -87,11 +90,12 @@ const toPublishedMediaType = (mediaType: string): MediaType => {
   return MediaType.IMAGE;
 };
 
-export const syncAccountMedia = async (accountId: string) => {
+export const syncAccountMedia = async (accountId: string, options: { fetchInsights?: boolean } = {}) => {
   const account = await prisma.instagramAccount.findUnique({ where: { id: accountId } });
   if (!account) return { importedMedia: 0, mediaInsightsAvailable: false };
 
   const token = await getDecryptedToken(accountId);
+  const fetchInsights = options.fetchInsights ?? true;
   const response = await graphGet(`/${account.igUserId}/media`, token, {
     fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
     limit: 50,
@@ -128,17 +132,19 @@ export const syncAccountMedia = async (accountId: string) => {
     let reach = 0;
     let impressions = 0;
     let saves = 0;
-    try {
-      const insights = await getPostInsights(item.id, token);
-      mediaInsightsAvailable = true;
-      for (const insight of insights) {
-        const value = Number(insight.values?.[0]?.value || 0);
-        if (insight.name === 'reach') reach = value;
-        if (insight.name === 'impressions') impressions = value;
-        if (insight.name === 'saved') saves = value;
+    if (fetchInsights) {
+      try {
+        const insights = await getPostInsights(item.id, token);
+        mediaInsightsAvailable = true;
+        for (const insight of insights) {
+          const value = Number(insight.values?.[0]?.value || 0);
+          if (insight.name === 'reach') reach = value;
+          if (insight.name === 'impressions') impressions = value;
+          if (insight.name === 'saved') saves = value;
+        }
+      } catch (error) {
+        console.error(`Media insights unavailable for ${item.id}:`, error);
       }
-    } catch (error) {
-      console.error(`Media insights unavailable for ${item.id}:`, error);
     }
 
     const likes = Number(item.like_count || 0);
