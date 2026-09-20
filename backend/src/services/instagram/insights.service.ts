@@ -215,8 +215,15 @@ export const savePostInsights = async (accountId: string) => {
 };
 
 export const calculateEngagementRate = async (accountId: string) => {
-  // Logic to calculate overall engagement rate based on recent posts
-  return 0; // Placeholder
+  const posts = await prisma.publishedPost.findMany({
+    where: { accountId },
+    include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
+    take: 50,
+    orderBy: { publishedAt: 'desc' },
+  });
+  const metrics = posts.map((post) => post.insights[0]).filter(Boolean);
+  if (!metrics.length) return 0;
+  return Number((metrics.reduce((total, insight) => total + Number(insight?.engagement || 0), 0) / metrics.length).toFixed(2));
 };
 
 export const getBestTimeToPost = async (accountId: string) => {

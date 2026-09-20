@@ -8,15 +8,11 @@ export function useAccounts() {
   const { data: accounts, isLoading, error } = useQuery({
     queryKey: ['accounts'],
     queryFn: api.getAccounts,
-    initialData: [] // use mock data initially or real if api is implemented
+    initialData: []
   })
 
-  // Mock mutation for demonstration
   const syncAccountMutation = useMutation({
-    mutationFn: async (id: string) => {
-      // return api.syncAccount(id)
-      return { success: true }
-    },
+    mutationFn: (id: string) => api.syncAccount(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
     }

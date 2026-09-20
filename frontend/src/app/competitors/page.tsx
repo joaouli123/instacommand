@@ -1,58 +1,37 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, TrendingUp, Users, ArrowUpRight, MoreHorizontal } from "lucide-react"
+import { ArrowUpRight, RefreshCw, Trash2, UserPlus, Users, TrendingUp } from "lucide-react"
+import toast from "react-hot-toast"
+import { api } from "@/lib/api"
+import { useActiveAccount } from "@/hooks/useActiveAccount"
+
+type Competitor = { id: string; igUsername: string; igName?: string | null; igProfilePicUrl?: string | null; igFollowersCount: number; igMediaCount: number; insights?: Array<{ followers: number; avgLikes: number; avgComments: number; engagementRate: number; collectedAt: string }> }
 
 export default function CompetitorsPage() {
-  const [query, setQuery] = useState("")
-  const competitors = [
-    { name: "TechBrand", username: "@techbrand_br", followers: "250k", er: "5,4%", growth: "+8,2%", avatar: "T", tone: "from-indigo-500 to-sky-500" },
-    { name: "Digital Solutions", username: "@digitalsol", followers: "120k", er: "3,2%", growth: "+4,7%", avatar: "D", tone: "from-violet-500 to-fuchsia-500" },
-    { name: "Studio Norte", username: "@studionorte", followers: "86k", er: "4,8%", growth: "+6,1%", avatar: "S", tone: "from-amber-500 to-orange-500" },
-  ]
+  const { accountId, activeAccount, isLoading: accountLoading } = useActiveAccount()
+  const [username, setUsername] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [refreshingId, setRefreshingId] = useState<string | null>(null)
+  const [competitors, setCompetitors] = useState<Competitor[]>([])
+  const query = useQuery({ queryKey: ["competitors", accountId], queryFn: () => api.getCompetitors(accountId), enabled: !!accountId })
+  useEffect(() => { setCompetitors((query.data || []) as Competitor[]) }, [query.data])
 
-  const filteredCompetitors = useMemo(
-    () => competitors.filter((comp) => `${comp.name} ${comp.username}`.toLowerCase().includes(query.toLowerCase())),
-    [query]
-  )
+  const add = async (event: FormEvent) => { event.preventDefault(); if (!accountId || !username.trim()) return toast.error("Informe o @username do concorrente."); setSaving(true); try { const item = await api.addCompetitor(accountId, username.trim()) as Competitor; setCompetitors((current) => [item, ...current]); setUsername(""); toast.success(`@${item.igUsername} adicionado.`) } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível consultar esse perfil na Meta.") } finally { setSaving(false) } }
+  const refresh = async (id: string) => { setRefreshingId(id); try { await api.refreshCompetitor(id); await query.refetch(); toast.success("Dados do concorrente atualizados.") } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o concorrente.") } finally { setRefreshingId(null) } }
+  const remove = async (item: Competitor) => { if (!window.confirm(`Remover @${item.igUsername} do monitoramento?`)) return; try { await api.deleteCompetitor(item.id); setCompetitors((current) => current.filter((competitor) => competitor.id !== item.id)); toast.success("Monitoramento removido.") } catch { toast.error("Não foi possível remover o concorrente.") } }
 
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Inteligência competitiva</p>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Análise de concorrentes</h2>
-          <p className="mt-1 text-sm text-slate-500">Compare presença, crescimento e engajamento do seu mercado.</p>
-        </div>
-        <Button className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} /> Adicionar concorrente</Button>
-      </div>
+  if (!accountLoading && !activeAccount) return <Card className="mx-auto max-w-xl p-10 text-center"><Users className="mx-auto mb-3 text-indigo-600" size={28}/><h2 className="text-xl font-bold text-slate-900">Conecte uma conta para monitorar concorrentes</h2><p className="mt-2 text-sm text-slate-500">A Meta só permite consultar concorrentes a partir de um perfil profissional conectado.</p></Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {[
-          { label: "Perfis monitorados", value: "12", detail: "+2 este mês", icon: Users, tone: "bg-indigo-50 text-indigo-600" },
-          { label: "Média de engajamento", value: "4,6%", detail: "+0,8% vs. seu perfil", icon: TrendingUp, tone: "bg-emerald-50 text-emerald-600" },
-          { label: "Maior crescimento", value: "+8,2%", detail: "TechBrand no período", icon: ArrowUpRight, tone: "bg-amber-50 text-amber-600" },
-        ].map((stat) => (
-          <Card key={stat.label} className="flex items-center gap-4 p-4"><div className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.tone}`}><stat.icon size={20} /></div><div><p className="text-xs font-medium text-slate-500">{stat.label}</p><p className="text-xl font-bold tracking-tight text-slate-900">{stat.value}</p><p className="text-[11px] font-medium text-slate-400">{stat.detail}</p></div></Card>
-        ))}
-      </div>
-
-      <Card className="p-4"><div className="relative"><Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" /><Input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 rounded-xl pl-10" placeholder="Buscar por nome ou @username..." /></div></Card>
-
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {filteredCompetitors.map((comp) => (
-          <Card key={comp.username} className="group overflow-hidden p-0 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
-            <div className="flex items-start justify-between border-b border-slate-100 p-5"><div className="flex items-center gap-3"><div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${comp.tone} text-lg font-bold text-white shadow-sm`}>{comp.avatar}</div><div><h3 className="font-bold text-slate-900">{comp.name}</h3><p className="text-sm text-slate-500">{comp.username}</p></div></div><button type="button" title="Mais opções" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><MoreHorizontal size={18} /></button></div>
-            <div className="grid grid-cols-3 gap-2 p-5"><div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] font-medium text-slate-500">Seguidores</p><p className="mt-1 font-bold text-slate-900">{comp.followers}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] font-medium text-slate-500">Engajamento</p><p className="mt-1 font-bold text-indigo-600">{comp.er}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] font-medium text-slate-500">Crescimento</p><p className="mt-1 font-bold text-emerald-600">{comp.growth}</p></div></div>
-            <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4"><Badge variant="success">Monitoramento ativo</Badge><Button variant="ghost" size="sm" className="text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700">Ver comparação <ArrowUpRight size={14} className="ml-1" /></Button></div>
-          </Card>
-        ))}
-      </div>
-      {filteredCompetitors.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">Nenhum concorrente encontrado.</div>}
-    </div>
-  )
+  return <div className="space-y-6 animate-fade-in"><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Inteligência competitiva</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Análise de concorrentes</h2><p className="mt-1 text-sm text-slate-500">Perfis reais consultados pela conta @{activeAccount?.igUsername}.</p></div><Badge variant="secondary">{competitors.length} monitorados</Badge></div>
+    <Card className="p-4"><form onSubmit={add} className="flex flex-col gap-2 sm:flex-row"><Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Digite @username do concorrente" className="h-11 flex-1"/><Button type="submit" disabled={saving} className="h-11 gap-2 bg-indigo-600 text-white"><UserPlus size={16}/>{saving ? "Consultando..." : "Adicionar concorrente"}</Button></form><p className="mt-2 text-xs text-slate-500">O perfil precisa ser público e compatível com o Business Discovery da Meta.</p></Card>
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">{competitors.map((item) => { const insight = item.insights?.[0]; const engagement = insight?.engagementRate ?? 0; return <Card key={item.id} className="overflow-hidden p-0"><div className="flex items-center justify-between border-b border-slate-100 p-5"><div className="flex min-w-0 items-center gap-3"><div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-sky-500 text-center text-lg font-bold leading-[3rem] text-white">{item.igProfilePicUrl ? <img src={item.igProfilePicUrl} alt="" className="h-full w-full object-cover"/> : item.igUsername[0].toUpperCase()}</div><div className="min-w-0"><h3 className="truncate font-bold text-slate-900">{item.igName || `@${item.igUsername}`}</h3><p className="truncate text-sm text-slate-500">@{item.igUsername}</p></div></div><button type="button" title={`Remover @${item.igUsername}`} onClick={() => remove(item)} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={16}/></button></div><div className="grid grid-cols-3 gap-2 p-4 text-center"><div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">Seguidores</p><p className="mt-1 font-bold text-slate-900">{item.igFollowersCount.toLocaleString("pt-BR")}</p></div><div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">Posts</p><p className="mt-1 font-bold text-slate-900">{item.igMediaCount.toLocaleString("pt-BR")}</p></div><div className="rounded-lg bg-slate-50 p-2"><p className="text-xs text-slate-500">ER</p><p className="mt-1 font-bold text-emerald-700">{engagement ? `${engagement.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : "—"}</p></div></div><div className="flex items-center justify-between border-t border-slate-100 px-4 py-3"><span className="text-xs text-slate-400">{insight ? `Atualizado ${new Date(insight.collectedAt).toLocaleDateString("pt-BR")}` : "Ainda não atualizado"}</span><Button variant="ghost" size="sm" onClick={() => refresh(item.id)} disabled={refreshingId === item.id} className="gap-2 text-indigo-700">{refreshingId === item.id ? <RefreshCw size={14} className="animate-spin"/> : <TrendingUp size={14}/>}Atualizar</Button></div></Card>})}</div>
+    {!competitors.length && !query.isLoading && <Card className="p-12 text-center"><Users className="mx-auto mb-3 text-slate-300" size={32}/><h3 className="font-bold text-slate-900">Nenhum concorrente monitorado</h3><p className="mt-1 text-sm text-slate-500">Adicione um @username acima para começar uma comparação real.</p></Card>}
+    <Card className="border-indigo-100 bg-indigo-50/50 p-4 text-sm text-indigo-900"><p className="font-semibold">Como funciona</p><p className="mt-1 text-xs leading-5 text-indigo-800">Seguidores, quantidade de posts e engajamento são atualizados diretamente pela Meta. Quando uma permissão ou perfil não estiver disponível, a tela mostra “—” em vez de inventar números.</p></Card>
+  </div>
 }

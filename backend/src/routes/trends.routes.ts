@@ -8,6 +8,15 @@ const prisma = new PrismaClient();
 
 router.use(authenticate);
 
+router.use('/:accountId', async (req: any, res, next) => {
+  try {
+    const account = await prisma.instagramAccount.findFirst({ where: { id: req.params.accountId, userId: req.user.id, isActive: true } });
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+    req.account = account;
+    next();
+  } catch (error) { next(error); }
+});
+
 router.get('/:accountId/hashtags', async (req: any, res, next) => {
   try {
     const { q } = req.query;

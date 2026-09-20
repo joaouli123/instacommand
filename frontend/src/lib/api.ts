@@ -3,7 +3,7 @@ import { BACKEND_ORIGIN } from './config';
 const BASE_URL = `${BACKEND_ORIGIN}/api`;
 
 export async function fetchApi(path: string, options: RequestInit = {}) {
-  // Mock token retrieval
+  // Keep the browser token fallback for older sessions while cookies remain the default.
   const token = typeof window !== 'undefined'
     ? localStorage.getItem('instacommand_token') || localStorage.getItem('token')
     : null;
@@ -42,6 +42,7 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
 
 export const api = {
   getAccounts: () => fetchApi('/accounts'),
+  syncAccount: (id: string) => fetchApi(`/accounts/${id}/sync`, { method: 'POST' }),
   getPendingAccounts: () => fetchApi('/accounts/pending'),
   selectAccounts: (accountIds: string[]) => fetchApi('/accounts/select', { method: 'POST', body: JSON.stringify({ accountIds }) }),
   getThreadsAccounts: () => fetchApi('/accounts/threads'),
@@ -57,5 +58,16 @@ export const api = {
   getGrowth: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/growth?days=${days}`),
   getEngagement: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/engagement?days=${days}`),
   getAnalyticsPosts: (accountId: string, page = 1, limit = 20) => fetchApi(`/analytics/${accountId}/posts?page=${page}&limit=${limit}`),
+  getBestTimes: (accountId: string) => fetchApi(`/analytics/${accountId}/best-times`),
+  getContentTypes: (accountId: string) => fetchApi(`/analytics/${accountId}/content-types`),
+  getRecommendations: (accountId: string) => fetchApi(`/analytics/${accountId}/recommendations`),
+  getCompetitors: (accountId: string) => fetchApi(`/competitors/${accountId}`),
+  addCompetitor: (accountId: string, igUsername: string) => fetchApi(`/competitors/${accountId}`, { method: 'POST', body: JSON.stringify({ igUsername }) }),
+  deleteCompetitor: (id: string) => fetchApi(`/competitors/${id}`, { method: 'DELETE' }),
+  refreshCompetitor: (id: string) => fetchApi(`/competitors/${id}/refresh`, { method: 'POST' }),
+  searchHashtag: (accountId: string, query: string) => fetchApi(`/trends/${accountId}/hashtags?q=${encodeURIComponent(query)}`),
+  getSavedHashtags: (accountId: string) => fetchApi(`/trends/${accountId}/saved`),
+  trackHashtag: (accountId: string, data: Record<string, unknown>) => fetchApi(`/trends/${accountId}/hashtags/track`, { method: 'POST', body: JSON.stringify(data) }),
+  untrackHashtag: (accountId: string, id: string) => fetchApi(`/trends/${accountId}/hashtags/${id}`, { method: 'DELETE' }),
   generateAi: (data: Record<string, unknown>) => fetchApi('/ai/generate', { method: 'POST', body: JSON.stringify(data) }),
 };

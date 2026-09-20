@@ -3,7 +3,6 @@ import { Bell, Plus, ChevronDown, Check } from "lucide-react"
 import { Button } from "../ui/button"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useActiveAccount } from "@/hooks/useActiveAccount"
 
 export function Header() {
   const pathname = usePathname()
@@ -29,13 +29,7 @@ export function Header() {
 
   const current = titles[pathname] || { title: 'InstaCommand', subtitle: 'Plataforma de Gestão do Instagram' }
 
-  const accounts = [
-    { id: '1', username: 'joaolucas.design', followers: '18.4K', active: true },
-    { id: '2', username: 'uxcode.oficial', followers: '42.1K', active: false },
-    { id: '3', username: 'agencia.nexus', followers: '9.6K', active: false },
-  ]
-
-  const [selectedAccount, setSelectedAccount] = useState(accounts[0])
+  const { accounts, activeAccount, setActiveAccount, isLoading } = useActiveAccount()
 
   return (
     <header className="h-16 md:h-[72px] border-b border-slate-200/80 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 md:px-8 sticky top-0 z-20 shadow-sm">
@@ -53,36 +47,35 @@ export function Header() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-slate-100/80 text-sm font-medium text-slate-800 transition-all shadow-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shrink-0">
-                <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-indigo-700">
-                  {selectedAccount.username.substring(0, 1).toUpperCase()}
-                </div>
+              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shrink-0 overflow-hidden">
+                {activeAccount?.igProfilePicUrl ? <img src={activeAccount.igProfilePicUrl} alt="" className="h-full w-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-indigo-700">{activeAccount?.igUsername?.substring(0, 1).toUpperCase() || "?"}</div>}
               </div>
-              <span className="font-semibold text-xs tracking-tight">@{selectedAccount.username}</span>
+              <span className="font-semibold text-xs tracking-tight">{isLoading ? "Carregando..." : activeAccount ? `@${activeAccount.igUsername}` : "Sem conta conectada"}</span>
               <ChevronDown size={14} className="text-slate-400" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-white border-slate-200 shadow-lg rounded-xl p-1.5">
             <DropdownMenuLabel className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 py-1.5">
-              Alternar Conta Instagram
+              Alternar conta Instagram
             </DropdownMenuLabel>
             {accounts.map(acc => (
               <DropdownMenuItem
                 key={acc.id}
-                onClick={() => setSelectedAccount(acc)}
+                onClick={() => setActiveAccount(acc.id)}
                 className="flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 flex items-center justify-center text-[9px] font-bold text-white">
-                    {acc.username[0].toUpperCase()}
+                    {acc.igUsername[0].toUpperCase()}
                   </div>
-                  <span>@{acc.username}</span>
+                  <span>@{acc.igUsername}</span>
                 </div>
-                {selectedAccount.id === acc.id && (
+                {activeAccount?.id === acc.id && (
                   <Check size={14} className="text-indigo-600" />
                 )}
               </DropdownMenuItem>
             ))}
+            {!accounts.length && <DropdownMenuItem disabled className="text-xs text-slate-500">Nenhuma conta ativa</DropdownMenuItem>}
             <DropdownMenuSeparator className="bg-slate-100 my-1" />
             <DropdownMenuItem asChild>
               <Link href="/accounts" className="text-xs text-indigo-600 font-semibold px-2.5 py-2 block hover:bg-indigo-50 rounded-lg">

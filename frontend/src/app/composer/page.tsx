@@ -39,7 +39,7 @@ export default function ComposerPage() {
   const [caption, setCaption] = useState("")
   const [postType, setPostType] = useState<PostType>("FEED")
   const [selectedDate, setSelectedDate] = useState("")
-  const [hashtags, setHashtags] = useState<string[]>(["marketingdigital", "designgrafico", "estrategia"])
+  const [hashtags, setHashtags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [activeMediaIndex, setActiveMediaIndex] = useState(0)
@@ -66,13 +66,23 @@ export default function ComposerPage() {
         const nextThreads = (threadAccounts as ThreadsAccount[]).filter((account) => account.isActive)
         setAccounts(nextAccounts)
         setThreadsAccounts(nextThreads)
-        if (nextAccounts[0]) setAccountId(nextAccounts[0].id)
+        const storedAccountId = window.localStorage.getItem("instacommand_active_account")
+        if (nextAccounts.length) setAccountId(nextAccounts.find((account) => account.id === storedAccountId)?.id || nextAccounts[0].id)
         if (nextThreads[0]) setThreadsAccountId(nextThreads[0].id)
       })
       .catch(() => {
         toast.error("Entre na plataforma e conecte uma conta antes de criar uma publicação.")
       })
   }, [])
+
+  useEffect(() => {
+    const syncSelectedAccount = () => {
+      const nextId = window.localStorage.getItem("instacommand_active_account")
+      if (nextId && accounts.some((account) => account.id === nextId)) setAccountId(nextId)
+    }
+    window.addEventListener("instacommand-account-changed", syncSelectedAccount)
+    return () => window.removeEventListener("instacommand-account-changed", syncSelectedAccount)
+  }, [accounts])
 
   useEffect(() => {
     mediaItemsRef.current = mediaItems
@@ -134,6 +144,7 @@ export default function ComposerPage() {
   })
 
   const activeMedia = mediaItems[activeMediaIndex] ?? null
+  const selectedAccount = accounts.find((account) => account.id === accountId)
 
   const changePostType = (nextType: PostType) => {
     setPostType(nextType)
@@ -597,14 +608,12 @@ export default function ComposerPage() {
           {/* Instagram Post Header */}
           <div className="p-3 flex items-center justify-between border-b border-slate-100 bg-white">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shadow-xs">
-                <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-indigo-700">
-                  J
-                </div>
+              <div className="w-7 h-7 overflow-hidden rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shadow-xs">
+                {selectedAccount?.igProfilePicUrl ? <img src={selectedAccount.igProfilePicUrl} alt="" className="h-full w-full rounded-full object-cover" /> : <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[10px] font-bold text-indigo-700">{selectedAccount?.igUsername?.[0]?.toUpperCase() || "?"}</div>}
               </div>
               <div className="flex flex-col">
-                <span className="text-xs font-bold text-slate-900 leading-none">joaolucas.design</span>
-                <span className="text-[9px] text-slate-400">Patrocinado • São Paulo</span>
+                <span className="text-xs font-bold text-slate-900 leading-none">{selectedAccount?.igUsername || "Sua conta"}</span>
+                <span className="text-[9px] text-slate-400">Prévia da publicação</span>
               </div>
             </div>
             <MoreHorizontal size={16} className="text-slate-400" />
@@ -671,13 +680,11 @@ export default function ComposerPage() {
               <Bookmark size={20} className="text-slate-700 hover:text-amber-500 cursor-pointer transition-colors" />
             </div>
 
-            <p className="text-xs font-bold text-slate-900 mb-1">
-              1.248 curtidas
-            </p>
+            <p className="text-xs font-bold text-slate-900 mb-1">Prévia sem métricas</p>
 
             {/* Caption Text */}
             <div className="text-xs text-slate-800 leading-relaxed break-words">
-              <span className="font-bold text-slate-900 mr-1.5">joaolucas.design</span>
+              <span className="font-bold text-slate-900 mr-1.5">{selectedAccount?.igUsername || "sua_conta"}</span>
               <span>{caption || "Aqui aparecerá a legenda da sua publicação com todo o conteúdo e chamada para ação configurados..."}</span>
               {hashtags.length > 0 && (
                 <div className="text-indigo-600 font-medium mt-1">
@@ -686,9 +693,7 @@ export default function ComposerPage() {
               )}
             </div>
 
-            <p className="text-[10px] text-slate-400 uppercase mt-2">
-              Há 2 minutos • Ver tradução
-            </p>
+            <p className="text-[10px] text-slate-400 uppercase mt-2">Prévia em tempo real</p>
           </div>
 
           {/* Bottom Bar Indicator */}

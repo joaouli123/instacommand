@@ -1,191 +1,49 @@
 "use client"
+
+import Link from "next/link"
+import { useQuery } from "@tanstack/react-query"
+import { ArrowUpRight, Calendar, Clock, Heart, MessageCircle, Bookmark, Sparkles, RefreshCw } from "lucide-react"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { StatsCards } from "@/components/dashboard/StatsCards"
 import { GrowthChart } from "@/components/dashboard/GrowthChart"
 import { EngagementChart } from "@/components/dashboard/EngagementChart"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Heart, MessageCircle, Bookmark, Calendar, ArrowUpRight, Sparkles, Clock } from "lucide-react"
-import Link from "next/link"
+import { api } from "@/lib/api"
+import { useActiveAccount } from "@/hooks/useActiveAccount"
+
+type DashboardStats = { followers: number; followerGrowth: number; reach: number; impressions: number; pendingPosts: number; engagementRate: number }
+type PublishedPost = { id: string; mediaType: string; caption?: string | null; igMediaUrl?: string | null; igPermalink?: string | null; publishedAt: string; insights?: Array<{ likes: number; comments: number; saves: number; engagement: number }> }
+type ScheduledPost = { id: string; mediaType: string; caption?: string | null; scheduledFor: string; status: string }
+
+const formatType = (type: string) => type === "CAROUSEL" ? "Carrossel" : type === "REEL" ? "Reel" : type === "STORY" ? "Story" : "Feed"
+const firstLine = (caption?: string | null) => caption?.split("\n")[0] || "Publicação sem legenda"
 
 export default function DashboardPage() {
-  const topPosts = [
-    { 
-      id: 1, 
-      img: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=500&q=80', 
-      type: 'Reel',
-      likes: '1.240', 
-      comments: '340', 
-      saves: '150', 
-      er: '5.2%',
-      date: 'Há 2 dias'
-    },
-    { 
-      id: 2, 
-      img: 'https://images.unsplash.com/photo-1616469829581-73993eb86b02?w=500&q=80', 
-      type: 'Carrossel',
-      likes: '980', 
-      comments: '210', 
-      saves: '89', 
-      er: '4.8%',
-      date: 'Há 4 dias'
-    },
-    { 
-      id: 3, 
-      img: 'https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=500&q=80', 
-      type: 'Imagem',
-      likes: '850', 
-      comments: '120', 
-      saves: '45', 
-      er: '4.1%',
-      date: 'Há 6 dias'
-    },
-  ]
+  const { activeAccount, accountId, isLoading: accountsLoading } = useActiveAccount()
+  const dashboardQuery = useQuery({ queryKey: ["dashboard", accountId], queryFn: () => api.getDashboard(accountId), enabled: !!accountId })
+  const growthQuery = useQuery({ queryKey: ["dashboard-growth", accountId], queryFn: () => api.getGrowth(accountId, 30), enabled: !!accountId })
+  const engagementQuery = useQuery({ queryKey: ["dashboard-engagement", accountId], queryFn: () => api.getEngagement(accountId, 30), enabled: !!accountId })
+  const postsQuery = useQuery({ queryKey: ["dashboard-posts", accountId], queryFn: () => api.getAnalyticsPosts(accountId, 1, 6), enabled: !!accountId })
+  const scheduledQuery = useQuery({ queryKey: ["dashboard-scheduled", accountId], queryFn: () => api.getPosts(`accountId=${encodeURIComponent(accountId)}&status=SCHEDULED`), enabled: !!accountId })
+  const bestTimesQuery = useQuery({ queryKey: ["dashboard-best-time", accountId], queryFn: () => api.getBestTimes(accountId), enabled: !!accountId })
 
-  const upcomingPosts = [
-    {
-      id: 1,
-      title: "Lançamento da nova linha de serviços",
-      account: "@joaolucas.design",
-      date: "Hoje às 18:30",
-      type: "Reel",
-      countdown: "Em 4h"
-    },
-    {
-      id: 2,
-      title: "5 erros fatais no marketing digital",
-      account: "@joaolucas.design",
-      date: "Amanhã às 11:00",
-      type: "Carrossel",
-      countdown: "Em 21h"
-    },
-    {
-      id: 3,
-      title: "Bastidores e novidades da semana",
-      account: "@uxcode.oficial",
-      date: "Quinta às 15:00",
-      type: "Story",
-      countdown: "Em 2 dias"
-    }
-  ]
+  const stats = dashboardQuery.data as DashboardStats | undefined
+  const growth = (growthQuery.data || []) as Array<{ date: string; followers: number }>
+  const engagement = ((engagementQuery.data || []) as Array<{ date: string; engagement: number }>).filter((item) => item.engagement > 0)
+  const postPayload = postsQuery.data as { data?: PublishedPost[] } | undefined
+  const topPosts = postPayload?.data || []
+  const upcomingPosts = ((scheduledQuery.data || []) as ScheduledPost[]).slice(0, 4)
+  const bestTime = (bestTimesQuery.data as Array<{ day: string; hour: number }> | undefined)?.[0]
 
-  return (
-    <div className="flex flex-col gap-6 animate-fade-in">
-      {/* Top Banner Alert / Action */}
-      <div className="rounded-2xl p-4 md:p-5 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Sparkles size={20} />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">
-              Otimização de Horários Detectada
-            </h2>
-            <p className="text-xs text-slate-600">
-              Sua audiência tem pico de engajamento às quartas e quintas entre 18h e 20h. Agende seu próximo post para este horário!
-            </p>
-          </div>
-        </div>
-        <Link href="/composer">
-          <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs shrink-0 text-xs font-semibold">
-            Criar Publicação Agora
-          </Button>
-        </Link>
-      </div>
+  if (!accountsLoading && !activeAccount) return <Card className="mx-auto max-w-xl p-10 text-center"><Sparkles className="mx-auto mb-3 text-indigo-600" size={28}/><h2 className="text-xl font-bold text-slate-900">Conecte sua primeira conta</h2><p className="mt-2 text-sm text-slate-500">O dashboard deixa de usar demonstrações e passa a mostrar somente dados reais depois da conexão com a Meta.</p><Link href="/accounts"><Button className="mt-5 bg-indigo-600 text-white">Conectar conta</Button></Link></Card>
 
-      {/* KPI Cards */}
-      <StatsCards />
-
-      {/* Main Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GrowthChart />
-        <EngagementChart />
-      </div>
-
-      {/* Bottom Row: Top Posts & Upcoming Queue */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Top Posts */}
-        <Card className="p-6 col-span-1 lg:col-span-2 border border-slate-200/80 bg-white rounded-2xl shadow-xs flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Publicações em Alta na Semana</h3>
-              <p className="text-xs text-slate-500 font-medium">Classificados por taxa de engajamento e retenção</p>
-            </div>
-            <Link href="/analytics" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1">
-              Ver todos <ArrowUpRight size={14} />
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
-            {topPosts.map(post => (
-              <div key={post.id} className="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex flex-col shadow-xs hover:shadow-md transition-all">
-                <div className="relative aspect-square overflow-hidden bg-slate-100">
-                  <img 
-                    src={post.img} 
-                    alt="Post" 
-                    className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105" 
-                  />
-                  <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-xs text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-md border border-slate-200/60 shadow-xs">
-                    {post.type}
-                  </div>
-                  <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs">
-                    {post.er}
-                  </div>
-                </div>
-                <div className="p-3 bg-white flex items-center justify-between text-xs text-slate-600 border-t border-slate-100">
-                  <div className="flex items-center gap-1 font-medium">
-                    <Heart size={13} className="text-rose-500 fill-rose-500/20" /> {post.likes}
-                  </div>
-                  <div className="flex items-center gap-1 font-medium">
-                    <MessageCircle size={13} className="text-indigo-500" /> {post.comments}
-                  </div>
-                  <div className="flex items-center gap-1 font-medium">
-                    <Bookmark size={13} className="text-amber-500 fill-amber-500/20" /> {post.saves}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Upcoming Posts */}
-        <Card className="p-6 border border-slate-200/80 bg-white rounded-2xl shadow-xs flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Fila de Agendamento</h3>
-              <p className="text-xs text-slate-500 font-medium">Próximos disparos automáticos</p>
-            </div>
-            <Link href="/calendar" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1">
-              Calendário <Calendar size={14} />
-            </Link>
-          </div>
-
-          <div className="space-y-3 flex-1">
-            {upcomingPosts.map(post => (
-              <div 
-                key={post.id} 
-                className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/70 hover:border-indigo-200 hover:bg-indigo-50/20 transition-all flex flex-col gap-2"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                    {post.type}
-                  </span>
-                  <span className="text-[11px] font-semibold text-indigo-600 inline-flex items-center gap-1">
-                    <Clock size={12} />
-                    {post.countdown}
-                  </span>
-                </div>
-                <p className="text-xs font-semibold text-slate-900 line-clamp-1">
-                  {post.title}
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/40">
-                  <span>{post.account}</span>
-                  <span className="font-medium text-slate-700">{post.date}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+  return <div className="flex flex-col gap-6 animate-fade-in">
+    <div className="flex flex-col gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent p-4 sm:flex-row sm:items-center sm:justify-between md:p-5"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs"><Sparkles size={20}/></div><div><h2 className="text-sm font-bold text-slate-900">Visão real de @{activeAccount?.igUsername}</h2><p className="text-xs text-slate-600">{bestTime ? `Melhor horário encontrado: ${bestTime.day} às ${String(bestTime.hour).padStart(2, "0")}h.` : "Sincronize a conta para encontrar os melhores horários."}</p></div></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => dashboardQuery.refetch()} disabled={dashboardQuery.isFetching} className="gap-2"><RefreshCw size={14} className={dashboardQuery.isFetching ? "animate-spin" : ""}/>Atualizar</Button><Link href="/composer"><Button size="sm" className="bg-indigo-600 text-white">Criar publicação</Button></Link></div></div>
+    <StatsCards stats={stats} loading={dashboardQuery.isLoading}/>
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2"><GrowthChart data={growth}/><EngagementChart data={engagement}/></div>
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <Card className="col-span-1 flex flex-col rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs lg:col-span-2"><div className="mb-5 flex items-center justify-between"><div><h3 className="text-base font-bold text-slate-900">Publicações com melhor desempenho</h3><p className="text-xs font-medium text-slate-500">Dados importados da conta selecionada</p></div><Link href="/analytics" className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600">Ver analytics <ArrowUpRight size={14}/></Link></div>{topPosts.length ? <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-3">{topPosts.slice(0, 3).map((post) => { const insight = post.insights?.[0]; return <a key={post.id} href={post.igPermalink || "#"} target={post.igPermalink ? "_blank" : undefined} rel="noreferrer" className="group overflow-hidden rounded-xl border border-slate-200 bg-slate-50 transition hover:shadow-md"><div className="relative aspect-square overflow-hidden bg-slate-100">{post.igMediaUrl ? <img src={post.igMediaUrl} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105"/> : <div className="flex h-full items-center justify-center text-xs text-slate-400">Sem imagem</div>}<span className="absolute left-2 top-2 rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-800">{formatType(post.mediaType)}</span></div><div className="flex items-center justify-between bg-white p-3 text-xs text-slate-600"><span className="inline-flex items-center gap-1"><Heart size={13} className="text-rose-500"/>{(insight?.likes || 0).toLocaleString("pt-BR")}</span><span className="inline-flex items-center gap-1"><MessageCircle size={13} className="text-indigo-500"/>{(insight?.comments || 0).toLocaleString("pt-BR")}</span><span className="inline-flex items-center gap-1"><Bookmark size={13} className="text-amber-500"/>{(insight?.saves || 0).toLocaleString("pt-BR")}</span></div></a>})}</div> : <div className="flex min-h-[180px] flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm text-slate-500">Nenhuma publicação importada ainda. Abra Contas e clique em Sincronizar.</div>}</Card>
+      <Card className="flex flex-col rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs"><div className="mb-5 flex items-center justify-between"><div><h3 className="text-base font-bold text-slate-900">Fila de agendamento</h3><p className="text-xs font-medium text-slate-500">Somente posts reais da conta</p></div><Link href="/calendar" className="text-indigo-600"><Calendar size={16}/></Link></div>{upcomingPosts.length ? <div className="space-y-3">{upcomingPosts.map((post) => <div key={post.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5"><div className="flex items-center justify-between"><span className="rounded-md border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-700">{formatType(post.mediaType)}</span><span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600"><Clock size={12}/>{new Date(post.scheduledFor).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div><p className="mt-2 line-clamp-2 text-xs font-semibold text-slate-900">{firstLine(post.caption)}</p></div>)}</div> : <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-sm text-slate-500">Nenhum post agendado.<Link href="/composer" className="ml-1 font-semibold text-indigo-600">Agendar agora</Link></div>}</Card>
     </div>
-  )
+  </div>
 }

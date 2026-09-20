@@ -10,6 +10,11 @@ export const getDashboardStats = async (accountId: string) => {
         orderBy: { collectedAt: 'desc' },
         take: 2,
       },
+      publishedPosts: {
+        include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
+        orderBy: { publishedAt: 'desc' },
+        take: 30,
+      },
     }
   });
 
@@ -23,6 +28,10 @@ export const getDashboardStats = async (accountId: string) => {
   const previousInsight = account.profileInsights[1];
 
   const followerGrowth = previousInsight ? (latestInsight?.followers || 0) - previousInsight.followers : 0;
+  const postsWithMetrics = account.publishedPosts.map((post) => post.insights[0]).filter(Boolean);
+  const engagementRate = postsWithMetrics.length
+    ? postsWithMetrics.reduce((total, insight) => total + Number(insight?.engagement || 0), 0) / postsWithMetrics.length
+    : 0;
 
   return {
     followers: latestInsight?.followers || account.igFollowersCount,
@@ -30,6 +39,7 @@ export const getDashboardStats = async (accountId: string) => {
     reach: latestInsight?.reach || 0,
     impressions: latestInsight?.impressions || 0,
     pendingPosts: pendingPostsCount,
+    engagementRate: Number(engagementRate.toFixed(2)),
   };
 };
 

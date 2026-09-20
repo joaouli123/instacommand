@@ -22,14 +22,26 @@ export const searchHashtag = async (hashtag: string, accountId: string) => {
   const igHashtagId = idSearch.data[0]?.id;
   if (!igHashtagId) throw new Error('Hashtag not found');
 
-  // 2. We can't directly get media count, but we could fetch top/recent media and count, etc.
-  // For now, we mock the counts or just save the reference.
-  const data = {
-    topMediaCount: Math.floor(Math.random() * 1000000), // mock
-    recentMediaCount: Math.floor(Math.random() * 50000), // mock
+  const mediaParams = {
+    user_id: account.igUserId,
+    fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
+    limit: 25,
   };
+  const [topResponse, recentResponse] = await Promise.all([
+    graphGet(`/${igHashtagId}/top_media`, token, mediaParams),
+    graphGet(`/${igHashtagId}/recent_media`, token, mediaParams),
+  ]);
+  const topMedia = Array.isArray(topResponse.data) ? topResponse.data : [];
+  const recentMedia = Array.isArray(recentResponse.data) ? recentResponse.data : [];
 
-  return { igHashtagId, ...data };
+  return {
+    igHashtagId,
+    topMediaCount: topMedia.length,
+    recentMediaCount: recentMedia.length,
+    topMedia,
+    recentMedia,
+    searchedAt: new Date().toISOString(),
+  };
 };
 
 export const saveHashtagSearch = async (accountId: string, hashtag: string, data: any) => {
@@ -38,8 +50,8 @@ export const saveHashtagSearch = async (accountId: string, hashtag: string, data
       accountId,
       hashtag: hashtag.replace('#', ''),
       igHashtagId: data.igHashtagId,
-      topMediaCount: data.topMediaCount,
-      recentMediaCount: data.recentMediaCount,
+      topMediaCount: Number(data.topMediaCount || 0),
+      recentMediaCount: Number(data.recentMediaCount || 0),
     },
   });
 };
