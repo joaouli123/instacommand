@@ -24,6 +24,12 @@ const envSchema = z.object({
   // Optional comma-separated permissions enabled in the Meta Login for Business configuration.
   // Keep the default limited to permissions that are currently enabled in the personal app.
   FB_OAUTH_SCOPES: z.string().optional(),
+  // AI providers are server-side only. Never expose these values through NEXT_PUBLIC_* variables.
+  AI_API_KEY: z.string().optional(),
+  AI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
+  AI_MODEL: z.string().default('gpt-4o-mini'),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
   BACKEND_URL: z.string().default('http://localhost:3001'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),

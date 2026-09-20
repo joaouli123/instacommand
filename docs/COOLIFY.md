@@ -38,6 +38,14 @@ COOKIE_SECURE=true
 
 MEDIA_PUBLIC_URL=https://api-instacommand.seudominio.com/uploads
 WEBHOOK_VERIFY_TOKEN=um-token-aleatorio
+
+# Assistente de conteúdo (opcional; mantenha a chave somente no backend)
+GEMINI_API_KEY=sua_chave_do_provedor_de_ia
+GEMINI_MODEL=gemini-2.5-flash
+# Alternativa OpenAI-compatible:
+# AI_API_KEY=sua_chave
+# AI_BASE_URL=https://api.openai.com/v1
+# AI_MODEL=gpt-4o-mini
 ```
 
 Mantenha os volumes `postgres_data`, `redis_data` e `uploads_data`. Eles preservam o banco, a fila e as mídias entre deploys.
@@ -67,3 +75,7 @@ Depois do deploy, valide primeiro a API e então o frontend. Se o callback da Me
 Depois de entrar no InstaCommand, abra `Configurações > Conexão com a Meta`. O App ID, App Secret e Client Token podem ser salvos pela interface. O App Secret e o Client Token são criptografados no backend e nunca são devolvidos para o navegador em texto aberto; quando já estiverem configurados, deixe os campos secretos vazios para mantê-los.
 
 O botão `Entrar com a Meta` em `Contas conectadas` usa automaticamente as credenciais salvas para iniciar o OAuth. Para desenvolvimento local, cadastre `http://localhost:3001/api/auth/facebook/callback` no campo de callback do Meta Developers. Para produção, substitua pelo callback do domínio público da API.
+
+## Assistente de conteúdo com IA
+
+Com uma chave de IA configurada no backend, o compositor pode gerar legendas, CTAs, hashtags e planos editoriais de 7 dias. A tela de contas também pode analisar bio, posicionamento, pontos fortes e próximas ações usando os dados reais disponíveis da conta. Usuários finais não precisam conhecer nem inserir a chave do provedor.

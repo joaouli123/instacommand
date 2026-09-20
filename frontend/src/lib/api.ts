@@ -57,4 +57,5 @@ export const api = {
   getGrowth: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/growth?days=${days}`),
   getEngagement: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/engagement?days=${days}`),
   getAnalyticsPosts: (accountId: string, page = 1, limit = 20) => fetchApi(`/analytics/${accountId}/posts?page=${page}&limit=${limit}`),
+  generateAi: (data: Record<string, unknown>) => fetchApi('/ai/generate', { method: 'POST', body: JSON.stringify(data) }),
 };

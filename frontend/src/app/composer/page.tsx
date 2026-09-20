@@ -27,6 +27,7 @@ type MediaItem = {
 
 type ConnectedAccount = { id: string; igUsername: string; igProfilePicUrl?: string | null; isActive: boolean }
 type ThreadsAccount = { id: string; username: string; name?: string | null; isActive: boolean }
+type AiPlanItem = { day: string; format: string; topic: string; hook: string; cta: string; suggestedTime: string }
 
 const getDefaultDate = () => {
   const date = new Date(Date.now() + 60 * 60 * 1000)
@@ -48,6 +49,13 @@ export default function ComposerPage() {
   const [threadsAccountId, setThreadsAccountId] = useState("")
   const [platforms, setPlatforms] = useState<string[]>(["INSTAGRAM"])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showAiAssistant, setShowAiAssistant] = useState(true)
+  const [aiTopic, setAiTopic] = useState("")
+  const [aiAudience, setAiAudience] = useState("")
+  const [aiTone, setAiTone] = useState("Profissional e próximo")
+  const [aiObjective, setAiObjective] = useState("Atrair e gerar conversa")
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiPlan, setAiPlan] = useState<AiPlanItem[]>([])
   const mediaItemsRef = useRef<MediaItem[]>([])
 
   useEffect(() => {
@@ -175,6 +183,41 @@ export default function ComposerPage() {
     setPlatforms((current) => current.includes(platform)
       ? current.filter((item) => item !== platform)
       : [...current, platform])
+  }
+
+  const generateWithAi = async (mode: "caption" | "plan") => {
+    if (!aiTopic.trim() && mode === "caption") {
+      toast.error("Diga para a IA qual é o assunto do conteúdo.")
+      return
+    }
+
+    setAiLoading(true)
+    try {
+      const response = await api.generateAi({
+        mode,
+        accountId: accountId || undefined,
+        topic: aiTopic.trim() || undefined,
+        audience: aiAudience.trim() || undefined,
+        tone: aiTone,
+        objective: aiObjective,
+        mediaType: postType,
+        platforms,
+      }) as { result?: { caption?: string; hashtags?: string[]; plan?: AiPlanItem[] } }
+
+      const result = response.result || {}
+      if (mode === "caption") {
+        if (result.caption) setCaption(result.caption)
+        if (Array.isArray(result.hashtags)) setHashtags(result.hashtags.map((tag) => tag.replace(/^#/, "")).filter(Boolean).slice(0, 8))
+        toast.success("Legenda, CTA e hashtags gerados pela IA.")
+      } else {
+        setAiPlan(Array.isArray(result.plan) ? result.plan : [])
+        toast.success("Plano editorial de 7 dias gerado.")
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível usar o assistente de IA.")
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   const submitPost = async (mode: "publish" | "schedule") => {
@@ -311,6 +354,34 @@ export default function ComposerPage() {
               </select>
             )}
             {!threadsAccounts.length && <a href={`${BACKEND_ORIGIN}/api/auth/threads`} className="inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar conta do Threads →</a>}
+          </div>
+
+          {/* AI assistant */}
+          <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 p-4 shadow-xs">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm"><Sparkles size={18} /></div>
+                <div><p className="text-sm font-bold text-slate-900">Assistente de conteúdo</p><p className="text-xs text-slate-500">Gere legenda, CTA, hashtags e um plano de 7 dias.</p></div>
+              </div>
+              <button type="button" onClick={() => setShowAiAssistant((current) => !current)} className="text-xs font-semibold text-indigo-700 hover:text-indigo-900">{showAiAssistant ? "Recolher" : "Abrir"}</button>
+            </div>
+            {showAiAssistant && <div className="mt-4 space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input value={aiTopic} onChange={(event) => setAiTopic(event.target.value)} placeholder="Assunto: ex. dicas para vender mais" aria-label="Assunto para a IA" />
+                <Input value={aiAudience} onChange={(event) => setAiAudience(event.target.value)} placeholder="Público: ex. pequenos negócios" aria-label="Público para a IA" />
+                <select value={aiObjective} onChange={(event) => setAiObjective(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700" aria-label="Objetivo do conteúdo">
+                  <option>Atrair e gerar conversa</option><option>Vender um produto ou serviço</option><option>Educar e gerar autoridade</option><option>Fortalecer relacionamento</option>
+                </select>
+                <select value={aiTone} onChange={(event) => setAiTone(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700" aria-label="Tom do conteúdo">
+                  <option>Profissional e próximo</option><option>Direto e persuasivo</option><option>Leve e descontraído</option><option>Inspirador</option><option>Educativo</option>
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" onClick={() => generateWithAi("caption")} disabled={aiLoading} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Sparkles size={15} />{aiLoading ? "Gerando..." : "Gerar legenda e hashtags"}</Button>
+                <Button type="button" variant="outline" onClick={() => generateWithAi("plan")} disabled={aiLoading} className="gap-2 border-indigo-200 text-indigo-700"><CalendarIcon size={15} />Montar plano de 7 dias</Button>
+              </div>
+              {aiPlan.length > 0 && <div className="max-h-64 space-y-2 overflow-auto rounded-xl border border-indigo-100 bg-white p-3">{aiPlan.map((item, index) => <div key={`${item.day}-${index}`} className="rounded-lg border border-slate-100 p-3"><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold text-indigo-700">{item.day} · {item.format}</p><span className="text-[11px] text-slate-400">{item.suggestedTime}</span></div><p className="mt-1 text-sm font-semibold text-slate-800">{item.topic}</p><p className="mt-1 text-xs text-slate-500">{item.hook}</p><p className="mt-1 text-xs font-medium text-slate-600">CTA: {item.cta}</p></div>)}</div>}
+            </div>}
           </div>
 
           {/* Media Upload */}

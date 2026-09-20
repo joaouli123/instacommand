@@ -18,6 +18,7 @@ import competitorsRoutes from './routes/competitors.routes';
 import trendsRoutes from './routes/trends.routes';
 import schedulerRoutes from './routes/scheduler.routes';
 import settingsRoutes from './routes/settings.routes';
+import aiRoutes from './routes/ai.routes';
 
 // Workers
 import { setupPublishPostWorker } from './jobs/publishPost.job';
@@ -79,6 +80,7 @@ app.use('/api/competitors', competitorsRoutes);
 app.use('/api/trends', trendsRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Error handling
 app.use(errorHandler);
