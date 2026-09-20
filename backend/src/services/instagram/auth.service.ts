@@ -112,15 +112,7 @@ export const getOAuthUrl = async (userId?: string) => {
     throw new Error('Meta App não configurado. Defina META_APP_ID e META_APP_SECRET no ambiente.');
   }
 
-  const scopes = [
-    'business_management',
-    'instagram_basic',
-    'instagram_content_publish',
-    'instagram_manage_insights',
-    'pages_show_list',
-    'pages_read_engagement',
-    'pages_manage_posts',
-  ].join(',');
+  const scopes = env.FB_OAUTH_SCOPES;
 
   const params = new URLSearchParams({
     client_id: credentials.appId,
