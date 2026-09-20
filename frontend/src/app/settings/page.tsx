@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Bell, Database, ShieldCheck, Save, Instagram, KeyRound, CheckCircle2, AtSign } from "lucide-react"
+import { Bell, Database, ShieldCheck, Save, Instagram, KeyRound, CheckCircle2, AtSign, ArrowRight } from "lucide-react"
 import toast from "react-hot-toast"
 import { fetchApi } from "@/lib/api"
 
@@ -102,6 +102,9 @@ export default function SettingsPage() {
   }
 
   const saveSettings = () => toast.success("Configurações salvas com sucesso")
+  const metaReady = Boolean(metaStatus?.appIdConfigured && metaStatus?.appSecretConfigured)
+  const threadsReady = Boolean(threadsStatus?.appIdConfigured && threadsStatus?.appSecretConfigured)
+  const openAccounts = () => { window.location.assign("/accounts") }
 
   return (
     <div className="max-w-4xl space-y-6 animate-fade-in pb-10">
@@ -113,12 +116,13 @@ export default function SettingsPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-fuchsia-50 text-fuchsia-600"><Instagram size={19} /></div>
             <div>
               <h3 className="font-bold text-slate-900">Conexão com a Meta</h3>
-              <p className="mt-1 text-xs text-slate-500">Cadastre o App ID e o App Secret para ativar o botão de entrada automática no Instagram.</p>
+              <p className="mt-1 text-xs text-slate-500">Conecte suas contas pelo botão da Meta. A configuração técnica fica protegida no servidor.</p>
             </div>
-            {metaStatus?.appSecretConfigured && <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={13} />Configurado</span>}
+            {metaReady && <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={13} />Pronto para conectar</span>}
           </div>
 
           <div className="space-y-4 p-6">
+            {metaReady ? <div className="flex flex-col gap-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-emerald-900">Login automático ativado</p><p className="mt-1 text-xs leading-relaxed text-emerald-800">Você não precisa copiar token nem criar outro aplicativo. Clique abaixo, autorize a Meta e escolha as contas profissionais.</p></div><Button onClick={openAccounts} className="shrink-0 gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Instagram size={15} />Conectar contas <ArrowRight size={15} /></Button></div> : <>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="meta-app-id">App ID</Label>
@@ -145,6 +149,7 @@ export default function SettingsPage() {
               <span>Depois de salvar, use “Entrar com a Meta” em Contas conectadas.</span>
               <Button onClick={saveMetaConfig} disabled={savingMeta || loadingMeta} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Save size={15} />{savingMeta ? "Salvando..." : "Salvar Meta"}</Button>
             </div>
+            </>}
           </div>
         </Card>
 
@@ -153,12 +158,13 @@ export default function SettingsPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white"><AtSign size={19} /></div>
             <div>
               <h3 className="font-bold text-slate-900">Conexão com o Threads</h3>
-              <p className="mt-1 text-xs text-slate-500">Use o App ID e o App Secret exibidos no caso de uso “Acessar a API do Threads”.</p>
+              <p className="mt-1 text-xs text-slate-500">Conecte o Threads pelo botão de autorização, sem colar tokens.</p>
             </div>
-            {threadsStatus?.appSecretConfigured && <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={13} />Configurado</span>}
+            {threadsReady && <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={13} />Pronto para conectar</span>}
           </div>
 
           <div className="space-y-4 p-6">
+            {threadsReady ? <div className="flex flex-col gap-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-emerald-900">Login automático ativado</p><p className="mt-1 text-xs leading-relaxed text-emerald-800">Na tela Contas conectadas, escolha “Conectar Threads” e autorize o perfil desejado.</p></div><Button onClick={openAccounts} className="shrink-0 gap-2 bg-slate-900 text-white hover:bg-slate-800"><AtSign size={15} />Conectar Threads <ArrowRight size={15} /></Button></div> : <>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="threads-app-id">App ID do Threads</Label>
@@ -179,6 +185,7 @@ export default function SettingsPage() {
               <span>Depois de salvar, use “Entrar com Threads” em Contas conectadas.</span>
               <Button onClick={saveThreadsConfig} disabled={savingThreads || loadingMeta} className="gap-2 bg-slate-900 text-white hover:bg-slate-800"><Save size={15} />{savingThreads ? "Salvando..." : "Salvar Threads"}</Button>
             </div>
+            </>}
           </div>
         </Card>
 
