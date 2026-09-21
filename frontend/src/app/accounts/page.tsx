@@ -9,7 +9,6 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Plus, RefreshCw, Trash2, CheckCircle2, Users, Activity, Instagram, AtSign, Sparkles, ArrowRight } from "lucide-react"
 import toast from "react-hot-toast"
 import { fetchApi, api } from "@/lib/api"
-import { BACKEND_ORIGIN } from "@/lib/config"
 
 type ConnectedAccount = {
   id: string
@@ -38,14 +37,24 @@ export default function AccountsPage() {
   const [connectDialogOpen, setConnectDialogOpen] = useState(false)
   const [disconnectingThreadId, setDisconnectingThreadId] = useState<string | null>(null)
 
+  const startOAuth = async (path: string) => {
+    try {
+      const result = await fetchApi(path) as { url?: string }
+      if (!result.url) throw new Error("A Meta não disponibilizou o endereço de autorização")
+      window.location.assign(result.url)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível iniciar a conexão")
+    }
+  }
+
   const connectAccount = () => {
     setConnectDialogOpen(false)
-    window.location.assign(`${BACKEND_ORIGIN}/api/auth/facebook`)
+    void startOAuth("/auth/facebook/url")
   }
 
   const connectThreads = () => {
     setConnectDialogOpen(false)
-    window.location.assign(`${BACKEND_ORIGIN}/api/auth/threads`)
+    void startOAuth("/auth/threads/url")
   }
 
   useEffect(() => {

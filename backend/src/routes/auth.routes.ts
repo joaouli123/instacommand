@@ -151,6 +151,18 @@ router.post('/login', async (req, res, next) => {
 });
 
 // Start Meta Login for the currently authenticated SaaS user.
+router.get('/facebook/url', authenticate, async (req: any, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+
+    const state = createOAuthState(user.id, 'meta');
+    return res.json({ url: await getOAuthUrl(user.id, state) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.get('/facebook', async (req: any, res, next) => {
   try {
     const user = await getAuthenticatedUser(req);
@@ -195,6 +207,18 @@ router.get('/facebook/callback', async (req, res) => {
 });
 
 // Start Threads Login for the currently authenticated SaaS user.
+router.get('/threads/url', authenticate, async (req: any, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+
+    const state = createOAuthState(user.id, 'threads');
+    return res.json({ url: await getThreadsOAuthUrl(user.id, state) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.get('/threads', async (req: any, res, next) => {
   try {
     const user = await getAuthenticatedUser(req);
