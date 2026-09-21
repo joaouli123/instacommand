@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 // Exercise the compiled callback without network, real credentials or database writes.
 const originalFetch = global.fetch;
 const originalInfo = console.info;
-let pages, owners, writes, graphError;
+let pages, owners, writes, graphError, portfolio;
 const replaceModule = (name, exports) => {
   require.cache[require.resolve(name)] = { exports };
 };
@@ -25,7 +25,9 @@ replaceModule('@prisma/client', { PrismaClient: class {
   };
 } });
 replaceModule('../dist/utils/instagram-api', {
-  graphGetAll: async (path) => path === '/me/accounts' ? pages : [],
+  graphGetAll: async (path) => path === '/me/accounts' ? pages
+    : path === '/me/businesses' ? (portfolio.length ? [{ id: 'business1' }] : [])
+      : path === '/business1/owned_instagram_accounts' ? portfolio : [],
   graphGet: async (path) => {
     if (graphError) throw graphError;
     if (path === '/debug_token') return { data: { granular_scopes: [] } };
@@ -38,7 +40,7 @@ const { handleOAuthCallback } = require('../dist/services/instagram/auth.service
 
 beforeEach(() => {
   pages = [{ id: 'page1', name: 'Page One', ig: 'ig1', access_token: 'test-page-token' }];
-  owners = {}; writes = []; graphError = null;
+  owners = {}; writes = []; graphError = null; portfolio = [];
   global.fetch = async () => ({ ok: true, json: async () => ({ access_token: 'test-user-token' }) });
   console.info = () => {};
 });
@@ -80,4 +82,31 @@ test('Graph failures are not returned as an empty successful discovery', async (
   graphError = new Error('Graph permission failure');
   await assert.rejects(handleOAuthCallback('test-code', 'current'), /Graph permission failure/);
   assert.equal(writes.length, 0);
+});
+
+test('portfolio-only Instagram is discoverable without an invented Facebook Page', async () => {
+  pages = [];
+  portfolio = [{ id: 'ig2', username: 'other_profile' }];
+  const accounts = await handleOAuthCallback('test-code', 'current');
+  assert.equal(accounts.length, 1);
+  assert.equal(accounts[0].igUserId, 'ig2');
+  assert.equal(accounts[0].pageId, '');
+  assert.equal(accounts[0].selectionPending, true);
+});
+
+test('matching Page names never establish a portfolio account relationship', async () => {
+  pages = [{ id: 'unrelated', name: 'other_profile' }];
+  portfolio = [{ id: 'ig2', username: 'other_profile' }, { id: 'ig2', username: 'other_profile' }];
+  const accounts = await handleOAuthCallback('test-code', 'current');
+  assert.equal(accounts.length, 1);
+  assert.equal(accounts[0].pageId, '');
+  assert.equal(writes.length, 1);
+});
+
+test('verified Page association wins over duplicate portfolio discovery', async () => {
+  portfolio = [{ id: 'ig1', username: 'profile_ig1' }];
+  const accounts = await handleOAuthCallback('test-code', 'current');
+  assert.equal(accounts.length, 1);
+  assert.equal(accounts[0].pageId, 'page1');
+  assert.equal(writes.length, 1);
 });

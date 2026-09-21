@@ -3,6 +3,7 @@ import { graphPost, graphGet, graphDelete as apiDelete } from '../../utils/insta
 import { getDecryptedToken, getDecryptedThreadsToken } from './auth.service';
 import { notifyPublishFailure } from '../notifications.service';
 import { ConflictError } from '../../utils/errors';
+import { verifyFacebookPageLink } from './facebook-link.service';
 
 const prisma = new PrismaClient();
 
@@ -104,6 +105,7 @@ const waitForThreadsContainer = async (containerId: string, token: string) => {
 export const publishFacebookPost = async (post: any, token: string) => {
   const pageId = post.account.pageId;
   if (!pageId) throw new Error('A conta conectada não possui uma Página do Facebook vinculada.');
+  await verifyFacebookPageLink(pageId, post.account.igUserId, token);
 
   const caption = post.caption || '';
   if (post.mediaType === 'REEL') {

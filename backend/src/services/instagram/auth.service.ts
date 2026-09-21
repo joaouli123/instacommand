@@ -354,7 +354,7 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
   const saveInstagramAccount = async (
     igId: string,
     profileData: any,
-    page: { id: string; name?: string },
+    page: { id: string; name?: string } | null,
     accessToken: string,
   ) => {
     const encryptedToken = encrypt(accessToken);
@@ -382,8 +382,8 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
         igFollowersCount: profileData.followers_count,
         igFollowsCount: profileData.follows_count,
         igMediaCount: profileData.media_count,
-        pageId: page.id,
-        pageName: page.name || null,
+        pageId: page?.id || '',
+        pageName: page?.name || null,
         pageAccessToken: encryptedToken,
         isActive: existingAccount?.isActive ?? false,
         selectionPending,
@@ -398,8 +398,8 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
         igFollowersCount: profileData.followers_count,
         igFollowsCount: profileData.follows_count,
         igMediaCount: profileData.media_count,
-        pageId: page.id,
-        pageName: page.name || null,
+        pageId: page?.id || '',
+        pageName: page?.name || null,
         pageAccessToken: encryptedToken,
         userId,
         isActive: false,
@@ -439,18 +439,11 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
           fields: 'username,name,profile_picture_url,biography,followers_count,follows_count,media_count',
         });
 
-    // A Business Login portfolio can expose the Page and Instagram assets as
-    // separate selections. Prefer a semantically matching Page and otherwise
-    // use the first Page returned for the portfolio so Facebook publishing
-    // retains a concrete Page target.
-    const username = String(profileData.username || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const page = pages.find((candidate) => {
-      const pageName = String(candidate.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      return pageName && (username.includes(pageName) || pageName.includes(username));
-    }) || pages[0];
-    if (!page) continue;
-
-    await saveInstagramAccount(portfolioAccount.id, profileData, page, userToken);
+    // Portfolio access proves access to the Instagram asset, not a Facebook
+    // Page relationship. Preserve discovery without guessing a publishing
+    // destination. Empty pageId is the existing schema's unlinked state.
+    await saveInstagramAccount(portfolioAccount.id, profileData, null, userToken);
+    connectedInstagramIds.add(portfolioAccount.id);
   }
 
   if (!connectedAccounts.length && ownershipConflicts > 0) {
