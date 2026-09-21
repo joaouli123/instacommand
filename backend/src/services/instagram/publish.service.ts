@@ -182,13 +182,19 @@ export const publishThreadsPost = async (post: any, token: string) => {
   return published.id;
 };
 
-export const publishPost = async (scheduledPostId: string) => {
+export const publishPost = async (scheduledPostId: string, trigger?: { scheduledFor?: string }) => {
   const post = await prisma.scheduledPost.findUnique({
     where: { id: scheduledPostId },
     include: { account: true, threadsAccount: true },
   });
 
   if (!post) throw new Error('Post not found');
+  // Queue deliveries are not permission to publish a draft, canceled item,
+  // or a newer schedule. Legacy jobs have no date, but must still be due.
+  if (trigger && (post.status !== 'SCHEDULED' || post.scheduledFor > new Date()
+    || (trigger.scheduledFor !== undefined && post.scheduledFor.toISOString() !== trigger.scheduledFor))) {
+    return null;
+  }
   if (post.status === 'PUBLISHED') {
     if (post.publishedPostId) {
       const existing = await prisma.publishedPost.findUnique({ where: { id: post.publishedPostId } });
@@ -201,12 +207,18 @@ export const publishPost = async (scheduledPostId: string) => {
   }
   assertPostReady(post);
 
-  try {
-    await prisma.scheduledPost.update({
-      where: { id: scheduledPostId },
-      data: { status: 'PROCESSING' },
-    });
+  // Compare-and-set before any network write. The loser must not enter the
+  // failure handler and reset the winner's PROCESSING status.
+  const claimed = await prisma.scheduledPost.updateMany({
+    where: { id: post.id, status: post.status, updatedAt: post.updatedAt },
+    data: { status: 'PROCESSING', errorMessage: null },
+  });
+  if (claimed.count !== 1) {
+    if (trigger) return null;
+    throw new ConflictError('Esta publicação mudou ou já está sendo enviada. Atualize a tela antes de tentar novamente.');
+  }
 
+  try {
     const platforms = post.platforms?.length ? post.platforms : ['INSTAGRAM'];
     const results: Record<string, unknown> = {};
     const errors: string[] = [];
@@ -218,7 +230,9 @@ export const publishPost = async (scheduledPostId: string) => {
         const isReady = await checkContainerStatus(containerId, token);
         if (!isReady) throw new Error('A mídia não foi processada pelo Instagram.');
         const igMediaId = await publishContainer(post.account.igUserId, containerId, token);
-        const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_url' });
+        // Enrichment must not turn a successful remote publication into a
+        // retryable failure (which would send the same content again).
+        const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_url' }).catch(() => ({}));
         results.INSTAGRAM = { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaDetails.media_url };
       } catch (error) {
         errors.push(`Instagram: ${error instanceof Error ? error.message : 'falha desconhecida'}`);

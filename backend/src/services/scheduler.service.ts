@@ -10,7 +10,7 @@ export const competitorsQueue = new Queue('collect-competitors', { connection: r
 
 export const schedulePost = async (scheduledPostId: string, publishAt: Date) => {
   const delay = publishAt.getTime() - Date.now();
-  await publishQueue.add('publish', { scheduledPostId }, { 
+  await publishQueue.add('publish', { scheduledPostId, scheduledFor: publishAt.toISOString() }, {
     jobId: scheduledPostId,
     delay: Math.max(0, delay)
   });

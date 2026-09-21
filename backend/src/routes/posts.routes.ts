@@ -9,6 +9,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { env } from '../config/env';
 import { assertPostReady } from '../services/post-readiness';
+import { ConflictError } from '../utils/errors';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -192,7 +193,8 @@ router.patch('/:id', async (req: any, res, next) => {
     }
 
     const updatedPost = await prisma.scheduledPost.update({
-      where: { id: post.id },
+      // Do not overwrite a worker claim or a concurrent editor.
+      where: { id: post.id, status: post.status, updatedAt: post.updatedAt },
       data: {
         caption,
         mediaUrls,
@@ -203,6 +205,9 @@ router.patch('/:id', async (req: any, res, next) => {
         platforms: Array.isArray(platforms) && platforms.length ? nextPlatforms : undefined,
         threadsAccountId: threadsAccountId === null ? null : threadsAccountId || undefined,
       }
+    }).catch((error) => {
+      if (error?.code === 'P2025') throw new ConflictError('Esta publicação mudou ou já está sendo enviada. Atualize a tela antes de editar.');
+      throw error;
     });
 
     if (updatedPost.status === 'SCHEDULED') {
