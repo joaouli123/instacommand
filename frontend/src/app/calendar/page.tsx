@@ -11,6 +11,7 @@ import {
 import Link from "next/link"
 import { api } from "@/lib/api"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
+import toast from "react-hot-toast"
 
 type CalendarPost = {
   id: string
@@ -75,9 +76,13 @@ export default function CalendarPage() {
     if (!selectedPost || !window.confirm("Excluir esta publicação do calendário?")) return
     setActionLoading(true)
     try {
-      await api.deletePost(selectedPost.id)
+      const result = await api.deletePost(selectedPost.id) as { warnings?: string[] }
       setPosts((current) => current.filter((post) => post.id !== selectedPost.id))
       setSelectedPost(null)
+      if (result.warnings?.length) result.warnings.forEach((warning) => toast.error(warning))
+      else toast.success("Publicação removida do calendário.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir a publicação.")
     } finally {
       setActionLoading(false)
     }

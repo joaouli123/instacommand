@@ -39,6 +39,7 @@ router.post('/', async (req: any, res, next) => {
   try {
     const { accountId, threadsAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status } = req.body;
     const normalizedPlatforms = Array.isArray(platforms) && platforms.length ? platforms : ['INSTAGRAM'];
+    const textOnlyThreads = normalizedPlatforms.length === 1 && normalizedPlatforms[0] === 'THREADS';
     const unsupportedPlatform = normalizedPlatforms.find((platform: unknown) => !['INSTAGRAM', 'FACEBOOK', 'THREADS'].includes(String(platform)));
     if (unsupportedPlatform) return res.status(400).json({ error: `Plataforma não suportada: ${unsupportedPlatform}` });
     const account = await prisma.instagramAccount.findFirst({ where: { id: accountId, userId: req.user.id, isActive: true } });
@@ -52,8 +53,11 @@ router.post('/', async (req: any, res, next) => {
     if (normalizedPlatforms.includes('FACEBOOK') && !account.pageId) {
       return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
     }
-    if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) {
+    if (!Array.isArray(mediaUrls) || (mediaUrls.length === 0 && !textOnlyThreads)) {
       return res.status(400).json({ error: 'Envie pelo menos uma mídia.' });
+    }
+    if (textOnlyThreads && mediaUrls.length === 0 && !String(caption || '').trim()) {
+      return res.status(400).json({ error: 'Escreva um texto antes de publicar somente no Threads.' });
     }
     if (!['IMAGE', 'CAROUSEL', 'REEL', 'STORY'].includes(mediaType)) {
       return res.status(400).json({ error: 'Formato de publicação inválido.' });
@@ -203,12 +207,44 @@ router.delete('/:id', async (req: any, res, next) => {
       await cancelScheduledPost(post.id);
     }
 
+    const warnings: string[] = [];
     if (post.publishedPost?.igMediaId) {
-      await deletePost(post.publishedPost.igMediaId, post.accountId);
+      try {
+        await deletePost(post.publishedPost.igMediaId, post.accountId);
+      } catch (error) {
+        console.error(`Could not delete Instagram media ${post.publishedPost.igMediaId}:`, error);
+        warnings.push('O conteúdo do Instagram não pôde ser removido remotamente; verifique a conexão da Meta.');
+      }
     }
+    if (post.publishedPost?.facebookPostId) warnings.push('A publicação do Facebook permanece na Página; a API atual não permite removê-la por este painel.');
+    if (post.publishedPost?.threadsPostId) warnings.push('A publicação do Threads permanece no perfil; a API atual não permite removê-la por este painel.');
 
-    await prisma.scheduledPost.delete({ where: { id: post.id } });
-    res.json({ message: 'Post deleted' });
+    const uploadRoot = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);
+    const publicBase = env.MEDIA_PUBLIC_URL.replace(/\/$/, '');
+    const uploadedFiles = post.mediaUrls
+      .filter((url) => typeof url === 'string' && url.startsWith(`${publicBase}/`))
+      .map((url) => {
+        const filename = decodeURIComponent(url.slice(publicBase.length + 1)).split(/[?#]/)[0];
+        if (!filename || filename.includes('/') || filename.includes('\\')) return null;
+        return path.resolve(uploadRoot, filename);
+      })
+      .filter((filePath): filePath is string => {
+        if (!filePath) return false;
+        return filePath.startsWith(`${uploadRoot}${path.sep}`);
+      });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.scheduledPost.delete({ where: { id: post.id } });
+      if (post.publishedPostId) {
+        await tx.publishedPost.deleteMany({ where: { id: post.publishedPostId } });
+      }
+    });
+    await Promise.all(uploadedFiles.map(async (filePath) => {
+      try { await fs.promises.unlink(filePath); } catch (error: any) {
+        if (error?.code !== 'ENOENT') console.error(`Could not remove uploaded file ${filePath}:`, error);
+      }
+    }));
+    res.json({ message: 'Post deleted', warnings });
   } catch (error) {
     next(error);
   }

@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { graphPost, graphGet, graphDelete as apiDelete } from '../../utils/instagram-api';
 import { getDecryptedToken, getDecryptedThreadsToken } from './auth.service';
 import { notifyPublishFailure } from '../notifications.service';
+import { ConflictError } from '../../utils/errors';
 
 const prisma = new PrismaClient();
 
@@ -185,6 +186,16 @@ export const publishPost = async (scheduledPostId: string) => {
   });
 
   if (!post) throw new Error('Post not found');
+  if (post.status === 'PUBLISHED') {
+    if (post.publishedPostId) {
+      const existing = await prisma.publishedPost.findUnique({ where: { id: post.publishedPostId } });
+      if (existing) return existing;
+    }
+    throw new ConflictError('Esta publicação já foi concluída e não pode ser enviada novamente.');
+  }
+  if (post.status === 'PROCESSING') {
+    throw new ConflictError('Esta publicação já está sendo processada. Aguarde o resultado antes de tentar novamente.');
+  }
 
   try {
     await prisma.scheduledPost.update({

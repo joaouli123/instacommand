@@ -238,8 +238,13 @@ export default function ComposerPage() {
   }
 
   const submitPost = async (mode: "publish" | "schedule") => {
-    if (mediaItems.length === 0) {
+    const textOnlyThreads = platforms.length === 1 && platforms[0] === "THREADS"
+    if (mediaItems.length === 0 && !textOnlyThreads) {
       toast.error(`Adicione pelo menos uma imagem ou vídeo antes de ${mode === "publish" ? "publicar" : "agendar"}.`)
+      return
+    }
+    if (textOnlyThreads && !caption.trim()) {
+      toast.error("Escreva um texto antes de publicar somente no Threads.")
       return
     }
     if (!accountId) {
@@ -270,7 +275,9 @@ export default function ComposerPage() {
 
     setIsSubmitting(true)
     try {
-      const upload = await api.uploadMedia(mediaItems.map((item) => item.file)) as { urls: string[] }
+      const upload = mediaItems.length
+        ? await api.uploadMedia(mediaItems.map((item) => item.file)) as { urls: string[] }
+        : { urls: [] as string[] }
       const finalCaption = [caption.trim(), hashtags.length ? hashtags.map((tag) => `#${tag}`).join(" ") : ""]
         .filter(Boolean)
         .join("\n\n")
@@ -503,7 +510,7 @@ export default function ComposerPage() {
                   {isDragActive ? "Solte os arquivos aqui" : mediaItems.length > 0 ? "Adicionar mais mídias" : "Arraste imagens ou vídeos aqui"}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {postType === "CAROUSEL" ? "Até 10 itens • PNG, JPG, MP4 ou MOV" : "PNG, JPG, MP4 ou MOV até 100MB"}
+                  {platforms.length === 1 && platforms[0] === "THREADS" ? "Opcional no Threads quando você publicar somente texto • PNG, JPG, MP4 ou MOV" : postType === "CAROUSEL" ? "Até 10 itens • PNG, JPG, MP4 ou MOV" : "PNG, JPG, MP4 ou MOV até 100MB"}
                 </p>
               </div>
             </div>

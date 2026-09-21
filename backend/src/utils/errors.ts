@@ -28,6 +28,12 @@ export class ValidationError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(message = 'The requested operation conflicts with the current resource state') {
+    super(message, 409);
+  }
+}
+
 export class InstagramApiError extends AppError {
   constructor(message: string, statusCode = 502) {
     super(`Instagram API Error: ${message}`, statusCode);
