@@ -7,6 +7,7 @@ import { getAiCredentials } from '../services/instagram/auth.service';
 import { saveDailyDrafts } from '../services/daily-drafts.service';
 import multer from 'multer';
 import { MAX_AI_IMAGE_BYTES, validateAiImages } from '../services/ai-images';
+import { aiProfileSelect, buildAiProfileContext } from '../services/ai-profile-context';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -53,21 +54,11 @@ router.post('/generate', async (req: AuthRequest, res, next) => {
     if (input.accountId) {
       const account = await prisma.instagramAccount.findFirst({
         where: { id: input.accountId, userId: req.user!.id, isActive: true },
-        select: {
-          igUsername: true,
-          igName: true,
-          igBio: true,
-          igFollowersCount: true,
-          igFollowsCount: true,
-          igMediaCount: true,
-          pageName: true,
-          profileInsights: { orderBy: { collectedAt: 'desc' }, take: 3, select: { followers: true, reach: true, impressions: true, profileViews: true, collectedAt: true } },
-          publishedPosts: { where: { igMediaId: { not: null } }, orderBy: { publishedAt: 'desc' }, take: 8, select: { mediaType: true, caption: true, publishedAt: true, insights: { orderBy: { collectedAt: 'desc' }, take: 1, select: { likes: true, comments: true, shares: true, saves: true, reach: true, engagement: true } } } },
-        },
+        select: aiProfileSelect,
       });
 
       if (!account) return res.status(404).json({ error: 'Conta do Instagram não encontrada.' });
-      context = account as unknown as Record<string, unknown>;
+      context = buildAiProfileContext(account);
     }
 
     const result = await generateAiContent({ ...input, context }, await getAiCredentials(req.user!.id));
