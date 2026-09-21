@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { graphPost, graphGet, graphDelete as apiDelete } from '../../utils/instagram-api';
 import { getDecryptedToken, getDecryptedThreadsToken } from './auth.service';
+import { notifyPublishFailure } from '../notifications.service';
 
 const prisma = new PrismaClient();
 
@@ -29,6 +30,8 @@ export const createMediaContainer = async (
         ? { media_type: 'VIDEO', video_url: url, is_carousel_item: true }
         : { image_url: url, is_carousel_item: true };
       const child = await graphPost(`/${igUserId}/media`, token, childParams);
+      const childReady = await checkContainerStatus(child.id, token);
+      if (!childReady) throw new Error('Uma das mídias do carrossel não foi processada pelo Instagram.');
       childrenContainers.push(child.id);
     }
     params.media_type = 'CAROUSEL';
@@ -257,11 +260,20 @@ export const publishPost = async (scheduledPostId: string) => {
       },
     });
 
+    if (errors.length) {
+      await notifyPublishFailure(post.userId, scheduledPostId, errors.join(' | ')).catch((notificationError) => {
+        console.error('Could not create publish notification:', notificationError);
+      });
+    }
+
     return published;
   } catch (error: any) {
     await prisma.scheduledPost.update({
       where: { id: scheduledPostId },
       data: { status: 'FAILED', errorMessage: error.message },
+    });
+    await notifyPublishFailure(post.userId, scheduledPostId, error.message || 'A publicação não foi concluída.').catch((notificationError) => {
+      console.error('Could not create publish notification:', notificationError);
     });
     throw error;
   }

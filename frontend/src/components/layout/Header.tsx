@@ -12,6 +12,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { api } from "@/lib/api"
+
+type NotificationItem = {
+  id: string
+  title: string
+  message: string
+  href?: string | null
+  readAt?: string | null
+  createdAt: string
+}
 
 export function Header() {
   const pathname = usePathname()
@@ -30,6 +41,29 @@ export function Header() {
   const current = titles[pathname] || { title: 'InstaCommand', subtitle: 'Plataforma de Gestão do Instagram' }
 
   const { accounts, activeAccount, setActiveAccount, isLoading } = useActiveAccount()
+  const queryClient = useQueryClient()
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications'],
+    queryFn: api.getNotifications,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  })
+  const notificationPayload = notificationsQuery.data as { items?: NotificationItem[]; unreadCount?: number } | undefined
+  const notifications = notificationPayload?.items || []
+  const unreadCount = notificationPayload?.unreadCount || 0
+
+  const openNotification = async (notification: NotificationItem) => {
+    if (!notification.readAt) {
+      await api.markNotificationRead(notification.id).catch(() => undefined)
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    }
+    if (notification.href) window.location.assign(notification.href)
+  }
+
+  const markAllNotificationsRead = async () => {
+    await api.markAllNotificationsRead().catch(() => undefined)
+    await queryClient.invalidateQueries({ queryKey: ['notifications'] })
+  }
 
   return (
     <header className="h-16 md:h-[72px] border-b border-slate-200/80 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 md:px-8 sticky top-0 z-20 shadow-sm">
@@ -86,13 +120,33 @@ export function Header() {
         </DropdownMenu>
 
         {/* Notifications */}
-        <button 
-          className="relative p-2 rounded-xl border border-slate-200/80 hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors shadow-xs"
-          title="Notificações"
-        >
-          <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white"></span>
-        </button>
+        <DropdownMenu onOpenChange={(open) => { if (open) notificationsQuery.refetch() }}>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="relative rounded-xl border border-slate-200/80 p-2 text-slate-500 shadow-xs transition-colors hover:bg-slate-100 hover:text-slate-800"
+              title="Notificações"
+              aria-label="Notificações"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-4 text-white ring-2 ring-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[min(24rem,calc(100vw-2rem))] bg-white p-1.5 shadow-lg">
+            <div className="flex items-center justify-between px-2.5 py-2">
+              <DropdownMenuLabel className="p-0 text-xs font-bold uppercase tracking-wider text-slate-400">Notificações</DropdownMenuLabel>
+              {unreadCount > 0 && <button type="button" onClick={markAllNotificationsRead} className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800">Marcar todas como lidas</button>}
+            </div>
+            <DropdownMenuSeparator className="bg-slate-100" />
+            <div className="max-h-80 overflow-y-auto">
+              {notifications.length ? notifications.map((notification) => (
+                <DropdownMenuItem key={notification.id} onClick={() => openNotification(notification)} className={`mb-1 cursor-pointer items-start gap-2 rounded-lg px-2.5 py-2.5 ${notification.readAt ? "" : "bg-indigo-50/70"}`}>
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${notification.readAt ? "bg-slate-200" : "bg-indigo-600"}`} />
+                  <span className="min-w-0"><span className="block text-xs font-bold text-slate-800">{notification.title}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{notification.message}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(notification.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span></span>
+                </DropdownMenuItem>
+              )) : <p className="px-3 py-8 text-center text-xs text-slate-500">Tudo em dia. Nenhuma notificação.</p>}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Quick Post Action */}
         <Link href="/composer">

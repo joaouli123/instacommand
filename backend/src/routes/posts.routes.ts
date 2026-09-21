@@ -49,11 +49,17 @@ router.post('/', async (req: any, res, next) => {
     if (normalizedPlatforms.includes('THREADS') && !threadsAccount) {
       return res.status(400).json({ error: 'Conecte uma conta do Threads antes de selecionar essa plataforma.' });
     }
+    if (normalizedPlatforms.includes('FACEBOOK') && !account.pageId) {
+      return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
+    }
     if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) {
       return res.status(400).json({ error: 'Envie pelo menos uma mídia.' });
     }
     if (!['IMAGE', 'CAROUSEL', 'REEL', 'STORY'].includes(mediaType)) {
       return res.status(400).json({ error: 'Formato de publicação inválido.' });
+    }
+    if (mediaType === 'STORY' && normalizedPlatforms.some((platform: string) => platform !== 'INSTAGRAM')) {
+      return res.status(400).json({ error: 'Stories só podem ser publicados pelo Instagram nesta versão da API.' });
     }
     if (mediaType === 'CAROUSEL' && (mediaUrls.length < 2 || mediaUrls.length > 10)) {
       return res.status(400).json({ error: 'Um carrossel precisa ter entre 2 e 10 mídias.' });
@@ -69,7 +75,7 @@ router.post('/', async (req: any, res, next) => {
         mediaType,
         mediaUrls,
         caption,
-        hashtags,
+        hashtags: Array.isArray(hashtags) ? hashtags : [],
         platforms: normalizedPlatforms,
         scheduledFor: targetDate,
         status: status || PostStatus.DRAFT,

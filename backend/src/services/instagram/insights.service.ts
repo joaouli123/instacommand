@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { graphGet } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
 import { MediaType } from '@prisma/client';
+import { maybeNotifyEngagement } from '../notifications.service';
 
 const prisma = new PrismaClient();
 
@@ -167,7 +168,7 @@ export const syncAccountMedia = async (accountId: string, options: { fetchInsigh
 };
 
 export const savePostInsights = async (accountId: string) => {
-  const account = await prisma.instagramAccount.findUnique({ where: { id: accountId } });
+  const account = await prisma.instagramAccount.findUnique({ where: { id: accountId }, include: { user: true } });
   if (!account) return;
 
   const token = await getDecryptedToken(accountId);
@@ -207,6 +208,16 @@ export const savePostInsights = async (accountId: string) => {
           impressions,
           engagement,
         },
+      });
+
+      await maybeNotifyEngagement({
+        userId: account.userId,
+        accountId,
+        accountUsername: account.igUsername,
+        postId: post.id,
+        interactions: likes + comments + saves,
+      }).catch((notificationError) => {
+        console.error(`Could not create engagement notification for ${post.igMediaId}:`, notificationError);
       });
     } catch (e) {
       console.error(`Failed to fetch insights for post ${post.igMediaId}`, e);

@@ -46,6 +46,7 @@ export const api = {
   getPendingAccounts: () => fetchApi('/accounts/pending'),
   selectAccounts: (accountIds: string[]) => fetchApi('/accounts/select', { method: 'POST', body: JSON.stringify({ accountIds }) }),
   getThreadsAccounts: () => fetchApi('/accounts/threads'),
+  disconnectThreadsAccount: (id: string) => fetchApi(`/accounts/threads/${id}`, { method: 'DELETE' }),
   uploadMedia: (files: File[]) => {
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
@@ -54,6 +55,8 @@ export const api = {
   createPost: (data: Record<string, unknown>) => fetchApi('/posts', { method: 'POST', body: JSON.stringify(data) }),
   publishPost: (id: string) => fetchApi(`/posts/${id}/publish`, { method: 'POST' }),
   getPosts: (params = '') => fetchApi(`/posts${params ? `?${params}` : ''}`),
+  updatePost: (id: string, data: Record<string, unknown>) => fetchApi(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deletePost: (id: string) => fetchApi(`/posts/${id}`, { method: 'DELETE' }),
   getDashboard: (accountId: string) => fetchApi(`/analytics/${accountId}/dashboard`),
   getGrowth: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/growth?days=${days}`),
   getEngagement: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/engagement?days=${days}`),
@@ -70,4 +73,7 @@ export const api = {
   trackHashtag: (accountId: string, data: Record<string, unknown>) => fetchApi(`/trends/${accountId}/hashtags/track`, { method: 'POST', body: JSON.stringify(data) }),
   untrackHashtag: (accountId: string, id: string) => fetchApi(`/trends/${accountId}/hashtags/${id}`, { method: 'DELETE' }),
   generateAi: (data: Record<string, unknown>) => fetchApi('/ai/generate', { method: 'POST', body: JSON.stringify(data) }),
+  getNotifications: () => fetchApi('/notifications'),
+  markNotificationRead: (id: string) => fetchApi(`/notifications/${id}/read`, { method: 'POST' }),
+  markAllNotificationsRead: () => fetchApi('/notifications/read-all', { method: 'POST' }),
 };

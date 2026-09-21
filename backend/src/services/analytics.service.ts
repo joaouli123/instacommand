@@ -52,9 +52,16 @@ export const getGrowthData = async (accountId: string, days = 30) => {
     orderBy: { collectedAt: 'asc' },
   });
 
-  return insights.map(i => ({
-    date: i.collectedAt,
-    followers: i.followers,
+  // The worker may collect several snapshots in one day. Keep the latest
+  // real snapshot per calendar day so the chart does not repeat dates.
+  const byDay = new Map<string, { date: Date; followers: number }>();
+  for (const insight of insights) {
+    const day = insight.collectedAt.toISOString().slice(0, 10);
+    byDay.set(day, { date: insight.collectedAt, followers: insight.followers });
+  }
+  return Array.from(byDay.values()).map((item) => ({
+    date: item.date,
+    followers: item.followers,
   }));
 };
 

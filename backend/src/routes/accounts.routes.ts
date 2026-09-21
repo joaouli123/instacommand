@@ -75,19 +75,19 @@ router.get('/:id', async (req: any, res, next) => {
   }
 });
 
-router.delete('/:id', async (req: any, res, next) => {
+router.delete('/threads/:id', async (req: any, res, next) => {
   try {
-    await disconnectAccount(req.params.id, req.user.id);
-    res.json({ message: 'Account disconnected' });
+    await disconnectThreadsAccount(req.params.id, req.user.id);
+    res.json({ message: 'Conta do Threads desconectada' });
   } catch (error) {
     next(error);
   }
 });
 
-router.delete('/threads/:id', async (req: any, res, next) => {
+router.delete('/:id', async (req: any, res, next) => {
   try {
-    await disconnectThreadsAccount(req.params.id, req.user.id);
-    res.json({ message: 'Conta do Threads desconectada' });
+    await disconnectAccount(req.params.id, req.user.id);
+    res.json({ message: 'Account disconnected' });
   } catch (error) {
     next(error);
   }

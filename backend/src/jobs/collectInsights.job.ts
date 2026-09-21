@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import { PrismaClient } from '@prisma/client';
 import { saveProfileSnapshot, savePostInsights } from '../services/instagram/insights.service';
+import { createWeeklyReportNotification } from '../services/notifications.service';
 
 const prisma = new PrismaClient();
 
@@ -13,7 +14,7 @@ const refreshWindowMs: Record<string, number> = {
 
 export const setupCollectInsightsWorker = () => {
   const worker = new Worker('collect-insights', async job => {
-    console.log('Running daily insights collection...');
+    console.log('Running scheduled insights collection...');
     
     const accounts = await prisma.instagramAccount.findMany({
       where: { isActive: true },
@@ -30,6 +31,12 @@ export const setupCollectInsightsWorker = () => {
       } catch (error) {
         console.error(`Failed to collect insights for account ${account.id}:`, error);
       }
+    }
+
+    for (const userId of new Set(accounts.map((account) => account.userId))) {
+      await createWeeklyReportNotification(userId).catch((error) => {
+        console.error(`Failed to create weekly report notification for ${userId}:`, error);
+      });
     }
   }, {
     connection: redisConnection,

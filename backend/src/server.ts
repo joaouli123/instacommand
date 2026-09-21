@@ -19,6 +19,7 @@ import trendsRoutes from './routes/trends.routes';
 import schedulerRoutes from './routes/scheduler.routes';
 import settingsRoutes from './routes/settings.routes';
 import aiRoutes from './routes/ai.routes';
+import notificationsRoutes from './routes/notifications.routes';
 
 // Workers
 import { setupPublishPostWorker } from './jobs/publishPost.job';
@@ -81,6 +82,7 @@ app.use('/api/trends', trendsRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Error handling
 app.use(errorHandler);

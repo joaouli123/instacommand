@@ -25,7 +25,7 @@ type MediaItem = {
   isObjectUrl: boolean
 }
 
-type ConnectedAccount = { id: string; igUsername: string; igProfilePicUrl?: string | null; isActive: boolean }
+type ConnectedAccount = { id: string; igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null; isActive: boolean }
 type ThreadsAccount = { id: string; username: string; name?: string | null; isActive: boolean }
 type AiPlanItem = { day: string; format: string; topic: string; hook: string; cta: string; suggestedTime: string }
 
@@ -149,6 +149,12 @@ export default function ComposerPage() {
   const changePostType = (nextType: PostType) => {
     setPostType(nextType)
 
+    if (nextType === "STORY") {
+      setPlatforms((current) => current.filter((platform) => platform === "INSTAGRAM"))
+    } else if (!platforms.length) {
+      setPlatforms(["INSTAGRAM"])
+    }
+
     if (nextType !== "CAROUSEL" && mediaItems.length > 1) {
       mediaItems.slice(1).forEach(item => {
         if (item.isObjectUrl) URL.revokeObjectURL(item.src)
@@ -248,6 +254,14 @@ export default function ComposerPage() {
       toast.error("Conecte uma conta do Threads ou remova o Threads da seleção.")
       return
     }
+    if (postType === "STORY" && platforms.some((platform) => platform !== "INSTAGRAM")) {
+      toast.error("Stories só podem ser publicados pelo Instagram nesta versão da API.")
+      return
+    }
+    if (platforms.includes("FACEBOOK") && !selectedAccount?.pageName) {
+      toast.error("A conta selecionada não tem uma Página do Facebook vinculada.")
+      return
+    }
     const scheduledFor = mode === "publish" ? new Date() : new Date(selectedDate)
     if (Number.isNaN(scheduledFor.getTime()) || (mode === "schedule" && scheduledFor <= new Date())) {
       toast.error("Escolha uma data futura válida para o agendamento.")
@@ -340,16 +354,17 @@ export default function ComposerPage() {
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {[
                 { id: "INSTAGRAM", label: "Instagram", icon: Instagram, help: "Feed, carrossel, Reels e Stories" },
-                { id: "FACEBOOK", label: "Facebook", icon: Facebook, help: "Página vinculada à conta" },
-                { id: "THREADS", label: "Threads", icon: AtSign, help: threadsAccounts.length ? `@${threadsAccounts[0].username}` : "Conecte uma conta" },
+                { id: "FACEBOOK", label: "Facebook", icon: Facebook, help: postType === "STORY" ? "Stories não disponíveis pela API" : selectedAccount?.pageName ? `Página ${selectedAccount.pageName}` : "Selecione uma conta com Página vinculada" },
+                { id: "THREADS", label: "Threads", icon: AtSign, help: postType === "STORY" ? "Stories não disponíveis pela API" : threadsAccounts.length ? `@${threadsAccounts[0].username}` : "Conecte uma conta" },
               ].map((target) => {
                 const selected = platforms.includes(target.id)
-                const unavailable = target.id === "THREADS" && !threadsAccounts.length
+                const unavailable = (target.id === "THREADS" && (!threadsAccounts.length || postType === "STORY")) || (target.id === "FACEBOOK" && (!selectedAccount?.pageName || postType === "STORY"))
                 return (
                   <button
                     key={target.id}
                     type="button"
                     onClick={() => !unavailable && togglePlatform(target.id)}
+                    aria-disabled={unavailable}
                     className={`rounded-xl border p-3 text-left transition-all ${selected ? "border-indigo-500 bg-white ring-1 ring-indigo-500/20" : "border-slate-200 bg-white/60 hover:border-indigo-300"} ${unavailable ? "cursor-not-allowed opacity-60" : ""}`}
                     aria-pressed={selected}
                   >

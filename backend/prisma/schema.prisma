@@ -24,6 +24,7 @@ model User {
   threadsAccounts ThreadsAccount[]
   scheduledPosts ScheduledPost[]
   preferences     UserPreference?
+  notifications   Notification[]
 }
 
 model UserPreference {
@@ -37,6 +38,24 @@ model UserPreference {
   updatedAt            DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  href      String?
+  dedupeKey String?   @unique
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
 
 model InstagramAccount {

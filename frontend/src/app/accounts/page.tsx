@@ -34,6 +34,7 @@ export default function AccountsPage() {
   const [audit, setAudit] = useState<AiAudit | null>(null)
   const [auditAccount, setAuditAccount] = useState("")
   const [connectDialogOpen, setConnectDialogOpen] = useState(false)
+  const [disconnectingThreadId, setDisconnectingThreadId] = useState<string | null>(null)
 
   const connectAccount = () => {
     setConnectDialogOpen(false)
@@ -133,6 +134,20 @@ export default function AccountsPage() {
     }
   }
 
+  const disconnectThreads = async (account: ConnectedThreadsAccount) => {
+    if (!window.confirm(`Desconectar @${account.username} do Threads?`)) return
+    setDisconnectingThreadId(account.id)
+    try {
+      await api.disconnectThreadsAccount(account.id)
+      setThreadsAccounts((current) => current.filter((item) => item.id !== account.id))
+      toast.success(`@${account.username} foi desconectada do Threads`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível desconectar a conta do Threads")
+    } finally {
+      setDisconnectingThreadId(null)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Conexões</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Contas conectadas</h2><p className="mt-1 text-sm text-slate-500">Conecte Instagram, Facebook e Threads para publicar em conjunto.</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />Adicionar conta</Button></div>
@@ -180,7 +195,7 @@ export default function AccountsPage() {
           <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-white"><AtSign size={19} /></div><div><h3 className="font-bold text-slate-900">Threads</h3><p className="text-sm text-slate-500">{threadsAccounts.length ? `@${threadsAccounts[0].username} conectado` : "Conecte para publicar junto com Instagram e Facebook."}</p></div></div>
           <Button variant={threadsAccounts.length ? "outline" : "secondary"} onClick={connectThreads} className="gap-2">{threadsAccounts.length ? "Conectar outra conta" : "Entrar com Threads"}</Button>
         </div>
-        {threadsAccounts.length > 0 && <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">{threadsAccounts.map((account) => <div key={account.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5"><span className="text-sm font-semibold text-slate-800">@{account.username}</span><Badge variant="success">Ativo</Badge></div>)}</div>}
+        {threadsAccounts.length > 0 && <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">{threadsAccounts.map((account) => <div key={account.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5"><span className="text-sm font-semibold text-slate-800">@{account.username}</span><div className="flex items-center gap-2"><Badge variant="success">Ativo</Badge><Button variant="ghost" size="icon" title={`Desconectar @${account.username}`} onClick={() => disconnectThreads(account)} disabled={disconnectingThreadId === account.id} className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={14}/></Button></div></div>)}</div>}
       </Card>
     </div>
   )
