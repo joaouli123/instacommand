@@ -200,6 +200,7 @@ export const getOAuthUrl = async (userId: string, state?: string) => {
     client_id: credentials.appId,
     redirect_uri: env.FB_REDIRECT_URI,
     response_type: 'code',
+    ...(env.FB_LOGIN_CONFIG_ID ? { config_id: env.FB_LOGIN_CONFIG_ID } : {}),
     ...(state ? { state } : {}),
     // The desktop Business Login asset picker is currently returning a
     // blank dialog in the Meta web client. The mobile OAuth host renders the
