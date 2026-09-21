@@ -551,7 +551,7 @@ export const getThreadsOAuthUrl = async (userId: string, state?: string) => {
   const params = new URLSearchParams({
     client_id: credentials.appId,
     redirect_uri: env.THREADS_REDIRECT_URI,
-    scope: 'threads_basic,threads_content_publish',
+    scope: 'threads_basic,threads_content_publish,threads_manage_insights',
     response_type: 'code',
     ...(state ? { state } : {}),
   });

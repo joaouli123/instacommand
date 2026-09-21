@@ -5,8 +5,8 @@ This is a work-in-progress evidence log, not a claim that the platform is comple
 ## Current evidence
 
 - Production ownership transfer completed in one serializable transaction: 20 Instagram links and one Threads link moved from the legacy admin to the confirmed personal workspace. 142 publication records preserved. UI verified two active Instagram accounts, 18 pending choices, and connected Threads.
-- Production Analytics inspection: Header displayed @lowfybr while the report displayed @joaouli1. Replaced independent hook state with a shared external store; added protection against stale analytics responses. Four store tests and TypeScript validation pass. Deployment verification still required for this change.
-- Analytics currently resolves ownership via InstagramAccount and reads Instagram metrics only. Facebook and Threads reports are NOT implemented here.
+- Production Analytics inspection: Header displayed @lowfybr while the report displayed @joaouli1. Replaced independent hook state with a shared external store; added protection against stale analytics responses. Four store tests and production build pass. Commit 8c8a1af deployed; live browser verified Header/report alignment and switching from @joaouli1 (5,329 followers) to @lowfybr (3,337).
+- Added an independent Threads report endpoint and tab: workspace ownership, period, account metrics, bounded content pagination, CSV export, explicit missing-data/permission/rate-limit states. Threads OAuth now requests threads_manage_insights. Five report tests and six OAuth tests pass. Production verification pending. Per-post Threads insights, audience breakdowns and Facebook reports remain incomplete.
 - Period selection reaches growth and engagement endpoints, but not dashboard totals, posts, recommendations or format/time analysis. This inconsistency remains to fix.
 - Missing reach/impressions are shown as unavailable in cards but appear as zeros in charts. Availability must be represented independently of numeric zero.
 - Screenshot/DOM captured in the browser for the Analytics observation; durable screenshot export has not been completed. This is not a completed visual or accessibility audit.
@@ -35,4 +35,6 @@ This is a work-in-progress evidence log, not a claim that the platform is comple
 
 ## Next work
 
-Verify the global-selector correction, then implement separate network report services with ownership checks and explicit availability before building network selectors. Inspect current official Meta requirements before adding scopes or metric names. Preserve historical data; never guess Facebook Page mappings based on profile names.
+Deploy and verify the Threads report, then implement Facebook reports and finish Threads per-post/audience coverage. Inspect current official Meta requirements before adding scopes or metric names. Preserve historical data; never guess Facebook Page mappings based on profile names.
+
+Threads reference: Meta-maintained Postman account-insights and post-insights requests, retrieved 2026-09-21: https://www.postman.com/meta/threads/request/4pbwq2u/get-account-insights and https://www.postman.com/meta/threads/request/434u2bd/get-post-insights . Direct developer-documentation retrieval returned HTTP 429; live permission/response verification is still required.

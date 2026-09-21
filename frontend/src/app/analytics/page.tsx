@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { ThreadsReport } from "@/components/dashboard/ThreadsReport"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -48,6 +49,14 @@ function getAudienceRows(audience: AudiencePayload) {
 }
 
 export default function AnalyticsPage() {
+  return <Tabs defaultValue="instagram" className="space-y-6">
+    <TabsList aria-label="Rede social do relatório"><TabsTrigger value="instagram">Instagram</TabsTrigger><TabsTrigger value="threads">Threads</TabsTrigger></TabsList>
+    <TabsContent value="instagram"><InstagramAnalytics /></TabsContent>
+    <TabsContent value="threads"><ThreadsReport /></TabsContent>
+  </Tabs>
+}
+
+function InstagramAnalytics() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState("")
   const [period, setPeriod] = useState("30")
