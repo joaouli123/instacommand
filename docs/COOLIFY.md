@@ -59,7 +59,9 @@ No app da Meta, cadastre exatamente:
 https://api-instacommand.seudominio.com/api/auth/facebook/callback
 ```
 
-Na configuração do Login do Facebook para Empresas, selecione os ativos Páginas e Contas do Instagram e as permissões `business_management`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_show_list`, `pages_read_engagement` e `pages_manage_posts`. O `FB_LOGIN_CONFIG_ID` deve ser o identificador dessa configuração; ele é usado no OAuth para que a Meta aplique essas permissões ao login.
+Na configuração do Login do Facebook para Empresas, selecione os ativos Páginas e Contas do Instagram e, no mínimo, as permissões `business_management`, `instagram_basic`, `instagram_content_publish`, `pages_show_list` e `pages_read_engagement`. O `FB_LOGIN_CONFIG_ID` deve ser o identificador dessa configuração; ele é usado no OAuth para que a Meta aplique essas permissões ao login.
+
+O backend usa somente esse conjunto mínimo por padrão para não solicitar permissões que a configuração publicada ainda não possui. Depois de concluir o App Review da Meta, você pode definir `FB_OAUTH_SCOPES` no Coolify com as permissões avançadas aprovadas, como `instagram_manage_insights`, `instagram_manage_comments` e `pages_manage_posts`.
 
 O botão “Conectar nova conta” faz o fluxo completo: abre a autorização da Meta, busca as páginas vinculadas, encontra as contas Instagram Business/Creator, salva os tokens criptografados e retorna para `/accounts` já conectado.
 

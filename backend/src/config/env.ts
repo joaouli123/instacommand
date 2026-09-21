@@ -52,7 +52,12 @@ export const env = {
   FB_LOGIN_CONFIG_ID: parsed.FB_LOGIN_CONFIG_ID || '1443592261011561',
   FB_OAUTH_SCOPES:
     parsed.FB_OAUTH_SCOPES ||
-    'business_management,instagram_basic,instagram_content_publish,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,pages_manage_posts',
+    // Keep the default aligned with the currently published Meta Login for
+    // Business configuration. Advanced permissions must be added to that
+    // configuration and supplied explicitly through FB_OAUTH_SCOPES after
+    // Meta approves them; requesting undeclared permissions can make the
+    // Meta consent dialog fail before the callback is reached.
+    'business_management,instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
   THREADS_REDIRECT_URI: parsed.THREADS_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/threads/callback`,
   MEDIA_PUBLIC_URL: parsed.MEDIA_PUBLIC_URL || `${parsed.BACKEND_URL.replace(/\/$/, '')}/uploads`,
   CORS_ORIGINS: parsed.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
