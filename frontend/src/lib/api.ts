@@ -4,36 +4,42 @@ const BASE_URL = `${BACKEND_ORIGIN}/api`;
 
 export async function fetchApi(path: string, options: RequestInit = {}) {
   // Keep the browser token fallback for older sessions while cookies remain the default.
-  const token = typeof window !== 'undefined'
-    ? localStorage.getItem('instacommand_token') || localStorage.getItem('token')
-    : null;
+  let token: string | null = null;
+  try {
+    if (typeof window !== 'undefined') token = localStorage.getItem('instacommand_token') || localStorage.getItem('token');
+  } catch { /* Cookie sessions must still work when browser storage is blocked. */ }
   
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
-  const headers: HeadersInit = {
-    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
+  const headers = new Headers(options.headers);
+  if (!isFormData && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const requestOptions: RequestInit = {
     ...options,
     // API responses are user/workspace-specific and must not be replaced by
     // a browser 304 that fetch() exposes as a failed response.
     cache: options.cache ?? 'no-store',
     credentials: 'include',
     headers,
-  });
+  };
+  let response = await fetch(`${BASE_URL}${path}`, requestOptions);
 
   // Some reverse proxies can still return 304 even with no-store. Retry once
   // without validators so callers always receive the JSON representation.
-  if (response.status === 304) {
-    return fetchApi(path, { ...options, cache: 'no-store' });
+  if (response.status === 304 && ['GET', 'HEAD'].includes((options.method || 'GET').toUpperCase())) {
+    const retryHeaders = new Headers(headers);
+    retryHeaders.delete('If-None-Match');
+    retryHeaders.delete('If-Modified-Since');
+    response = await fetch(`${BASE_URL}${path}`, { ...requestOptions, cache: 'no-store', headers: retryHeaders });
   }
+  if (response.status === 304) throw new Error('O servidor retornou uma resposta de cache inválida. A operação não será repetida automaticamente. Confira o resultado antes de tentar novamente.');
 
   if (response.status === 401 && typeof window !== 'undefined') {
-    localStorage.removeItem('instacommand_token');
-    localStorage.removeItem('token');
-    localStorage.removeItem('instacommand_user');
+    try {
+      localStorage.removeItem('instacommand_token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('instacommand_user');
+    } catch { /* Redirect to login even when storage is unavailable. */ }
 
     if (window.location.pathname !== '/login') {
       const next = `${window.location.pathname}${window.location.search}`;
@@ -46,6 +52,7 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
     throw new Error(payload?.error || payload?.message || `API Error: ${response.statusText}`);
   }
 
+  if (response.status === 204 || (options.method || '').toUpperCase() === 'HEAD') return null;
   return response.json();
 }
 
