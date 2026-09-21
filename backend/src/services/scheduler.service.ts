@@ -29,12 +29,14 @@ export const reschedulePost = async (scheduledPostId: string, newPublishAt: Date
 };
 
 export const setupRecurringJobs = async () => {
-  // Insights: every 6 hours
+  // Run the worker every 15 minutes. Each user's preference decides whether
+  // their own accounts are due, so the UI frequency is operational.
   await insightsQueue.add(
     'collect-insights-recurring', 
     {}, 
     { 
-      repeat: { pattern: '0 */6 * * *' } 
+      jobId: 'collect-insights-recurring',
+      repeat: { pattern: '*/15 * * * *' } 
     }
   );
 

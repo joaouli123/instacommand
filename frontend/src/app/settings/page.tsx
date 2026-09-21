@@ -24,6 +24,20 @@ type ThreadsConfigStatus = {
   appSecretConfigured: boolean
 }
 
+type UserPreferences = {
+  dataRefreshFrequency: "15m" | "1h" | "24h"
+  weeklyReport: boolean
+  engagementAlerts: boolean
+  publishFailureAlerts: boolean
+}
+
+const defaultPreferences: UserPreferences = {
+  dataRefreshFrequency: "1h",
+  weeklyReport: true,
+  engagementAlerts: true,
+  publishFailureAlerts: true,
+}
+
 export default function SettingsPage() {
   const [metaConfig, setMetaConfig] = useState({ appId: "", appSecret: "", clientToken: "" })
   const [metaStatus, setMetaStatus] = useState<MetaConfigStatus | null>(null)
@@ -32,19 +46,26 @@ export default function SettingsPage() {
   const [threadsConfig, setThreadsConfig] = useState({ appId: "", appSecret: "" })
   const [threadsStatus, setThreadsStatus] = useState<ThreadsConfigStatus | null>(null)
   const [savingThreads, setSavingThreads] = useState(false)
+  const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences)
+  const [savedPreferences, setSavedPreferences] = useState<UserPreferences>(defaultPreferences)
+  const [loadingPreferences, setLoadingPreferences] = useState(true)
+  const [savingSettings, setSavingSettings] = useState(false)
 
   useEffect(() => {
-    Promise.all([fetchApi("/settings/meta"), fetchApi("/settings/threads")])
-      .then(([metaData, threadsData]) => {
+    Promise.all([fetchApi("/settings/meta"), fetchApi("/settings/threads"), fetchApi("/settings/preferences")])
+      .then(([metaData, threadsData, preferencesData]) => {
         const status = metaData as MetaConfigStatus
         const threads = threadsData as ThreadsConfigStatus
+        const nextPreferences = preferencesData as UserPreferences
         setMetaStatus(status)
         setMetaConfig((current) => ({ ...current, appId: status.appId || "" }))
         setThreadsStatus(threads)
         setThreadsConfig((current) => ({ ...current, appId: threads.appId || "" }))
+        setPreferences(nextPreferences)
+        setSavedPreferences(nextPreferences)
       })
       .catch(() => toast.error("Entre na plataforma para configurar a Meta"))
-      .finally(() => setLoadingMeta(false))
+      .finally(() => { setLoadingMeta(false); setLoadingPreferences(false) })
   }, [])
 
   const saveMetaConfig = async () => {
@@ -101,7 +122,27 @@ export default function SettingsPage() {
     }
   }
 
-  const saveSettings = () => toast.success("Configurações salvas com sucesso")
+  const saveSettings = async () => {
+    setSavingSettings(true)
+    try {
+      const saved = await fetchApi("/settings/preferences", {
+        method: "PUT",
+        body: JSON.stringify(preferences),
+      }) as UserPreferences
+      setPreferences(saved)
+      setSavedPreferences(saved)
+      toast.success("Configurações salvas com sucesso")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar as configurações")
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const discardSettings = () => {
+    setPreferences(savedPreferences)
+    toast.success("Alterações descartadas")
+  }
   const metaReady = Boolean(metaStatus?.appIdConfigured && metaStatus?.appSecretConfigured)
   const threadsReady = Boolean(threadsStatus?.appIdConfigured && threadsStatus?.appSecretConfigured)
   const openAccounts = () => { window.location.assign("/accounts") }
@@ -189,13 +230,13 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        <Card className="overflow-hidden p-0"><div className="flex items-start gap-3 border-b border-slate-100 p-6"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Database size={19} /></div><div><h3 className="font-bold text-slate-900">Coleta de dados</h3><p className="mt-1 text-xs text-slate-500">Defina com que frequência as métricas serão atualizadas.</p></div></div><div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><Label className="text-sm font-semibold text-slate-900">Frequência de atualização</Label><p className="mt-1 text-sm text-slate-500">Buscas mais frequentes deixam os painéis sempre atualizados.</p></div><div className="w-full sm:w-52"><Select defaultValue="1h"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="15m">A cada 15 min</SelectItem><SelectItem value="1h">A cada 1 hora</SelectItem><SelectItem value="24h">Apenas diariamente</SelectItem></SelectContent></Select></div></div></Card>
+        <Card className="overflow-hidden p-0"><div className="flex items-start gap-3 border-b border-slate-100 p-6"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Database size={19} /></div><div><h3 className="font-bold text-slate-900">Coleta de dados</h3><p className="mt-1 text-xs text-slate-500">Defina com que frequência as métricas serão atualizadas.</p></div></div><div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><Label className="text-sm font-semibold text-slate-900">Frequência de atualização</Label><p className="mt-1 text-sm text-slate-500">A coleta automática respeita esta frequência por conta conectada.</p></div><div className="w-full sm:w-52"><Select value={preferences.dataRefreshFrequency} onValueChange={(value) => setPreferences((current) => ({ ...current, dataRefreshFrequency: value as UserPreferences["dataRefreshFrequency"] }))} disabled={loadingPreferences || savingSettings}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="15m">A cada 15 min</SelectItem><SelectItem value="1h">A cada 1 hora</SelectItem><SelectItem value="24h">Apenas diariamente</SelectItem></SelectContent></Select></div></div></Card>
 
-        <Card className="overflow-hidden p-0"><div className="flex items-start gap-3 border-b border-slate-100 p-6"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><Bell size={19} /></div><div><h3 className="font-bold text-slate-900">Notificações</h3><p className="mt-1 text-xs text-slate-500">Escolha quais eventos merecem sua atenção.</p></div></div><div className="divide-y divide-slate-100 px-6">{[{ title: "Relatório semanal", description: "Receba um resumo de performance toda segunda-feira." }, { title: "Alertas de engajamento", description: "Seja notificado quando uma publicação superar sua média." }, { title: "Falha na publicação", description: "Receba alertas caso um post agendado não seja publicado." }].map((item) => (<div key={item.title} className="flex items-center justify-between gap-6 py-5"><div><Label className="text-sm font-semibold text-slate-900">{item.title}</Label><p className="mt-1 text-sm text-slate-500">{item.description}</p></div><Switch defaultChecked aria-label={item.title} /></div>))}</div></Card>
+        <Card className="overflow-hidden p-0"><div className="flex items-start gap-3 border-b border-slate-100 p-6"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><Bell size={19} /></div><div><h3 className="font-bold text-slate-900">Notificações</h3><p className="mt-1 text-xs text-slate-500">Escolha quais eventos merecem sua atenção.</p></div></div><div className="divide-y divide-slate-100 px-6">{[{ key: "weeklyReport", title: "Relatório semanal", description: "Receba um resumo de performance toda segunda-feira." }, { key: "engagementAlerts", title: "Alertas de engajamento", description: "Seja notificado quando uma publicação superar sua média." }, { key: "publishFailureAlerts", title: "Falha na publicação", description: "Receba alertas caso um post agendado não seja publicado." }].map((item) => (<div key={item.title} className="flex items-center justify-between gap-6 py-5"><div><Label className="text-sm font-semibold text-slate-900">{item.title}</Label><p className="mt-1 text-sm text-slate-500">{item.description}</p></div><Switch checked={preferences[item.key as keyof Pick<UserPreferences, "weeklyReport" | "engagementAlerts" | "publishFailureAlerts">] as boolean} onCheckedChange={(checked) => setPreferences((current) => ({ ...current, [item.key]: checked }))} disabled={loadingPreferences || savingSettings} aria-label={item.title} /></div>))}</div></Card>
 
         <Card className="flex items-start gap-3 border-emerald-100 bg-emerald-50/50 p-5"><ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={19} /><div><p className="text-sm font-semibold text-emerald-900">Conta protegida</p><p className="mt-1 text-xs leading-relaxed text-emerald-800">Suas conexões são armazenadas com segurança e podem ser revogadas a qualquer momento em Contas.</p></div></Card>
 
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="outline">Descartar alterações</Button><Button onClick={saveSettings} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Save size={16} />Salvar configurações</Button></div>
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button variant="outline" onClick={discardSettings} disabled={savingSettings || loadingPreferences}>Descartar alterações</Button><Button onClick={saveSettings} disabled={savingSettings || loadingPreferences} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Save size={16} />{savingSettings ? "Salvando..." : "Salvar configurações"}</Button></div>
       </div>
     </div>
   )

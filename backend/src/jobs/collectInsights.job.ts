@@ -5,15 +5,24 @@ import { saveProfileSnapshot, savePostInsights } from '../services/instagram/ins
 
 const prisma = new PrismaClient();
 
+const refreshWindowMs: Record<string, number> = {
+  '15m': 15 * 60 * 1000,
+  '1h': 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+};
+
 export const setupCollectInsightsWorker = () => {
   const worker = new Worker('collect-insights', async job => {
     console.log('Running daily insights collection...');
     
     const accounts = await prisma.instagramAccount.findMany({
       where: { isActive: true },
+      include: { user: { include: { preferences: true } } },
     });
 
     for (const account of accounts) {
+      const windowMs = refreshWindowMs[account.user.preferences?.dataRefreshFrequency || '1h'] || refreshWindowMs['1h'];
+      if (account.lastSyncAt && Date.now() - account.lastSyncAt.getTime() < windowMs) continue;
       try {
         await saveProfileSnapshot(account.id);
         await savePostInsights(account.id);
