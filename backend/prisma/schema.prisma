@@ -136,6 +136,7 @@ model ScheduledPost {
   mediaType        MediaType
   mediaUrls        String[]
   thumbnailUrl     String?
+  editorialBrief   Json?
   caption          String?
   hashtags         String[]
   platforms        String[]          @default(["INSTAGRAM"])

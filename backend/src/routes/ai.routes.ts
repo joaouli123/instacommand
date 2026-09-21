@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { generateAiContent } from '../services/ai.service';
 import { getAiCredentials } from '../services/instagram/auth.service';
+import { saveDailyDrafts } from '../services/daily-drafts.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -22,6 +23,11 @@ const requestSchema = z.object({
 });
 
 router.use(authenticate);
+
+router.post('/daily-drafts', async (req: AuthRequest, res, next) => {
+  try { res.status(201).json({ posts: await saveDailyDrafts(req.user!.id, req.body) }); }
+  catch (error) { next(error); }
+});
 
 router.post('/generate', async (req: AuthRequest, res, next) => {
   try {

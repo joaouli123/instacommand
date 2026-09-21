@@ -4,6 +4,7 @@ import { getDecryptedToken, getDecryptedThreadsToken } from './auth.service';
 import { notifyPublishFailure } from '../notifications.service';
 import { ConflictError } from '../../utils/errors';
 import { verifyFacebookPageLink } from './facebook-link.service';
+import { assertPostReady } from '../post-readiness';
 
 const prisma = new PrismaClient();
 
@@ -198,6 +199,7 @@ export const publishPost = async (scheduledPostId: string) => {
   if (post.status === 'PROCESSING') {
     throw new ConflictError('Esta publicação já está sendo processada. Aguarde o resultado antes de tentar novamente.');
   }
+  assertPostReady(post);
 
   try {
     await prisma.scheduledPost.update({

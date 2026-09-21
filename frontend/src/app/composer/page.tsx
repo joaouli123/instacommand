@@ -14,6 +14,7 @@ import toast from "react-hot-toast"
 import { api } from "@/lib/api"
 import { BACKEND_ORIGIN } from "@/lib/config"
 import { DailyContentPlan } from "@/components/dashboard/DailyContentPlan"
+import { selectAccount } from "@/lib/active-account-store"
 
 type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY"
 
@@ -22,7 +23,7 @@ type MediaItem = {
   src: string
   name: string
   kind: "image" | "video"
-  file: File
+  file?: File
   isObjectUrl: boolean
 }
 
@@ -41,6 +42,10 @@ const getDefaultDate = () => {
 
 export default function ComposerPage() {
   const [caption, setCaption] = useState("")
+  const [draftId, setDraftId] = useState('')
+  const [draftLoading, setDraftLoading] = useState(false)
+  const [draftError, setDraftError] = useState('')
+  const [editorialBrief, setEditorialBrief] = useState<{ creativeBrief?: string; storyIdea?: string; reason?: string } | null>(null)
   const [postType, setPostType] = useState<PostType>("FEED")
   const [selectedDate, setSelectedDate] = useState("")
   const [hashtags, setHashtags] = useState<string[]>([])
@@ -64,8 +69,10 @@ export default function ComposerPage() {
 
   useEffect(() => {
     setSelectedDate(getDefaultDate())
-    Promise.all([api.getAccounts(), api.getThreadsAccounts()])
-      .then(([instagramAccounts, threadAccounts]) => {
+    const requestedDraft = new URLSearchParams(window.location.search).get('draft')
+    setDraftLoading(!!requestedDraft)
+    Promise.all([api.getAccounts(), api.getThreadsAccounts(), requestedDraft ? api.getPost(requestedDraft) : Promise.resolve(null)])
+      .then(([instagramAccounts, threadAccounts, draft]) => {
         const nextAccounts = (instagramAccounts as ConnectedAccount[]).filter((account) => account.isActive)
         const nextThreads = (threadAccounts as ThreadsAccount[]).filter((account) => account.isActive)
         setAccounts(nextAccounts)
@@ -73,20 +80,34 @@ export default function ComposerPage() {
         const storedAccountId = window.localStorage.getItem("instacommand_active_account")
         if (nextAccounts.length) setAccountId(nextAccounts.find((account) => account.id === storedAccountId)?.id || nextAccounts[0].id)
         if (nextThreads[0]) setThreadsAccountId(nextThreads[0].id)
+        if (draft) {
+          if (!['DRAFT', 'FAILED'].includes(draft.status)) throw new Error('Cancele o agendamento antes de editar. Publicações concluídas não podem ser editadas aqui.')
+          if (!nextAccounts.some(a => a.id === draft.accountId)) throw new Error('A conta deste rascunho não está ativa.')
+          setDraftId(draft.id); setAccountId(draft.accountId); selectAccount(draft.accountId)
+          setCaption(draft.caption || ''); setHashtags(draft.hashtags || []); setPlatforms(draft.platforms || ['INSTAGRAM'])
+          setThreadsAccountId(draft.threadsAccountId || ''); setPostType(draft.mediaType === 'IMAGE' ? 'FEED' : draft.mediaType)
+          setEditorialBrief(draft.editorialBrief || null)
+          const date = new Date(draft.scheduledFor); const pad = (v: number) => String(v).padStart(2, '0')
+          setSelectedDate(`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`)
+          setMediaItems((draft.mediaUrls || []).map((src: string, i: number) => ({ id: `saved-${i}`, src, name: `Mídia ${i + 1}`, kind: /\.(mp4|mov)(\?|$)/i.test(src) ? 'video' : 'image', isObjectUrl: false })))
+        }
       })
-      .catch(() => {
-        toast.error("Entre na plataforma e conecte uma conta antes de criar uma publicação.")
+      .catch((error) => {
+        if (requestedDraft) setDraftError(error instanceof Error ? error.message : 'Não foi possível abrir o rascunho.')
+        toast.error(error instanceof Error ? error.message : "Entre na plataforma e conecte uma conta antes de criar uma publicação.")
       })
+      .finally(() => setDraftLoading(false))
   }, [])
 
   useEffect(() => {
     const syncSelectedAccount = () => {
+      if (draftId) return
       const nextId = window.localStorage.getItem("instacommand_active_account")
       if (nextId && accounts.some((account) => account.id === nextId)) setAccountId(nextId)
     }
     window.addEventListener("instacommand-account-changed", syncSelectedAccount)
     return () => window.removeEventListener("instacommand-account-changed", syncSelectedAccount)
-  }, [accounts])
+  }, [accounts, draftId])
 
   useEffect(() => {
     mediaItemsRef.current = mediaItems
@@ -287,27 +308,33 @@ export default function ComposerPage() {
 
     setIsSubmitting(true)
     try {
-      const upload = mediaItems.length
-        ? await api.uploadMedia(mediaItems.map((item) => item.file)) as { urls: string[] }
+      const files = mediaItems.flatMap(item => item.file ? [item.file] : [])
+      const upload = files.length
+        ? await api.uploadMedia(files) as { urls: string[] }
         : { urls: [] as string[] }
-      const finalCaption = [caption.trim(), hashtags.length ? hashtags.map((tag) => `#${tag}`).join(" ") : ""]
+      let uploadedIndex = 0
+      const mediaUrls = mediaItems.map(item => item.file ? upload.urls[uploadedIndex++] : item.src)
+      const existingTags = new Set((caption.match(new RegExp('#[\\p{L}\\p{N}_]+', 'gu')) || []).map(tag => tag.toLowerCase()))
+      const finalCaption = [caption.trim(), hashtags.filter(tag => !existingTags.has(`#${tag}`.toLowerCase())).map((tag) => `#${tag}`).join(" ")]
         .filter(Boolean)
         .join("\n\n")
-      const created = await api.createPost({
+      const payload = {
         accountId,
         threadsAccountId: platforms.includes("THREADS") ? threadsAccountId : undefined,
         mediaType: postType === "FEED" ? "IMAGE" : postType,
-        mediaUrls: upload.urls,
+        mediaUrls,
         caption: finalCaption,
         hashtags,
         platforms,
         scheduledFor: scheduledFor.toISOString(),
         status: mode === "schedule" ? "SCHEDULED" : "DRAFT",
-      }) as { id: string }
+      }
+      const created = (draftId ? await api.updatePost(draftId, payload) : await api.createPost(payload)) as { id: string }
 
       if (mode === "publish") await api.publishPost(created.id)
       toast.success(mode === "publish" ? "Publicação enviada para todas as plataformas selecionadas." : "Publicação agendada com sucesso.")
       if (mode === "publish") {
+        setDraftId(''); setEditorialBrief(null); window.history.replaceState(null, '', '/composer')
         setCaption("")
         setMediaItems([])
         setActiveMediaIndex(0)
@@ -319,10 +346,29 @@ export default function ComposerPage() {
     }
   }
 
+  const saveDraftChanges = async () => {
+    if (!draftId || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      const files = mediaItems.flatMap(item => item.file ? [item.file] : [])
+      const upload = files.length ? await api.uploadMedia(files) as { urls: string[] } : { urls: [] }
+      let index = 0
+      const urls = mediaItems.map(item => item.file ? upload.urls[index++] : item.src)
+      await api.updatePost(draftId, { caption, hashtags, mediaUrls: urls, mediaType: postType === 'FEED' ? 'IMAGE' : postType,
+        platforms, threadsAccountId: platforms.includes('THREADS') ? threadsAccountId : null, status: 'DRAFT' })
+      setMediaItems(current => current.map((item, i) => { if (item.isObjectUrl) URL.revokeObjectURL(item.src); return { ...item, src: urls[i], file: undefined, isObjectUrl: false } }))
+      toast.success('Rascunho atualizado. Nada foi publicado ou agendado.')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o rascunho.') }
+    finally { setIsSubmitting(false) }
+  }
+
+  if (draftLoading) return <p role="status">Abrindo rascunho salvo...</p>
+  if (draftError) return <Card className="p-6"><p role="alert">{draftError}</p><a href="/calendar" className="text-indigo-700 underline">Voltar ao calendário</a></Card>
   return (
     <div className="flex flex-col lg:flex-row gap-8 min-h-[calc(100vh-8rem)] animate-fade-in">
       {/* Editor Panel */}
       <div className="flex-1 flex flex-col gap-6">
+        {draftId && <Card className="space-y-2 border-indigo-200 p-4"><p className="font-semibold">Editando rascunho salvo · @{accounts.find(a => a.id === accountId)?.igUsername}</p><p className="text-xs text-slate-500">Adicione as mídias antes de publicar ou agendar. Esta edição mantém a conta original.</p>{editorialBrief && <details><summary className="cursor-pointer text-sm font-semibold">Briefing e Story do plano</summary><p className="mt-2 whitespace-pre-wrap text-sm">{editorialBrief.creativeBrief}</p><p className="mt-2 whitespace-pre-wrap text-sm">Story: {editorialBrief.storyIdea}</p></details>}<Button type="button" variant="outline" disabled={isSubmitting} onClick={saveDraftChanges}>Salvar alterações do rascunho</Button><a href="/calendar" className="ml-3 text-sm text-indigo-700 underline">Calendário</a></Card>}
         <Card className="p-6 md:p-8 border border-slate-200/80 bg-white rounded-2xl shadow-xs space-y-6">
           {/* Post Type Selector */}
           <div>
@@ -365,6 +411,7 @@ export default function ComposerPage() {
                 onChange={(event) => setAccountId(event.target.value)}
                 className="h-9 max-w-[210px] rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500"
                 aria-label="Conta do Instagram"
+                disabled={!!draftId}
               >
                 <option value="">Selecione a conta</option>
                 {accounts.map((account) => <option key={account.id} value={account.id}>@{account.igUsername}</option>)}

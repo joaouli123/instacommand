@@ -44,4 +44,4 @@ RUN mkdir -p /app/uploads
 EXPOSE 3001
 
 # Run migrations and start
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma db push && node dist/server.js"]

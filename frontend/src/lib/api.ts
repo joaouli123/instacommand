@@ -65,6 +65,8 @@ export const api = {
   createPost: (data: Record<string, unknown>) => fetchApi('/posts', { method: 'POST', body: JSON.stringify(data) }),
   publishPost: (id: string) => fetchApi(`/posts/${id}/publish`, { method: 'POST' }),
   getPosts: (params = '') => fetchApi(`/posts${params ? `?${params}` : ''}`),
+  getPost: (id: string) => fetchApi(`/posts/${encodeURIComponent(id)}`),
+  saveDailyDrafts: (data: Record<string, unknown>) => fetchApi('/ai/daily-drafts', { method: 'POST', body: JSON.stringify(data) }),
   updatePost: (id: string, data: Record<string, unknown>) => fetchApi(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deletePost: (id: string) => fetchApi(`/posts/${id}`, { method: 'DELETE' }),
   getDashboard: (accountId: string) => fetchApi(`/analytics/${accountId}/dashboard`),

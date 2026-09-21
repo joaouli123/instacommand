@@ -8,6 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { env } from '../config/env';
+import { assertPostReady } from '../services/post-readiness';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -38,6 +39,7 @@ router.use(authenticate);
 router.post('/', async (req: any, res, next) => {
   try {
     const { accountId, threadsAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status } = req.body;
+    if (status !== undefined && !['DRAFT', 'SCHEDULED'].includes(status)) return res.status(400).json({ error: 'Status de criação inválido.' });
     const normalizedPlatforms = Array.isArray(platforms) && platforms.length ? platforms : ['INSTAGRAM'];
     const textOnlyThreads = normalizedPlatforms.length === 1 && normalizedPlatforms[0] === 'THREADS';
     const unsupportedPlatform = normalizedPlatforms.find((platform: unknown) => !['INSTAGRAM', 'FACEBOOK', 'THREADS'].includes(String(platform)));
@@ -70,6 +72,10 @@ router.post('/', async (req: any, res, next) => {
     }
     const targetDate = new Date(scheduledFor);
     if (Number.isNaN(targetDate.getTime())) return res.status(400).json({ error: 'Data de publicação inválida.' });
+    if (status === 'SCHEDULED') {
+      if (targetDate <= new Date()) return res.status(400).json({ error: 'Escolha uma data futura.' });
+      assertPostReady({ mediaType, mediaUrls, caption, platforms: normalizedPlatforms });
+    }
 
     const post = await prisma.scheduledPost.create({
       data: {
@@ -140,19 +146,27 @@ router.get('/:id', async (req: any, res, next) => {
 
 router.patch('/:id', async (req: any, res, next) => {
   try {
-    const { caption, scheduledFor, status, platforms, threadsAccountId } = req.body;
+    const { caption, scheduledFor, status, platforms, threadsAccountId, mediaUrls, mediaType, hashtags } = req.body;
     const post = await prisma.scheduledPost.findFirst({
       where: { id: req.params.id, userId: req.user.id }
     });
     
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
+    if (!['DRAFT', 'SCHEDULED', 'FAILED'].includes(post.status)) return res.status(409).json({ error: 'Esta publicação não pode mais ser editada.' });
+    if (status !== undefined && !['DRAFT', 'SCHEDULED'].includes(status)) return res.status(400).json({ error: 'Status de edição inválido.' });
+    if (mediaUrls !== undefined && (!Array.isArray(mediaUrls) || mediaUrls.length > 10 || mediaUrls.some((url: unknown) => typeof url !== 'string' || !/^https?:\/\//.test(url)))) return res.status(400).json({ error: 'Mídias inválidas.' });
+    if (mediaType !== undefined && !['IMAGE', 'CAROUSEL', 'REEL', 'STORY'].includes(mediaType)) return res.status(400).json({ error: 'Formato inválido.' });
+    if (caption !== undefined && (typeof caption !== 'string' || caption.length > 2200)) return res.status(400).json({ error: 'A legenda deve ter até 2200 caracteres.' });
+    if (hashtags !== undefined && (!Array.isArray(hashtags) || hashtags.length > 30 || hashtags.some((tag: unknown) => typeof tag !== 'string' || tag.length > 100))) return res.status(400).json({ error: 'Hashtags inválidas.' });
+    if (platforms !== undefined && (!Array.isArray(platforms) || !platforms.length)) return res.status(400).json({ error: 'Selecione ao menos uma rede.' });
+
     const nextPlatforms = Array.isArray(platforms) && platforms.length ? platforms : post.platforms;
     const unsupportedPlatform = nextPlatforms.find((platform: unknown) => !['INSTAGRAM', 'FACEBOOK', 'THREADS'].includes(String(platform)));
     if (unsupportedPlatform) return res.status(400).json({ error: `Plataforma não suportada: ${unsupportedPlatform}` });
 
     if (nextPlatforms.includes('THREADS')) {
-      const nextThreadsAccountId = threadsAccountId || post.threadsAccountId;
+      const nextThreadsAccountId = threadsAccountId === undefined ? post.threadsAccountId : threadsAccountId;
       const threadsAccount = nextThreadsAccountId
         ? await prisma.threadsAccount.findFirst({ where: { id: nextThreadsAccountId, userId: req.user.id, isActive: true } })
         : null;
@@ -162,12 +176,16 @@ router.patch('/:id', async (req: any, res, next) => {
       const account = await prisma.instagramAccount.findFirst({ where: { id: post.accountId, userId: req.user.id, isActive: true } });
       if (!account?.pageId) return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
     }
-    if (post.mediaType === 'STORY' && nextPlatforms.some((platform: string) => platform !== 'INSTAGRAM')) {
+    if ((mediaType || post.mediaType) === 'STORY' && nextPlatforms.some((platform: string) => platform !== 'INSTAGRAM')) {
       return res.status(400).json({ error: 'Stories só podem ser publicados pelo Instagram nesta versão da API.' });
     }
 
     const nextDate = scheduledFor ? new Date(scheduledFor) : post.scheduledFor;
     if (Number.isNaN(nextDate.getTime())) return res.status(400).json({ error: 'Data de publicação inválida.' });
+    if ((status || post.status) === 'SCHEDULED') {
+      if (nextDate <= new Date()) return res.status(400).json({ error: 'Escolha uma data futura.' });
+      assertPostReady({ ...post, caption: caption ?? post.caption, mediaType: mediaType || post.mediaType, mediaUrls: mediaUrls ?? post.mediaUrls, platforms: nextPlatforms });
+    }
 
     if (post.status === 'SCHEDULED' && (status === 'DRAFT' || scheduledFor)) {
       await cancelScheduledPost(post.id);
@@ -177,6 +195,9 @@ router.patch('/:id', async (req: any, res, next) => {
       where: { id: post.id },
       data: {
         caption,
+        mediaUrls,
+        mediaType,
+        hashtags,
         scheduledFor: scheduledFor ? nextDate : undefined,
         status,
         platforms: Array.isArray(platforms) && platforms.length ? nextPlatforms : undefined,
