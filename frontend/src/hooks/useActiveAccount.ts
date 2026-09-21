@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import { usePathname } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { getSelectedAccountId, getServerAccountId, selectAccount, subscribeToAccount } from '@/lib/active-account-store'
 
 export type ActiveAccount = {
   id: string
@@ -16,12 +17,9 @@ export type ActiveAccount = {
   pageName?: string | null
 }
 
-const STORAGE_KEY = 'instacommand_active_account'
-const ACCOUNT_CHANGED_EVENT = 'instacommand-account-changed'
-
 export function useActiveAccount() {
   const pathname = usePathname()
-  const [selectedId, setSelectedId] = useState('')
+  const selectedId = useSyncExternalStore(subscribeToAccount, getSelectedAccountId, getServerAccountId)
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
     queryFn: api.getAccounts,
@@ -34,31 +32,17 @@ export function useActiveAccount() {
   )
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY)
-    if (stored) setSelectedId(stored)
-    const handleChange = () => setSelectedId(window.localStorage.getItem(STORAGE_KEY) || '')
-    window.addEventListener(ACCOUNT_CHANGED_EVENT, handleChange)
-    window.addEventListener('storage', handleChange)
-    return () => {
-      window.removeEventListener(ACCOUNT_CHANGED_EVENT, handleChange)
-      window.removeEventListener('storage', handleChange)
-    }
-  }, [])
-
-  useEffect(() => {
     if (!accounts.length) return
-    if (!accounts.some((account) => account.id === selectedId)) {
-      const nextId = accounts[0].id
-      setSelectedId(nextId)
-      window.localStorage.setItem(STORAGE_KEY, nextId)
+    // Read the shared value at effect time, not a stale mount-time state.
+    // Mounting a page must never reset the Header's valid selection.
+    if (!accounts.some((account) => account.id === getSelectedAccountId())) {
+      selectAccount(accounts[0].id)
     }
   }, [accounts, selectedId])
 
   const activeAccount = accounts.find((account) => account.id === selectedId) || accounts[0] || null
   const setActiveAccount = (accountId: string) => {
-    setSelectedId(accountId)
-    window.localStorage.setItem(STORAGE_KEY, accountId)
-    window.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT))
+    if (accounts.some((account) => account.id === accountId)) selectAccount(accountId)
   }
 
   return {

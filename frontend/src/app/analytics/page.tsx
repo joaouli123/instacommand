@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -64,16 +64,28 @@ export default function AnalyticsPage() {
   const [recommendations, setRecommendations] = useState<Array<{ type: string; message: string; basedOn?: number }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const latestRequest = useRef(0)
   const { accounts: activeAccounts, accountId: activeAccountId, isLoading: accountsLoading, setActiveAccount } = useActiveAccount()
 
   const loadAnalytics = async (id: string, days: number, page = 1) => {
+    const requestId = ++latestRequest.current
     setLoading(true)
     setError("")
+    setDashboard(null)
+    setGrowth([])
+    setEngagement([])
+    setPosts([])
+    setPostsTotal(0)
+    setAudience({ available: false, data: [] })
+    setBestTimes([])
+    setContentTypes([])
+    setRecommendations([])
     try {
       const [nextDashboard, nextGrowth, nextEngagement, nextPosts, nextAudience, nextBestTimes, nextContentTypes, nextRecommendations] = await Promise.all([
         api.getDashboard(id), api.getGrowth(id, days), api.getEngagement(id, days), api.getAnalyticsPosts(id, page, 20),
         fetchApi(`/analytics/${id}/audience`), fetchApi(`/analytics/${id}/best-times`), fetchApi(`/analytics/${id}/content-types`), fetchApi(`/analytics/${id}/recommendations`),
       ])
+      if (requestId !== latestRequest.current) return
       setDashboard(nextDashboard as Dashboard)
       setGrowth(nextGrowth as Array<{ date: string; followers: number }>)
       setEngagement(nextEngagement as TimelineItem[])
@@ -87,8 +99,9 @@ export default function AnalyticsPage() {
       setContentTypes(nextContentTypes as typeof contentTypes)
       setRecommendations(nextRecommendations as typeof recommendations)
     } catch (loadError) {
+      if (requestId !== latestRequest.current) return
       setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os dados reais da conta")
-    } finally { setLoading(false) }
+    } finally { if (requestId === latestRequest.current) setLoading(false) }
   }
 
   useEffect(() => {
@@ -100,6 +113,7 @@ export default function AnalyticsPage() {
     }
     setAccountId(activeAccountId)
     void loadAnalytics(activeAccountId, Number(period), 1)
+    return () => { latestRequest.current += 1 }
     // The active-account hook is the single source of truth for the global selector.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAccountId, activeAccounts, accountsLoading])
