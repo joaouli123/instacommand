@@ -60,7 +60,10 @@ app.use(compression());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(rateLimit());
+// Limit only API traffic. Health checks and uploaded media should not consume
+// a user's API request budget, and authenticated users get separate buckets
+// even when Coolify/Traefik shares one proxy IP.
+app.use('/api', rateLimit());
 
 // These responses contain workspace-specific, frequently changing data.
 // Disable conditional caching so browsers do not surface Express 304 responses
