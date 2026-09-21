@@ -32,7 +32,10 @@ type AiPlanItem = { day: string; format: string; topic: string; hook: string; ct
 const getDefaultDate = () => {
   const date = new Date(Date.now() + 60 * 60 * 1000)
   date.setMinutes(0, 0, 0)
-  return date.toISOString().slice(0, 16)
+  // datetime-local expects wall-clock values, not UTC. Using toISOString()
+  // here shifted the default by three hours for the Brazil deployment.
+  const pad = (value: number) => String(value).padStart(2, "0")
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 export default function ComposerPage() {
@@ -257,6 +260,14 @@ export default function ComposerPage() {
     }
     if (platforms.includes("THREADS") && !threadsAccountId) {
       toast.error("Conecte uma conta do Threads ou remova o Threads da seleção.")
+      return
+    }
+    if (postType === "CAROUSEL" && mediaItems.length < 2) {
+      toast.error("Um carrossel precisa ter pelo menos duas mídias.")
+      return
+    }
+    if (postType === "REEL" && mediaItems.some((item) => item.kind !== "video")) {
+      toast.error("Reels precisam usar um vídeo.")
       return
     }
     if (postType === "STORY" && platforms.some((platform) => platform !== "INSTAGRAM")) {

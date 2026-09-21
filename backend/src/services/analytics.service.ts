@@ -33,12 +33,14 @@ export const getDashboardStats = async (accountId: string) => {
   const engagementRate = postsWithMetrics.length
     ? postsWithMetrics.reduce((total, insight) => total + Number(insight?.engagement || 0), 0) / postsWithMetrics.length
     : 0;
+  const interactions = postsWithMetrics.reduce((total, insight) => total + (insight?.likes || 0) + (insight?.comments || 0) + (insight?.saves || 0) + (insight?.shares || 0), 0);
 
   return {
     followers: latestInsight?.followers || account.igFollowersCount,
     followerGrowth,
     reach: latestInsight?.reach || 0,
     impressions: latestInsight?.impressions || 0,
+    interactions,
     pendingPosts: pendingPostsCount,
     engagementRate: Number(engagementRate.toFixed(2)),
   };
@@ -83,6 +85,7 @@ export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
     likes: number;
     comments: number;
     saves: number;
+    shares: number;
     reach: number;
     impressions: number;
     engagement: number;
@@ -97,6 +100,7 @@ export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
       likes: 0,
       comments: 0,
       saves: 0,
+      shares: 0,
       reach: 0,
       impressions: 0,
       engagement: 0,
@@ -105,6 +109,7 @@ export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
     current.likes += insight?.likes || 0;
     current.comments += insight?.comments || 0;
     current.saves += insight?.saves || 0;
+    current.shares += insight?.shares || 0;
     current.reach += insight?.reach || 0;
     current.impressions += insight?.impressions || 0;
     current.engagement += insight?.engagement || 0;
@@ -114,6 +119,7 @@ export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
 
   return Array.from(grouped.values()).map((item) => ({
     ...item,
+    interactions: item.likes + item.comments + item.saves + item.shares,
     engagement: item.posts ? Number((item.engagement / item.posts).toFixed(2)) : 0,
   }));
 };

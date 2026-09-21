@@ -6,22 +6,89 @@ import { maybeNotifyEngagement } from '../notifications.service';
 
 const prisma = new PrismaClient();
 
+type InsightItem = {
+  name?: string;
+  values?: Array<{ value?: unknown }>;
+  total_value?: { value?: unknown };
+};
+
+const readInsightValue = (item: InsightItem) => {
+  const value = item.values?.[0]?.value ?? item.total_value?.value ?? 0;
+  return typeof value === 'number' ? value : Number(value) || 0;
+};
+
+/**
+ * Meta removes and adds individual insight metrics between Graph API versions.
+ * Requesting one obsolete metric together with valid ones makes the whole
+ * request fail, which used to hide even likes/reach that were available. Try
+ * small groups and keep the metrics that the current app/token actually
+ * exposes.
+ */
+const bestEffortInsights = async (
+  objectId: string,
+  token: string,
+  groups: string[],
+  params: Record<string, unknown>,
+) => {
+  const responses = await Promise.all(groups.map(async (metrics) => {
+    try {
+      const response = await graphGet(`/${objectId}/insights`, token, { ...params, metric: metrics });
+      return Array.isArray(response.data) ? response.data as InsightItem[] : [];
+    } catch (error) {
+      // A missing permission/metric is expected for some Meta apps. Keep the
+      // other groups useful and avoid turning a partial sync into a failure.
+      console.warn(`Insights unavailable for ${objectId} (${metrics}):`, error instanceof Error ? error.message : error);
+      return [];
+    }
+  }));
+
+  const unique = new Map<string, InsightItem>();
+  responses.flat().forEach((item) => {
+    if (item.name) unique.set(item.name, item);
+  });
+  return Array.from(unique.values());
+};
+
 export const getProfileInsights = async (igUserId: string, token: string, period = 'day') => {
-  const metrics = 'impressions,reach,profile_views,website_clicks';
-  const response = await graphGet(`/${igUserId}/insights`, token, { metric: metrics, period });
-  return response.data;
+  return bestEffortInsights(
+    igUserId,
+    token,
+    [
+      'reach,impressions',
+      'profile_views',
+      'website_clicks',
+      'email_contacts',
+      'phone_call_clicks',
+      'follows',
+      'profile_activity',
+    ],
+    { period },
+  );
 };
 
 export const getPostInsights = async (igMediaId: string, token: string) => {
-  const metrics = 'impressions,reach,engagement,saved,video_views';
-  const response = await graphGet(`/${igMediaId}/insights`, token, { metric: metrics });
-  return response.data;
+  return bestEffortInsights(
+    igMediaId,
+    token,
+    [
+      // These are the current high-value media metrics. Keeping them in
+      // separate groups prevents one unsupported metric from hiding the rest.
+      'impressions,reach,saved',
+      'total_interactions,likes,comments,shares',
+      // Video accounts may expose one of these names depending on media type.
+      'plays,video_views',
+    ],
+    {},
+  );
 };
 
 export const getAudienceDemographics = async (igUserId: string, token: string) => {
-  const metrics = 'audience_city,audience_country,audience_gender_age';
-  const response = await graphGet(`/${igUserId}/insights`, token, { metric: metrics, period: 'lifetime' });
-  return response.data;
+  return bestEffortInsights(
+    igUserId,
+    token,
+    ['audience_city', 'audience_country', 'audience_gender_age'],
+    { period: 'lifetime' },
+  );
 };
 
 export const saveProfileSnapshot = async (accountId: string) => {
@@ -45,19 +112,19 @@ export const saveProfileSnapshot = async (accountId: string) => {
   }
   let reach = 0, impressions = 0, profileViews = 0;
   
-  insights.forEach((insight: any) => {
-    const value = insight.values[0]?.value || 0;
+  insights.forEach((insight) => {
+    const value = readInsightValue(insight);
     if (insight.name === 'reach') reach = value;
     if (insight.name === 'impressions') impressions = value;
-    if (insight.name === 'profile_views') profileViews = value;
+    if (insight.name === 'profile_views' || insight.name === 'profile_visits') profileViews = value;
   });
 
   await prisma.profileInsight.create({
     data: {
       accountId,
-      followers: profileData.followers_count,
-      following: profileData.follows_count,
-      mediaCount: profileData.media_count,
+      followers: Number(profileData.followers_count || 0),
+      following: Number(profileData.follows_count || 0),
+      mediaCount: Number(profileData.media_count || 0),
       reach,
       impressions,
       profileViews,
@@ -132,12 +199,13 @@ export const syncAccountMedia = async (accountId: string, options: { fetchInsigh
     let reach = 0;
     let impressions = 0;
     let saves = 0;
+    let postInsightItems: InsightItem[] = [];
     if (fetchInsights) {
       try {
-        const insights = await getPostInsights(item.id, token);
-        mediaInsightsAvailable = true;
-        for (const insight of insights) {
-          const value = Number(insight.values?.[0]?.value || 0);
+        postInsightItems = await getPostInsights(item.id, token);
+        if (postInsightItems.length) mediaInsightsAvailable = true;
+        for (const insight of postInsightItems) {
+          const value = readInsightValue(insight);
           if (insight.name === 'reach') reach = value;
           if (insight.name === 'impressions') impressions = value;
           if (insight.name === 'saved') saves = value;
@@ -147,14 +215,19 @@ export const syncAccountMedia = async (accountId: string, options: { fetchInsigh
       }
     }
 
-    const likes = Number(item.like_count || 0);
-    const comments = Number(item.comments_count || 0);
-    const engagement = reach > 0 ? ((likes + comments + saves) / reach) * 100 : 0;
+    const insightLikes = postInsightItems.find((insight) => insight.name === 'likes');
+    const insightComments = postInsightItems.find((insight) => insight.name === 'comments');
+    const insightShares = postInsightItems.find((insight) => insight.name === 'shares');
+    const likes = Number(item.like_count || readInsightValue(insightLikes || {}) || 0);
+    const comments = Number(item.comments_count || readInsightValue(insightComments || {}) || 0);
+    const shares = Number(readInsightValue(insightShares || {}) || 0);
+    const engagement = reach > 0 ? ((likes + comments + saves + shares) / reach) * 100 : 0;
     await prisma.postInsight.create({
       data: {
         postId: post.id,
         likes,
         comments,
+        shares,
         saves,
         reach,
         impressions,
@@ -185,23 +258,28 @@ export const savePostInsights = async (accountId: string) => {
       });
       const insights = await getPostInsights(post.igMediaId, token);
       
-      let reach = 0, impressions = 0, saves = 0;
-      insights.forEach((i: any) => {
-        const val = i.values[0]?.value || 0;
+      let reach = 0, impressions = 0, saves = 0, shares = 0;
+      let insightLikes = 0, insightComments = 0;
+      insights.forEach((i: InsightItem) => {
+        const val = readInsightValue(i);
         if (i.name === 'reach') reach = val;
         if (i.name === 'impressions') impressions = val;
         if (i.name === 'saved') saves = val;
+        if (i.name === 'shares') shares = val;
+        if (i.name === 'likes') insightLikes = val;
+        if (i.name === 'comments') insightComments = val;
       });
 
-      const likes = mediaData.like_count || 0;
-      const comments = mediaData.comments_count || 0;
-      const engagement = reach > 0 ? ((likes + comments + saves) / reach) * 100 : 0;
+      const likes = Number(mediaData.like_count || insightLikes || 0);
+      const comments = Number(mediaData.comments_count || insightComments || 0);
+      const engagement = reach > 0 ? ((likes + comments + saves + shares) / reach) * 100 : 0;
 
       await prisma.postInsight.create({
         data: {
           postId: post.id,
           likes,
           comments,
+          shares,
           saves,
           reach,
           impressions,
@@ -253,7 +331,7 @@ export const getBestTimeToPost = async (accountId: string) => {
     const dayIndex = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
     const key = `${dayIndex}-${hour}`;
     const insight = post.insights[0];
-    const interactions = (insight?.likes || 0) + (insight?.comments || 0) + (insight?.saves || 0);
+    const interactions = (insight?.likes || 0) + (insight?.comments || 0) + (insight?.saves || 0) + (insight?.shares || 0);
     const current = groups.get(key) || { day: dayNames[dayIndex] || weekday, hour, posts: 0, score: 0, interactions: 0 };
     current.posts += 1;
     current.interactions += interactions;
@@ -272,14 +350,15 @@ export const getContentTypeAnalysis = async (accountId: string) => {
     where: { accountId, igMediaId: { not: null } },
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
   });
-  const groups = new Map<string, { type: string; posts: number; likes: number; comments: number; saves: number; reach: number; impressions: number; engagement: number }>();
+  const groups = new Map<string, { type: string; posts: number; likes: number; comments: number; saves: number; shares: number; reach: number; impressions: number; engagement: number }>();
   for (const post of posts) {
     const insight = post.insights[0];
-    const current = groups.get(post.mediaType) || { type: post.mediaType, posts: 0, likes: 0, comments: 0, saves: 0, reach: 0, impressions: 0, engagement: 0 };
+    const current = groups.get(post.mediaType) || { type: post.mediaType, posts: 0, likes: 0, comments: 0, saves: 0, shares: 0, reach: 0, impressions: 0, engagement: 0 };
     current.posts += 1;
     current.likes += insight?.likes || 0;
     current.comments += insight?.comments || 0;
     current.saves += insight?.saves || 0;
+    current.shares += insight?.shares || 0;
     current.reach += insight?.reach || 0;
     current.impressions += insight?.impressions || 0;
     current.engagement += insight?.engagement || 0;

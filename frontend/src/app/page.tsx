@@ -11,7 +11,7 @@ import { EngagementChart } from "@/components/dashboard/EngagementChart"
 import { api } from "@/lib/api"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 
-type DashboardStats = { followers: number; followerGrowth: number; reach: number; impressions: number; pendingPosts: number; engagementRate: number }
+type DashboardStats = { followers: number; followerGrowth: number; reach: number; impressions: number; interactions: number; pendingPosts: number; engagementRate: number }
 type PublishedPost = { id: string; mediaType: string; caption?: string | null; igMediaUrl?: string | null; igPermalink?: string | null; publishedAt: string; insights?: Array<{ likes: number; comments: number; saves: number; engagement: number }> }
 type ScheduledPost = { id: string; mediaType: string; caption?: string | null; scheduledFor: string; status: string }
 
@@ -29,7 +29,7 @@ export default function DashboardPage() {
 
   const stats = dashboardQuery.data as DashboardStats | undefined
   const growth = (growthQuery.data || []) as Array<{ date: string; followers: number }>
-  const engagement = ((engagementQuery.data || []) as Array<{ date: string; engagement: number }>).filter((item) => item.engagement > 0)
+  const engagement = (engagementQuery.data || []) as Array<{ date: string; engagement: number; interactions: number }>
   const postPayload = postsQuery.data as { data?: PublishedPost[] } | undefined
   const topPosts = postPayload?.data || []
   const upcomingPosts = ((scheduledQuery.data || []) as ScheduledPost[]).slice(0, 4)
