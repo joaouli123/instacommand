@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { validateAiOutput } = require('../dist/services/ai-output');
 const caption = () => ({ hook: 'Olá', caption: 'Conteúdo. Comente!', cta: 'Comente!', hashtags: ['#exemplo'] });
 const plan = () => ({ summary: 'Horários editoriais sugeridos.', plan: Array.from({ length: 7 }, (_, i) => ({ day: `Dia ${i + 1}`, format: 'IMAGE', topic: 'Tema', hook: 'Ideia', cta: 'Comente', suggestedTime: '09:00' })) });
-const audit = () => ({ score: 40, summary: 'Amostra limitada', strengths: [], opportunities: ['Clareza'], actions: ['Revise a bio'], bioSuggestion: 'Descrição sugerida' });
+const audit = () => ({ score: 40, summary: 'Amostra limitada', strengths: [], opportunities: ['Clareza'], actions: ['Revise a bio'], bioSuggestion: 'Descrição sugerida', nameSuggestion: 'Nome sugerido', positioning: 'Posicionamento proposto', limitations: ['Dados parciais'] });
 const reply = () => ({ response: 'Obrigado!', alternatives: ['Agradeço!', 'Bom saber!', 'Que bom!'] });
 
 test('all textual modes accept complete output and strip unsupported fields', () => {
@@ -28,6 +28,9 @@ test('audit rejects invalid score, string lists and missing actionable steps', (
   for (const score of [-1, 101, NaN, Infinity, '40']) assert.throws(() => validateAiOutput('audit', { ...audit(), score }));
   assert.throws(() => validateAiOutput('audit', { ...audit(), actions: [] }));
   assert.throws(() => validateAiOutput('audit', { ...audit(), strengths: 'invalid' }));
+  assert.throws(() => validateAiOutput('audit', { ...audit(), limitations: [] }));
+  assert.throws(() => validateAiOutput('audit', { ...audit(), nameSuggestion: undefined }));
+  assert.throws(() => validateAiOutput('audit', { ...audit(), positioning: '' }));
 });
 test('replies require three distinct bounded alternatives', () => {
   assert.throws(() => validateAiOutput('reply', { ...reply(), alternatives: ['Olá', 'olá', 'Teste'] }));

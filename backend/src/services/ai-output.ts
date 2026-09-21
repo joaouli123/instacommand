@@ -17,6 +17,8 @@ export const auditSchema = z.object({
   score: z.number().finite().min(0).max(100), summary: text.max(3000),
   strengths: z.array(text.max(1000)).max(8), opportunities: z.array(text.max(1000)).max(8),
   actions: z.array(text.max(1500)).min(1).max(8), bioSuggestion: text.max(500),
+  nameSuggestion: text.max(100), positioning: text.max(1500),
+  limitations: z.array(text.max(1000)).min(1).max(8),
 });
 export const replySchema = z.object({
   response: text.max(1000),
