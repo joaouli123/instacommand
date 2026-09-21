@@ -11,6 +11,7 @@ export const getDashboardStats = async (accountId: string) => {
         take: 2,
       },
       publishedPosts: {
+        where: { igMediaId: { not: null } },
         include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
         orderBy: { publishedAt: 'desc' },
         take: 30,
@@ -70,7 +71,7 @@ export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
   dateFrom.setDate(dateFrom.getDate() - days);
 
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, publishedAt: { gte: dateFrom } },
+    where: { accountId, igMediaId: { not: null }, publishedAt: { gte: dateFrom } },
     orderBy: { publishedAt: 'asc' },
     include: {
       insights: { orderBy: { collectedAt: 'desc' }, take: 1 },
@@ -119,7 +120,7 @@ export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
 
 export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engagement') => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId },
+    where: { accountId, igMediaId: { not: null } },
     include: {
       insights: {
         orderBy: { collectedAt: 'desc' },
@@ -147,7 +148,7 @@ export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engage
 export const getPostPerformanceTable = async (accountId: string, page = 1, limit = 10) => {
   const skip = (page - 1) * limit;
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId },
+    where: { accountId, igMediaId: { not: null } },
     skip,
     take: limit,
     orderBy: { publishedAt: 'desc' },
@@ -159,7 +160,7 @@ export const getPostPerformanceTable = async (accountId: string, page = 1, limit
     }
   });
 
-  const total = await prisma.publishedPost.count({ where: { accountId } });
+  const total = await prisma.publishedPost.count({ where: { accountId, igMediaId: { not: null } } });
 
   return {
     data: posts,
@@ -171,7 +172,7 @@ export const getPostPerformanceTable = async (accountId: string, page = 1, limit
 
 export const getRecommendations = async (accountId: string) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId },
+    where: { accountId, igMediaId: { not: null } },
     orderBy: { publishedAt: 'desc' },
     take: 50,
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },

@@ -45,6 +45,7 @@ export const setupRecurringJobs = async () => {
     'collect-competitors-recurring', 
     {}, 
     { 
+      jobId: 'collect-competitors-recurring',
       repeat: { pattern: '0 3 * * *' } 
     }
   );

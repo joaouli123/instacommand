@@ -99,7 +99,23 @@ router.get('/', async (req: any, res, next) => {
     if (status) where.status = status;
     if (accountId) where.accountId = accountId;
 
-    const posts = await prisma.scheduledPost.findMany({ where, orderBy: { scheduledFor: 'asc' } });
+    const posts = await prisma.scheduledPost.findMany({
+      where,
+      orderBy: { scheduledFor: 'asc' },
+      include: {
+        publishedPost: {
+          select: {
+            id: true,
+            igMediaId: true,
+            facebookPostId: true,
+            threadsPostId: true,
+            publishResults: true,
+            igPermalink: true,
+            publishedAt: true,
+          },
+        },
+      },
+    });
     res.json(posts);
   } catch (error) {
     next(error);

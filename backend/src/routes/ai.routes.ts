@@ -39,7 +39,7 @@ router.post('/generate', async (req: AuthRequest, res, next) => {
           igMediaCount: true,
           pageName: true,
           profileInsights: { orderBy: { collectedAt: 'desc' }, take: 3, select: { followers: true, reach: true, impressions: true, profileViews: true, collectedAt: true } },
-          publishedPosts: { orderBy: { publishedAt: 'desc' }, take: 8, select: { mediaType: true, caption: true, publishedAt: true, insights: { orderBy: { collectedAt: 'desc' }, take: 1, select: { likes: true, comments: true, shares: true, saves: true, reach: true, engagement: true } } } },
+          publishedPosts: { where: { igMediaId: { not: null } }, orderBy: { publishedAt: 'desc' }, take: 8, select: { mediaType: true, caption: true, publishedAt: true, insights: { orderBy: { collectedAt: 'desc' }, take: 1, select: { likes: true, comments: true, shares: true, saves: true, reach: true, engagement: true } } } },
         },
       });
 

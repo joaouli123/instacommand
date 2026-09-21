@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { graphGet } from '../../utils/instagram-api';
+import { graphGet, graphGetAll } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
 import { MediaType } from '@prisma/client';
 import { maybeNotifyEngagement } from '../notifications.service';
@@ -97,11 +97,10 @@ export const syncAccountMedia = async (accountId: string, options: { fetchInsigh
 
   const token = await getDecryptedToken(accountId);
   const fetchInsights = options.fetchInsights ?? true;
-  const response = await graphGet(`/${account.igUserId}/media`, token, {
+  const media = await graphGetAll<any>(`/${account.igUserId}/media`, token, {
     fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
     limit: 50,
-  });
-  const media = Array.isArray(response.data) ? response.data : [];
+  }, 20);
   let mediaInsightsAvailable = false;
 
   for (const item of media) {
@@ -173,7 +172,7 @@ export const savePostInsights = async (accountId: string) => {
 
   const token = await getDecryptedToken(accountId);
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId },
+    where: { accountId, igMediaId: { not: null } },
     take: 20,
     orderBy: { publishedAt: 'desc' },
   });
@@ -227,7 +226,7 @@ export const savePostInsights = async (accountId: string) => {
 
 export const calculateEngagementRate = async (accountId: string) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId },
+    where: { accountId, igMediaId: { not: null } },
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
     take: 50,
     orderBy: { publishedAt: 'desc' },
@@ -239,7 +238,7 @@ export const calculateEngagementRate = async (accountId: string) => {
 
 export const getBestTimeToPost = async (accountId: string) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId },
+    where: { accountId, igMediaId: { not: null } },
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
   });
   const groups = new Map<string, { day: string; hour: number; posts: number; score: number; interactions: number }>();
@@ -270,7 +269,7 @@ export const getBestTimeToPost = async (accountId: string) => {
 
 export const getContentTypeAnalysis = async (accountId: string) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId },
+    where: { accountId, igMediaId: { not: null } },
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
   });
   const groups = new Map<string, { type: string; posts: number; likes: number; comments: number; saves: number; reach: number; impressions: number; engagement: number }>();

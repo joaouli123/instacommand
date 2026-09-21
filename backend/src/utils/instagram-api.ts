@@ -3,6 +3,22 @@ import { InstagramApiError } from './errors';
 
 const graphBaseUrl = () => `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}`;
 
+/**
+ * Meta returns absolute pagination URLs that already contain the API version
+ * (for example /v25.0/me/accounts). graphGet prefixes the configured version,
+ * so passing that path through unchanged would produce /v25.0/v25.0/....
+ * Normalize both absolute and relative cursors before requesting the next page
+ * and remove any token embedded in a cursor URL.
+ */
+export const normalizeGraphPagePath = (next: string): string => {
+  const parsed = new URL(next, graphBaseUrl());
+  const versionPrefix = new RegExp(`^/${env.META_GRAPH_API_VERSION}(?=/|$)`);
+  const pathname = parsed.pathname.replace(versionPrefix, '') || '/';
+  parsed.searchParams.delete('access_token');
+  const query = parsed.searchParams.toString();
+  return `${pathname}${query ? `?${query}` : ''}`;
+};
+
 const encodeValue = (value: unknown) => {
   if (typeof value === 'string') return value;
   if (typeof value === 'boolean' || typeof value === 'number') return String(value);
@@ -58,3 +74,25 @@ export const graphPost = (path: string, token: string, data: Record<string, unkn
 
 export const graphDelete = (path: string, token: string) =>
   requestGraph('DELETE', path, token);
+
+export const graphGetAll = async <T = any>(
+  path: string,
+  token: string,
+  params: Record<string, unknown> = {},
+  maxPages = 20,
+): Promise<T[]> => {
+  const items: T[] = [];
+  let nextPath: string | null = path;
+  let page = 0;
+  let pageParams = params;
+
+  while (nextPath && page < maxPages) {
+    const response = await graphGet(nextPath, token, pageParams);
+    if (Array.isArray(response.data)) items.push(...response.data as T[]);
+    nextPath = response.paging?.next ? normalizeGraphPagePath(String(response.paging.next)) : null;
+    pageParams = {};
+    page += 1;
+  }
+
+  return items;
+};

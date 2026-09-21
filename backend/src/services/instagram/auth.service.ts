@@ -1,5 +1,5 @@
 import { env } from '../../config/env';
-import { graphGet } from '../../utils/instagram-api';
+import { graphGet, graphGetAll } from '../../utils/instagram-api';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 
@@ -190,22 +190,14 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
   const longLivedResponse = await fetch(longLivedUrl).then((res) => res.json());
   const userToken = longLivedResponse.access_token || tokenResponse.access_token;
 
-  // Meta paginates this endpoint. Follow all pages so a customer can connect
-  // every eligible Instagram profile in one authorization flow.
-  const pages: Array<{ id: string; name: string; access_token: string }> = [];
-  let nextPath: string | null = '/me/accounts';
-  let firstPage = true;
-  while (nextPath && pages.length < 100) {
-    const pagesData = await graphGet(nextPath, userToken, firstPage ? { fields: 'id,name,access_token' } : {});
-    pages.push(...(pagesData.data || []));
-    firstPage = false;
-    if (pagesData.paging?.next) {
-      const nextUrl = new URL(pagesData.paging.next);
-      nextPath = `${nextUrl.pathname}${nextUrl.search}`;
-    } else {
-      nextPath = null;
-    }
-  }
+  // Meta paginates this endpoint. Follow every page so a customer can connect
+  // all eligible Instagram profiles in one authorization flow.
+  const pages = await graphGetAll<{ id: string; name: string; access_token: string }>(
+    '/me/accounts',
+    userToken,
+    { fields: 'id,name,access_token', limit: 100 },
+    20,
+  );
 
   const connectedAccounts = [];
 
