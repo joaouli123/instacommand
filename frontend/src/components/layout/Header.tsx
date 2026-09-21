@@ -34,6 +34,7 @@ export function Header() {
     '/analytics': { title: 'Analytics Avançado', subtitle: 'Métricas de alcance, engajamento e demografia' },
     '/competitors': { title: 'Monitor de Concorrentes', subtitle: 'Benchmarking e acompanhamento de mercado' },
     '/trends': { title: 'Tendências e Insights', subtitle: 'Hashtags em alta e formatos de alta performance' },
+    '/community': { title: 'Comunidade', subtitle: 'Leia e responda comentários reais do Instagram' },
     '/settings': { title: 'Configurações da Plataforma', subtitle: 'Preferências, conexões e automações' },
     '/accounts': { title: 'Contas do Instagram', subtitle: 'Gerencie perfis profissionais conectados' }
   }

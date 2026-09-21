@@ -11,6 +11,7 @@ import {
   XAxis, YAxis, PieChart, Pie, Cell, CartesianGrid, Legend,
 } from "recharts"
 import { Heart, MessageCircle, Bookmark, Share2, Eye, TrendingUp, Users, RefreshCw, AlertCircle } from "lucide-react"
+import { useActiveAccount } from "@/hooks/useActiveAccount"
 
 type Account = { id: string; igUsername: string; igFollowersCount: number; lastSyncAt?: string | null }
 type Dashboard = { followers: number; followerGrowth: number; reach: number; impressions: number; pendingPosts: number }
@@ -50,6 +51,9 @@ export default function AnalyticsPage() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState("")
   const [period, setPeriod] = useState("30")
+  const [postsPage, setPostsPage] = useState(1)
+  const [postsTotal, setPostsTotal] = useState(0)
+  const [postsTotalPages, setPostsTotalPages] = useState(1)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [growth, setGrowth] = useState<Array<{ date: string; followers: number }>>([])
   const [engagement, setEngagement] = useState<TimelineItem[]>([])
@@ -60,19 +64,24 @@ export default function AnalyticsPage() {
   const [recommendations, setRecommendations] = useState<Array<{ type: string; message: string; basedOn?: number }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const { accounts: activeAccounts, accountId: activeAccountId, isLoading: accountsLoading, setActiveAccount } = useActiveAccount()
 
-  const loadAnalytics = async (id: string, days: number) => {
+  const loadAnalytics = async (id: string, days: number, page = 1) => {
     setLoading(true)
     setError("")
     try {
       const [nextDashboard, nextGrowth, nextEngagement, nextPosts, nextAudience, nextBestTimes, nextContentTypes, nextRecommendations] = await Promise.all([
-        api.getDashboard(id), api.getGrowth(id, days), api.getEngagement(id, days), api.getAnalyticsPosts(id, 1, 50),
+        api.getDashboard(id), api.getGrowth(id, days), api.getEngagement(id, days), api.getAnalyticsPosts(id, page, 20),
         fetchApi(`/analytics/${id}/audience`), fetchApi(`/analytics/${id}/best-times`), fetchApi(`/analytics/${id}/content-types`), fetchApi(`/analytics/${id}/recommendations`),
       ])
       setDashboard(nextDashboard as Dashboard)
       setGrowth(nextGrowth as Array<{ date: string; followers: number }>)
       setEngagement(nextEngagement as TimelineItem[])
-      setPosts((nextPosts as { data?: AnalyticsPost[] }).data || [])
+      const postPayload = nextPosts as { data?: AnalyticsPost[]; total?: number; page?: number; totalPages?: number }
+      setPosts(postPayload.data || [])
+      setPostsTotal(postPayload.total || 0)
+      setPostsPage(postPayload.page || page)
+      setPostsTotalPages(Math.max(1, postPayload.totalPages || 1))
       setAudience(getAudiencePayload(nextAudience))
       setBestTimes(nextBestTimes as typeof bestTimes)
       setContentTypes(nextContentTypes as typeof contentTypes)
@@ -83,30 +92,31 @@ export default function AnalyticsPage() {
   }
 
   useEffect(() => {
-    let active = true
-    api.getAccounts().then((value) => {
-      if (!active) return
-      const nextAccounts = value as Account[]
-      setAccounts(nextAccounts)
-      const nextId = nextAccounts[0]?.id || ""
-      setAccountId(nextId)
-      if (nextId) void loadAnalytics(nextId, Number(period)); else setLoading(false)
-    }).catch((loadError) => {
-      if (active) { setError(loadError instanceof Error ? loadError.message : "Entre na plataforma para ver os analytics"); setLoading(false) }
-    })
-    return () => { active = false }
+    const nextAccounts = (activeAccounts || []) as Account[]
+    setAccounts(nextAccounts)
+    if (!activeAccountId) {
+      if (!accountsLoading) setLoading(false)
+      return
+    }
+    setAccountId(activeAccountId)
+    void loadAnalytics(activeAccountId, Number(period), 1)
+    // The active-account hook is the single source of truth for the global selector.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [activeAccountId, activeAccounts, accountsLoading])
 
   const reachData = useMemo(() => engagement.map((item) => ({ name: formatDate(item.date), alcance: item.reach, impressoes: item.impressions })), [engagement])
   const engagementData = useMemo(() => engagement.map((item) => ({ name: formatDate(item.date), interacoes: item.likes + item.comments + item.saves, taxa: item.engagement })), [engagement])
   const audienceRows = useMemo(() => getAudienceRows(audience), [audience])
   const genderData = useMemo(() => audienceRows.filter((row) => row.name.includes("gender")).slice(0, 8).map((row, index) => ({ name: row.label, value: row.value * 100, color: colors[index % colors.length] })), [audienceRows])
   const cityData = useMemo(() => audienceRows.filter((row) => row.name.includes("city") || row.name.includes("country")).slice(0, 8).map((row) => ({ cidade: row.label, pct: row.value * 100 })), [audienceRows])
-  const onPeriodChange = (value: string) => { setPeriod(value); if (accountId) void loadAnalytics(accountId, Number(value)) }
-  const onAccountChange = (value: string) => { setAccountId(value); void loadAnalytics(value, Number(period)) }
+  const onPeriodChange = (value: string) => { setPeriod(value); setPostsPage(1); if (accountId) void loadAnalytics(accountId, Number(value), 1) }
+  const onAccountChange = (value: string) => { setActiveAccount(value) }
+  const onPostsPageChange = (nextPage: number) => {
+    if (nextPage < 1 || nextPage > postsTotalPages || nextPage === postsPage || !accountId) return
+    void loadAnalytics(accountId, Number(period), nextPage)
+  }
 
-  if (loading && !dashboard) return <div className="flex min-h-[420px] items-center justify-center text-sm text-slate-500"><RefreshCw size={18} className="mr-2 animate-spin" />Carregando dados reais da Meta...</div>
+  if ((accountsLoading || loading) && !dashboard) return <div className="flex min-h-[420px] items-center justify-center text-sm text-slate-500"><RefreshCw size={18} className="mr-2 animate-spin" />Carregando dados reais da Meta...</div>
   if (!accounts.length) return <Card className="p-10 text-center"><Users className="mx-auto mb-3 text-indigo-600" /><h2 className="font-bold text-slate-900">Nenhuma conta conectada</h2><p className="mt-1 text-sm text-slate-500">Conecte uma conta profissional do Instagram para visualizar publicações e métricas.</p></Card>
 
   return <div className="space-y-6 animate-fade-in">
@@ -123,7 +133,7 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2"><Card className="p-6"><h3 className="mb-4 text-lg font-bold text-slate-900">Alcance e impressões</h3>{reachData.length ? <ResponsiveContainer width="100%" height={300}><AreaChart data={reachData}><defs><linearGradient id="realReach" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/><stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0"/><XAxis dataKey="name" stroke="#94a3b8" fontSize={12}/><YAxis stroke="#94a3b8" fontSize={12}/><Tooltip/><Legend/><Area type="monotone" dataKey="alcance" name="Alcance" stroke="#4f46e5" fill="url(#realReach)"/><Area type="monotone" dataKey="impressoes" name="Impressões" stroke="#0284c7" fill="none"/></AreaChart></ResponsiveContainer> : <EmptyState text="A Meta ainda não entregou alcance ou impressões para este token." />}</Card><Card className="p-6"><h3 className="mb-4 text-lg font-bold text-slate-900">Interações por publicação</h3>{engagementData.length ? <ResponsiveContainer width="100%" height={300}><BarChart data={engagementData}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0"/><XAxis dataKey="name" stroke="#94a3b8" fontSize={12}/><YAxis stroke="#94a3b8" fontSize={12}/><Tooltip/><Legend/><Bar dataKey="interacoes" name="Likes + comentários + salvos" fill="#4f46e5" radius={[6, 6, 0, 0]}/></BarChart></ResponsiveContainer> : <EmptyState text="Ainda não há publicações no período escolhido." />}</Card></div>
         <Card className="p-6"><h3 className="mb-4 text-lg font-bold text-slate-900">Recomendações baseadas no seu histórico</h3>{recommendations.length ? <div className="grid gap-3 md:grid-cols-2">{recommendations.map((recommendation, index) => <div key={`${recommendation.type}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><Badge variant="default">{recommendation.type}</Badge><p className="mt-2 text-sm text-slate-700">{recommendation.message}</p><p className="mt-2 text-xs text-slate-400">Baseado em {recommendation.basedOn || posts.length} publicações</p></div>)}</div> : <EmptyState text="Ainda não há histórico suficiente para recomendar ações." />}</Card>
       </TabsContent>
-      <TabsContent value="posts" className="space-y-6"><Card className="p-6"><div className="mb-4 flex items-center justify-between"><div><h3 className="text-lg font-bold text-slate-900">Performance de publicações</h3><p className="text-sm text-slate-500">As linhas abaixo vêm dos posts recuperados do Instagram.</p></div><Badge variant="secondary">{formatNumber(posts.length)} posts</Badge></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead><tr className="border-b border-slate-200 text-slate-500"><th className="px-2 py-3 text-left">Post</th><th className="px-2 py-3 text-left">Tipo</th><th className="px-2 py-3 text-left">Data</th><th className="px-2 py-3 text-right"><Heart size={14} className="inline"/> Likes</th><th className="px-2 py-3 text-right"><MessageCircle size={14} className="inline"/> Coment.</th><th className="px-2 py-3 text-right"><Bookmark size={14} className="inline"/> Salvos</th><th className="px-2 py-3 text-right"><Share2 size={14} className="inline"/> Alcance</th><th className="px-2 py-3 text-right">ER</th></tr></thead><tbody>{posts.map((post) => { const insight = getInsight(post); return <tr key={post.id} className="border-b border-slate-100 hover:bg-slate-50"><td className="px-2 py-3"><a href={post.igPermalink || "#"} target="_blank" rel="noreferrer" className="flex max-w-[240px] items-center gap-3 text-slate-700 hover:text-indigo-600">{post.igMediaUrl ? <img src={post.igMediaUrl} alt="" className="h-10 w-10 rounded object-cover"/> : <div className="h-10 w-10 rounded bg-slate-100"/>}<span className="truncate">{post.caption || "Sem legenda"}</span></a></td><td className="px-2 py-3"><Badge variant={post.mediaType === "REEL" ? "default" : post.mediaType === "CAROUSEL" ? "secondary" : "outline"}>{formatType(post.mediaType)}</Badge></td><td className="px-2 py-3 text-slate-500">{formatDate(post.publishedAt)}</td><td className="px-2 py-3 text-right font-medium">{formatNumber(insight.likes)}</td><td className="px-2 py-3 text-right font-medium">{formatNumber(insight.comments)}</td><td className="px-2 py-3 text-right font-medium">{formatNumber(insight.saves)}</td><td className="px-2 py-3 text-right font-medium">{insight.reach ? formatNumber(insight.reach) : "—"}</td><td className="px-2 py-3 text-right font-bold">{insight.engagement ? formatPercent(insight.engagement) : "—"}</td></tr> })}</tbody></table>{!posts.length && <EmptyState text="Nenhuma publicação foi importada para esta conta."/>}</div></Card><Card className="p-6"><h3 className="mb-4 text-lg font-bold text-slate-900">Formatos que mais geram interação</h3>{contentTypes.length ? <ResponsiveContainer width="100%" height={280}><BarChart data={contentTypes}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0"/><XAxis dataKey="type" tickFormatter={formatType}/><YAxis/><Tooltip/><Legend/><Bar dataKey="likes" name="Likes" fill="#4f46e5"/><Bar dataKey="comments" name="Comentários" fill="#06b6d4"/></BarChart></ResponsiveContainer> : <EmptyState text="Sem dados suficientes para comparar formatos."/>}</Card></TabsContent>
+      <TabsContent value="posts" className="space-y-6"><Card className="p-6"><div className="mb-4 flex items-center justify-between"><div><h3 className="text-lg font-bold text-slate-900">Performance de publicações</h3><p className="text-sm text-slate-500">As linhas abaixo vêm dos posts recuperados do Instagram.</p></div><Badge variant="secondary">{formatNumber(postsTotal)} posts</Badge></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead><tr className="border-b border-slate-200 text-slate-500"><th className="px-2 py-3 text-left">Post</th><th className="px-2 py-3 text-left">Tipo</th><th className="px-2 py-3 text-left">Data</th><th className="px-2 py-3 text-right"><Heart size={14} className="inline"/> Likes</th><th className="px-2 py-3 text-right"><MessageCircle size={14} className="inline"/> Coment.</th><th className="px-2 py-3 text-right"><Bookmark size={14} className="inline"/> Salvos</th><th className="px-2 py-3 text-right"><Share2 size={14} className="inline"/> Alcance</th><th className="px-2 py-3 text-right">ER</th></tr></thead><tbody>{posts.map((post) => { const insight = getInsight(post); return <tr key={post.id} className="border-b border-slate-100 hover:bg-slate-50"><td className="px-2 py-3"><a href={post.igPermalink || "#"} target="_blank" rel="noreferrer" className="flex max-w-[240px] items-center gap-3 text-slate-700 hover:text-indigo-600">{post.igMediaUrl ? <img src={post.igMediaUrl} alt="" className="h-10 w-10 rounded object-cover"/> : <div className="h-10 w-10 rounded bg-slate-100"/>}<span className="truncate">{post.caption || "Sem legenda"}</span></a></td><td className="px-2 py-3"><Badge variant={post.mediaType === "REEL" ? "default" : post.mediaType === "CAROUSEL" ? "secondary" : "outline"}>{formatType(post.mediaType)}</Badge></td><td className="px-2 py-3 text-slate-500">{formatDate(post.publishedAt)}</td><td className="px-2 py-3 text-right font-medium">{formatNumber(insight.likes)}</td><td className="px-2 py-3 text-right font-medium">{formatNumber(insight.comments)}</td><td className="px-2 py-3 text-right font-medium">{formatNumber(insight.saves)}</td><td className="px-2 py-3 text-right font-medium">{insight.reach ? formatNumber(insight.reach) : "—"}</td><td className="px-2 py-3 text-right font-bold">{insight.engagement ? formatPercent(insight.engagement) : "—"}</td></tr> })}</tbody></table>{!posts.length && <EmptyState text="Nenhuma publicação foi importada para esta conta."/>}</div><div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4"><p className="text-xs text-slate-500">Página {postsPage} de {postsTotalPages}</p><div className="flex gap-2"><button type="button" onClick={() => onPostsPageChange(postsPage - 1)} disabled={postsPage <= 1 || loading} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-40">Anterior</button><button type="button" onClick={() => onPostsPageChange(postsPage + 1)} disabled={postsPage >= postsTotalPages || loading} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-40">Próxima</button></div></div></Card><Card className="p-6"><h3 className="mb-4 text-lg font-bold text-slate-900">Formatos que mais geram interação</h3>{contentTypes.length ? <ResponsiveContainer width="100%" height={280}><BarChart data={contentTypes}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0"/><XAxis dataKey="type" tickFormatter={formatType}/><YAxis/><Tooltip/><Legend/><Bar dataKey="likes" name="Likes" fill="#4f46e5"/><Bar dataKey="comments" name="Comentários" fill="#06b6d4"/></BarChart></ResponsiveContainer> : <EmptyState text="Sem dados suficientes para comparar formatos."/>}</Card></TabsContent>
       <TabsContent value="audiencia" className="space-y-6"><Card className="border-amber-200 bg-amber-50/70 p-5"><div className="flex gap-3"><AlertCircle className="mt-0.5 shrink-0 text-amber-600"/><div><h3 className="font-bold text-amber-900">Dados demográficos da Meta</h3><p className="mt-1 text-sm text-amber-800">{audience.available ? "Dados retornados pela API da Meta." : (audience.message || "A Meta não liberou dados demográficos para esta conexão ainda. Likes, comentários e publicações continuam disponíveis.")}</p></div></div></Card>{audience.available && audienceRows.length ? <div className="grid grid-cols-1 gap-6 md:grid-cols-2"><Card className="p-6"><h3 className="mb-4 text-lg font-bold text-slate-900">Gênero / faixa</h3><ResponsiveContainer width="100%" height={250}><PieChart><Pie data={genderData.length ? genderData : audienceRows.slice(0, 6).map((row, index) => ({ name: row.label, value: row.value * 100, color: colors[index % colors.length] }))} innerRadius={65} outerRadius={95} paddingAngle={4} dataKey="value" label={({ name, value }) => `${name}: ${Number(value).toFixed(1)}%`}>{(genderData.length ? genderData : audienceRows.slice(0, 6)).map((_, index) => <Cell key={index} fill={colors[index % colors.length]}/>)}</Pie><Tooltip/></PieChart></ResponsiveContainer></Card><Card className="p-6"><h3 className="mb-4 text-lg font-bold text-slate-900">Cidades / países</h3>{cityData.length ? <ResponsiveContainer width="100%" height={250}><BarChart data={cityData}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0"/><XAxis dataKey="cidade" angle={-20} textAnchor="end" height={60}/><YAxis unit="%"/><Tooltip/><Bar dataKey="pct" name="%" fill="#4f46e5" radius={[6, 6, 0, 0]}/></BarChart></ResponsiveContainer> : <EmptyState text="A Meta não retornou cidades ou países."/>}</Card></div> : <Card className="p-10 text-center"><Users className="mx-auto mb-3 text-slate-400"/><p className="text-sm text-slate-500">Nenhum dado demográfico disponível para exibir.</p></Card>}<div className="grid grid-cols-1 gap-6 lg:grid-cols-2"><Card className="p-6"><h3 className="mb-4 text-lg font-bold text-slate-900">Melhores horários reais</h3>{bestTimes.length ? <div className="space-y-2">{bestTimes.slice(0, 8).map((time) => <div key={`${time.day}-${time.hour}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="font-semibold text-slate-700">{time.day}, {String(time.hour).padStart(2, "0")}h</span><span className="text-slate-500">{formatNumber(time.averageInteractions)} interações médias · {time.posts} post(s)</span></div>)}</div> : <EmptyState text="Ainda não há histórico suficiente para calcular horários."/>}</Card><Card className="p-6"><h3 className="mb-4 text-lg font-bold text-slate-900">Como os horários foram calculados</h3><p className="text-sm leading-6 text-slate-600">Agrupamos os posts importados por dia da semana e hora de São Paulo. O ranking usa as interações reais registradas em cada publicação, sem preencher valores estimados.</p></Card></div></TabsContent>
     </Tabs>
   </div>

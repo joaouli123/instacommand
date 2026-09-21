@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   LayoutDashboard, PenSquare, Calendar, BarChart3, 
-  Users, TrendingUp, Settings, ChevronLeft, ChevronRight,
+  Users, TrendingUp, Settings, MessageCircle, ChevronLeft, ChevronRight,
   Instagram, ShieldCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,7 @@ const navItems = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Concorrentes', href: '/competitors', icon: Users },
   { name: 'Tendências', href: '/trends', icon: TrendingUp },
+  { name: 'Comunidade', href: '/community', icon: MessageCircle },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ]
 

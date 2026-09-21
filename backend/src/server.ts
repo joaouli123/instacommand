@@ -20,6 +20,7 @@ import schedulerRoutes from './routes/scheduler.routes';
 import settingsRoutes from './routes/settings.routes';
 import aiRoutes from './routes/ai.routes';
 import notificationsRoutes from './routes/notifications.routes';
+import communityRoutes from './routes/community.routes';
 
 // Workers
 import { setupPublishPostWorker } from './jobs/publishPost.job';
@@ -83,6 +84,7 @@ app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/community', communityRoutes);
 
 // Error handling
 app.use(errorHandler);

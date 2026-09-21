@@ -44,7 +44,8 @@ router.post('/:accountId/hashtags/track', async (req: any, res, next) => {
 
 router.delete('/:accountId/hashtags/:id', async (req, res, next) => {
   try {
-    await prisma.hashtagSearch.delete({ where: { id: req.params.id } });
+    const removed = await prisma.hashtagSearch.deleteMany({ where: { id: req.params.id, accountId: req.params.accountId } });
+    if (!removed.count) return res.status(404).json({ error: 'Hashtag not found' });
     res.json({ message: 'Hashtag tracking stopped' });
   } catch (error) { next(error); }
 });

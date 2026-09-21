@@ -16,14 +16,26 @@ export const getCompetitorRecentPosts = async (igUserId: string, competitorUsern
   return response.business_discovery?.media?.data || [];
 };
 
-export const addCompetitor = async (accountId: string, igUsername: string) => {
-  const account = await prisma.instagramAccount.findUnique({ where: { id: accountId } });
+const normalizeUsername = (value: string) => value.trim().replace(/^@/, '').toLowerCase();
+
+export const addCompetitor = async (accountId: string, userId: string, igUsername: string) => {
+  const username = normalizeUsername(igUsername);
+  const account = await prisma.instagramAccount.findFirst({ where: { id: accountId, userId, isActive: true } });
   if (!account) throw new Error('Account not found');
 
+  if (!/^[a-z0-9._]{1,30}$/.test(username)) {
+    throw new Error('Informe um @username válido do Instagram.');
+  }
+
   const token = await getDecryptedToken(accountId);
-  const profile = await getCompetitorProfile(account.igUserId, igUsername, token);
+  const profile = await getCompetitorProfile(account.igUserId, username, token);
 
   if (!profile) throw new Error('Competitor not found');
+
+  const existing = await prisma.competitor.findUnique({
+    where: { accountId_igUsername: { accountId, igUsername: profile.username } },
+  });
+  if (existing) throw new Error('Este concorrente já está sendo monitorado.');
 
   return prisma.competitor.create({
     data: {
@@ -38,16 +50,21 @@ export const addCompetitor = async (accountId: string, igUsername: string) => {
   });
 };
 
-export const removeCompetitor = async (competitorId: string) => {
-  return prisma.competitor.delete({ where: { id: competitorId } });
+export const removeCompetitor = async (competitorId: string, userId: string) => {
+  const competitor = await prisma.competitor.findFirst({
+    where: { id: competitorId, account: { userId } },
+    select: { id: true },
+  });
+  if (!competitor) throw new Error('Competitor not found');
+  return prisma.competitor.delete({ where: { id: competitor.id } });
 };
 
-export const collectCompetitorData = async (competitorId: string) => {
+export const collectCompetitorData = async (competitorId: string, userId: string) => {
   const competitor = await prisma.competitor.findUnique({
     where: { id: competitorId },
     include: { account: true },
   });
-  if (!competitor) return;
+  if (!competitor || competitor.account.userId !== userId || !competitor.account.isActive) throw new Error('Competitor not found');
 
   const token = await getDecryptedToken(competitor.account.id);
   const profile = await getCompetitorProfile(competitor.account.igUserId, competitor.igUsername, token);

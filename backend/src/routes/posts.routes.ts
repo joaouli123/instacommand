@@ -127,6 +127,28 @@ router.patch('/:id', async (req: any, res, next) => {
     
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
+    const nextPlatforms = Array.isArray(platforms) && platforms.length ? platforms : post.platforms;
+    const unsupportedPlatform = nextPlatforms.find((platform: unknown) => !['INSTAGRAM', 'FACEBOOK', 'THREADS'].includes(String(platform)));
+    if (unsupportedPlatform) return res.status(400).json({ error: `Plataforma não suportada: ${unsupportedPlatform}` });
+
+    if (nextPlatforms.includes('THREADS')) {
+      const nextThreadsAccountId = threadsAccountId || post.threadsAccountId;
+      const threadsAccount = nextThreadsAccountId
+        ? await prisma.threadsAccount.findFirst({ where: { id: nextThreadsAccountId, userId: req.user.id, isActive: true } })
+        : null;
+      if (!threadsAccount) return res.status(400).json({ error: 'Conecte uma conta do Threads antes de selecionar essa plataforma.' });
+    }
+    if (nextPlatforms.includes('FACEBOOK')) {
+      const account = await prisma.instagramAccount.findFirst({ where: { id: post.accountId, userId: req.user.id, isActive: true } });
+      if (!account?.pageId) return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
+    }
+    if (post.mediaType === 'STORY' && nextPlatforms.some((platform: string) => platform !== 'INSTAGRAM')) {
+      return res.status(400).json({ error: 'Stories só podem ser publicados pelo Instagram nesta versão da API.' });
+    }
+
+    const nextDate = scheduledFor ? new Date(scheduledFor) : post.scheduledFor;
+    if (Number.isNaN(nextDate.getTime())) return res.status(400).json({ error: 'Data de publicação inválida.' });
+
     if (post.status === 'SCHEDULED' && (status === 'DRAFT' || scheduledFor)) {
       await cancelScheduledPost(post.id);
     }
@@ -135,10 +157,10 @@ router.patch('/:id', async (req: any, res, next) => {
       where: { id: post.id },
       data: {
         caption,
-        scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
+        scheduledFor: scheduledFor ? nextDate : undefined,
         status,
-        platforms: Array.isArray(platforms) && platforms.length ? platforms : undefined,
-        threadsAccountId: threadsAccountId || undefined,
+        platforms: Array.isArray(platforms) && platforms.length ? nextPlatforms : undefined,
+        threadsAccountId: threadsAccountId === null ? null : threadsAccountId || undefined,
       }
     });
 

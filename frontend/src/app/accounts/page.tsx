@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +24,7 @@ type ConnectedThreadsAccount = { id: string; username: string; name?: string | n
 type AiAudit = { score?: number; summary?: string; strengths?: string[]; opportunities?: string[]; actions?: string[]; bioSuggestion?: string }
 
 export default function AccountsPage() {
+  const queryClient = useQueryClient()
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
   const [pendingAccounts, setPendingAccounts] = useState<ConnectedAccount[]>([])
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([])
@@ -84,6 +86,7 @@ export default function AccountsPage() {
     setSyncingId(id)
     try {
       const result = await fetchApi(`/accounts/${id}/sync`, { method: "POST" }) as { sync?: { importedMedia?: number; profileInsightsAvailable?: boolean } }
+      await queryClient.invalidateQueries({ queryKey: ["accounts"] })
       const importedMedia = result.sync?.importedMedia ?? 0
       const insightsMessage = result.sync?.profileInsightsAvailable ? " métricas de perfil atualizadas." : " perfil atualizado; Insights ainda não liberado no app Meta."
       toast.success(`${importedMedia} publicações importadas.${insightsMessage}`)
@@ -128,6 +131,7 @@ export default function AccountsPage() {
     try {
       await fetchApi(`/accounts/${account.id}`, { method: "DELETE" })
       setAccounts((current) => current.filter((item) => item.id !== account.id))
+      await queryClient.invalidateQueries({ queryKey: ["accounts"] })
       toast.success(`@${account.igUsername} foi desconectada`)
     } catch {
       toast.error("Não foi possível desconectar a conta")
@@ -140,6 +144,7 @@ export default function AccountsPage() {
     try {
       await api.disconnectThreadsAccount(account.id)
       setThreadsAccounts((current) => current.filter((item) => item.id !== account.id))
+      await queryClient.invalidateQueries({ queryKey: ["threads-accounts"] })
       toast.success(`@${account.username} foi desconectada do Threads`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível desconectar a conta do Threads")
@@ -171,7 +176,7 @@ export default function AccountsPage() {
               <ArrowRight size={18} className="shrink-0 text-indigo-600" />
             </button>
           </div>
-          <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Para conectar contas de outros portfólios, seu usuário do Facebook precisa ter controle total sobre esses ativos no Meta Business.</p>
+          <div className="space-y-2 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600"><p>Na janela da Meta, selecione apenas os portfólios/ativos que estiverem habilitados. <strong>João Lucas</strong> é o proprietário do aplicativo e não precisa ser compartilhado.</p><p>Se um portfólio aparecer cinza, como “Doce Beleza” ou “Lp Slim”, seu usuário precisa receber <strong>Controle total</strong> dele e das páginas/contas Instagram vinculadas no Meta Business.</p></div>
         </DialogContent>
       </Dialog>
 

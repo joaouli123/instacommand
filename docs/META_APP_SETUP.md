@@ -39,6 +39,7 @@ Para funcionamento completo, você precisará solicitar estas permissões via **
 | `instagram_manage_comments` | Gerenciar comentários |
 | `pages_show_list` | Listar páginas do Facebook |
 | `pages_read_engagement` | Ler dados da página |
+| `pages_manage_posts` | Publicar e gerenciar posts da Página |
 
 > **Nota**: Para desenvolvimento/teste, você pode usar permissões em modo de teste
 > sem App Review, mas apenas com contas de teste (administradores do app).

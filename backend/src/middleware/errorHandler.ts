@@ -13,6 +13,9 @@ const publicMessage = (message: string) => {
   if (normalized.includes('business discovery')) {
     return 'A Meta não liberou a consulta deste perfil. Verifique se o concorrente é público e se o recurso Business Discovery está disponível para o aplicativo.';
   }
+  if (normalized.includes('manage_comments') || normalized.includes('comment')) {
+    return 'A Meta ainda não liberou o gerenciamento de comentários para esta conexão. Solicite instagram_manage_comments no App Review e conecte a conta novamente.';
+  }
   if (message.startsWith('Instagram API Error:')) {
     return 'A Meta recusou esta operação. Revise as permissões da conexão e tente novamente.';
   }

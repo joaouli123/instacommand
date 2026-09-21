@@ -76,4 +76,7 @@ export const api = {
   getNotifications: () => fetchApi('/notifications'),
   markNotificationRead: (id: string) => fetchApi(`/notifications/${id}/read`, { method: 'POST' }),
   markAllNotificationsRead: () => fetchApi('/notifications/read-all', { method: 'POST' }),
+  getComments: (accountId: string) => fetchApi(`/community/comments?accountId=${encodeURIComponent(accountId)}`),
+  replyComment: (data: { accountId: string; mediaId: string; commentId: string; message: string }) => fetchApi(`/community/comments/${encodeURIComponent(data.commentId)}/reply`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteComment: (data: { accountId: string; mediaId: string; commentId: string }) => fetchApi(`/community/comments/${encodeURIComponent(data.commentId)}?accountId=${encodeURIComponent(data.accountId)}&mediaId=${encodeURIComponent(data.mediaId)}`, { method: 'DELETE' }),
 };

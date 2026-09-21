@@ -11,11 +11,12 @@ export const setupCollectCompetitorsWorker = () => {
     
     const competitors = await prisma.competitor.findMany({
       where: { isActive: true },
+      include: { account: { select: { userId: true } } },
     });
 
     for (const competitor of competitors) {
       try {
-        await collectCompetitorData(competitor.id);
+        await collectCompetitorData(competitor.id, competitor.account.userId);
         console.log(`Successfully collected data for competitor ${competitor.id}`);
       } catch (error) {
         console.error(`Failed to collect data for competitor ${competitor.id}:`, error);

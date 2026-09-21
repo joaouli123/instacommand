@@ -25,6 +25,7 @@ META_APP_ID=seu_app_id
 META_APP_SECRET=seu_app_secret
 META_GRAPH_API_VERSION=v25.0
 FB_LOGIN_CONFIG_ID=identificador_da_configuracao_do_login_para_empresas
+FB_OAUTH_SCOPES=business_management,instagram_basic,instagram_content_publish,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,pages_manage_posts
 FB_REDIRECT_URI=https://api-instacommand.seudominio.com/api/auth/facebook/callback
 THREADS_APP_ID=identificador_do_app_do_threads
 THREADS_APP_SECRET=segredo_do_app_do_threads
@@ -58,9 +59,11 @@ No app da Meta, cadastre exatamente:
 https://api-instacommand.seudominio.com/api/auth/facebook/callback
 ```
 
-Na configuração do Login do Facebook para Empresas, selecione os ativos Páginas e Contas do Instagram e as permissões `business_management`, `instagram_basic`, `instagram_content_publish`, `pages_show_list` e `pages_read_engagement`. O `FB_LOGIN_CONFIG_ID` deve ser o identificador dessa configuração; ele é usado no OAuth para que a Meta aplique essas permissões ao login.
+Na configuração do Login do Facebook para Empresas, selecione os ativos Páginas e Contas do Instagram e as permissões `business_management`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_show_list`, `pages_read_engagement` e `pages_manage_posts`. O `FB_LOGIN_CONFIG_ID` deve ser o identificador dessa configuração; ele é usado no OAuth para que a Meta aplique essas permissões ao login.
 
 O botão “Conectar nova conta” faz o fluxo completo: abre a autorização da Meta, busca as páginas vinculadas, encontra as contas Instagram Business/Creator, salva os tokens criptografados e retorna para `/accounts` já conectado.
+
+A tela **Comunidade** lê comentários reais das publicações e permite responder, excluir e pedir sugestões de resposta à IA. Esse recurso depende da aprovação de `instagram_manage_comments`; quando a Meta ainda não liberou a permissão, a plataforma informa o motivo e não cria dados fictícios.
 
 ## Healthchecks
 
