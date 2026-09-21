@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { env } from '../config/env';
 import { assertPostReady } from '../services/post-readiness';
 import { ConflictError } from '../utils/errors';
+import { publicMediaBase, normalizeMediaUrl } from '../utils/public-media';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -127,7 +128,7 @@ router.get('/', async (req: any, res, next) => {
         },
       },
     });
-    res.json(posts);
+    res.json(posts.map(post => ({ ...post, mediaUrls: post.mediaUrls.map(normalizeMediaUrl) })));
   } catch (error) {
     next(error);
   }
@@ -139,7 +140,7 @@ router.get('/:id', async (req: any, res, next) => {
       where: { id: req.params.id, userId: req.user.id }
     });
     if (!post) return res.status(404).json({ error: 'Post not found' });
-    res.json(post);
+    res.json({ ...post, mediaUrls: post.mediaUrls.map(normalizeMediaUrl) });
   } catch (error) {
     next(error);
   }
@@ -246,8 +247,9 @@ router.delete('/:id', async (req: any, res, next) => {
     if (post.publishedPost?.threadsPostId) warnings.push('A publicação do Threads permanece no perfil; a API atual não permite removê-la por este painel.');
 
     const uploadRoot = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);
-    const publicBase = env.MEDIA_PUBLIC_URL.replace(/\/$/, '');
+    const publicBase = publicMediaBase();
     const uploadedFiles = post.mediaUrls
+      .map(normalizeMediaUrl)
       .filter((url) => typeof url === 'string' && url.startsWith(`${publicBase}/`))
       .map((url) => {
         const filename = decodeURIComponent(url.slice(publicBase.length + 1)).split(/[?#]/)[0];
@@ -298,7 +300,7 @@ router.post('/:id/publish', async (req: any, res, next) => {
 router.post('/upload', upload.array('files'), (req: any, res) => {
   const files = Array.isArray(req.files) ? req.files : [];
   if (!files.length) return res.status(400).json({ error: 'Nenhum arquivo foi enviado.' });
-  const publicBase = env.MEDIA_PUBLIC_URL.replace(/\/$/, '');
+  const publicBase = publicMediaBase();
   const fileUrls = files.map((file: Express.Multer.File) => {
     return `${publicBase}/${file.filename}`;
   });

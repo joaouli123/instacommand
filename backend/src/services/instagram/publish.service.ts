@@ -5,6 +5,7 @@ import { notifyPublishFailure } from '../notifications.service';
 import { ConflictError } from '../../utils/errors';
 import { verifyFacebookPageLink } from './facebook-link.service';
 import { assertPostReady } from '../post-readiness';
+import { normalizeMediaUrl } from '../../utils/public-media';
 
 const prisma = new PrismaClient();
 
@@ -189,6 +190,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
   });
 
   if (!post) throw new Error('Post not found');
+  post.mediaUrls = post.mediaUrls.map(normalizeMediaUrl);
   // Queue deliveries are not permission to publish a draft, canceled item,
   // or a newer schedule. Legacy jobs have no date, but must still be due.
   if (trigger && (post.status !== 'SCHEDULED' || post.scheduledFor > new Date()

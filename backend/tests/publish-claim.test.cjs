@@ -1,5 +1,8 @@
 const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
+require.cache[require.resolve('../dist/config/env')] = { exports: { env: {
+  MEDIA_PUBLIC_URL: 'https://media.example.test/uploads', FRONTEND_URL: 'https://app.example.test',
+} } };
 let row, claims, writes, updates, publishedRows, failEnrichment;
 const clone = value => structuredClone(value);
 require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: class {

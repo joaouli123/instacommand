@@ -8,6 +8,7 @@ import path from 'path';
 import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { rateLimit } from './middleware/rateLimit';
+import { publicMediaHeaders } from './utils/public-media';
 
 // Routes
 import authRoutes from './routes/auth.routes';
@@ -74,7 +75,7 @@ app.use('/api', (_req, res, next) => {
 });
 
 // Static files (uploads)
-app.use('/uploads', express.static(uploadDir));
+app.use('/uploads', express.static(uploadDir, { setHeaders: publicMediaHeaders }));
 
 // Coolify and reverse proxies use this endpoint to determine if the API is ready.
 app.get('/health', (_req, res) => {

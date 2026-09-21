@@ -1,5 +1,8 @@
 const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
+require.cache[require.resolve('../dist/config/env')] = { exports: { env: {
+  MEDIA_PUBLIC_URL: 'https://media.example.test/uploads', FRONTEND_URL: 'https://app.example.test',
+} } };
 let result, failure, calls, writes;
 require.cache[require.resolve('../dist/utils/instagram-api')] = { exports: {
   graphGet: async (path, token, params) => {
