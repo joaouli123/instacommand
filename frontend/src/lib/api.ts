@@ -17,9 +17,18 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
 
   const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
+    // API responses are user/workspace-specific and must not be replaced by
+    // a browser 304 that fetch() exposes as a failed response.
+    cache: options.cache ?? 'no-store',
     credentials: 'include',
     headers,
   });
+
+  // Some reverse proxies can still return 304 even with no-store. Retry once
+  // without validators so callers always receive the JSON representation.
+  if (response.status === 304) {
+    return fetchApi(path, { ...options, cache: 'no-store' });
+  }
 
   if (response.status === 401 && typeof window !== 'undefined') {
     localStorage.removeItem('instacommand_token');

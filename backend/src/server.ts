@@ -62,6 +62,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(rateLimit());
 
+// These responses contain workspace-specific, frequently changing data.
+// Disable conditional caching so browsers do not surface Express 304 responses
+// as failed fetch() results and leave the UI with stale empty state.
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
 // Static files (uploads)
 app.use('/uploads', express.static(uploadDir));
 
