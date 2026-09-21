@@ -53,29 +53,50 @@ export default function AccountsPage() {
     const connected = params.get("connected")
     const reason = params.get("reason")
     const threadsConnected = params.get("threads_connected")
-    if (connected === "1") toast.success("Conta do Instagram conectada com sucesso")
-    if (connected === "pending") toast.success("A Meta encontrou contas profissionais. Escolha quais deseja vincular.")
-    if (connected === "0") toast.error(reason === "no_professional_instagram"
-      ? "A Meta não encontrou uma conta Instagram profissional vinculada à Página escolhida. Converta a conta em Profissional e vincule-a ao mesmo portfólio Meta."
-      : reason === "meta_denied"
-        ? "A Meta cancelou ou bloqueou esta conexão. Nenhum token foi salvo."
-        : "A Meta recusou a conexão. Revise a Página, o portfólio e as permissões do aplicativo.")
-    if (threadsConnected === "1") toast.success("Conta do Threads conectada com sucesso")
-    if (threadsConnected === "0") toast.error("Não foi possível conectar a conta do Threads")
-    if (connected || threadsConnected) window.history.replaceState({}, "", "/accounts")
 
     let active = true
-    Promise.all([api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts()])
-      .then(([data, threads, pending]) => {
+    const loadAccounts = async () => {
+      try {
+        const oauthSession = params.get("oauth_session")
+        if (oauthSession) {
+          const session = await fetchApi("/auth/oauth-session", {
+            method: "POST",
+            body: JSON.stringify({ token: oauthSession }),
+          }) as { token?: string; user?: unknown }
+
+          if (session.token) window.localStorage.setItem("instacommand_token", session.token)
+          if (session.user) window.localStorage.setItem("instacommand_user", JSON.stringify(session.user))
+          params.delete("oauth_session")
+          const nextQuery = params.toString()
+          window.history.replaceState({}, "", `/accounts${nextQuery ? `?${nextQuery}` : ""}`)
+        }
+
+        if (connected === "1") toast.success("Conta do Instagram conectada com sucesso")
+        if (connected === "pending") toast.success("A Meta encontrou contas profissionais. Escolha quais deseja vincular.")
+        if (connected === "0") toast.error(reason === "no_professional_instagram"
+          ? "A Meta não encontrou uma conta Instagram profissional vinculada à Página escolhida. Converta a conta em Profissional e vincule-a ao mesmo portfólio Meta."
+          : reason === "meta_denied"
+            ? "A Meta cancelou ou bloqueou esta conexão. Nenhum token foi salvo."
+            : "A Meta recusou a conexão. Revise a Página, o portfólio e as permissões do aplicativo.")
+        if (threadsConnected === "1") toast.success("Conta do Threads conectada com sucesso")
+        if (threadsConnected === "0") toast.error("Não foi possível conectar a conta do Threads")
+        if ((connected || threadsConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
+
+        const [data, threads, pending] = await Promise.all([api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts()])
         if (!active) return
         setAccounts(data as ConnectedAccount[])
         setThreadsAccounts(threads as ConnectedThreadsAccount[])
         const pendingList = pending as ConnectedAccount[]
         setPendingAccounts(pendingList)
         setSelectedPendingIds(pendingList.map((account) => account.id))
-      })
-      .catch(() => { if (active) toast.error("Entre na plataforma para carregar suas contas") })
-      .finally(() => { if (active) setLoading(false) })
+      } catch (error) {
+        if (active) toast.error(error instanceof Error ? error.message : "Entre na plataforma para carregar suas contas")
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    void loadAccounts()
 
     return () => { active = false }
   }, [])

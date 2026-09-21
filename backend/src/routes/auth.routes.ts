@@ -12,6 +12,11 @@ const prisma = new PrismaClient();
 
 type OAuthPurpose = 'meta' | 'threads';
 
+type OAuthSessionHandoff = {
+  sub?: string;
+  purpose?: 'oauth_session';
+};
+
 const normalizeEmail = (email: unknown) => String(email || '').trim().toLowerCase();
 
 const sessionCookieOptions = {
@@ -25,6 +30,27 @@ const issueSession = (res: any, user: { id: string; email: string }) => {
   const token = jwt.sign({ id: user.id, email: user.email }, env.JWT_SECRET, { expiresIn: '7d' });
   res.cookie('instacommand_token', token, sessionCookieOptions);
   return token;
+};
+
+// The API and frontend use different hostnames in production. The API cookie
+// therefore cannot replace the browser's local bearer token by itself. This
+// short-lived signed handoff lets the frontend exchange the OAuth result for
+// the exact workspace that authorized the social account.
+const createOAuthSessionHandoff = (userId: string) => jwt.sign(
+  { sub: userId, purpose: 'oauth_session', nonce: randomUUID() },
+  env.JWT_SECRET,
+  { expiresIn: '2m' },
+);
+
+const getOAuthSessionUser = async (value: unknown) => {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    const payload = jwt.verify(value, env.JWT_SECRET) as OAuthSessionHandoff;
+    if (payload.purpose !== 'oauth_session' || !payload.sub) return null;
+    return prisma.user.findUnique({ where: { id: payload.sub } });
+  } catch {
+    return null;
+  }
 };
 
 const loginUrl = (next = '/accounts') => {
@@ -156,11 +182,11 @@ router.get('/facebook/callback', async (req, res) => {
     if (!user) return res.redirect(loginUrl('/accounts'));
 
     const accounts = await handleOAuthCallback(code, user.id);
-    issueSession(res, user);
+    const oauthSession = createOAuthSessionHandoff(user.id);
     const hasPendingSelection = accounts.some((account: any) => account.selectionPending);
     const destination = accounts.length > 0
-      ? `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=${hasPendingSelection ? 'pending' : '1'}`
-      : `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=no_professional_instagram`;
+      ? `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=${hasPendingSelection ? 'pending' : '1'}&oauth_session=${encodeURIComponent(oauthSession)}`
+      : `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=no_professional_instagram&oauth_session=${encodeURIComponent(oauthSession)}`;
     return res.redirect(destination);
   } catch (error) {
     console.error('Meta OAuth callback failed:', error);
@@ -196,11 +222,26 @@ router.get('/threads/callback', async (req, res) => {
     if (!user) return res.redirect(loginUrl('/accounts'));
 
     await handleThreadsOAuthCallback(code, user.id);
-    issueSession(res, user);
-    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=1`);
+    const oauthSession = createOAuthSessionHandoff(user.id);
+    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=1&oauth_session=${encodeURIComponent(oauthSession)}`);
   } catch (error) {
     console.error('Threads OAuth callback failed:', error);
     return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0`);
+  }
+});
+
+// Exchange the short-lived OAuth handoff for the normal browser session. This
+// route intentionally does not use `authenticate`: the current bearer can be
+// stale and is exactly what the handoff is designed to replace.
+router.post('/oauth-session', async (req, res, next) => {
+  try {
+    const user = await getOAuthSessionUser(req.body?.token);
+    if (!user) return res.status(401).json({ error: 'Sessão OAuth expirada ou inválida.' });
+
+    const token = issueSession(res, user);
+    return res.json({ token, user: getPublicUser(user) });
+  } catch (error) {
+    return next(error);
   }
 });
 
