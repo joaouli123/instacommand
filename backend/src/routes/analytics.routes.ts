@@ -13,11 +13,22 @@ import { getDecryptedToken } from '../services/instagram/auth.service';
 import { PrismaClient } from '@prisma/client';
 import { InstagramApiError } from '../utils/errors';
 import { getThreadsReport } from '../services/threads-report.service';
+import { getFacebookReport } from '../services/facebook-report.service';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 router.use(authenticate);
+
+router.get('/networks/facebook/:accountId', async (req: any, res, next) => {
+  const days = Number(req.query.days || 30);
+  if (![7, 30, 90, 365, 730].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
+  try {
+    const report = await getFacebookReport(req.user.id, req.params.accountId, days);
+    if (!report) return res.status(404).json({ error: 'Conta não encontrada.' });
+    return res.json(report);
+  } catch (error) { next(error); }
+});
 
 // Separate identity and token: never substitute Instagram metrics for Threads.
 router.get('/networks/threads/:accountId', async (req: any, res, next) => {
