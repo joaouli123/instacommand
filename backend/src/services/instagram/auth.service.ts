@@ -242,17 +242,127 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
 
   // Meta paginates this endpoint. Follow every page so a customer can connect
   // all eligible Instagram profiles in one authorization flow.
-  const pages = await graphGetAll<{ id: string; name: string; access_token: string }>(
+  const pages = await graphGetAll<{ id: string; name: string; access_token?: string }>(
     '/me/accounts',
     userToken,
     { fields: 'id,name,access_token', limit: 100 },
     20,
   );
 
-  const connectedAccounts = [];
+  const connectedAccounts: any[] = [];
+
+  // Business Login can return the Instagram asset directly from the
+  // selected Business Portfolio without exposing the Page -> Instagram edge
+  // through /me/accounts. Discover both shapes so the account is not lost
+  // after Meta confirms the connection.
+  const businessInstagramAccounts: Array<{
+    id: string;
+    username?: string;
+    name?: string;
+    profile_picture_url?: string;
+    biography?: string;
+    followers_count?: number;
+    follows_count?: number;
+    media_count?: number;
+  }> = [];
+
+  try {
+    const businesses = await graphGetAll<{ id: string; name?: string }>(
+      '/me/businesses',
+      userToken,
+      { fields: 'id,name', limit: 100 },
+      20,
+    );
+
+    for (const business of businesses) {
+      try {
+        const ownedInstagramAccounts = await graphGetAll<typeof businessInstagramAccounts[number]>(
+          `/${business.id}/owned_instagram_accounts`,
+          userToken,
+          {
+            fields: 'id,username,name,profile_picture_url,biography,followers_count,follows_count,media_count',
+            limit: 100,
+          },
+          20,
+        );
+        businessInstagramAccounts.push(...ownedInstagramAccounts);
+      } catch (error) {
+        // Some portfolios do not grant this edge. The Page-based discovery
+        // above remains valid and should continue for the other portfolios.
+        console.warn('Meta portfolio Instagram discovery skipped:', {
+          businessId: business.id,
+          message: error instanceof Error ? error.message : 'unknown error',
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('Meta portfolio discovery skipped:', error instanceof Error ? error.message : 'unknown error');
+  }
+
+  console.info('Meta OAuth assets discovered:', {
+    pages: pages.length,
+    portfolioInstagramAccounts: businessInstagramAccounts.length,
+  });
+
+  const saveInstagramAccount = async (
+    igId: string,
+    profileData: any,
+    page: { id: string; name?: string },
+    accessToken: string,
+  ) => {
+    const encryptedToken = encrypt(accessToken);
+
+    const existingAccount = await prisma.instagramAccount.findUnique({
+      where: { igUserId: igId },
+      select: { userId: true, isActive: true, selectionPending: true },
+    });
+    if (existingAccount && existingAccount.userId !== userId) {
+      // One account owned by another customer must not block the rest of
+      // the accounts returned by the same Meta authorization.
+      return;
+    }
+
+    const selectionPending = existingAccount ? existingAccount.selectionPending || !existingAccount.isActive : true;
+
+    const account = await prisma.instagramAccount.upsert({
+      where: { igUserId: igId },
+      update: {
+        igUsername: profileData.username,
+        igName: profileData.name,
+        igProfilePicUrl: profileData.profile_picture_url,
+        igBio: profileData.biography,
+        igFollowersCount: profileData.followers_count,
+        igFollowsCount: profileData.follows_count,
+        igMediaCount: profileData.media_count,
+        pageId: page.id,
+        pageName: page.name || null,
+        pageAccessToken: encryptedToken,
+        isActive: existingAccount?.isActive ?? false,
+        selectionPending,
+        userId,
+      },
+      create: {
+        igUserId: igId,
+        igUsername: profileData.username,
+        igName: profileData.name,
+        igProfilePicUrl: profileData.profile_picture_url,
+        igBio: profileData.biography,
+        igFollowersCount: profileData.followers_count,
+        igFollowsCount: profileData.follows_count,
+        igMediaCount: profileData.media_count,
+        pageId: page.id,
+        pageName: page.name || null,
+        pageAccessToken: encryptedToken,
+        userId,
+        isActive: false,
+        selectionPending: true,
+      },
+    });
+    connectedAccounts.push(account);
+  };
 
   for (const page of pages) {
-    const pageToken = page.access_token;
+    const pageToken = page.access_token || userToken;
     
     // Get linked Instagram Business Account
     const igData = await graphGet(`/${page.id}`, pageToken, {
@@ -267,56 +377,32 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
         fields: 'username,name,profile_picture_url,biography,followers_count,follows_count,media_count',
       });
 
-      const encryptedToken = encrypt(pageToken);
-
-      const existingAccount = await prisma.instagramAccount.findUnique({
-        where: { igUserId: igId },
-        select: { userId: true, isActive: true, selectionPending: true },
-      });
-      if (existingAccount && existingAccount.userId !== userId) {
-        // One account owned by another customer must not block the rest of
-        // the accounts returned by the same Meta authorization.
-        continue;
-      }
-
-      const selectionPending = existingAccount ? existingAccount.selectionPending || !existingAccount.isActive : true;
-
-      const account = await prisma.instagramAccount.upsert({
-        where: { igUserId: igId },
-        update: {
-          igUsername: profileData.username,
-          igName: profileData.name,
-          igProfilePicUrl: profileData.profile_picture_url,
-          igBio: profileData.biography,
-          igFollowersCount: profileData.followers_count,
-          igFollowsCount: profileData.follows_count,
-          igMediaCount: profileData.media_count,
-          pageId: page.id,
-          pageName: page.name,
-          pageAccessToken: encryptedToken,
-          isActive: existingAccount?.isActive ?? false,
-          selectionPending,
-          userId,
-        },
-        create: {
-          igUserId: igId,
-          igUsername: profileData.username,
-          igName: profileData.name,
-          igProfilePicUrl: profileData.profile_picture_url,
-          igBio: profileData.biography,
-          igFollowersCount: profileData.followers_count,
-          igFollowsCount: profileData.follows_count,
-          igMediaCount: profileData.media_count,
-          pageId: page.id,
-          pageName: page.name,
-          pageAccessToken: encryptedToken,
-          userId,
-          isActive: false,
-          selectionPending: true,
-        },
-      });
-      connectedAccounts.push(account);
+      await saveInstagramAccount(igId, profileData, page, pageToken);
     }
+  }
+
+  const connectedInstagramIds = new Set(connectedAccounts.map((account: any) => account.igUserId));
+  for (const portfolioAccount of businessInstagramAccounts) {
+    if (connectedInstagramIds.has(portfolioAccount.id)) continue;
+
+    const profileData = portfolioAccount.username
+      ? portfolioAccount
+      : await graphGet(`/${portfolioAccount.id}`, userToken, {
+          fields: 'username,name,profile_picture_url,biography,followers_count,follows_count,media_count',
+        });
+
+    // A Business Login portfolio can expose the Page and Instagram assets as
+    // separate selections. Prefer a semantically matching Page and otherwise
+    // use the first Page returned for the portfolio so Facebook publishing
+    // retains a concrete Page target.
+    const username = String(profileData.username || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const page = pages.find((candidate) => {
+      const pageName = String(candidate.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return pageName && (username.includes(pageName) || pageName.includes(username));
+    }) || pages[0];
+    if (!page) continue;
+
+    await saveInstagramAccount(portfolioAccount.id, profileData, page, userToken);
   }
 
   return connectedAccounts;
