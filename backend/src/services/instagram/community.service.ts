@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { graphGet, graphPost, graphDelete } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
+import { AppError, NotFoundError, ValidationError } from '../../utils/errors';
 
 const prisma = new PrismaClient();
 
@@ -33,7 +34,7 @@ const getOwnedAccount = async (accountId: string, userId: string) => {
     where: { id: accountId, userId, isActive: true },
     select: { id: true, igUserId: true },
   });
-  if (!account) throw new Error('Account not found');
+  if (!account) throw new NotFoundError('Conta do Instagram não encontrada.');
   return account;
 };
 
@@ -92,20 +93,31 @@ const assertMediaBelongsToAccount = async (accountId: string, userId: string, me
 
   const token = await getDecryptedToken(account.id);
   const media = await graphGet(`/${mediaId}`, token, { fields: 'id,owner' });
-  if (String(media.owner?.id || '') !== String(account.igUserId)) throw new Error('Essa publicação não pertence à conta selecionada.');
+  if (String(media.id || '') !== mediaId || String(media.owner?.id || '') !== String(account.igUserId)) throw new AppError('Essa publicação não pertence à conta selecionada.', 403);
   return account;
+};
+
+const getVerifiedCommentToken = async (accountId: string, userId: string, mediaId: string, commentId: string) => {
+  // IDs become Graph paths. Reject paths/query strings before any remote access.
+  if (!/^\d{1,200}$/.test(mediaId) || !/^\d{1,200}$/.test(commentId)) throw new ValidationError('Identificador de publicação ou comentário inválido.');
+  const account = await assertMediaBelongsToAccount(accountId, userId, mediaId);
+  const token = await getDecryptedToken(account.id);
+  const comment = await graphGet(`/${commentId}`, token, { fields: 'id,media' });
+  const actualMediaId = typeof comment.media === 'string' ? comment.media : comment.media?.id;
+  if (String(comment.id || '') !== commentId || String(actualMediaId || '') !== mediaId) {
+    throw new AppError('Esse comentário não pertence à publicação selecionada. Atualize os comentários antes de tentar novamente.', 403);
+  }
+  return token;
 };
 
 export const replyToComment = async (accountId: string, userId: string, mediaId: string, commentId: string, message: string) => {
   if (!message.trim()) throw new Error('Escreva uma resposta antes de enviar.');
   if (message.trim().length > 1000) throw new Error('A resposta pode ter no máximo 1.000 caracteres.');
-  const account = await assertMediaBelongsToAccount(accountId, userId, mediaId);
-  const token = await getDecryptedToken(account.id);
+  const token = await getVerifiedCommentToken(accountId, userId, mediaId, commentId);
   return graphPost(`/${commentId}/replies`, token, { message: message.trim() });
 };
 
 export const deleteComment = async (accountId: string, userId: string, mediaId: string, commentId: string) => {
-  const account = await assertMediaBelongsToAccount(accountId, userId, mediaId);
-  const token = await getDecryptedToken(account.id);
+  const token = await getVerifiedCommentToken(accountId, userId, mediaId, commentId);
   return graphDelete(`/${commentId}`, token);
 };

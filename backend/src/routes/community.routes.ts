@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { deleteComment, listRecentComments, replyToComment } from '../services/instagram/community.service';
-import { InstagramApiError } from '../utils/errors';
 
 const router = Router();
 router.use(authenticate);
@@ -14,9 +13,6 @@ router.get('/comments', async (req: AuthRequest, res, next) => {
     const result = await listRecentComments(accountId, req.user!.id, 50);
     res.json(result);
   } catch (error) {
-    if (error instanceof InstagramApiError) {
-      return res.json({ available: false, comments: [], message: 'A Meta ainda não liberou o gerenciamento de comentários para este aplicativo. Solicite instagram_manage_comments no App Review.' });
-    }
     next(error);
   }
 });
