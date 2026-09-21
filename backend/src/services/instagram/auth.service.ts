@@ -150,13 +150,18 @@ export const getOAuthUrl = async (userId: string, state?: string) => {
   const params = new URLSearchParams({
     client_id: credentials.appId,
     redirect_uri: env.FB_REDIRECT_URI,
-    scope: scopes,
     response_type: 'code',
     ...(state ? { state } : {}),
   });
 
   if (env.FB_LOGIN_CONFIG_ID) {
+    // Facebook Login for Business configurations already bundle the selected
+    // assets and permissions. Sending an additional scope list can make Meta
+    // reject or render an empty dialog when it diverges from the config.
     params.set('config_id', env.FB_LOGIN_CONFIG_ID);
+  } else {
+    // Keep the legacy flow usable when no Business Login configuration exists.
+    params.set('scope', scopes);
   }
 
   return `https://www.facebook.com/${env.META_GRAPH_API_VERSION}/dialog/oauth?${params.toString()}`;
