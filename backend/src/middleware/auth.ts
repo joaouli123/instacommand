@@ -13,13 +13,16 @@ export interface AuthRequest extends Request {
 export const getBearerOrCookieToken = (req: Request) => {
   const authHeader = req.headers.authorization;
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
-  return bearerToken || req.cookies?.instacommand_token;
+  // Browser sessions are refreshed through the HttpOnly cookie after OAuth.
+  // Prefer it over a possibly stale localStorage bearer token so a connection
+  // is never attached to a different workspace than the one in the browser.
+  return req.cookies?.instacommand_token || bearerToken;
 };
 
 export const verifyAuthToken = (req: Request) => {
   const token = getBearerOrCookieToken(req);
   const cookieToken = req.cookies?.instacommand_token;
-  const candidates = [token, cookieToken].filter(
+  const candidates = [cookieToken, token].filter(
     (candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index,
   );
 
