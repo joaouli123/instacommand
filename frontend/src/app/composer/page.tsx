@@ -14,6 +14,7 @@ import toast from "react-hot-toast"
 import { api } from "@/lib/api"
 import { BACKEND_ORIGIN } from "@/lib/config"
 import { DailyContentPlan } from "@/components/dashboard/DailyContentPlan"
+import { ArtworkStudio } from "@/components/dashboard/ArtworkStudio"
 import { selectAccount } from "@/lib/active-account-store"
 
 type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY"
@@ -347,15 +348,20 @@ export default function ComposerPage() {
   }
 
   const saveDraftChanges = async () => {
-    if (!draftId || isSubmitting) return
+    if (isSubmitting) return
+    if (!accountId) { toast.error('Selecione uma conta antes de salvar.'); return }
+    if (!draftId && !mediaItems.length) { toast.error('Adicione uma mídia antes de criar este rascunho.'); return }
     setIsSubmitting(true)
     try {
       const files = mediaItems.flatMap(item => item.file ? [item.file] : [])
       const upload = files.length ? await api.uploadMedia(files) as { urls: string[] } : { urls: [] }
       let index = 0
       const urls = mediaItems.map(item => item.file ? upload.urls[index++] : item.src)
-      await api.updatePost(draftId, { caption, hashtags, mediaUrls: urls, mediaType: postType === 'FEED' ? 'IMAGE' : postType,
-        platforms, threadsAccountId: platforms.includes('THREADS') ? threadsAccountId : null, status: 'DRAFT' })
+      const data = { caption, hashtags, mediaUrls: urls, mediaType: postType === 'FEED' ? 'IMAGE' : postType,
+        platforms, threadsAccountId: platforms.includes('THREADS') ? threadsAccountId : null, status: 'DRAFT' }
+      const saved = draftId ? await api.updatePost(draftId, data) : await api.createPost({ ...data, accountId, scheduledFor: new Date(selectedDate || Date.now()).toISOString() })
+      setDraftId(saved.id)
+      window.history.replaceState(null, '', `/composer?draft=${encodeURIComponent(saved.id)}`)
       setMediaItems(current => current.map((item, i) => { if (item.isObjectUrl) URL.revokeObjectURL(item.src); return { ...item, src: urls[i], file: undefined, isObjectUrl: false } }))
       toast.success('Rascunho atualizado. Nada foi publicado ou agendado.')
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o rascunho.') }
@@ -483,6 +489,14 @@ export default function ComposerPage() {
             </div>}
           </div>
 
+          <ArtworkStudio disabled={isSubmitting} onUse={files => {
+            if (mediaItems.length && !window.confirm('Substituir as mídias selecionadas pelas artes do editor?')) return
+            mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
+            setMediaItems(files.map(file => ({ id: crypto.randomUUID(), file, src: URL.createObjectURL(file), name: file.name, kind: 'image' as const, isObjectUrl: true })))
+            setPostType(files.length > 1 ? 'CAROUSEL' : 'FEED'); setActiveMediaIndex(0)
+            toast.success('Artes anexadas. Revise a prévia e salve o rascunho; nada foi publicado.')
+          }} />
+          {!draftId && <Button type="button" variant="outline" disabled={isSubmitting || !accountId || !mediaItems.length} onClick={saveDraftChanges}>Salvar como rascunho</Button>}
           {/* Media Upload */}
           <div>
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5 block">
