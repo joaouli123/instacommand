@@ -16,7 +16,7 @@ test('daily request supplies profile context and validates the provider response
 });
 test('malformed daily output produces a usable error, never a success payload', async () => {
   global.fetch = async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"posts":[]}' }] } }] }) });
-  await assert.rejects(generateAiContent({ mode: 'daily' }, credentials), /plano incompleto/);
+  await assert.rejects(generateAiContent({ mode: 'daily' }, credentials), /resposta incompleta/);
 });
 test('rate limiting preserves the explicit retry-later error', async () => {
   global.fetch = async () => ({ ok: false, status: 429, json: async () => ({}) });

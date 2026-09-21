@@ -9,6 +9,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Plus, RefreshCw, Trash2, CheckCircle2, Users, Activity, Instagram, AtSign, Sparkles, ArrowRight } from "lucide-react"
 import toast from "react-hot-toast"
 import { fetchApi, api } from "@/lib/api"
+import { ScreenshotAnalysis } from "@/components/dashboard/ScreenshotAnalysis"
 
 type ConnectedAccount = {
   id: string
@@ -189,6 +190,7 @@ export default function AccountsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Conexões</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Contas conectadas</h2><p className="mt-1 text-sm text-slate-500">Conecte Instagram, Facebook e Threads para publicar em conjunto.</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />Adicionar conta</Button></div>
 
+      <ScreenshotAnalysis />
       <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
         <DialogContent className="max-w-xl">
           <div>

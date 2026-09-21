@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
 const text = z.string().trim().min(1);
+export const imageAnalysisSchema = z.object({
+  summary: text.max(3000),
+  observations: z.array(z.object({ imageIndex: z.number().int().min(1).max(3), evidence: text.max(1000), interpretation: text.max(1500) })).min(1).max(12),
+  limitations: z.array(text.max(1000)).min(1).max(8),
+  actions: z.array(text.max(1500)).min(1).max(8),
+  bioSuggestion: z.string().max(500).optional(),
+  nameSuggestion: z.string().max(200).optional(),
+  contentIdeas: z.array(text.max(1500)).max(6),
+});
 export const dailyPlanSchema = z.object({
   summary: text.max(2000),
   timingNote: text.max(1000),
@@ -19,5 +28,6 @@ export const dailyPlanSchema = z.object({
 
 export function validateAiOutput(mode: string, result: unknown) {
   if (mode === 'daily') return dailyPlanSchema.parse(result);
+  if (mode === 'image-analysis') return imageAnalysisSchema.parse(result);
   return result;
 }
