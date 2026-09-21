@@ -14,6 +14,7 @@ import {
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
+import type { User } from "@/types"
 
 type NotificationItem = {
   id: string
@@ -42,6 +43,12 @@ export function Header() {
   const current = titles[pathname] || { title: 'InstaCommand', subtitle: 'Plataforma de Gestão do Instagram' }
 
   const { accounts, activeAccount, setActiveAccount, isLoading } = useActiveAccount()
+  const userQuery = useQuery<User>({
+    queryKey: ['current-user'],
+    queryFn: api.getMe,
+    staleTime: 5 * 60_000,
+  })
+  const currentUser = userQuery.data
   const queryClient = useQueryClient()
   const notificationsQuery = useQuery({
     queryKey: ['notifications'],
@@ -85,7 +92,7 @@ export function Header() {
               <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shrink-0 overflow-hidden">
                 {activeAccount?.igProfilePicUrl ? <img src={activeAccount.igProfilePicUrl} alt="" className="h-full w-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-indigo-700">{activeAccount?.igUsername?.substring(0, 1).toUpperCase() || "?"}</div>}
               </div>
-              <span className="font-semibold text-xs tracking-tight">{isLoading ? "Carregando..." : activeAccount ? `@${activeAccount.igUsername}` : "Sem conta conectada"}</span>
+              <span className="font-semibold text-xs tracking-tight">{isLoading ? "Carregando..." : activeAccount ? `@${activeAccount.igUsername}` : currentUser?.name || "Seu workspace"}</span>
               <ChevronDown size={14} className="text-slate-400" />
             </button>
           </DropdownMenuTrigger>

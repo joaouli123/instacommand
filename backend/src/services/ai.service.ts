@@ -65,7 +65,12 @@ const requestGemini = async (prompt: string, credentials: AiCredentials) => {
     }),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new AppError(payload?.error?.message || 'O provedor de IA recusou a solicitação.', response.status >= 400 && response.status < 500 ? 400 : 502);
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new AppError('O provedor de IA atingiu o limite temporário de requisições. Aguarde alguns segundos ou use uma chave/modelo com cota disponível.', 429);
+    }
+    throw new AppError(payload?.error?.message || 'O provedor de IA recusou a solicitação.', response.status >= 400 && response.status < 500 ? 400 : 502);
+  }
   return payload?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('') || '';
 };
 

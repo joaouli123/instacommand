@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Facebook, Lock, Mail, ArrowRight, ShieldCheck, Instagram, UserRound } from "lucide-react"
+import { Lock, Mail, ArrowRight, ShieldCheck, Instagram, UserRound } from "lucide-react"
 import toast from "react-hot-toast"
 import { BACKEND_ORIGIN } from "@/lib/config"
 
@@ -50,10 +50,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleFacebookLogin = () => {
-    window.location.href = `${BACKEND_ORIGIN}/api/auth/facebook`
   }
 
   return (
@@ -117,18 +113,11 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="relative mb-5 flex items-center py-2">
-          <div className="flex-grow border-t border-slate-200" />
-          <span className="mx-3 flex-shrink text-[11px] font-semibold uppercase tracking-wider text-slate-400">ou conecte com</span>
-          <div className="flex-grow border-t border-slate-200" />
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-3 text-center text-xs leading-5 text-indigo-800">
+          Entre primeiro no seu workspace. Depois, em <strong>Contas</strong>, clique em <strong>Adicionar conta</strong> para conectar Instagram, Facebook e Threads com a autorização oficial da Meta.
         </div>
 
-        <Button type="button" onClick={handleFacebookLogin} variant="outline" className="h-11 w-full rounded-xl border-slate-200 bg-slate-50 text-sm font-semibold text-slate-800 hover:bg-slate-100">
-          <Facebook className="mr-2 h-4 w-4 text-[#1877F2]" />
-          Entrar com Facebook (Meta)
-        </Button>
-
-        <p className="mt-6 text-center text-[11px] text-slate-400">Cada cliente poderá conectar e administrar as próprias contas.</p>
+        <p className="mt-6 text-center text-[11px] text-slate-400">Cada cliente conecta e administra somente as próprias contas.</p>
       </Card>
     </div>
   )

@@ -41,6 +41,7 @@ export async function fetchApi(path: string, options: RequestInit = {}) {
 }
 
 export const api = {
+  getMe: () => fetchApi('/auth/me'),
   getAccounts: () => fetchApi('/accounts'),
   syncAccount: (id: string) => fetchApi(`/accounts/${id}/sync`, { method: 'POST' }),
   getPendingAccounts: () => fetchApi('/accounts/pending'),

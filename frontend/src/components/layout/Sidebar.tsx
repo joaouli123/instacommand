@@ -8,6 +8,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import type { User } from '@/types'
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -23,6 +26,13 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const userQuery = useQuery<User>({
+    queryKey: ['current-user'],
+    queryFn: api.getMe,
+    staleTime: 5 * 60_000,
+  })
+  const user = userQuery.data
+  const initials = user?.name?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'WS'
 
   return (
     <aside className={cn(
@@ -97,15 +107,15 @@ export function Sidebar() {
       <div className="p-3 border-t border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-slate-200/60">
           <div className="w-9 h-9 rounded-full bg-indigo-600 text-white font-semibold text-xs flex items-center justify-center shadow-xs shrink-0">
-            JL
+            {initials}
           </div>
           {!collapsed && (
             <div className="flex flex-col min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-slate-900 truncate">João Lucas</span>
+                <span className="text-sm font-semibold text-slate-900 truncate">{user?.name || 'Seu workspace'}</span>
                 <ShieldCheck size={14} className="text-indigo-600 shrink-0" />
               </div>
-              <span className="text-[11px] text-slate-500 font-medium">Administrador</span>
+              <span className="text-[11px] text-slate-500 font-medium">Workspace</span>
             </div>
           )}
         </div>
