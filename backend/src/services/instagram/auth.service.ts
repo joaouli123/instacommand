@@ -275,6 +275,7 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
     );
 
     const businessIds = new Set(businesses.map((business) => business.id));
+    const granularInstagramIds = new Set<string>();
 
     // Login for Business can scope the selected portfolio in the token's
     // granular permissions without returning it from /me/businesses. The
@@ -285,11 +286,30 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
         input_token: userToken,
       });
       for (const scope of debugToken.data?.granular_scopes || []) {
-        if (scope.scope !== 'business_management') continue;
-        for (const targetId of scope.target_ids || []) businessIds.add(String(targetId));
+        const targetIds = (scope.target_ids || []).map((targetId: unknown) => String(targetId));
+        if (scope.scope === 'business_management') {
+          targetIds.forEach((targetId: string) => businessIds.add(targetId));
+        }
+        if (['instagram_basic', 'instagram_content_publish'].includes(scope.scope)) {
+          targetIds.forEach((targetId: string) => granularInstagramIds.add(targetId));
+        }
       }
     } catch (error) {
       console.warn('Meta token scope discovery skipped:', error instanceof Error ? error.message : 'unknown error');
+    }
+
+    for (const instagramId of granularInstagramIds) {
+      try {
+        const profile = await graphGet(`/${instagramId}`, userToken, {
+          fields: 'id,username,name,profile_picture_url,biography,followers_count,follows_count,media_count',
+        });
+        businessInstagramAccounts.push(profile);
+      } catch (error) {
+        console.warn('Meta granular Instagram discovery skipped:', {
+          instagramId,
+          message: error instanceof Error ? error.message : 'unknown error',
+        });
+      }
     }
 
     for (const businessId of businessIds) {
