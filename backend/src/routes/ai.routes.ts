@@ -9,7 +9,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 const requestSchema = z.object({
-  mode: z.enum(['caption', 'plan', 'audit', 'reply']),
+  mode: z.enum(['caption', 'plan', 'daily', 'audit', 'reply']),
   accountId: z.string().uuid().optional(),
   topic: z.string().trim().max(500).optional(),
   audience: z.string().trim().max(300).optional(),

@@ -1,8 +1,10 @@
 import { env } from '../config/env';
 import { AppError } from '../utils/errors';
 import type { AiCredentials } from './instagram/auth.service';
+import { validateAiOutput } from './ai-output';
+import { ZodError } from 'zod';
 
-export type AiMode = 'caption' | 'plan' | 'audit' | 'reply';
+export type AiMode = 'caption' | 'plan' | 'daily' | 'audit' | 'reply';
 
 export interface AiRequest {
   mode: AiMode;
@@ -24,6 +26,9 @@ O conteúdo precisa respeitar as políticas das plataformas: nada de spam, autom
 Retorne SOMENTE JSON válido, sem markdown, sem comentários e sem texto fora do objeto.`;
 
 const modeInstructions: Record<AiMode, string> = {
+  daily: `Crie exatamente 3 publicações para um dia de trabalho, em ordem recomendada, com legendas completas e editáveis, CTA incluído na legenda, hashtags específicas, briefing visual e uma ideia de Story para cada publicação.
+Use formatos IMAGE, CAROUSEL ou REEL. Horários HH:mm no fuso America/Sao_Paulo são sugestões editoriais, não horários comprovadamente ideais: explique a limitação em timingNote. Não invente dados de audiência, resultados ou imagens já geradas. CreativeBrief é instrução para produção da arte, não uma arte pronta. Explique a sequência em reason. Respeite o objetivo, público e contexto do perfil.
+Retorne exatamente {"summary": string, "timingNote": string, "posts": [{"topic": string, "format": "IMAGE"|"CAROUSEL"|"REEL", "caption": string, "cta": string, "hashtags": string[], "suggestedTime": "HH:mm", "creativeBrief": string, "storyIdea": string, "reason": string}]}. Exatamente três itens. Cada caption tem no máximo 2200 caracteres; até oito hashtags por item.`,
   caption: `Crie uma legenda pronta para publicação. Inclua um hook forte na primeira linha, desenvolvimento objetivo, CTA e hashtags relevantes.
 Retorne exatamente: {"hook": string, "caption": string, "cta": string, "hashtags": string[]}. A legenda não deve repetir o CTA fora do texto. Use no máximo 8 hashtags específicas.`,
   plan: `Monte um plano editorial de 7 dias realista e variado para o perfil. Combine feed, carrossel, reel e stories quando fizer sentido.
@@ -116,9 +121,10 @@ export const generateAiContent = async (input: AiRequest, credentials?: AiCreden
     const raw = resolvedCredentials.source === 'openai-compatible'
       ? await requestOpenAiCompatible(prompt)
       : await requestGemini(prompt, resolvedCredentials);
-    return JSON.parse(trimJson(raw));
+    return validateAiOutput(input.mode, JSON.parse(trimJson(raw)));
   } catch (error) {
     if (error instanceof AppError) throw error;
+    if (error instanceof ZodError) throw new AppError('A IA retornou um plano incompleto ou fora do formato esperado. Tente gerar novamente; nenhum post foi criado.', 502);
     if (error instanceof Error && error.name === 'AbortError') throw new AppError('O assistente demorou demais para responder. Tente novamente.', 504);
     throw new AppError(error instanceof Error ? error.message : 'Não foi possível gerar o conteúdo com IA.', 502);
   }

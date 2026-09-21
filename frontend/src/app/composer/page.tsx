@@ -13,6 +13,7 @@ import { useDropzone } from "react-dropzone"
 import toast from "react-hot-toast"
 import { api } from "@/lib/api"
 import { BACKEND_ORIGIN } from "@/lib/config"
+import { DailyContentPlan } from "@/components/dashboard/DailyContentPlan"
 
 type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY"
 
@@ -405,7 +406,7 @@ export default function ComposerPage() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm"><Sparkles size={18} /></div>
-                <div><p className="text-sm font-bold text-slate-900">Assistente de conteúdo</p><p className="text-xs text-slate-500">Gere legenda, CTA, hashtags e um plano de 7 dias.</p></div>
+                <div><p className="text-sm font-bold text-slate-900">Assistente de conteúdo</p><p className="text-xs text-slate-500">Legendas, plano semanal e três posts para organizar seu dia.</p></div>
               </div>
               <button type="button" onClick={() => setShowAiAssistant((current) => !current)} className="text-xs font-semibold text-indigo-700 hover:text-indigo-900">{showAiAssistant ? "Recolher" : "Abrir"}</button>
             </div>
@@ -424,6 +425,13 @@ export default function ComposerPage() {
                 <Button type="button" onClick={() => generateWithAi("caption")} disabled={aiLoading} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Sparkles size={15} />{aiLoading ? "Gerando..." : "Gerar legenda e hashtags"}</Button>
                 <Button type="button" variant="outline" onClick={() => generateWithAi("plan")} disabled={aiLoading} className="gap-2 border-indigo-200 text-indigo-700"><CalendarIcon size={15} />Montar plano de 7 dias</Button>
               </div>
+              <DailyContentPlan accountId={accountId} topic={aiTopic} audience={aiAudience} tone={aiTone} objective={aiObjective} onEdit={post => {
+                if ((caption.trim() || mediaItems.length) && !window.confirm('Substituir a legenda, as hashtags e o formato atuais por este post do plano? As mídias anexadas serão mantidas; confira se combinam com o novo conteúdo.')) return
+                setCaption(post.caption)
+                setHashtags(post.hashtags.map(tag => tag.replace(/^#/, '')))
+                setPostType(post.format === 'IMAGE' ? 'FEED' : post.format)
+                toast.success('Texto aplicado ao compositor. Revise as mídias e escolha as redes antes de publicar.')
+              }} />
               {aiPlan.length > 0 && <div className="max-h-64 space-y-2 overflow-auto rounded-xl border border-indigo-100 bg-white p-3">{aiPlan.map((item, index) => <div key={`${item.day}-${index}`} className="rounded-lg border border-slate-100 p-3"><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold text-indigo-700">{item.day} · {item.format}</p><span className="text-[11px] text-slate-400">{item.suggestedTime}</span></div><p className="mt-1 text-sm font-semibold text-slate-800">{item.topic}</p><p className="mt-1 text-xs text-slate-500">{item.hook}</p><p className="mt-1 text-xs font-medium text-slate-600">CTA: {item.cta}</p></div>)}</div>}
             </div>}
           </div>
