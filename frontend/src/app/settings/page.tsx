@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Bell, Database, ShieldCheck, Save, Instagram, KeyRound, CheckCircle2, AtSign, ArrowRight } from "lucide-react"
+import { Bell, Database, ShieldCheck, Save, Instagram, KeyRound, CheckCircle2, AtSign, ArrowRight, Sparkles } from "lucide-react"
 import toast from "react-hot-toast"
 import { fetchApi } from "@/lib/api"
 
@@ -22,6 +22,12 @@ type ThreadsConfigStatus = {
   appId: string
   appIdConfigured: boolean
   appSecretConfigured: boolean
+}
+
+type AiConfigStatus = {
+  apiKeyConfigured: boolean
+  model: string
+  source: "workspace" | "server" | "openai-compatible" | "none"
 }
 
 type UserPreferences = {
@@ -46,21 +52,27 @@ export default function SettingsPage() {
   const [threadsConfig, setThreadsConfig] = useState({ appId: "", appSecret: "" })
   const [threadsStatus, setThreadsStatus] = useState<ThreadsConfigStatus | null>(null)
   const [savingThreads, setSavingThreads] = useState(false)
+  const [aiConfig, setAiConfig] = useState({ apiKey: "", model: "gemini-2.5-flash" })
+  const [aiStatus, setAiStatus] = useState<AiConfigStatus | null>(null)
+  const [savingAi, setSavingAi] = useState(false)
   const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences)
   const [savedPreferences, setSavedPreferences] = useState<UserPreferences>(defaultPreferences)
   const [loadingPreferences, setLoadingPreferences] = useState(true)
   const [savingSettings, setSavingSettings] = useState(false)
 
   useEffect(() => {
-    Promise.all([fetchApi("/settings/meta"), fetchApi("/settings/threads"), fetchApi("/settings/preferences")])
-      .then(([metaData, threadsData, preferencesData]) => {
+    Promise.all([fetchApi("/settings/meta"), fetchApi("/settings/threads"), fetchApi("/settings/ai"), fetchApi("/settings/preferences")])
+      .then(([metaData, threadsData, aiData, preferencesData]) => {
         const status = metaData as MetaConfigStatus
         const threads = threadsData as ThreadsConfigStatus
+        const ai = aiData as AiConfigStatus
         const nextPreferences = preferencesData as UserPreferences
         setMetaStatus(status)
         setMetaConfig((current) => ({ ...current, appId: status.appId || "" }))
         setThreadsStatus(threads)
         setThreadsConfig((current) => ({ ...current, appId: threads.appId || "" }))
+        setAiStatus(ai)
+        setAiConfig((current) => ({ ...current, model: ai.model || current.model }))
         setPreferences(nextPreferences)
         setSavedPreferences(nextPreferences)
       })
@@ -119,6 +131,23 @@ export default function SettingsPage() {
       toast.error("Não foi possível salvar as credenciais do Threads")
     } finally {
       setSavingThreads(false)
+    }
+  }
+
+  const saveAiConfig = async () => {
+    setSavingAi(true)
+    try {
+      const status = await fetchApi("/settings/ai", {
+        method: "PUT",
+        body: JSON.stringify(aiConfig),
+      }) as AiConfigStatus
+      setAiStatus(status)
+      setAiConfig((current) => ({ ...current, apiKey: "", model: status.model }))
+      toast.success("Gemini conectado com segurança")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar a conexão com o Gemini")
+    } finally {
+      setSavingAi(false)
     }
   }
 
@@ -227,6 +256,33 @@ export default function SettingsPage() {
               <Button onClick={saveThreadsConfig} disabled={savingThreads || loadingMeta} className="gap-2 bg-slate-900 text-white hover:bg-slate-800"><Save size={15} />{savingThreads ? "Salvando..." : "Salvar Threads"}</Button>
             </div>
             </>}
+          </div>
+        </Card>
+
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-start gap-3 border-b border-slate-100 p-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Sparkles size={19} /></div>
+            <div>
+              <h3 className="font-bold text-slate-900">Assistente com Gemini</h3>
+              <p className="mt-1 text-xs text-slate-500">Use sua própria chave do Gemini para gerar legendas, planos, auditorias e respostas com dados reais.</p>
+            </div>
+            {aiStatus?.apiKeyConfigured && <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={13} />{aiStatus.source === "workspace" ? "Chave do workspace" : "Configurado"}</span>}
+          </div>
+          <div className="grid gap-4 p-6 md:grid-cols-[1fr_220px]">
+            <div className="space-y-1.5">
+              <Label htmlFor="gemini-api-key">Chave da API do Gemini</Label>
+              <Input id="gemini-api-key" type="password" value={aiConfig.apiKey} onChange={(event) => setAiConfig((current) => ({ ...current, apiKey: event.target.value }))} placeholder={aiStatus?.apiKeyConfigured ? "Chave salva — preencha só para trocar" : "Cole sua chave do Gemini"} autoComplete="new-password" />
+              <p className="text-[11px] text-slate-500">A chave é criptografada no backend e nunca é exibida novamente.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="gemini-model">Modelo</Label>
+              <Input id="gemini-model" value={aiConfig.model} onChange={(event) => setAiConfig((current) => ({ ...current, model: event.target.value }))} placeholder="gemini-2.5-flash" />
+              <p className="text-[11px] text-slate-500">Modelo disponível na sua conta Google AI.</p>
+            </div>
+            <div className="flex flex-col gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 text-xs text-indigo-900 md:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+              <span>{aiStatus?.apiKeyConfigured ? "O assistente está pronto para uso em Publicação, Contas e Comunidade." : "Salve uma chave para ativar o assistente de IA."}</span>
+              <Button onClick={saveAiConfig} disabled={savingAi} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Save size={15} />{savingAi ? "Salvando..." : "Salvar Gemini"}</Button>
+            </div>
           </div>
         </Card>
 

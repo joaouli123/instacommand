@@ -46,6 +46,57 @@ const getMetaCredentials = async (userId?: string): Promise<MetaCredentials> => 
   };
 };
 
+export type AiCredentials = {
+  apiKey: string;
+  model: string;
+  source: 'workspace' | 'server' | 'openai-compatible' | 'none';
+};
+
+export const getAiCredentials = async (userId?: string): Promise<AiCredentials> => {
+  const user = userId
+    ? await prisma.user.findUnique({
+        where: { id: userId },
+        select: { geminiApiKey: true, geminiModel: true },
+      })
+    : null;
+  const workspaceKey = user?.geminiApiKey ? decrypt(user.geminiApiKey) : '';
+  const serverKey = env.GEMINI_API_KEY || '';
+  return {
+    apiKey: workspaceKey || serverKey,
+    model: user?.geminiModel?.trim() || env.GEMINI_MODEL,
+    source: workspaceKey ? 'workspace' : serverKey ? 'server' : env.AI_API_KEY ? 'openai-compatible' : 'none',
+  };
+};
+
+export const getAiCredentialStatus = async (userId: string) => {
+  const credentials = await getAiCredentials(userId);
+  return {
+    apiKeyConfigured: Boolean(credentials.apiKey),
+    model: credentials.model,
+    source: credentials.source,
+  };
+};
+
+export const saveAiCredentials = async (userId: string, values: { apiKey?: string; model?: string }) => {
+  const current = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { geminiApiKey: true, geminiModel: true },
+  });
+  const model = values.model?.trim() || current?.geminiModel || env.GEMINI_MODEL;
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      geminiModel: model,
+      ...(values.apiKey?.trim()
+        ? { geminiApiKey: encrypt(values.apiKey.trim()) }
+        : current?.geminiApiKey
+          ? {}
+          : { geminiApiKey: null }),
+    },
+  });
+  return getAiCredentialStatus(userId);
+};
+
 const getThreadsCredentials = async (userId?: string): Promise<MetaCredentials> => {
   const user = userId
     ? await prisma.user.findUnique({

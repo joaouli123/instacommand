@@ -18,13 +18,20 @@ export const getBearerOrCookieToken = (req: Request) => {
 
 export const verifyAuthToken = (req: Request) => {
   const token = getBearerOrCookieToken(req);
-  if (!token) return null;
+  const cookieToken = req.cookies?.instacommand_token;
+  const candidates = [token, cookieToken].filter(
+    (candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index,
+  );
 
-  try {
-    return jwt.verify(token, env.JWT_SECRET) as { id: string; email: string };
-  } catch {
-    return null;
+  for (const candidate of candidates) {
+    try {
+      return jwt.verify(candidate, env.JWT_SECRET) as { id: string; email: string };
+    } catch {
+      // A stale browser bearer token must not hide a fresh OAuth session cookie.
+    }
   }
+
+  return null;
 };
 
 export const authenticate = (req: AuthRequest, _res: Response, next: NextFunction) => {

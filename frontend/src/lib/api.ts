@@ -74,6 +74,8 @@ export const api = {
   untrackHashtag: (accountId: string, id: string) => fetchApi(`/trends/${accountId}/hashtags/${id}`, { method: 'DELETE' }),
   generateAi: (data: Record<string, unknown>) => fetchApi('/ai/generate', { method: 'POST', body: JSON.stringify(data) }),
   getNotifications: () => fetchApi('/notifications'),
+  getAiSettings: () => fetchApi('/settings/ai'),
+  saveAiSettings: (data: Record<string, unknown>) => fetchApi('/settings/ai', { method: 'PUT', body: JSON.stringify(data) }),
   markNotificationRead: (id: string) => fetchApi(`/notifications/${id}/read`, { method: 'POST' }),
   markAllNotificationsRead: () => fetchApi('/notifications/read-all', { method: 'POST' }),
   getComments: (accountId: string) => fetchApi(`/community/comments?accountId=${encodeURIComponent(accountId)}`),

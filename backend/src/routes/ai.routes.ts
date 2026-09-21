@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { generateAiContent } from '../services/ai.service';
+import { getAiCredentials } from '../services/instagram/auth.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -47,7 +48,7 @@ router.post('/generate', async (req: AuthRequest, res, next) => {
       context = account as unknown as Record<string, unknown>;
     }
 
-    const result = await generateAiContent({ ...input, context });
+    const result = await generateAiContent({ ...input, context }, await getAiCredentials(req.user!.id));
     res.json({ result });
   } catch (error) {
     next(error);

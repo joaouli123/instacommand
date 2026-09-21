@@ -43,6 +43,16 @@ services:
       META_APP_ID: ${META_APP_ID:-}
       META_APP_SECRET: ${META_APP_SECRET:-}
       META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v25.0}
+      THREADS_APP_ID: ${THREADS_APP_ID:-}
+      THREADS_APP_SECRET: ${THREADS_APP_SECRET:-}
+      THREADS_REDIRECT_URI: ${THREADS_REDIRECT_URI:-}
+      FB_LOGIN_CONFIG_ID: ${FB_LOGIN_CONFIG_ID:-}
+      FB_OAUTH_SCOPES: ${FB_OAUTH_SCOPES:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
       BACKEND_URL: ${BACKEND_URL:-https://api-instacommand.179.198.98.63.sslip.io}
       FRONTEND_URL: ${FRONTEND_URL:-https://instagram.uxcode.com.br}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://instagram.uxcode.com.br}

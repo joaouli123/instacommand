@@ -1,5 +1,6 @@
 import { env } from '../config/env';
 import { AppError } from '../utils/errors';
+import type { AiCredentials } from './instagram/auth.service';
 
 export type AiMode = 'caption' | 'plan' | 'audit' | 'reply';
 
@@ -51,9 +52,9 @@ const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 45_0
   }
 };
 
-const requestGemini = async (prompt: string) => {
-  const model = encodeURIComponent(env.GEMINI_MODEL);
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+const requestGemini = async (prompt: string, credentials: AiCredentials) => {
+  const model = encodeURIComponent(credentials.model);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${credentials.apiKey}`;
   const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -84,8 +85,13 @@ const requestOpenAiCompatible = async (prompt: string) => {
   return payload?.choices?.[0]?.message?.content || '';
 };
 
-export const generateAiContent = async (input: AiRequest) => {
-  if (!env.GEMINI_API_KEY && !env.AI_API_KEY) {
+export const generateAiContent = async (input: AiRequest, credentials?: AiCredentials) => {
+  const resolvedCredentials = credentials || {
+    apiKey: env.GEMINI_API_KEY || env.AI_API_KEY || '',
+    model: env.GEMINI_MODEL,
+    source: env.GEMINI_API_KEY ? 'server' : env.AI_API_KEY ? 'openai-compatible' : 'none',
+  } as AiCredentials;
+  if (!resolvedCredentials.apiKey && !env.AI_API_KEY) {
     throw new AppError('O assistente de IA ainda não foi configurado no servidor. Adicione GEMINI_API_KEY ou AI_API_KEY no ambiente do backend.', 503);
   }
 
@@ -102,7 +108,9 @@ export const generateAiContent = async (input: AiRequest) => {
   }, null, 2)}`;
 
   try {
-    const raw = env.GEMINI_API_KEY ? await requestGemini(prompt) : await requestOpenAiCompatible(prompt);
+    const raw = resolvedCredentials.source === 'openai-compatible'
+      ? await requestOpenAiCompatible(prompt)
+      : await requestGemini(prompt, resolvedCredentials);
     return JSON.parse(trimJson(raw));
   } catch (error) {
     if (error instanceof AppError) throw error;

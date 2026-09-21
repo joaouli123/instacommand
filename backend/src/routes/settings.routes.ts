@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { getMetaCredentialStatus, saveMetaCredentials, getThreadsCredentialStatus, saveThreadsCredentials } from '../services/instagram/auth.service';
+import { getMetaCredentialStatus, saveMetaCredentials, getThreadsCredentialStatus, saveThreadsCredentials, getAiCredentialStatus, saveAiCredentials } from '../services/instagram/auth.service';
 import { PrismaClient } from '@prisma/client';
 
 const router = Router();
@@ -16,6 +16,11 @@ const metaCredentialsSchema = z.object({
 const threadsCredentialsSchema = z.object({
   appId: z.string().trim().min(1, 'Informe o App ID do Threads').max(100),
   appSecret: z.string().trim().max(200).optional(),
+});
+
+const aiCredentialsSchema = z.object({
+  apiKey: z.string().trim().max(500).optional(),
+  model: z.string().trim().min(1).max(120).optional(),
 });
 
 const preferencesSchema = z.object({
@@ -87,6 +92,23 @@ router.put('/threads', async (req: AuthRequest, res, next) => {
     const values = threadsCredentialsSchema.parse(req.body);
     const status = await saveThreadsCredentials(req.user!.id, values);
     res.json({ message: 'Credenciais do Threads salvas com segurança', ...status });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/ai', async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await getAiCredentialStatus(req.user!.id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/ai', async (req: AuthRequest, res, next) => {
+  try {
+    const values = aiCredentialsSchema.parse(req.body);
+    res.json({ message: 'Credenciais da IA salvas com segurança', ...await saveAiCredentials(req.user!.id, values) });
   } catch (error) {
     next(error);
   }
