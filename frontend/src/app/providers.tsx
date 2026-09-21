@@ -18,7 +18,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       {children}
       <Toaster
-        position="top-right"
+        position="bottom-center"
+        containerStyle={{ bottom: 'max(16px, env(safe-area-inset-bottom))' }}
         toastOptions={{
           className: '!bg-white !text-slate-900 !border !border-slate-200 !shadow-lg text-sm font-medium rounded-xl',
           duration: 4000,

@@ -44,7 +44,10 @@ export default function LoginPage() {
       const next = typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).get("next") || "/"
         : "/"
-      router.push(next.startsWith("/") ? next : "/")
+      const destination = new URL(next, window.location.origin)
+      router.replace(destination.origin === window.location.origin && destination.pathname !== "/login"
+        ? `${destination.pathname}${destination.search}${destination.hash}`
+        : "/")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível concluir o acesso")
     } finally {
@@ -53,7 +56,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-slate-50 p-4">
+    <div className="relative flex min-h-dvh w-full flex-col items-center justify-center overflow-hidden bg-slate-50 p-4">
       <div className="pointer-events-none absolute left-1/4 top-1/4 h-96 w-96 rounded-full bg-indigo-200/40 blur-[120px]" />
       <div className="pointer-events-none absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-pink-200/30 blur-[120px]" />
 
