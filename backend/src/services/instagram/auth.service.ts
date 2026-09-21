@@ -274,10 +274,28 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
       20,
     );
 
-    for (const business of businesses) {
+    const businessIds = new Set(businesses.map((business) => business.id));
+
+    // Login for Business can scope the selected portfolio in the token's
+    // granular permissions without returning it from /me/businesses. The
+    // app token is used only to inspect the user token; it is never stored.
+    try {
+      const appAccessToken = `${credentials.appId}|${credentials.appSecret}`;
+      const debugToken = await graphGet('/debug_token', appAccessToken, {
+        input_token: userToken,
+      });
+      for (const scope of debugToken.data?.granular_scopes || []) {
+        if (scope.scope !== 'business_management') continue;
+        for (const targetId of scope.target_ids || []) businessIds.add(String(targetId));
+      }
+    } catch (error) {
+      console.warn('Meta token scope discovery skipped:', error instanceof Error ? error.message : 'unknown error');
+    }
+
+    for (const businessId of businessIds) {
       try {
         const ownedInstagramAccounts = await graphGetAll<typeof businessInstagramAccounts[number]>(
-          `/${business.id}/owned_instagram_accounts`,
+          `/${businessId}/owned_instagram_accounts`,
           userToken,
           {
             fields: 'id,username,name,profile_picture_url,biography,followers_count,follows_count,media_count',
@@ -290,7 +308,7 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
         // Some portfolios do not grant this edge. The Page-based discovery
         // above remains valid and should continue for the other portfolios.
         console.warn('Meta portfolio Instagram discovery skipped:', {
-          businessId: business.id,
+          businessId,
           message: error instanceof Error ? error.message : 'unknown error',
         });
       }
