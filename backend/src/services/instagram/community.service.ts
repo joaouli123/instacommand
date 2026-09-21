@@ -44,28 +44,39 @@ export const listRecentComments = async (accountId: string, userId: string, limi
     fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp',
     limit: Math.min(25, Math.max(1, Math.ceil(limit / 2))),
   });
-  const media = Array.isArray(mediaResponse.data) ? mediaResponse.data : [];
+  const media: any[] = Array.isArray(mediaResponse.data) ? mediaResponse.data : [];
   const comments: CommunityComment[] = [];
   let failures = 0;
   let lastFailure: unknown;
 
-  for (const item of media) {
-    if (comments.length >= limit) break;
-    try {
-      const response = await graphGet(`/${item.id}/comments`, token, {
-        fields: 'id,text,username,timestamp,like_count,from',
-        limit: Math.min(25, limit - comments.length),
-      });
-      for (const comment of Array.isArray(response.data) ? response.data : []) {
+  // Fetch a small batch at a time. The old sequential loop made an account with
+  // many posts wait one network round-trip per media item before showing anything.
+  for (let index = 0; index < media.length && comments.length < limit; index += 5) {
+    const batch = media.slice(index, index + 5);
+    const results = await Promise.all(batch.map(async (item) => {
+      try {
+        return {
+          item,
+          response: await graphGet(`/${item.id}/comments`, token, {
+            fields: 'id,text,username,timestamp,like_count,from',
+            limit: Math.min(25, limit),
+          }),
+        };
+      } catch (error) {
+        // One media item can be unavailable while the rest of the account is readable.
+        // Keep collecting the other posts; the route will still expose real results.
+        console.error(`Could not load comments for media ${item.id}:`, error);
+        failures += 1;
+        lastFailure = error;
+        return { item, response: null };
+      }
+    }));
+
+    for (const { item, response } of results) {
+      for (const comment of Array.isArray(response?.data) ? response.data : []) {
         if (comments.length >= limit) break;
         comments.push(normalizeComment(comment, item));
       }
-    } catch (error) {
-      // One media item can be unavailable while the rest of the account is readable.
-      // Keep collecting the other posts; the route will still expose real results.
-      console.error(`Could not load comments for media ${item.id}:`, error);
-      failures += 1;
-      lastFailure = error;
     }
   }
 
