@@ -21,6 +21,10 @@ const envSchema = z.object({
   FB_REDIRECT_URI: z.string().optional(),
   // Facebook Login for Business configuration that contains the app's assets and permissions.
   FB_LOGIN_CONFIG_ID: z.string().optional(),
+  // The desktop Business Login renderer currently fails to load in some
+  // browsers. The mobile Facebook OAuth host renders the same consent flow
+  // and still returns the authorization code to our callback.
+  FB_OAUTH_HOST: z.string().default('m.facebook.com'),
   // Optional comma-separated permissions enabled in the Meta Login for Business configuration.
   // Keep the default limited to permissions that are currently enabled in the personal app.
   FB_OAUTH_SCOPES: z.string().optional(),
@@ -50,6 +54,7 @@ export const env = {
   FB_REDIRECT_URI: parsed.FB_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/facebook/callback`,
   // Public Meta configuration ID for this personal deployment; override it in Coolify when using another app.
   FB_LOGIN_CONFIG_ID: parsed.FB_LOGIN_CONFIG_ID || '1443592261011561',
+  FB_OAUTH_HOST: parsed.FB_OAUTH_HOST || 'm.facebook.com',
   FB_OAUTH_SCOPES:
     parsed.FB_OAUTH_SCOPES ||
     // Keep the default aligned with the currently published Meta Login for
