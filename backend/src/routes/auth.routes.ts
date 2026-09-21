@@ -202,7 +202,10 @@ router.get('/facebook/callback', async (req, res) => {
     return res.redirect(destination);
   } catch (error) {
     console.error('Meta OAuth callback failed:', error);
-    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=meta_connection`);
+    const reason = error instanceof Error && error.message === 'META_ACCOUNT_WORKSPACE_CONFLICT'
+      ? 'account_workspace_conflict'
+      : 'meta_connection';
+    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=${reason}`);
   }
 });
 

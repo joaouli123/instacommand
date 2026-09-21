@@ -83,8 +83,10 @@ export default function AccountsPage() {
         if (connected === "1") toast.success("Conta do Instagram conectada com sucesso")
         if (connected === "pending") toast.success("A Meta encontrou contas profissionais. Escolha quais deseja vincular.")
         if (connected === "0") toast.error(reason === "no_professional_instagram"
-          ? "A Meta não encontrou uma conta Instagram profissional vinculada à Página escolhida. Converta a conta em Profissional e vincule-a ao mesmo portfólio Meta."
-          : reason === "meta_denied"
+          ? "Nenhuma conta Instagram elegível foi importada. Verifique na Meta o vínculo com a Página e o acesso concedido ao aplicativo."
+          : reason === "account_workspace_conflict"
+            ? "A conta autorizada já está vinculada a outro cadastro do InstaCommand. Entre nesse cadastro ou solicite a transferência dos vínculos. Não é necessário converter o Instagram."
+            : reason === "meta_denied"
             ? "A Meta cancelou ou bloqueou esta conexão. Nenhum token foi salvo."
             : "A Meta recusou a conexão. Revise a Página, o portfólio e as permissões do aplicativo.")
         if (threadsConnected === "1") toast.success("Conta do Threads conectada com sucesso")

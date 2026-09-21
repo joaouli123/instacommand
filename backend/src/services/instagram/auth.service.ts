@@ -253,6 +253,7 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
   );
 
   const connectedAccounts: any[] = [];
+  let ownershipConflicts = 0;
 
   // Business Login can return the Instagram asset directly from the
   // selected Business Portfolio without exposing the Page -> Instagram edge
@@ -365,6 +366,7 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
     if (existingAccount && existingAccount.userId !== userId) {
       // One account owned by another customer must not block the rest of
       // the accounts returned by the same Meta authorization.
+      ownershipConflicts += 1;
       return;
     }
 
@@ -451,6 +453,11 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
     await saveInstagramAccount(portfolioAccount.id, profileData, page, userToken);
   }
 
+  if (!connectedAccounts.length && ownershipConflicts > 0) {
+    // Never transfer an existing customer's data implicitly during OAuth.
+    // Distinguish an ownership conflict from a missing professional profile.
+    throw new Error('META_ACCOUNT_WORKSPACE_CONFLICT');
+  }
   return connectedAccounts;
 };
 
