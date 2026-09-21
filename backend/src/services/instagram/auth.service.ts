@@ -200,13 +200,16 @@ export const getOAuthUrl = async (userId: string, state?: string) => {
     client_id: credentials.appId,
     redirect_uri: env.FB_REDIRECT_URI,
     response_type: 'code',
-    ...(env.FB_LOGIN_CONFIG_ID ? { config_id: env.FB_LOGIN_CONFIG_ID } : {}),
+    ...(env.FB_LOGIN_CONFIG_ID
+      ? {
+          // Login for Business configurations own the permissions and asset
+          // selection. Sending scope alongside config_id can make Meta render
+          // an empty dialog or reject the request before the callback.
+          config_id: env.FB_LOGIN_CONFIG_ID,
+          override_default_response_type: 'true',
+        }
+      : { scope: env.FB_OAUTH_SCOPES }),
     ...(state ? { state } : {}),
-    // The desktop Business Login asset picker is currently returning a
-    // blank dialog in the Meta web client. The mobile OAuth host renders the
-    // standard consent screen reliably; the callback still lists every
-    // eligible Page/Instagram account and lets our UI select them.
-    scope: env.FB_OAUTH_SCOPES,
   });
 
   return `https://${env.FB_OAUTH_HOST}/${env.META_GRAPH_API_VERSION}/dialog/oauth?${params.toString()}`;
