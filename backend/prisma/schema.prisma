@@ -189,6 +189,7 @@ model PostInsight {
   shares      Int           @default(0)
   saves       Int           @default(0)
   engagement  Float         @default(0)
+  availableMetrics String[] @default([])
   collectedAt DateTime      @default(now())
 
   post        PublishedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -208,6 +209,7 @@ model ProfileInsight {
   websiteClicks Int              @default(0)
   emailClicks   Int              @default(0)
   phoneClicks   Int              @default(0)
+  availableMetrics String[]      @default([])
   collectedAt   DateTime         @default(now())
 
   account       InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)

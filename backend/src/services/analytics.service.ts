@@ -1,8 +1,10 @@
 import { PrismaClient } from '@prisma/client';
+import { publicationPeriod } from './analytics-period';
+import { metricValue, aggregateMetrics, normalizedMetrics } from './metric-availability';
 
 const prisma = new PrismaClient();
 
-export const getDashboardStats = async (accountId: string) => {
+export const getDashboardStats = async (accountId: string, days = 30) => {
   const account = await prisma.instagramAccount.findUnique({
     where: { id: accountId },
     include: {
@@ -11,10 +13,9 @@ export const getDashboardStats = async (accountId: string) => {
         take: 2,
       },
       publishedPosts: {
-        where: { igMediaId: { not: null } },
+        where: { igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
         include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
         orderBy: { publishedAt: 'desc' },
-        take: 30,
       },
     }
   });
@@ -29,29 +30,25 @@ export const getDashboardStats = async (accountId: string) => {
   const previousInsight = account.profileInsights[1];
 
   const followerGrowth = previousInsight ? (latestInsight?.followers || 0) - previousInsight.followers : 0;
-  const postsWithMetrics = account.publishedPosts.map((post) => post.insights[0]).filter(Boolean);
-  const engagementRate = postsWithMetrics.length
-    ? postsWithMetrics.reduce((total, insight) => total + Number(insight?.engagement || 0), 0) / postsWithMetrics.length
-    : 0;
-  const interactions = postsWithMetrics.reduce((total, insight) => total + (insight?.likes || 0) + (insight?.comments || 0) + (insight?.saves || 0) + (insight?.shares || 0), 0);
+  const totals = aggregateMetrics(account.publishedPosts.map(post => post.insights[0] || {}));
 
   return {
-    followers: latestInsight?.followers || account.igFollowersCount,
+    followers: latestInsight?.followers ?? account.igFollowersCount,
     followerGrowth,
-    reach: latestInsight?.reach || 0,
-    impressions: latestInsight?.impressions || 0,
-    interactions,
+    reach: metricValue(latestInsight, 'reach'),
+    impressions: metricValue(latestInsight, 'impressions'),
+    interactions: totals.interactions,
+    interactionsPartial: totals.partial,
+    metricScope: 'latest-profile-snapshot; lifetime-counters-of-posts-published-in-period',
+    profileCollectedAt: latestInsight?.collectedAt ?? null,
     pendingPosts: pendingPostsCount,
-    engagementRate: Number(engagementRate.toFixed(2)),
+    engagementRate: totals.engagement === null ? null : Number(totals.engagement?.toFixed(2)),
   };
 };
 
 export const getGrowthData = async (accountId: string, days = 30) => {
-  const dateFrom = new Date();
-  dateFrom.setDate(dateFrom.getDate() - days);
-
   const insights = await prisma.profileInsight.findMany({
-    where: { accountId, collectedAt: { gte: dateFrom } },
+    where: { accountId, collectedAt: publicationPeriod(days) },
     orderBy: { collectedAt: 'asc' },
   });
 
@@ -69,64 +66,28 @@ export const getGrowthData = async (accountId: string, days = 30) => {
 };
 
 export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
-  const dateFrom = new Date();
-  dateFrom.setDate(dateFrom.getDate() - days);
-
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null }, publishedAt: { gte: dateFrom } },
+    where: { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
     orderBy: { publishedAt: 'asc' },
     include: {
       insights: { orderBy: { collectedAt: 'desc' }, take: 1 },
     },
   });
 
-  const grouped = new Map<string, {
-    date: string;
-    likes: number;
-    comments: number;
-    saves: number;
-    shares: number;
-    reach: number;
-    impressions: number;
-    engagement: number;
-    posts: number;
-  }>();
-
+  const grouped = new Map<string, typeof posts>();
   for (const post of posts) {
-    const date = post.publishedAt.toISOString().slice(0, 10);
-    const insight = post.insights[0];
-    const current = grouped.get(date) || {
-      date,
-      likes: 0,
-      comments: 0,
-      saves: 0,
-      shares: 0,
-      reach: 0,
-      impressions: 0,
-      engagement: 0,
-      posts: 0,
-    };
-    current.likes += insight?.likes || 0;
-    current.comments += insight?.comments || 0;
-    current.saves += insight?.saves || 0;
-    current.shares += insight?.shares || 0;
-    current.reach += insight?.reach || 0;
-    current.impressions += insight?.impressions || 0;
-    current.engagement += insight?.engagement || 0;
-    current.posts += 1;
-    grouped.set(date, current);
+    const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(post.publishedAt);
+    grouped.set(date, [...(grouped.get(date) || []), post]);
   }
-
-  return Array.from(grouped.values()).map((item) => ({
-    ...item,
-    interactions: item.likes + item.comments + item.saves + item.shares,
-    engagement: item.posts ? Number((item.engagement / item.posts).toFixed(2)) : 0,
+  return Array.from(grouped.entries()).map(([date, items]) => ({
+    date, posts: items.length,
+    ...aggregateMetrics(items.map(post => post.insights[0] || {})),
   }));
 };
 
-export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engagement') => {
+export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engagement', days = 30) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null } },
+    where: { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
     include: {
       insights: {
         orderBy: { collectedAt: 'desc' },
@@ -136,7 +97,7 @@ export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engage
   });
 
   const processed = posts.map(p => {
-    const latestInsight = p.insights[0] || { engagement: 0, likes: 0, comments: 0 };
+    const latestInsight = normalizedMetrics(p.insights[0]);
     return {
       ...p,
       metrics: latestInsight,
@@ -151,10 +112,11 @@ export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engage
   return processed.slice(0, limit);
 };
 
-export const getPostPerformanceTable = async (accountId: string, page = 1, limit = 10) => {
+export const getPostPerformanceTable = async (accountId: string, page = 1, limit = 10, days = 30) => {
   const skip = (page - 1) * limit;
+  const where = { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) };
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null } },
+    where,
     skip,
     take: limit,
     orderBy: { publishedAt: 'desc' },
@@ -166,21 +128,20 @@ export const getPostPerformanceTable = async (accountId: string, page = 1, limit
     }
   });
 
-  const total = await prisma.publishedPost.count({ where: { accountId, igMediaId: { not: null } } });
+  const total = await prisma.publishedPost.count({ where });
 
   return {
-    data: posts,
+    data: posts.map(post => ({ ...post, insights: post.insights.map(insight => ({ ...insight, ...normalizedMetrics(insight) })) })),
     total,
     page,
     totalPages: Math.ceil(total / limit),
   };
 };
 
-export const getRecommendations = async (accountId: string) => {
+export const getRecommendations = async (accountId: string, days = 30) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null } },
+    where: { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
     orderBy: { publishedAt: 'desc' },
-    take: 50,
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
   });
 
@@ -191,16 +152,18 @@ export const getRecommendations = async (accountId: string) => {
   if (!withReach.length) {
     recommendations.push({
       type: 'DATA',
-      message: 'A Meta ainda não liberou Alcance e Impressões para este token. Likes e comentários já estão sendo acompanhados.',
+      message: 'Não há alcance positivo registrado nas publicações deste período. Isso, por si só, não confirma uma restrição de permissão.',
       basedOn: posts.length,
     });
   }
 
   const byType = new Map<string, { posts: number; interactions: number }>();
   for (const post of posts) {
+    const interactions = aggregateMetrics([post.insights[0] || {}]).interactions;
+    if (interactions === null) continue;
     const current = byType.get(post.mediaType) || { posts: 0, interactions: 0 };
     current.posts += 1;
-    current.interactions += (post.insights[0]?.likes || 0) + (post.insights[0]?.comments || 0) + (post.insights[0]?.saves || 0);
+    current.interactions += interactions;
     byType.set(post.mediaType, current);
   }
   const bestType = Array.from(byType.entries()).sort(([, a], [, b]) => {
@@ -211,7 +174,7 @@ export const getRecommendations = async (accountId: string) => {
   if (bestType) {
     recommendations.push({
       type: 'FORMAT',
-      message: `${bestType[0]} é o formato com mais interações médias no histórico importado (${Math.round(bestType[1].interactions / bestType[1].posts).toLocaleString('pt-BR')} por publicação).`,
+      message: `${bestType[0]} tem mais interações médias registradas nas publicações dos últimos ${days} dias (${Math.round(bestType[1].interactions / bestType[1].posts).toLocaleString('pt-BR')} por publicação). A amostra não garante resultados futuros.`,
       basedOn: bestType[1].posts,
     });
   }

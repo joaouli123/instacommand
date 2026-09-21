@@ -14,6 +14,7 @@ import { PrismaClient } from '@prisma/client';
 import { InstagramApiError } from '../utils/errors';
 import { getThreadsReport } from '../services/threads-report.service';
 import { getFacebookReport } from '../services/facebook-report.service';
+import { analyticsDays } from '../services/analytics-period';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -53,14 +54,14 @@ router.use('/:accountId', async (req: any, res, next) => {
 
 router.get('/:accountId/dashboard', async (req: any, res, next) => {
   try {
-    const stats = await getDashboardStats(req.params.accountId);
+    const stats = await getDashboardStats(req.params.accountId, analyticsDays(req.query.days ?? 30));
     res.json(stats);
   } catch (error) { next(error); }
 });
 
 router.get('/:accountId/growth', async (req, res, next) => {
   try {
-    const days = parseInt(req.query.days as string) || 30;
+    const days = analyticsDays(req.query.days ?? 30);
     const data = await getGrowthData(req.params.accountId, days);
     res.json(data);
   } catch (error) { next(error); }
@@ -68,7 +69,7 @@ router.get('/:accountId/growth', async (req, res, next) => {
 
 router.get('/:accountId/engagement', async (req, res, next) => {
   try {
-    const days = parseInt(req.query.days as string) || 30;
+    const days = analyticsDays(req.query.days ?? 30);
     const data = await getEngagementTimeSeries(req.params.accountId, days);
     res.json(data);
   } catch (error) { next(error); }
@@ -76,9 +77,10 @@ router.get('/:accountId/engagement', async (req, res, next) => {
 
 router.get('/:accountId/posts', async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const data = await getPostPerformanceTable(req.params.accountId, page, limit);
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 10);
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) return res.status(400).json({ error: 'Paginação inválida.' });
+    const data = await getPostPerformanceTable(req.params.accountId, page, limit, analyticsDays(req.query.days ?? 30));
     res.json(data);
   } catch (error) { next(error); }
 });
@@ -100,21 +102,21 @@ router.get('/:accountId/audience', async (req: any, res, next) => {
 
 router.get('/:accountId/best-times', async (req, res, next) => {
   try {
-    const times = await getBestTimeToPost(req.params.accountId);
+    const times = await getBestTimeToPost(req.params.accountId, analyticsDays(req.query.days ?? 30));
     res.json(times);
   } catch (error) { next(error); }
 });
 
 router.get('/:accountId/content-types', async (req, res, next) => {
   try {
-    const data = await getContentTypeAnalysis(req.params.accountId);
+    const data = await getContentTypeAnalysis(req.params.accountId, analyticsDays(req.query.days ?? 30));
     res.json(data);
   } catch (error) { next(error); }
 });
 
 router.get('/:accountId/recommendations', async (req, res, next) => {
   try {
-    const recs = await getRecommendations(req.params.accountId);
+    const recs = await getRecommendations(req.params.accountId, analyticsDays(req.query.days ?? 30));
     res.json(recs);
   } catch (error) { next(error); }
 });
