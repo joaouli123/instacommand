@@ -298,6 +298,11 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
       console.warn('Meta token scope discovery skipped:', error instanceof Error ? error.message : 'unknown error');
     }
 
+    console.info('Meta granular asset targets:', {
+      businessIds: [...businessIds],
+      instagramIds: [...granularInstagramIds],
+    });
+
     for (const instagramId of granularInstagramIds) {
       try {
         const profile = await graphGet(`/${instagramId}`, userToken, {
