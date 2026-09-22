@@ -77,9 +77,30 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
   // single request both follows that contract and avoids six identical API
   // calls every time the report is opened/refreshed.
   const [accountInsights, content] = await Promise.all([
-    optional('account_insights', () => request('/me/threads_insights', token, {
-      metric: [...metrics, 'followers_count'].join(','),
-    })),
+    optional('account_insights', async () => {
+      const requestedMetrics = [...metrics, 'followers_count'];
+      try {
+        return await request('/me/threads_insights', token, { metric: requestedMetrics.join(',') });
+      } catch (combinedError) {
+        // A provider-side error for one metric can fail the whole Graph
+        // response. Retry each documented metric once, sequentially, so the
+        // report can retain partial results without creating a request burst.
+        const data: any[] = [];
+        for (const metric of requestedMetrics) {
+          try {
+            const result = await request('/me/threads_insights', token, { metric });
+            data.push(...(Array.isArray(result.data) ? result.data : []));
+          } catch (error) {
+            const issue = error instanceof ThreadsReportError ? error : combinedError;
+            issues.push({ section: `account_insights:${metric}`,
+              reason: issue instanceof ThreadsReportError ? issue.kind : 'unavailable',
+              ...(issue instanceof ThreadsReportError ? { status: issue.status, code: issue.code,
+                subcode: issue.subcode, ...(issue.providerMessage ? { message: issue.providerMessage } : {}) } : {}) });
+          }
+        }
+        return { data };
+      }
+    }),
     optional('content', async () => {
       const posts: any[] = [];
       let after = '';
