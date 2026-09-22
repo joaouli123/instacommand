@@ -4,19 +4,31 @@ import { getDecryptedThreadsToken } from './instagram/auth.service';
 const prisma = new PrismaClient();
 type Metric = { value: number | null; daily: Array<{ date: string; value: number }>; available: boolean };
 
-export function parseThreadsMetric(item: any, cumulative = false): Metric {
+export function parseThreadsMetric(item: any, cumulative = false, since?: number, until?: number): Metric {
   const numeric = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
   const values = Array.isArray(item?.values) ? item.values : [];
-  const daily = values.filter((v: any) => numeric(v.value) && typeof v.end_time === 'string')
+  const inPeriod = (v: any) => {
+    if (since === undefined || until === undefined || typeof v.end_time !== 'string') return true;
+    const timestamp = Math.floor(Date.parse(v.end_time) / 1000);
+    return Number.isFinite(timestamp) && timestamp >= since && timestamp <= until;
+  };
+  const periodValues = values.filter(inPeriod);
+  const daily = periodValues.filter((v: any) => numeric(v.value) && typeof v.end_time === 'string')
     .map((v: any) => ({ date: v.end_time, value: v.value }));
-  const scalars = values.map((v: any) => v.value).filter(numeric) as number[];
-  const value = numeric(item?.total_value?.value) ? item.total_value.value
+  const scalars = periodValues.map((v: any) => v.value).filter(numeric) as number[];
+  const hasPeriod = since !== undefined && until !== undefined;
+  const value = !hasPeriod && numeric(item?.total_value?.value) ? item.total_value.value
     : scalars.length ? (cumulative ? scalars[scalars.length - 1] : scalars.reduce((a, b) => a + b, 0)) : null;
   return { value, daily, available: value !== null };
 }
 
 class ThreadsReportError extends Error {
-  constructor(public kind: 'permission' | 'expired' | 'rate_limit' | 'unavailable') { super(kind); }
+  constructor(
+    public kind: 'permission' | 'expired' | 'rate_limit' | 'unavailable',
+    public status: number,
+    public code?: number,
+    public subcode?: number,
+  ) { super(kind); }
 }
 
 async function request(path: string, token: string, params: Record<string, string> = {}) {
@@ -28,9 +40,11 @@ async function request(path: string, token: string, params: Record<string, strin
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.error) {
     const code = Number(data.error?.code);
+    const subcode = Number(data.error?.error_subcode);
     throw new ThreadsReportError(code === 190 ? 'expired'
       : [10, 200].includes(code) || response.status === 403 ? 'permission'
-        : response.status === 429 || [4, 17, 32, 613].includes(code) ? 'rate_limit' : 'unavailable');
+        : response.status === 429 || [4, 17, 32, 613].includes(code) ? 'rate_limit' : 'unavailable',
+      response.status, Number.isFinite(code) ? code : undefined, Number.isFinite(subcode) ? subcode : undefined);
   }
   return data;
 }
@@ -44,17 +58,18 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
   const until = Math.floor(Date.now() / 1000);
   const since = until - days * 86400;
   const token = await getDecryptedThreadsToken(account.id);
-  const issues: Array<{ section: string; reason: string }> = [];
+  const issues: Array<{ section: string; reason: string; status?: number; code?: number; subcode?: number }> = [];
   async function optional(section: string, load: () => Promise<any>) {
     try { return await load(); } catch (error) {
-      issues.push({ section, reason: error instanceof ThreadsReportError ? error.kind : 'unavailable' });
+      issues.push({ section, reason: error instanceof ThreadsReportError ? error.kind : 'unavailable',
+        ...(error instanceof ThreadsReportError ? { status: error.status, code: error.code, subcode: error.subcode } : {}) });
       return null;
     }
   }
   const metrics = ['views', 'likes', 'replies', 'reposts', 'quotes'];
   const [insights, followers, content] = await Promise.all([
     optional('insights', () => request('/me/threads_insights', token, {
-      metric: metrics.join(','), since: String(since), until: String(until),
+      metric: metrics.join(','),
     })),
     optional('followers', () => request('/me/threads_insights', token, { metric: 'followers_count' })),
     optional('content', async () => {
@@ -87,7 +102,7 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
   ]);
   const data: Record<string, Metric> = {};
   for (const metric of metrics) {
-    data[metric] = parseThreadsMetric(insights?.data?.find((item: any) => item.name === metric));
+    data[metric] = parseThreadsMetric(insights?.data?.find((item: any) => item.name === metric), false, since, until);
   }
   data.followers_count = parseThreadsMetric(followers?.data?.find((item: any) => item.name === 'followers_count'), true);
   return {

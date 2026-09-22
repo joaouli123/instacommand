@@ -28,6 +28,10 @@ test('distinguishes real zero, missing data, totals and follower snapshots', () 
   assert.equal(parseThreadsMetric({ total_value: { value: 12 }, values: [{ value: 4 }] }).value, 12);
   assert.equal(parseThreadsMetric({ values: [{ value: 3 }, { value: 4 }] }).value, 7);
   assert.equal(parseThreadsMetric({ values: [{ value: 3 }, { value: 4 }] }, true).value, 4);
+  assert.equal(parseThreadsMetric({ values: [
+    { value: 2, end_time: '2026-09-10T00:00:00+0000' },
+    { value: 3, end_time: '2026-09-20T00:00:00+0000' },
+  ] }, false, Date.parse('2026-09-15T00:00:00Z') / 1000, Date.parse('2026-09-22T00:00:00Z') / 1000).value, 3);
 });
 test('rejects another workspace before decrypting or contacting Meta', async () => {
   assert.equal(await getThreadsReport('other', 'account', 30), null);
@@ -43,6 +47,19 @@ test('permission failure preserves content without fabricating insights', async 
   assert.equal(report.metrics.views.value, null);
   assert.ok(report.issues.every(issue => issue.reason === 'permission'));
   assert.ok(!JSON.stringify(report).includes('test-token'));
+});
+test('keeps Meta error codes safe for diagnosis and omits unsupported period params from account insights', async () => {
+  responder = url => url.pathname.endsWith('threads_insights')
+    ? { error: { code: 10, error_subcode: 987, message: 'Permission denied' } }
+    : { data: [] };
+  const report = await getThreadsReport('owner', 'account', 30);
+  assert.deepEqual(report.issues.find(issue => issue.section === 'insights'), {
+    section: 'insights', reason: 'permission', status: 403, code: 10, subcode: 987,
+  });
+  const insightsRequest = requests.find(item => item.url.pathname.endsWith('threads_insights'));
+  assert.equal(insightsRequest.url.searchParams.get('metric'), 'views,likes,replies,reposts,quotes');
+  assert.equal(insightsRequest.url.searchParams.has('since'), false);
+  assert.equal(insightsRequest.url.searchParams.has('until'), false);
 });
 test('only uses Threads host and requested period; cursor URLs cannot redirect credentials', async () => {
   responder = url => url.pathname.endsWith('threads_insights') ? { data: [{ name: 'views', values: [{ value: 0 }] }] }
