@@ -21,6 +21,25 @@ export async function getFacebookReport(userId: string, accountId: string, days:
   try { profile = await graphGet(`/${page.id}`, token, { fields: 'id,name,followers_count,fan_count' }); }
   catch { issues.push('Não foi possível consultar os totais atuais da Página.'); }
 
+  let mediaViews: number | null = null;
+  try {
+    const insight = await graphGet(`/${page.id}/insights`, token, {
+      metric: 'page_media_view', period: 'day',
+      since: new Date(since * 1000).toISOString().slice(0, 10),
+      until: new Date(until * 1000).toISOString().slice(0, 10),
+    });
+    const metric = Array.isArray(insight.data) ? insight.data.find((item: any) => item.name === 'page_media_view') : null;
+    const values = Array.isArray(metric?.values) ? metric.values : [];
+    const numericValues = values.map((item: any) => item.value).filter((value: unknown): value is number =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0);
+    if (numericValues.length) mediaViews = numericValues.reduce((sum: number, value: number) => sum + value, 0);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    issues.push(/permission|read_insights|insight/i.test(message)
+      ? 'Visualizações indisponíveis: o app precisa da permissão read_insights aprovada e autorizada para esta Página.'
+      : 'A Meta não disponibilizou visualizações para esta Página neste período.');
+  }
+
   const posts: Array<{ id: string; text: string; createdAt: string; permalink: string | null; reactions: number | null; comments: number | null; shares: number | null }> = [];
   const seen = new Set<string>();
   const cursors = new Set<string>();
@@ -61,7 +80,7 @@ export async function getFacebookReport(userId: string, accountId: string, days:
   return { network: 'FACEBOOK', account: { id: account.id, instagram: account.igUsername }, page,
     period: { days, since: new Date(since * 1000).toISOString(), until: new Date(until * 1000).toISOString() },
     collectedAt: new Date().toISOString(), followers: count(profile.followers_count), pageLikes: count(profile.fan_count),
-    posts, totals, contentAvailable, complete, issues,
+    posts, totals, insights: { mediaViews, mediaViewsAvailable: mediaViews !== null }, contentAvailable, complete, issues,
     measurement: 'Interações acumuladas até a consulta nas publicações criadas no período. Não são interações ocorridas exclusivamente dentro do período.',
   };
 }
