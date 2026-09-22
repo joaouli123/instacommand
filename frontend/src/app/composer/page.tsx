@@ -332,8 +332,23 @@ export default function ComposerPage() {
       }
       const created = (draftId ? await api.updatePost(draftId, payload) : await api.createPost(payload)) as { id: string }
 
-      if (mode === "publish") await api.publishPost(created.id)
-      toast.success(mode === "publish" ? "Publicação enviada para todas as plataformas selecionadas." : "Publicação agendada com sucesso.")
+      let publishSummary: { succeeded?: string[]; failed?: { platform: string; message: string }[] } | undefined
+      if (mode === "publish") {
+        const result = await api.publishPost(created.id) as { publishSummary?: typeof publishSummary }
+        publishSummary = result.publishSummary
+      }
+      if (mode === "schedule") {
+        toast.success("Publicação agendada com sucesso.")
+      } else if (publishSummary?.failed?.length) {
+        const names: Record<string, string> = { INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads" }
+        const succeeded = (publishSummary.succeeded || []).map((platform) => names[platform] || platform)
+        const failed = publishSummary.failed.map(({ platform, message }) => `${names[platform] || platform}: ${message}`)
+        toast.error(`${succeeded.length ? `Publicado em ${succeeded.join(", ")}. ` : ""}Falhou em ${failed.join("; ")}.`)
+      } else if (publishSummary?.succeeded?.length === platforms.length) {
+        toast.success(`Publicado em ${publishSummary.succeeded.map((platform) => ({ INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads" })[platform] || platform).join(", ")}.`)
+      } else {
+        toast.success("Solicitação de publicação concluída. Confira o resultado no calendário.")
+      }
       if (mode === "publish") {
         setDraftId(''); setEditorialBrief(null); window.history.replaceState(null, '', '/composer')
         setCaption("")

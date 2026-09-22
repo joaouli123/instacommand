@@ -291,7 +291,35 @@ router.post('/:id/publish', async (req: any, res, next) => {
     }
 
     const published = await publishPost(post.id);
-    res.json(published);
+    if (!published) {
+      return res.status(409).json({ error: 'Esta publicação não foi processada. Atualize o calendário e confira o estado antes de tentar novamente.' });
+    }
+    const latestState = await prisma.scheduledPost.findFirst({
+      where: { id: post.id, userId: req.user.id },
+      select: { platforms: true, errorMessage: true },
+    });
+    const publishResults = (published?.publishResults || {}) as Record<string, unknown>;
+    const succeeded = Object.keys(publishResults);
+    const failures = (latestState?.errorMessage || '')
+      .split(' | ')
+      .map((entry) => {
+        const separator = entry.indexOf(':');
+        return separator > 0
+          ? { platform: entry.slice(0, separator).trim(), message: entry.slice(separator + 1).trim() }
+          : null;
+      })
+      .filter((entry): entry is { platform: string; message: string } => Boolean(entry));
+    const failedPlatforms = (latestState?.platforms || []).filter((platform) => !succeeded.includes(platform));
+    res.json({
+      ...published,
+      publishSummary: {
+        succeeded,
+        failed: failedPlatforms.map((platform) => ({
+          platform,
+          message: failures.find((failure) => failure.platform.toUpperCase() === platform)?.message || 'Não foi possível publicar nesta rede.',
+        })),
+      },
+    });
   } catch (error) {
     next(error);
   }
