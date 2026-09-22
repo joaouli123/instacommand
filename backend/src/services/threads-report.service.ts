@@ -28,6 +28,7 @@ class ThreadsReportError extends Error {
     public status: number,
     public code?: number,
     public subcode?: number,
+    public providerMessage?: string,
   ) { super(kind); }
 }
 
@@ -41,10 +42,14 @@ async function request(path: string, token: string, params: Record<string, strin
   if (!response.ok || data.error) {
     const code = Number(data.error?.code);
     const subcode = Number(data.error?.error_subcode);
+    const rawMessage = typeof data.error?.message === 'string' ? data.error.message : '';
+    const providerMessage = rawMessage.replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [redigido]')
+      .replace(/access_token=([^&\s]+)/gi, 'access_token=[redigido]')
+      .replace(/[A-Za-z0-9_-]{48,}/g, '[redigido]').slice(0, 500) || undefined;
     throw new ThreadsReportError(code === 190 ? 'expired'
       : [10, 200].includes(code) || response.status === 403 ? 'permission'
         : response.status === 429 || [4, 17, 32, 613].includes(code) ? 'rate_limit' : 'unavailable',
-      response.status, Number.isFinite(code) ? code : undefined, Number.isFinite(subcode) ? subcode : undefined);
+      response.status, Number.isFinite(code) ? code : undefined, Number.isFinite(subcode) ? subcode : undefined, providerMessage);
   }
   return data;
 }
@@ -58,11 +63,12 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
   const until = Math.floor(Date.now() / 1000);
   const since = until - days * 86400;
   const token = await getDecryptedThreadsToken(account.id);
-  const issues: Array<{ section: string; reason: string; status?: number; code?: number; subcode?: number }> = [];
+  const issues: Array<{ section: string; reason: string; status?: number; code?: number; subcode?: number; message?: string }> = [];
   async function optional(section: string, load: () => Promise<any>) {
     try { return await load(); } catch (error) {
       issues.push({ section, reason: error instanceof ThreadsReportError ? error.kind : 'unavailable',
-        ...(error instanceof ThreadsReportError ? { status: error.status, code: error.code, subcode: error.subcode } : {}) });
+        ...(error instanceof ThreadsReportError ? { status: error.status, code: error.code, subcode: error.subcode,
+          ...(error.providerMessage ? { message: error.providerMessage } : {}) } : {}) });
       return null;
     }
   }

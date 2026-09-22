@@ -50,11 +50,12 @@ test('permission failure preserves content without fabricating insights', async 
 });
 test('keeps Meta error codes safe for diagnosis and omits unsupported period params from account insights', async () => {
   responder = url => url.pathname.endsWith('threads_insights')
-    ? { error: { code: 10, error_subcode: 987, message: 'Permission denied' } }
+    ? { error: { code: 10, error_subcode: 987, message: 'Permission denied; access_token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab' } }
     : { data: [] };
   const report = await getThreadsReport('owner', 'account', 30);
   assert.deepEqual(report.issues.find(issue => issue.section === 'insights'), {
     section: 'insights', reason: 'permission', status: 403, code: 10, subcode: 987,
+    message: 'Permission denied; access_token=[redigido]',
   });
   const insightsRequest = requests.find(item => item.url.pathname.endsWith('threads_insights'));
   assert.equal(insightsRequest.url.searchParams.get('metric'), 'views,likes,replies,reposts,quotes');
