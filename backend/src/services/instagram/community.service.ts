@@ -10,7 +10,7 @@ type CommunityComment = {
   text: string;
   username?: string;
   timestamp?: string;
-  like_count?: number;
+  like_count?: number | null;
   mediaId: string;
   mediaCaption?: string | null;
   mediaUrl?: string | null;
@@ -22,7 +22,7 @@ const normalizeComment = (comment: any, media: any): CommunityComment => ({
   text: String(comment.text || ''),
   username: comment.username || comment.from?.username || 'usuário',
   timestamp: comment.timestamp,
-  like_count: Number(comment.like_count || 0),
+  like_count: typeof comment.like_count === 'number' && Number.isFinite(comment.like_count) ? comment.like_count : null,
   mediaId: String(media.id),
   mediaCaption: media.caption || null,
   mediaUrl: media.media_url || media.thumbnail_url || null,

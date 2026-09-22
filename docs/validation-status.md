@@ -2,6 +2,13 @@
 
 This is a work-in-progress evidence log, not a claim that the platform is complete.
 
+## Follow-up — 2026-09-22
+
+- Threads Insights incident research and remediation plan documented in [threads-insights-troubleshooting.md](threads-insights-troubleshooting.md). Meta's official Threads Postman collection specifies the account Insights endpoint, comma-separated metrics, and token debugger checks for `threads_basic`, `threads_manage_insights`, and expiration. Community reports show unsupported metrics/fields can also surface as HTTP 500, so status 500 alone does not prove missing permission. Production's HTTP 500/code 1 remains unresolved until the actual connected token scopes and one-metric requests are checked.
+- OAuth hardening: Threads no longer falls back to the generic Facebook/Meta app ID/secret; server-managed Threads credentials must be an explicit matching pair. Callback failures now distinguish denial/missing-code/account-conflict without returning or logging provider exception details. Accounts UI maps these reasons to actionable messages. Backend tests verify pair selection/no fallback.
+- Data/UI correctness: missing Instagram comment and trend-media likes remain unavailable (`null`) instead of being represented as zero; monitored hashtags have a visible accessible remove button; monitor loading/errors are surfaced. New backend/frontend regression tests cover these cases.
+- Validation on this working tree: backend build + 91 tests pass; frontend 18 tests + `npx tsc --noEmit` + production build pass. These changes are not yet deployed or committed in this entry. Coolify still needs the app-specific `THREADS_APP_ID`/`THREADS_APP_SECRET` pair for frictionless Threads OAuth onboarding; token scopes and post-reconsent Insights behavior are unverified. No Meta permissions/settings were changed, no real account authorization was initiated, and no social content was published.
+
 ## Current evidence
 
 - Production ownership transfer completed in one serializable transaction: 20 Instagram links and one Threads link moved from the legacy admin to the confirmed personal workspace. 142 publication records preserved. UI verified two active Instagram accounts, 18 pending choices, and connected Threads.

@@ -39,11 +39,16 @@ const getMetaCredentials = async (userId?: string): Promise<MetaCredentials> => 
       })
     : null;
 
-  return {
-    appId: user?.metaAppId || env.FB_APP_ID,
-    appSecret: user?.metaAppSecret ? decrypt(user.metaAppSecret) : env.FB_APP_SECRET,
-    clientToken: user?.metaClientToken ? decrypt(user.metaClientToken) : '',
-  };
+  // In SaaS mode the platform-owned app must be used consistently for every
+  // workspace. Never combine an app ID from one source with another app's secret.
+  const platformCredentialsConfigured = Boolean(env.FB_APP_ID || env.FB_APP_SECRET);
+  return platformCredentialsConfigured
+    ? { appId: env.FB_APP_ID || '', appSecret: env.FB_APP_SECRET || '', clientToken: '' }
+    : {
+        appId: user?.metaAppId || '',
+        appSecret: user?.metaAppSecret ? decrypt(user.metaAppSecret) : '',
+        clientToken: user?.metaClientToken ? decrypt(user.metaClientToken) : '',
+      };
 };
 
 export type AiCredentials = {
@@ -104,12 +109,20 @@ const getThreadsCredentials = async (userId?: string): Promise<MetaCredentials> 
         select: { threadsAppId: true, threadsAppSecret: true },
       })
     : null;
-  const credentials = await getMetaCredentials(userId);
-  return {
-    appId: process.env.THREADS_APP_ID || user?.threadsAppId || credentials.appId,
-    appSecret: process.env.THREADS_APP_SECRET || (user?.threadsAppSecret ? decrypt(user.threadsAppSecret) : credentials.appSecret),
-    clientToken: credentials.clientToken,
-  };
+  // Threads can be a distinct Meta app (as it is in this deployment). Never
+  // silently send users to the Facebook app or mix credential sources.
+  const platformCredentialsConfigured = Boolean(process.env.THREADS_APP_ID || process.env.THREADS_APP_SECRET);
+  return platformCredentialsConfigured
+    ? {
+        appId: process.env.THREADS_APP_ID || '',
+        appSecret: process.env.THREADS_APP_SECRET || '',
+        clientToken: '',
+      }
+    : {
+        appId: user?.threadsAppId || '',
+        appSecret: user?.threadsAppSecret ? decrypt(user.threadsAppSecret) : '',
+        clientToken: '',
+      };
 };
 
 const threadsApiRequest = async (path: string, options: RequestInit = {}) => {

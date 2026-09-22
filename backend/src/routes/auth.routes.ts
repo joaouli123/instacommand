@@ -242,7 +242,8 @@ router.get('/threads/callback', async (req, res) => {
   try {
     const { code } = req.query;
     if (!code || typeof code !== 'string') {
-      return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0`);
+      const reason = req.query.error ? 'threads_denied' : 'threads_callback_missing_code';
+      return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0&reason=${reason}`);
     }
 
     const user = await prisma.user.findUnique({ where: { id: stateUserId } });
@@ -252,8 +253,12 @@ router.get('/threads/callback', async (req, res) => {
     const oauthSession = createOAuthSessionHandoff(user.id);
     return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=1&oauth_session=${encodeURIComponent(oauthSession)}`);
   } catch (error) {
-    console.error('Threads OAuth callback failed:', error);
-    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0`);
+    // Avoid logging provider payloads that may contain OAuth codes or tokens.
+    console.error('Threads OAuth callback failed');
+    const reason = error instanceof Error && error.message.includes('já está conectada')
+      ? 'threads_account_conflict'
+      : 'threads_connection';
+    return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0&reason=${reason}`);
   }
 });
 

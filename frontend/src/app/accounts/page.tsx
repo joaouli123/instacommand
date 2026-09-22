@@ -94,7 +94,13 @@ export default function AccountsPage() {
             ? "A Meta cancelou ou bloqueou esta conexão. Nenhum token foi salvo."
             : "A Meta recusou a conexão. Revise a Página, o portfólio e as permissões do aplicativo.")
         if (threadsConnected === "1") toast.success("Conta do Threads conectada com sucesso")
-        if (threadsConnected === "0") toast.error("Não foi possível conectar a conta do Threads")
+        if (threadsConnected === "0") toast.error(reason === "threads_denied"
+          ? "Você cancelou ou a Meta recusou a autorização do Threads. Nenhuma conta foi vinculada."
+          : reason === "threads_callback_missing_code"
+            ? "A Meta não retornou o código de autorização. Confira o endereço de retorno configurado no app Threads."
+            : reason === "threads_account_conflict"
+              ? "Essa conta Threads já está vinculada a outro usuário do InstaCommand. Entre no cadastro que a conectou primeiro."
+              : "A conexão Threads falhou. Verifique a configuração do app Threads, as permissões autorizadas e tente novamente.")
         if ((connected || threadsConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
 
         const [data, threads, pending] = await Promise.all([api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts()])
