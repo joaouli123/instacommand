@@ -63,6 +63,7 @@ export const api = {
   getPendingAccounts: () => fetchApi('/accounts/pending'),
   selectAccounts: (accountIds: string[]) => fetchApi('/accounts/select', { method: 'POST', body: JSON.stringify({ accountIds }) }),
   getThreadsAccounts: () => fetchApi('/accounts/threads'),
+  getThreadsOAuthStatus: () => fetchApi('/settings/threads'),
   disconnectThreadsAccount: (id: string) => fetchApi(`/accounts/threads/${id}`, { method: 'DELETE' }),
   uploadMedia: (files: File[]) => {
     const formData = new FormData();

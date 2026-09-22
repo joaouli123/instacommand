@@ -22,6 +22,7 @@ type ConnectedAccount = {
   isActive: boolean
 }
 type ConnectedThreadsAccount = { id: string; username: string; name?: string | null; profilePicUrl?: string | null; isActive: boolean }
+type ThreadsOAuthStatus = { appIdConfigured: boolean; appSecretConfigured: boolean; platformConfigured: boolean; credentialSource: 'platform' | 'workspace' | 'missing' }
 
 export default function AccountsPage() {
   const queryClient = useQueryClient()
@@ -30,6 +31,7 @@ export default function AccountsPage() {
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([])
   const [savingSelection, setSavingSelection] = useState(false)
   const [threadsAccounts, setThreadsAccounts] = useState<ConnectedThreadsAccount[]>([])
+  const [threadsOAuthStatus, setThreadsOAuthStatus] = useState<ThreadsOAuthStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [auditLoadingId, setAuditLoadingId] = useState<string | null>(null)
@@ -58,6 +60,14 @@ export default function AccountsPage() {
 
   const connectThreads = () => {
     setConnectDialogOpen(false)
+    if (threadsOAuthStatus && !threadsOAuthStatus.appIdConfigured) {
+      toast.error("A conexão do Threads ainda não foi habilitada pelo administrador. Você não precisa criar app nem copiar token.")
+      return
+    }
+    if (threadsOAuthStatus && !threadsOAuthStatus.appSecretConfigured) {
+      toast.error("Falta concluir uma configuração do Threads no servidor. Você não precisa informar credenciais; avise o administrador do sistema.")
+      return
+    }
     void startOAuth("/auth/threads/url")
   }
 
@@ -103,10 +113,14 @@ export default function AccountsPage() {
               : "A conexão Threads falhou. Verifique a configuração do app Threads, as permissões autorizadas e tente novamente.")
         if ((connected || threadsConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
 
-        const [data, threads, pending] = await Promise.all([api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts()])
+        const [data, threads, pending, oauthStatus] = await Promise.all([
+          api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts(),
+          api.getThreadsOAuthStatus().catch(() => null),
+        ])
         if (!active) return
         setAccounts(data as ConnectedAccount[])
         setThreadsAccounts(threads as ConnectedThreadsAccount[])
+        setThreadsOAuthStatus(oauthStatus as ThreadsOAuthStatus | null)
         const pendingList = pending as ConnectedAccount[]
         setPendingAccounts(pendingList)
         setSelectedPendingIds(pendingList.map((account) => account.id))
@@ -245,8 +259,9 @@ export default function AccountsPage() {
       <Card className="border-slate-200/80 bg-white p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-white"><AtSign size={19} /></div><div><h3 className="font-bold text-slate-900">Threads</h3><p className="text-sm text-slate-500">{threadsAccounts.length ? `@${threadsAccounts[0].username} conectado` : "Conecte para publicar junto com Instagram e Facebook."}</p></div></div>
-          <Button variant={threadsAccounts.length ? "outline" : "secondary"} onClick={connectThreads} className="gap-2">{threadsAccounts.length ? "Conectar outra conta" : "Entrar com Threads"}</Button>
+          <Button variant={threadsAccounts.length ? "outline" : "secondary"} onClick={connectThreads} disabled={Boolean(threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured))} className="gap-2">{threadsAccounts.length ? "Conectar outra conta" : threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) ? "Conexão em configuração" : "Entrar com Threads"}</Button>
         </div>
+        {threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-semibold">A conexão automática ainda não está pronta</p><p className="mt-1">O administrador do InstaCommand precisa concluir a configuração do Threads uma vez no servidor. Você não precisa criar aplicativo, copiar ID ou colar token.</p></div>}
         {threadsAccounts.length > 0 && <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">{threadsAccounts.map((account) => <div key={account.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5"><span className="text-sm font-semibold text-slate-800">@{account.username}</span><div className="flex items-center gap-2"><Badge variant="success">Ativo</Badge><Button variant="ghost" size="icon" title={`Desconectar @${account.username}`} onClick={() => disconnectThreads(account)} disabled={disconnectingThreadId === account.id} className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={14}/></Button></div></div>)}</div>}
       </Card>
     </div>

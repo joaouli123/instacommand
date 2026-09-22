@@ -12,7 +12,6 @@ import { getAudienceDemographics, getBestTimeToPost, getContentTypeAnalysis } fr
 import { getDecryptedToken } from '../services/instagram/auth.service';
 import { PrismaClient } from '@prisma/client';
 import { InstagramApiError } from '../utils/errors';
-import { getThreadsReport } from '../services/threads-report.service';
 import { getFacebookReport } from '../services/facebook-report.service';
 import { analyticsDays } from '../services/analytics-period';
 
@@ -27,17 +26,6 @@ router.get('/networks/facebook/:accountId', async (req: any, res, next) => {
   try {
     const report = await getFacebookReport(req.user.id, req.params.accountId, days);
     if (!report) return res.status(404).json({ error: 'Conta não encontrada.' });
-    return res.json(report);
-  } catch (error) { next(error); }
-});
-
-// Separate identity and token: never substitute Instagram metrics for Threads.
-router.get('/networks/threads/:accountId', async (req: any, res, next) => {
-  const days = Number(req.query.days || 30);
-  if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha 7, 30 ou 90 dias.' });
-  try {
-    const report = await getThreadsReport(req.user.id, req.params.accountId, days);
-    if (!report) return res.status(404).json({ error: 'Conta do Threads não encontrada.' });
     return res.json(report);
   } catch (error) { next(error); }
 });

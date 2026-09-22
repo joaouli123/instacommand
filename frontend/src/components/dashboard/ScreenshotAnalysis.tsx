@@ -59,12 +59,12 @@ export function ScreenshotAnalysis() {
   }
   return <Card className="border-indigo-100 p-5"><details><summary className="cursor-pointer text-base font-bold text-slate-900">Analisar prints do perfil ou insights com IA</summary>
     <div className="mt-4 space-y-4">
-      <p className="text-sm text-slate-600">Envie até 3 prints legíveis do perfil, feed ou insights. A IA sugere melhorias de bio, posicionamento e conteúdo. Funciona também com prints de Facebook e Threads.</p>
+      <p className="text-sm text-slate-600">Envie até 3 prints legíveis do perfil, feed ou insights do Instagram ou Facebook. A IA sugere melhorias de bio, posicionamento e conteúdo.</p>
       <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">Remova senhas, tokens, conversas privadas e dados de terceiros antes de selecionar imagens. Os prints serão enviados ao Google Gemini somente ao clicar em analisar. Não criamos arquivos públicos nem publicações a partir deles. O processamento está sujeito às políticas e à cota do provedor.</p>
       {!ready && <p className="text-sm text-slate-600">{provider ? <>Configure o Gemini para analisar imagens. <a href="/settings" className="text-indigo-700 underline">Abrir configurações</a></> : 'Verificando configuração da IA...'}</p>}
       <fieldset disabled={busy} className="space-y-4 disabled:opacity-70">
         <div className="grid gap-3 md:grid-cols-3">
-          <label className="text-sm font-medium">Rede dos prints<select className="mt-1 block w-full rounded-lg border p-2" value={platform} onChange={event => { setPlatform(event.target.value); setConsent(false); setResult(null) }}><option>Instagram</option><option>Facebook</option><option>Threads</option></select></label>
+          <label className="text-sm font-medium">Rede dos prints<select className="mt-1 block w-full rounded-lg border p-2" value={platform} onChange={event => { setPlatform(event.target.value); setConsent(false); setResult(null) }}><option>Instagram</option><option>Facebook</option></select></label>
           <label className="text-sm font-medium">Objetivo da análise<input className="mt-1 block w-full rounded-lg border p-2" maxLength={500} value={objective} onChange={event => { setObjective(event.target.value); setConsent(false); setResult(null) }} placeholder="Ex.: melhorar minha bio para vender serviços" /></label>
           <label className="text-sm font-medium">Público que quero atrair<input className="mt-1 block w-full rounded-lg border p-2" maxLength={300} value={audience} onChange={event => { setAudience(event.target.value); setConsent(false); setResult(null) }} placeholder="Ex.: pequenos negócios da minha cidade" /></label>
         </div>
