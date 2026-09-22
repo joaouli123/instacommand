@@ -73,12 +73,13 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
     }
   }
   const metrics = ['views', 'likes', 'replies', 'reposts', 'quotes'];
-  const [metricResponses, followers, content] = await Promise.all([
-    Promise.all(metrics.map(async metric => {
-      const response = await optional(metric, () => request('/me/threads_insights', token, { metric }));
-      return response?.data?.find((item: any) => item.name === metric);
+  // Meta documents account insights as a comma-separated `metric` list. A
+  // single request both follows that contract and avoids six identical API
+  // calls every time the report is opened/refreshed.
+  const [accountInsights, content] = await Promise.all([
+    optional('account_insights', () => request('/me/threads_insights', token, {
+      metric: [...metrics, 'followers_count'].join(','),
     })),
-    optional('followers_count', () => request('/me/threads_insights', token, { metric: 'followers_count' })),
     optional('content', async () => {
       const posts: any[] = [];
       let after = '';
@@ -107,11 +108,12 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
       return { posts, truncated };
     }),
   ]);
+  const insightItems = Array.isArray(accountInsights?.data) ? accountInsights.data : [];
   const data: Record<string, Metric> = {};
-  for (const [index, metric] of metrics.entries()) {
-    data[metric] = parseThreadsMetric(metricResponses[index], false, since, until);
+  for (const metric of metrics) {
+    data[metric] = parseThreadsMetric(insightItems.find((item: any) => item.name === metric), false, since, until);
   }
-  data.followers_count = parseThreadsMetric(followers?.data?.find((item: any) => item.name === 'followers_count'), true);
+  data.followers_count = parseThreadsMetric(insightItems.find((item: any) => item.name === 'followers_count'), true);
   return {
     network: 'THREADS', account: { id: account.id, username: account.username, name: account.name },
     period: { days, since: new Date(since * 1000).toISOString(), until: new Date(until * 1000).toISOString() },

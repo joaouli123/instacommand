@@ -46,21 +46,37 @@ test('permission failure preserves content without fabricating insights', async 
   assert.equal(report.contentAvailable, true);
   assert.equal(report.metrics.views.value, null);
   assert.ok(report.issues.every(issue => issue.reason === 'permission'));
+  assert.deepEqual(report.issues.map(issue => issue.section), ['account_insights']);
   assert.ok(!JSON.stringify(report).includes('test-token'));
 });
-test('keeps per-metric Meta error codes safe and omits unsupported period params from account insights', async () => {
+test('keeps Meta error codes safe and omits unsupported period params from account insights', async () => {
   responder = url => url.pathname.endsWith('threads_insights')
     ? { error: { code: 10, error_subcode: 987, message: 'Permission denied; access_token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab' } }
     : { data: [] };
   const report = await getThreadsReport('owner', 'account', 30);
-  assert.deepEqual(report.issues.find(issue => issue.section === 'views'), {
-    section: 'views', reason: 'permission', status: 403, code: 10, subcode: 987,
+  assert.deepEqual(report.issues.find(issue => issue.section === 'account_insights'), {
+    section: 'account_insights', reason: 'permission', status: 403, code: 10, subcode: 987,
     message: 'Permission denied; access_token=[redigido]',
   });
   const insightsRequests = requests.filter(item => item.url.pathname.endsWith('threads_insights'));
-  assert.deepEqual(insightsRequests.map(item => item.url.searchParams.get('metric')).sort(),
-    ['followers_count', 'likes', 'quotes', 'replies', 'reposts', 'views']);
+  assert.equal(insightsRequests.length, 1);
+  assert.equal(insightsRequests[0].url.searchParams.get('metric'), 'views,likes,replies,reposts,quotes,followers_count');
   assert.ok(insightsRequests.every(item => !item.url.searchParams.has('since') && !item.url.searchParams.has('until')));
+});
+test('maps combined account insight response by metric name using a single request', async () => {
+  responder = url => url.pathname.endsWith('threads_insights') ? {
+    data: [
+      { name: 'views', values: [{ value: 120, end_time: new Date().toISOString() }] },
+      { name: 'likes', values: [{ value: 18, end_time: new Date().toISOString() }] },
+      { name: 'followers_count', values: [{ value: 321 }] },
+    ],
+  } : { data: [] };
+  const report = await getThreadsReport('owner', 'account', 30);
+  assert.equal(report.metrics.views.value, 120);
+  assert.equal(report.metrics.likes.value, 18);
+  assert.equal(report.metrics.followers_count.value, 321);
+  assert.equal(report.metrics.replies.available, false);
+  assert.equal(requests.filter(item => item.url.pathname.endsWith('threads_insights')).length, 1);
 });
 test('only uses Threads host and requested period; cursor URLs cannot redirect credentials', async () => {
   responder = url => url.pathname.endsWith('threads_insights') ? { data: [{ name: 'views', values: [{ value: 0 }] }] }
