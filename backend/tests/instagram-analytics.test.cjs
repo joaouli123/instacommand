@@ -2,11 +2,11 @@ const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { metricValue, receivedMetrics, aggregateMetrics } = require('../dist/services/metric-availability');
 const { publicationPeriod, analyticsDays } = require('../dist/services/analytics-period');
-let calls, rows;
+let calls, rows, profileInsights;
 require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: class {
   instagramAccount = { findUnique: async args => {
     calls.push(['account', args]);
-    return { igFollowersCount: 100, profileInsights: [{ followers: 0, reach: 0, impressions: 0, availableMetrics: ['reach'] }], publishedPosts: rows };
+    return { igFollowersCount: 100, profileInsights, publishedPosts: rows };
   } };
   scheduledPost = { count: async () => 0 };
   publishedPost = {
@@ -20,7 +20,7 @@ require.cache[require.resolve('../dist/services/instagram/auth.service')] = { ex
 require.cache[require.resolve('../dist/services/notifications.service')] = { exports: {} };
 const analytics = require('../dist/services/analytics.service');
 const insights = require('../dist/services/instagram/insights.service');
-beforeEach(() => { calls = []; rows = []; });
+beforeEach(() => { calls = []; rows = []; profileInsights = [{ followers: 0, reach: 0, impressions: 0, availableMetrics: ['reach'] }]; });
 test('verified zero is different from ambiguous historical zero and absent data', () => {
   assert.equal(metricValue({ likes: 0, availableMetrics: ['likes'] }, 'likes'), 0);
   assert.equal(metricValue({ likes: 0 }, 'likes'), null);
@@ -63,6 +63,16 @@ test('dashboard preserves true zero followers and available reach zero', async (
   const result = await analytics.getDashboardStats('account', 30);
   assert.equal(result.followers, 0); assert.equal(result.reach, 0);
   assert.equal(result.impressions, null); assert.equal(result.interactions, null);
+  assert.equal(result.followerGrowth, null); assert.equal(result.hasFollowerHistory, false);
+});
+test('dashboard distinguishes a real zero change from missing comparison history', async () => {
+  profileInsights = [
+    { followers: 100, reach: 0, impressions: 0, availableMetrics: ['reach'] },
+    { followers: 100, reach: 0, impressions: 0, availableMetrics: ['reach'] },
+  ];
+  const result = await analytics.getDashboardStats('account', 30);
+  assert.equal(result.followerGrowth, 0);
+  assert.equal(result.hasFollowerHistory, true);
 });
 test('timeline uses Sao Paulo publication date and table exposes missing metrics as null', async () => {
   rows = [{ id: 'p', mediaType: 'IMAGE', publishedAt: new Date('2026-09-21T01:00:00Z'), insights: [{ likes: 0, reach: 0, availableMetrics: ['likes'] }] }];

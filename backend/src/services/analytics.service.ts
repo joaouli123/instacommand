@@ -29,12 +29,15 @@ export const getDashboardStats = async (accountId: string, days = 30) => {
   const latestInsight = account.profileInsights[0];
   const previousInsight = account.profileInsights[1];
 
-  const followerGrowth = previousInsight ? (latestInsight?.followers || 0) - previousInsight.followers : 0;
+  const followerGrowth = previousInsight && latestInsight
+    ? latestInsight.followers - previousInsight.followers
+    : null;
   const totals = aggregateMetrics(account.publishedPosts.map(post => post.insights[0] || {}));
 
   return {
     followers: latestInsight?.followers ?? account.igFollowersCount,
     followerGrowth,
+    hasFollowerHistory: Boolean(previousInsight && latestInsight),
     reach: metricValue(latestInsight, 'reach'),
     impressions: metricValue(latestInsight, 'impressions'),
     interactions: totals.interactions,
