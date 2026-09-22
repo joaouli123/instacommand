@@ -48,19 +48,19 @@ test('permission failure preserves content without fabricating insights', async 
   assert.ok(report.issues.every(issue => issue.reason === 'permission'));
   assert.ok(!JSON.stringify(report).includes('test-token'));
 });
-test('keeps Meta error codes safe for diagnosis and omits unsupported period params from account insights', async () => {
+test('keeps per-metric Meta error codes safe and omits unsupported period params from account insights', async () => {
   responder = url => url.pathname.endsWith('threads_insights')
     ? { error: { code: 10, error_subcode: 987, message: 'Permission denied; access_token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab' } }
     : { data: [] };
   const report = await getThreadsReport('owner', 'account', 30);
-  assert.deepEqual(report.issues.find(issue => issue.section === 'insights'), {
-    section: 'insights', reason: 'permission', status: 403, code: 10, subcode: 987,
+  assert.deepEqual(report.issues.find(issue => issue.section === 'views'), {
+    section: 'views', reason: 'permission', status: 403, code: 10, subcode: 987,
     message: 'Permission denied; access_token=[redigido]',
   });
-  const insightsRequest = requests.find(item => item.url.pathname.endsWith('threads_insights'));
-  assert.equal(insightsRequest.url.searchParams.get('metric'), 'views,likes,replies,reposts,quotes');
-  assert.equal(insightsRequest.url.searchParams.has('since'), false);
-  assert.equal(insightsRequest.url.searchParams.has('until'), false);
+  const insightsRequests = requests.filter(item => item.url.pathname.endsWith('threads_insights'));
+  assert.deepEqual(insightsRequests.map(item => item.url.searchParams.get('metric')).sort(),
+    ['followers_count', 'likes', 'quotes', 'replies', 'reposts', 'views']);
+  assert.ok(insightsRequests.every(item => !item.url.searchParams.has('since') && !item.url.searchParams.has('until')));
 });
 test('only uses Threads host and requested period; cursor URLs cannot redirect credentials', async () => {
   responder = url => url.pathname.endsWith('threads_insights') ? { data: [{ name: 'views', values: [{ value: 0 }] }] }

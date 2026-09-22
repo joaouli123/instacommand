@@ -73,11 +73,12 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
     }
   }
   const metrics = ['views', 'likes', 'replies', 'reposts', 'quotes'];
-  const [insights, followers, content] = await Promise.all([
-    optional('insights', () => request('/me/threads_insights', token, {
-      metric: metrics.join(','),
+  const [metricResponses, followers, content] = await Promise.all([
+    Promise.all(metrics.map(async metric => {
+      const response = await optional(metric, () => request('/me/threads_insights', token, { metric }));
+      return response?.data?.find((item: any) => item.name === metric);
     })),
-    optional('followers', () => request('/me/threads_insights', token, { metric: 'followers_count' })),
+    optional('followers_count', () => request('/me/threads_insights', token, { metric: 'followers_count' })),
     optional('content', async () => {
       const posts: any[] = [];
       let after = '';
@@ -107,8 +108,8 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
     }),
   ]);
   const data: Record<string, Metric> = {};
-  for (const metric of metrics) {
-    data[metric] = parseThreadsMetric(insights?.data?.find((item: any) => item.name === metric), false, since, until);
+  for (const [index, metric] of metrics.entries()) {
+    data[metric] = parseThreadsMetric(metricResponses[index], false, since, until);
   }
   data.followers_count = parseThreadsMetric(followers?.data?.find((item: any) => item.name === 'followers_count'), true);
   return {
