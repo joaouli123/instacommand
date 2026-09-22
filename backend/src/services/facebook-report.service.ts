@@ -37,7 +37,7 @@ export async function getFacebookReport(userId: string, accountId: string, days:
     const message = error instanceof Error ? error.message : '';
     issues.push(/permission|read_insights|insight/i.test(message)
       ? 'Visualizações indisponíveis: o app precisa da permissão read_insights aprovada e autorizada para esta Página.'
-      : 'A Meta não disponibilizou visualizações para esta Página neste período.');
+      : 'A Meta recusou ou não retornou visualizações. Confirme se read_insights foi aprovado e autorizado para esta Página e se o insight está disponível no período selecionado.');
   }
 
   const posts: Array<{ id: string; text: string; createdAt: string; permalink: string | null; reactions: number | null; comments: number | null; shares: number | null }> = [];
