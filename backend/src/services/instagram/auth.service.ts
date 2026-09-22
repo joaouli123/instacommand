@@ -2,6 +2,7 @@ import { env } from '../../config/env';
 import { graphGet, graphGetAll } from '../../utils/instagram-api';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import { AppError } from '../../utils/errors';
 
 const prisma = new PrismaClient();
 
@@ -111,7 +112,7 @@ const getThreadsCredentials = async (userId?: string): Promise<MetaCredentials> 
     : null;
   // Threads can be a distinct Meta app (as it is in this deployment). Never
   // silently send users to the Facebook app or mix credential sources.
-  const platformCredentialsConfigured = Boolean(process.env.THREADS_APP_ID || process.env.THREADS_APP_SECRET);
+  const platformCredentialsConfigured = Boolean(process.env.THREADS_APP_ID && process.env.THREADS_APP_SECRET);
   return platformCredentialsConfigured
     ? {
         appId: process.env.THREADS_APP_ID || '',
@@ -175,10 +176,15 @@ export const saveMetaCredentials = async (userId: string, values: { appId: strin
 
 export const getThreadsCredentialStatus = async (userId: string) => {
   const credentials = await getThreadsCredentials(userId);
+  const platformConfigured = Boolean(process.env.THREADS_APP_ID && process.env.THREADS_APP_SECRET);
+  const platformPartiallyConfigured = Boolean(process.env.THREADS_APP_ID) !== Boolean(process.env.THREADS_APP_SECRET);
   return {
     appId: credentials.appId,
     appIdConfigured: Boolean(credentials.appId),
     appSecretConfigured: Boolean(credentials.appSecret),
+    platformConfigured,
+    platformPartiallyConfigured,
+    credentialSource: platformConfigured ? 'platform' : credentials.appId && credentials.appSecret ? 'workspace' : 'missing',
   };
 };
 
@@ -551,7 +557,7 @@ export const getDecryptedToken = async (accountId: string) => {
 export const getThreadsOAuthUrl = async (userId: string, state?: string) => {
   const credentials = await getThreadsCredentials(userId);
   if (!credentials.appId || !credentials.appSecret) {
-    throw new Error('Configure as credenciais da Meta antes de conectar o Threads.');
+    throw new AppError('THREADS_OAUTH_NOT_CONFIGURED', 503);
   }
 
   const params = new URLSearchParams({

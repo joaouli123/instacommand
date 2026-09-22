@@ -4,6 +4,9 @@ import { ZodError } from 'zod';
 
 const publicMessage = (message: string) => {
   const normalized = message.toLowerCase();
+  if (message === 'THREADS_OAUTH_NOT_CONFIGURED') {
+    return 'A conexão automática com Threads ainda não foi habilitada neste sistema. Você não precisa criar um aplicativo nem copiar tokens; o administrador precisa concluir a configuração uma vez no servidor.';
+  }
   if (normalized.includes('instagram public content access')) {
     return 'A pesquisa de hashtags da Meta ainda não foi aprovada para este aplicativo. O administrador precisa solicitar o recurso Instagram Public Content Access no Meta for Developers.';
   }

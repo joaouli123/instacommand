@@ -29,7 +29,8 @@ test('missing Threads app config never falls back to the Facebook app', async ()
   assert.equal(status.appId, '');
   assert.equal(status.appIdConfigured, false);
   assert.equal(status.appSecretConfigured, false);
-  await assert.rejects(getThreadsOAuthUrl('user'), /Configure as credenciais da Meta antes de conectar o Threads/);
+  assert.equal(status.credentialSource, 'missing');
+  await assert.rejects(getThreadsOAuthUrl('user'), error => error.statusCode === 503 && error.message === 'THREADS_OAUTH_NOT_CONFIGURED');
 });
 
 test('platform Threads credentials are used as a matching pair', async () => {
@@ -39,7 +40,19 @@ test('platform Threads credentials are used as a matching pair', async () => {
   assert.equal(status.appId, 'threads-app-id');
   assert.equal(status.appIdConfigured, true);
   assert.equal(status.appSecretConfigured, true);
+  assert.equal(status.platformConfigured, true);
+  assert.equal(status.credentialSource, 'platform');
   const url = new URL(await getThreadsOAuthUrl('user'));
   assert.equal(url.searchParams.get('client_id'), 'threads-app-id');
   assert.notEqual(url.searchParams.get('client_id'), 'facebook-app-id');
+});
+
+test('a partial server configuration is reported and never mixed with workspace credentials', async () => {
+  process.env.THREADS_APP_ID = 'threads-app-id';
+  delete process.env.THREADS_APP_SECRET;
+  const status = await getThreadsCredentialStatus('user');
+  assert.equal(status.platformConfigured, false);
+  assert.equal(status.platformPartiallyConfigured, true);
+  assert.equal(status.credentialSource, 'missing');
+  assert.equal(status.appIdConfigured, false);
 });

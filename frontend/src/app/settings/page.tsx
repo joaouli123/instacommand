@@ -22,6 +22,9 @@ type ThreadsConfigStatus = {
   appId: string
   appIdConfigured: boolean
   appSecretConfigured: boolean
+  platformConfigured?: boolean
+  platformPartiallyConfigured?: boolean
+  credentialSource?: "platform" | "workspace" | "missing"
 }
 
 type AiConfigStatus = {
@@ -49,9 +52,7 @@ export default function SettingsPage() {
   const [metaStatus, setMetaStatus] = useState<MetaConfigStatus | null>(null)
   const [loadingMeta, setLoadingMeta] = useState(true)
   const [savingMeta, setSavingMeta] = useState(false)
-  const [threadsConfig, setThreadsConfig] = useState({ appId: "", appSecret: "" })
   const [threadsStatus, setThreadsStatus] = useState<ThreadsConfigStatus | null>(null)
-  const [savingThreads, setSavingThreads] = useState(false)
   const [aiConfig, setAiConfig] = useState({ apiKey: "", model: "gemini-2.5-flash" })
   const [aiStatus, setAiStatus] = useState<AiConfigStatus | null>(null)
   const [savingAi, setSavingAi] = useState(false)
@@ -70,7 +71,6 @@ export default function SettingsPage() {
         setMetaStatus(status)
         setMetaConfig((current) => ({ ...current, appId: status.appId || "" }))
         setThreadsStatus(threads)
-        setThreadsConfig((current) => ({ ...current, appId: threads.appId || "" }))
         setAiStatus(ai)
         setAiConfig((current) => ({ ...current, model: ai.model || current.model }))
         setPreferences(nextPreferences)
@@ -104,33 +104,6 @@ export default function SettingsPage() {
       toast.error("Não foi possível salvar as credenciais da Meta")
     } finally {
       setSavingMeta(false)
-    }
-  }
-
-  const saveThreadsConfig = async () => {
-    if (!threadsConfig.appId.trim()) {
-      toast.error("Informe o App ID do Threads")
-      return
-    }
-
-    if (!threadsConfig.appSecret.trim() && !threadsStatus?.appSecretConfigured) {
-      toast.error("Informe o App Secret do Threads")
-      return
-    }
-
-    setSavingThreads(true)
-    try {
-      const status = await fetchApi("/settings/threads", {
-        method: "PUT",
-        body: JSON.stringify(threadsConfig),
-      }) as ThreadsConfigStatus
-      setThreadsStatus(status)
-      setThreadsConfig((current) => ({ ...current, appId: status.appId, appSecret: "" }))
-      toast.success("Credenciais do Threads salvas com segurança")
-    } catch {
-      toast.error("Não foi possível salvar as credenciais do Threads")
-    } finally {
-      setSavingThreads(false)
     }
   }
 
@@ -234,28 +207,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-4 p-6">
-            {threadsReady ? <div className="flex flex-col gap-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-emerald-900">Login automático ativado</p><p className="mt-1 text-xs leading-relaxed text-emerald-800">Na tela Contas conectadas, escolha “Conectar Threads” e autorize o perfil desejado.</p></div><Button onClick={openAccounts} className="shrink-0 gap-2 bg-slate-900 text-white hover:bg-slate-800"><AtSign size={15} />Conectar Threads <ArrowRight size={15} /></Button></div> : <>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="threads-app-id">App ID do Threads</Label>
-                <Input id="threads-app-id" value={threadsConfig.appId} onChange={(event) => setThreadsConfig((current) => ({ ...current, appId: event.target.value }))} placeholder="Ex.: 1051962054293446" disabled={loadingMeta} />
-                <p className="text-[11px] text-slate-500">É diferente do App ID principal do Meta.</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="threads-app-secret">App Secret do Threads</Label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input id="threads-app-secret" type="password" className="pl-9" value={threadsConfig.appSecret} onChange={(event) => setThreadsConfig((current) => ({ ...current, appSecret: event.target.value }))} placeholder={threadsStatus?.appSecretConfigured ? "Segredo salvo — preencha só para trocar" : "Cole o App Secret do Threads"} disabled={loadingMeta} autoComplete="new-password" />
-                </div>
-                <p className="text-[11px] text-slate-500">Fica criptografado e nunca é exibido novamente.</p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-700 sm:flex-row sm:items-center sm:justify-between">
-              <span>Depois de salvar, use “Entrar com Threads” em Contas conectadas.</span>
-              <Button onClick={saveThreadsConfig} disabled={savingThreads || loadingMeta} className="gap-2 bg-slate-900 text-white hover:bg-slate-800"><Save size={15} />{savingThreads ? "Salvando..." : "Salvar Threads"}</Button>
-            </div>
-            </>}
+            {threadsReady ? <div className="flex flex-col gap-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-emerald-900">Login automático ativado</p><p className="mt-1 text-xs leading-relaxed text-emerald-800">A conexão está configurada {threadsStatus?.credentialSource === "platform" ? "pelo InstaCommand" : "para este workspace"}. Na tela Contas conectadas, escolha “Entrar com Threads” e autorize o perfil desejado.</p></div><Button onClick={openAccounts} className="shrink-0 gap-2 bg-slate-900 text-white hover:bg-slate-800"><AtSign size={15} />Conectar Threads <ArrowRight size={15} /></Button></div> : <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-semibold">A conexão automática ainda não está habilitada</p><p className="mt-1 text-xs leading-relaxed">Você não precisa criar um aplicativo, informar App ID ou copiar tokens. O administrador do InstaCommand precisa concluir a configuração OAuth do Threads uma única vez no servidor. {threadsStatus?.platformPartiallyConfigured ? "A configuração do servidor está incompleta: falta um dos dois valores exigidos." : "Depois disso, cada pessoa poderá conectar o próprio perfil pelo botão Entrar com Threads."}</p></div>}
           </div>
         </Card>
 
