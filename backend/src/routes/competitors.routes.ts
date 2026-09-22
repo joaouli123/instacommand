@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
-import { addCompetitor, removeCompetitor, collectCompetitorData } from '../services/instagram/discovery.service';
+import { addCompetitor, removeCompetitor, collectCompetitorData, normalizeCompetitorInsight } from '../services/instagram/discovery.service';
 import { PrismaClient } from '@prisma/client';
 
 const router = Router();
@@ -16,7 +16,10 @@ router.get('/:accountId', async (req: any, res, next) => {
       where: { accountId: req.params.accountId, account: { userId: req.user.id } }
       , include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } }
     });
-    res.json(competitors);
+    res.json(competitors.map((competitor) => ({
+      ...competitor,
+      insights: competitor.insights.map(normalizeCompetitorInsight),
+    })));
   } catch (error) { next(error); }
 });
 
@@ -45,7 +48,7 @@ router.get('/:id/insights', async (req: any, res, next) => {
       orderBy: { collectedAt: 'desc' },
       take: 30
     });
-    res.json(insights);
+    res.json(insights.map(normalizeCompetitorInsight));
   } catch (error) { next(error); }
 });
 

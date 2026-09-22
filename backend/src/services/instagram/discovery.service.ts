@@ -18,6 +18,42 @@ export const getCompetitorRecentPosts = async (igUserId: string, competitorUsern
 
 const normalizeUsername = (value: string) => value.trim().replace(/^@/, '').toLowerCase();
 
+export const calculateCompetitorMetrics = (posts: any[], followersCount: number | null | undefined) => {
+  const values = (key: 'like_count' | 'comments_count') => posts
+    .map((post) => post?.[key])
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0);
+  const likes = values('like_count');
+  const comments = values('comments_count');
+  const average = (items: number[]) => items.length ? Math.round(items.reduce((sum, value) => sum + value, 0) / items.length) : null;
+  const avgLikes = average(likes);
+  const avgComments = average(comments);
+  const comparablePosts = posts.filter((post) =>
+    typeof post?.like_count === 'number' && Number.isFinite(post.like_count) && post.like_count >= 0 &&
+    typeof post?.comments_count === 'number' && Number.isFinite(post.comments_count) && post.comments_count >= 0);
+  const engagementRate = typeof followersCount === 'number' && Number.isFinite(followersCount) && followersCount > 0 && comparablePosts.length
+    ? (comparablePosts.reduce((sum, post) => sum + post.like_count + post.comments_count, 0) / comparablePosts.length / followersCount) * 100
+    : null;
+  return {
+    avgLikes,
+    avgComments,
+    engagementRate,
+    metricCoverage: {
+      posts: posts.length,
+      likes: likes.length,
+      comments: comments.length,
+      engagement: comparablePosts.length,
+    },
+  };
+};
+
+export const normalizeCompetitorInsight = (insight: any) => {
+  const posts = Array.isArray(insight?.recentPostsData) ? insight.recentPostsData : [];
+  // Recompute from source observations so legacy default zeros are never
+  // presented as verified data when the raw API response omitted counters.
+  const metrics = calculateCompetitorMetrics(posts, insight?.followers);
+  return { ...insight, ...metrics };
+};
+
 export const addCompetitor = async (accountId: string, userId: string, igUsername: string) => {
   const username = normalizeUsername(igUsername);
   const account = await prisma.instagramAccount.findFirst({ where: { id: accountId, userId, isActive: true } });
@@ -70,17 +106,7 @@ export const collectCompetitorData = async (competitorId: string, userId: string
   const profile = await getCompetitorProfile(competitor.account.igUserId, competitor.igUsername, token);
   const recentPosts = await getCompetitorRecentPosts(competitor.account.igUserId, competitor.igUsername, token);
 
-  let totalLikes = 0;
-  let totalComments = 0;
-  
-  recentPosts.forEach((post: any) => {
-    totalLikes += post.like_count || 0;
-    totalComments += post.comments_count || 0;
-  });
-
-  const avgLikes = recentPosts.length ? Math.round(totalLikes / recentPosts.length) : 0;
-  const avgComments = recentPosts.length ? Math.round(totalComments / recentPosts.length) : 0;
-  const engagementRate = profile.followers_count ? ((avgLikes + avgComments) / profile.followers_count) * 100 : 0;
+  const metrics = calculateCompetitorMetrics(recentPosts, profile.followers_count);
 
   await prisma.competitor.update({
     where: { id: competitorId },
@@ -95,9 +121,9 @@ export const collectCompetitorData = async (competitorId: string, userId: string
       competitorId,
       followers: profile.followers_count,
       mediaCount: profile.media_count,
-      avgLikes,
-      avgComments,
-      engagementRate,
+      avgLikes: metrics.avgLikes,
+      avgComments: metrics.avgComments,
+      engagementRate: metrics.engagementRate,
       recentPostsData: recentPosts,
     },
   });

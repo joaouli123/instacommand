@@ -261,9 +261,9 @@ model CompetitorInsight {
   competitorId    String
   followers       Int        @default(0)
   mediaCount      Int        @default(0)
-  avgLikes        Int        @default(0)
-  avgComments     Int        @default(0)
-  engagementRate  Float      @default(0)
+  avgLikes        Int?
+  avgComments     Int?
+  engagementRate  Float?
   recentPostsData Json?
   collectedAt     DateTime   @default(now())
 
