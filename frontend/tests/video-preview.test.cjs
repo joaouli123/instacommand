@@ -16,6 +16,22 @@ test('Reel and Story video previews autoplay muted and expose manual playback an
   assert.match(source, /Exporte como MP4 \(H\.264 \+ AAC\) e tente novamente\./);
 });
 
+test('immersive Reel and Story previews fill the 9:16 stage and preserve source video proportions', () => {
+  assert.match(source, /fill \? "absolute inset-0" : "relative"/);
+  assert.match(source, /className=\{`group\/video \$\{fill \? "absolute inset-0" : "relative"\} overflow-hidden bg-\[#eef1f4\]/);
+
+  for (const previewCall of [
+    'emptyMessage="Sua mídia de Story aparecerá aqui" fill',
+    'emptyMessage="Sua mídia do Story aparecerá aqui" fill',
+    'emptyMessage="Sua capa do Reel aparecerá aqui" fill',
+    'emptyMessage="Seu vídeo do Reel aparecerá aqui" fill',
+  ]) {
+    assert.ok(source.includes(previewCall), `Expected immersive preview to fill its stage: ${previewCall}`);
+  }
+
+  assert.match(source, /<video[\s\S]*?className="absolute inset-0 h-full w-full object-contain"/);
+});
+
 test('browser detects uploaded video type, shows loading feedback and reports unsupported codecs', () => {
   assert.match(source, /<video[\s\S]*?src=\{media\.src\}[\s\S]*?\/>/);
   assert.doesNotMatch(source, /<source src=\{media\.src\} type=\{getVideoMimeType\(media\)\}/);
