@@ -10,7 +10,10 @@ require.cache[require.resolve('../dist/utils/instagram-api')] = { exports: {
     if (failure) throw failure;
     return result;
   },
-  graphPost: async (path) => { writes.push(path); return { id: 'posted' }; },
+  graphPost: async (path, token, params) => {
+    writes.push({ path, params });
+    return path.endsWith('/photos') ? { id: `photo-${writes.length}` } : { id: 'posted' };
+  },
 } };
 require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: class {} } };
 require.cache[require.resolve('../dist/services/instagram/auth.service')] = { exports: {} };
@@ -49,6 +52,37 @@ test('publishing never uploads any media when the stored Page is unrelated', asy
 });
 test('publishing uses the verified Page destination', async () => {
   const id = await publishFacebookPost({ account: { pageId: 'page1', igUserId: 'ig1' }, mediaType: 'IMAGE', mediaUrls: ['https://example.test/image.jpg'] }, 'test-token');
+  assert.equal(id, 'photo-1');
+  assert.deepEqual(writes.map((write) => write.path), ['/page1/photos']);
+});
+test('Facebook carousel uploads every photo privately and publishes one album post', async () => {
+  const id = await publishFacebookPost({
+    account: { pageId: 'page1', igUserId: 'ig1' },
+    mediaType: 'CAROUSEL',
+    mediaUrls: ['https://example.test/one.jpg', 'https://example.test/two.jpg', 'https://example.test/three.jpg'],
+    caption: 'Um álbum só',
+  }, 'test-token');
+
   assert.equal(id, 'posted');
-  assert.deepEqual(writes, ['/page1/photos']);
+  assert.deepEqual(writes.map((write) => write.path), [
+    '/page1/photos', '/page1/photos', '/page1/photos', '/page1/feed',
+  ]);
+  assert.deepEqual(writes.slice(0, 3).map((write) => write.params), [
+    { url: 'https://example.test/one.jpg', published: false },
+    { url: 'https://example.test/two.jpg', published: false },
+    { url: 'https://example.test/three.jpg', published: false },
+  ]);
+  assert.equal(writes[3].params.message, 'Um álbum só');
+  assert.deepEqual(
+    [0, 1, 2].map((index) => JSON.parse(writes[3].params[`attached_media[${index}]`])),
+    [{ media_fbid: 'photo-1' }, { media_fbid: 'photo-2' }, { media_fbid: 'photo-3' }],
+  );
+});
+test('Facebook photo albums reject videos before uploading any media', async () => {
+  await assert.rejects(publishFacebookPost({
+    account: { pageId: 'page1', igUserId: 'ig1' },
+    mediaType: 'CAROUSEL',
+    mediaUrls: ['https://example.test/photo.jpg', 'https://example.test/clip.mp4'],
+  }, 'test-token'), /aceita apenas fotos/);
+  assert.equal(writes.length, 0);
 });

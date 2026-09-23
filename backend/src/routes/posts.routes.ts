@@ -11,6 +11,7 @@ import { env } from '../config/env';
 import { assertPostReady } from '../services/post-readiness';
 import { ConflictError } from '../utils/errors';
 import { publicMediaBase, normalizeMediaUrl } from '../utils/public-media';
+import { publicMetaMessage } from '../utils/public-meta-message';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -338,7 +339,7 @@ router.post('/:id/publish', async (req: any, res, next) => {
         succeeded,
         failed: failedPlatforms.map((platform) => ({
           platform,
-          message: failures.find((failure) => failure.platform.toUpperCase() === platform)?.message || 'Não foi possível publicar nesta rede.',
+          message: publicMetaMessage(failures.find((failure) => failure.platform.toUpperCase() === platform)?.message || 'Não foi possível publicar nesta rede.'),
         })),
       },
     });

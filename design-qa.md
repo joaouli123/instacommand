@@ -171,3 +171,57 @@ The browser security policy rejected opening the workspace reference image for a
 - Meta describes Instagram Sans as its custom typeface and its 2026 identity uses an updated Instagram Sans; the project has no official font asset/license package, so the UI uses the system UI stack rather than claiming an exact match. Reference: https://www.meta.com/design-at-meta/blog/the-new-instagram-brand-identity/.
 - The icon set reproduces the outline style, but it is not the Instagram application's original private icon bundle. Empty-media rendering was checked; real-media crop behavior was not exercised in production to avoid uploading test content.
 - **final result: blocked** for the user's exact-font/icon-bundle requirement; the format-specific live layouts and deployment are verified.
+
+## Iteration — Draggable carousel and Facebook album preview (2026-09-23)
+
+**Source visual truth**
+
+- Current user references: Instagram carousel with 3/3 counter and dots; Facebook single-image feed preview; user asked for drag/swipe navigation, a continuous light border, soft shadow, and 10 px corners.
+
+**Implementation and verification**
+
+- `frontend/src/app/composer/page.tsx`: horizontal pointer drag/swipe changes the active slide on Instagram and Facebook carousels; dots retain 28 px hit targets; both feed cards now use a full border, 10 px radius, and subtle shadow. Facebook preview shows the selected album item, position counter, and item dots, with a note that all photos publish together in one Page post.
+- Facebook album preview warns before publish when video items are present; backend now refuses those items before uploading, because this path creates photo albums.
+- `backend/src/services/instagram/publish.service.ts`: confirmed and regression-tested private upload of each photo followed by exactly one Page feed post with every photo attached.
+- `backend/src/utils/public-meta-message.ts`: hashtag approval warning clarifies that it affects public hashtag search only; manual tags/publication remain available. Facebook `pages_manage_posts` failures now explain the required Meta configuration/re-authorization in partial publish results.
+- Frontend production build passed; frontend tests: 29/29 passed. Backend TypeScript build passed; backend tests: 108/108 passed. `git diff --check` passed.
+- Local browser opened this workspace at `http://127.0.0.1:3002/composer`; the composer and preview shell render without console errors. Local account list is empty, so a real two-plus-media carousel state and pointer gesture could not be captured visually. Production was not modified.
+- **final result: blocked** pending visual drag verification with a connected local account and carousel media. Automated coverage validates the control wiring and Facebook one-post album payload.
+
+## Iteration — Larger, chrome-free Reels preview (2026-09-23)
+
+**Source visual truth**
+
+- `C:\Users\JOAOLU~1\AppData\Local\Temp\codex-clipboard-1203b972-f29a-4f7a-949e-75862e20657b.png` (user reference, preview panel with Instagram Reels selected).
+- Target is app-owned preview content, not a physical-phone mockup: larger vertical video area; omit the iPhone status bar and bottom navigation/comment dock; reduce action rail, avatar, handle, and Follow control on Instagram and Facebook.
+
+**Earlier finding and fix**
+
+- [P1] Before: Instagram preview was constrained to 248 px wide with a faux iPhone status bar and bottom app navigation; Facebook used an incorrect 9:20 canvas, iPhone status row, and bottom comment dock. The action rail and creator block were oversized relative to the video.
+- Fix: both Reels canvases now use a responsive 9:16 ratio up to 340 px wide; removed status bars and bottom docks; reduced side actions and account details; kept video playback and the platform's top Reels controls.
+
+**Verification and remaining blocker**
+
+- Frontend production build passed; tests: 30/30 passed. `git diff --check` passed.
+- Local route: `http://localhost:3002/composer`. Browser capture showed the composer, but there were no active Instagram or Facebook accounts. The format step disables every option without a connected destination, so the actual Reels state/video could not be rendered. The reference and implementation therefore could not be captured in the same state or placed in a visual comparison.
+- Implementation screenshot path: unavailable for the matched Reels state; only the local empty-account composer was visible. No production change or publication was made.
+- Meta guidance checked: Instagram recommends 9:16 for Reels publishing; Meta's Facebook Reels publishing sample specifies 9:16 with 540 × 960 minimum. The component aspect ratio is now 9:16, while the app's format requirements retain the platform's dimensions.
+- Fidelity review from source/code: typography remains existing platform UI treatment; layout now gives the media more of the viewport; dark overlays/colors remain for legibility; no photo/video asset was in the source reference; copy remains profile/caption data with compact sizing.
+- **final result: blocked** until a connected local account and sample Reel video allow same-state visual and playback verification.
+
+## Iteration — Larger Instagram and Facebook Story previews (2026-09-23)
+
+**Source visual truth**
+
+- Instagram Story reference: C:\Users\JOAOLU~1\AppData\Local\Temp\codex-clipboard-0103b6ea-a86e-4f4a-9f37-50af851584ae.png.
+- Facebook Story reference: C:\Users\joao lucas\.codex\codex-remote-attachments\01a0bba4-33d9-7fc3-a621-a21898c77c26\1C4BFD6C-085C-4EFE-9027-C4FC09EB3A6C\2-Foto-2.jpg.
+- Requested corrections: increase the Story canvas, use the vertical 9:16 frame, remove the simulated iPhone status row, and make reply/reaction controls smaller for both networks.
+
+**Implementation and verification**
+
+- frontend/src/app/composer/page.tsx: Instagram and Facebook Stories now use responsive 9:16 canvases up to 340 px wide, 10 px corners, and a subtle shadow. Removed Instagram's faux time/signal/battery row; retained native Story progress segments. Reduced avatar/header sizing, reply field, and action controls on both.
+- Facebook Story remains clearly preview-only; publication destination restrictions were not changed.
+- Frontend production build passed; tests: 31/31 passed; \`git diff --check\` passed.
+- Opened local /composer at http://localhost:3002/composer. Screenshot shows no active Instagram account and no Facebook Page connection; both destination options are disabled, so the actual Story format cannot be selected. No same-state before/after visual capture is available. Production was not modified.
+- Reference ratio is 9:16 (1080 × 1920 as the standard full-screen canvas); Meta's public material describes 9:16 vertical creative for Reels, and its Stories ad guide is exposed at [Instagram Stories](https://www.facebook.com/business/ads-guide/update/image/instagram-story) and [Facebook Stories](https://www.facebook.com/business/ads-guide/update/image/facebook-story).
+- **final result: blocked** pending a connected local account and selectable Story state for visual QA.

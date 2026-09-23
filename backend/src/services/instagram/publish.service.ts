@@ -119,6 +119,9 @@ export const publishFacebookPost = async (post: any, token: string) => {
   }
 
   if (post.mediaType === 'CAROUSEL') {
+    if (post.mediaUrls.some((url: string) => /\.(mp4|mov)(\?|$)/i.test(url))) {
+      throw new Error('O álbum do Facebook aceita apenas fotos neste compositor. Remova os vídeos ou desmarque Facebook para este carrossel.');
+    }
     const uploaded = [];
     for (const url of post.mediaUrls) {
       const photo = await graphPost(`/${pageId}/photos`, token, { url, published: false });

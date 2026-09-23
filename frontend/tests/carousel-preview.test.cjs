@@ -18,4 +18,16 @@ test('compact Instagram carousel preview shows the selected media and dot naviga
   assert.match(source, /aria-label=\{`Pré-visualizar item \$\{index \+ 1\} de \$\{mediaItems\.length\}`\}/);
   assert.match(source, /aria-pressed=\{index === activeMediaIndex\}/);
   assert.match(source, /onClick=\{\(\) => onSelectMedia\(index\)\}/);
+  assert.match(source, /onSwipe=\{carouselSwipe\}/);
+  assert.match(source, /onPointerDown=\{onSwipe \? handlePointerDown : undefined\}/);
+  assert.match(source, /onPointerUp=\{onSwipe \? handlePointerUp : undefined\}/);
+  assert.match(source, /rounded-\[10px\] border border-\[#dbdbdb\].*shadow-sm/);
+});
+
+test('Facebook carousel preview navigates all album items and explains the single-post model', () => {
+  assert.match(source, /data-preview=\{postType === "CAROUSEL" \? "facebook-carousel" : "facebook-feed"\}/);
+  assert.match(source, /aria-label="Itens do álbum do Facebook"/);
+  assert.match(source, /Pré-visualizar foto \$\{index \+ 1\} de \$\{mediaItems\.length\}/);
+  assert.match(source, /onSwipe=\{carouselSwipe\}/);
+  assert.match(source, /As fotos serão publicadas juntas em uma única publicação da Página/);
 });

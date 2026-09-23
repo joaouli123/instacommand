@@ -1,15 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/errors';
 import { ZodError } from 'zod';
+import { publicMetaMessage } from '../utils/public-meta-message';
 
 const publicMessage = (message: string) => {
   const normalized = message.toLowerCase();
   if (message === 'THREADS_OAUTH_NOT_CONFIGURED') {
     return 'A conexão automática com Threads ainda não foi habilitada neste sistema. Você não precisa criar um aplicativo nem copiar tokens; o administrador precisa concluir a configuração uma vez no servidor.';
   }
-  if (normalized.includes('instagram public content access')) {
-    return 'A pesquisa de hashtags da Meta ainda não foi aprovada para este aplicativo. O administrador precisa solicitar o recurso Instagram Public Content Access no Meta for Developers.';
-  }
+  if (normalized.includes('instagram public content access')) return publicMetaMessage(message);
+  if (normalized.includes('pages_manage_posts') || normalized.includes('publish_to_groups')) return publicMetaMessage(message);
   if (normalized.includes('oauth access token') || normalized.includes('invalid oauth') || normalized.includes('access token')) {
     return 'A autorização da Meta expirou ou não tem a permissão necessária. Conecte a conta novamente em Contas conectadas.';
   }
