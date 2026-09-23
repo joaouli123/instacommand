@@ -148,3 +148,26 @@ The browser security policy rejected opening the workspace reference image for a
 - `git diff --check` passed.
 - Local composer inspection shows no connected Instagram, Facebook, or Threads accounts, so the text-post state could not be reached for visual confirmation. No live publication was attempted.
 - **final result: blocked** for the full visual check pending a connected local Threads account.
+
+## Iteration — Platform-specific social previews (2026-09-23)
+
+**Source visual truth**
+
+- Instagram Reels: `C:\Users\JOAOLU~1\AppData\Local\Temp\codex-clipboard-90acc58e-cad8-41ab-985c-7b5939722891.png`.
+- Instagram Stories: `C:\Users\JOAOLU~1\AppData\Local\Temp\codex-clipboard-0103b6ea-a86e-4f4a-9f37-50af851584ae.png`.
+- Threads text post (user requested a light rendition): `C:\Users\JOAOLU~1\AppData\Local\Temp\codex-clipboard-edf2b44c-f8ef-42c5-a3d0-013f10f4b1eb.png`.
+- Feed/Instagram UI references were also compared from this conversation. Product preference: no phone bezel, no Stories strip on Feed, smaller corner radii, platform/form-specific frames.
+
+**Implementation and live visual verification**
+
+- `frontend/src/app/composer/page.tsx`: separate preview layouts for Instagram Feed/Carousel, Reels, Stories, Facebook posts, and light Threads posts; media renders within the corresponding aspect ratio, and Carousel controls appear only when there are multiple items.
+- `frontend/src/app/globals.css`: preview-specific mobile/system font fallback. `frontend/package.json` and lockfile add Remix Icon line pictograms; official Simple Icons brand marks remain in use.
+- Correct deployment target is Coolify resource `instacommand-web` (base `/frontend`), not `instacommand-api`. `instacommand-web` deployment `7d005fb` completed successfully.
+- Production URL: `https://instagram.uxcode.com.br/composer`. Live browser capture (1462 × 905 CSS px) visibly verified Feed shell, Reels top/status UI + action rail + bottom navigation, Stories progress/header/reply row, Facebook Feed, and light Threads text card. No media was uploaded and no publication was attempted. The capture was displayed by the browser tool but not exported to a stable local screenshot file.
+- Build passed; TypeScript passed in the build; `node --test` passed all 23 tests; `git diff --check` passed.
+
+**Fidelity limits**
+
+- Meta describes Instagram Sans as its custom typeface and its 2026 identity uses an updated Instagram Sans; the project has no official font asset/license package, so the UI uses the system UI stack rather than claiming an exact match. Reference: https://www.meta.com/design-at-meta/blog/the-new-instagram-brand-identity/.
+- The icon set reproduces the outline style, but it is not the Instagram application's original private icon bundle. Empty-media rendering was checked; real-media crop behavior was not exercised in production to avoid uploading test content.
+- **final result: blocked** for the user's exact-font/icon-bundle requirement; the format-specific live layouts and deployment are verified.
