@@ -31,6 +31,14 @@ test('switching social preview tabs remounts the media and retries muted playbac
   assert.match(source, /onCanPlay=\{\(event\) => \{[\s\S]*?if \(!video\.paused\) return[\s\S]*?video\.muted = true[\s\S]*?video\.play\(\)/);
 });
 
+test('vertical video format uses the platform name and ratio instead of calling every video a Reel', () => {
+  assert.match(source, /const typeLabel = type\.id === "REEL" \? platformSpecific\?\.name \|\| type\.label : type\.label/);
+  assert.match(source, /const typeDescription = type\.id === "REEL" \? platformSpecific\?\.shape \|\| type\.description/);
+  assert.match(source, /THREADS:[\s\S]*?REEL: \{ name: "Post com vídeo"/);
+  assert.match(source, /INSTAGRAM:[\s\S]*?REEL: \{ name: "Reel"/);
+  assert.match(source, /FACEBOOK:[\s\S]*?REEL: \{ name: "Reel do Facebook"/);
+});
+
 test('video files without a video MIME type and common draft-video URLs are still recognized', () => {
   assert.ok(source.includes('file.type.toLowerCase().startsWith("video/") || /\\.(mp4|m4v|mov|webm|ogv|ogg)$/i.test(file.name)'));
   assert.ok(source.includes('const isVideoUrl = (src: string) => /\\.(mp4|m4v|mov|webm|ogv|ogg)(?:[?#].*)?$/i.test(src)'));

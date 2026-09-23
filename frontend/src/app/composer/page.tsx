@@ -1043,6 +1043,8 @@ export default function ComposerPage() {
                   const targetPlatforms = compatiblePlatformsFor(type.id)
                   const available = targetPlatforms.length > 0
                   const platformSpecific = targetPlatforms.length === 1 ? networkFormatDetails[targetPlatforms[0]]?.[type.id] : undefined
+                  const typeLabel = type.id === "REEL" ? platformSpecific?.name || type.label : type.label
+                  const typeDescription = type.id === "REEL" ? platformSpecific?.shape || type.description : platformSpecific?.name || type.description
                   const willAdjustDestinations = available && (targetPlatforms.length !== platforms.length || targetPlatforms.some((platform, index) => platform !== platforms[index]))
                   const unavailableReason = type.id === "STORY" ? "Stories só podem ser publicados no Instagram." : type.id === "TEXT" ? "Post de texto sem mídia está disponível somente no Threads." : `Não disponível para todas as redes escolhidas: ${platforms.filter(platform => !formatPlatforms[type.id].includes(platform)).map(platform => platformNames[platform] || platform).join(", ")}.`
                   return <button
@@ -1059,7 +1061,7 @@ export default function ComposerPage() {
                   }`}
                 >
                   <span className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl ${postType === type.id ? "bg-white text-indigo-600" : "bg-slate-50 text-slate-500"}`}><type.icon size={27} strokeWidth={1.9} /></span>
-                  <span className="text-sm font-bold">{type.label}</span><span className="mt-1 text-[11px] leading-4 text-slate-500">{platformSpecific?.name || type.description}</span>
+                  <span className="text-sm font-bold">{typeLabel}</span><span className="mt-1 text-[11px] leading-4 text-slate-500">{typeDescription}</span>
                   {!available && <span id={`format-${type.id}-unavailable`} className="mt-1 text-[10px] leading-4 text-slate-500">{unavailableReason}</span>}
                   {willAdjustDestinations && <span className="mt-2 text-[10px] font-medium leading-4 text-indigo-700">Usar em {targetPlatforms.map(platform => platformNames[platform] || platform).join(" e ")}</span>}
                   {postType === type.id && <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>}
