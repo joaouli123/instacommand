@@ -19,11 +19,16 @@ test('browser detects uploaded video type, shows loading feedback and reports un
   assert.match(source, /<video[\s\S]*?src=\{media\.src\}[\s\S]*?\/>/);
   assert.doesNotMatch(source, /<source src=\{media\.src\} type=\{getVideoMimeType\(media\)\}/);
   assert.match(source, /video\.load\(\)/);
-  assert.match(source, /onCanPlay=\{\(\) => setIsVideoReady\(true\)\}/);
+  assert.match(source, /onCanPlay=\{\(event\) => \{[\s\S]*?setIsVideoReady\(true\)[\s\S]*?video\.play\(\)/);
   assert.match(source, /Carregando vídeo…/);
   assert.match(source, /event\.currentTarget\.error\?\.code/);
   assert.match(source, /O navegador não reconhece o formato ou codec deste vídeo/);
   assert.match(source, /muted autoPlay loop playsInline preload="auto"/);
+});
+
+test('switching social preview tabs remounts the media and retries muted playback once decodable', () => {
+  assert.match(source, /<ComposerSocialPreview\s+key=\{resolvedPreviewPlatform\}/);
+  assert.match(source, /onCanPlay=\{\(event\) => \{[\s\S]*?if \(!video\.paused\) return[\s\S]*?video\.muted = true[\s\S]*?video\.play\(\)/);
 });
 
 test('video files without a video MIME type and common draft-video URLs are still recognized', () => {

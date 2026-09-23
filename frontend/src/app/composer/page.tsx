@@ -232,7 +232,13 @@ function PreviewMedia({ media, emptyMessage, className = "", preserveSourceRatio
           preload="auto"
           onLoadStart={() => { setIsVideoReady(false); setVideoError(false) }}
           onLoadedMetadata={() => setIsVideoReady(true)}
-          onCanPlay={() => setIsVideoReady(true)}
+          onCanPlay={(event) => {
+            setIsVideoReady(true)
+            const video = event.currentTarget
+            if (!video.paused) return
+            video.muted = true
+            void video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false))
+          }}
           onPlay={() => { setIsVideoReady(true); setIsPlaying(true) }}
           onPause={() => setIsPlaying(false)}
           onError={(event) => {
@@ -1423,6 +1429,7 @@ export default function ComposerPage() {
             : <p role="note" className="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-4 text-blue-900">As fotos serão publicadas juntas em uma única publicação da Página, como um álbum. Arraste a imagem ou toque nos pontos para conferir cada foto.</p>)}
           <div className="social-preview-native mt-4 flex justify-center">
             <ComposerSocialPreview
+              key={resolvedPreviewPlatform}
               postType={postType}
               previewPlatform={resolvedPreviewPlatform}
               selectedAccount={selectedAccount}
