@@ -9,7 +9,7 @@ import {
   Heart, MessageCircle, Bookmark, Share2, MoreHorizontal,
   Layers, Video, Image as ImageIcon, Sparkles, Crop, Ruler, FileImage, HardDrive,
   Copy, Timer, BadgeCheck, Scaling,
-  Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search
+  Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search, Repeat2
 } from "lucide-react"
 import { SiInstagram, SiFacebook, SiThreads } from "@icons-pack/react-simple-icons"
 import { useDropzone } from "react-dropzone"
@@ -220,25 +220,38 @@ export default function ComposerPage() {
 
   const activeMedia = mediaItems[activeMediaIndex] ?? null
   const selectedAccount = accounts.find((account) => account.id === accountId)
-  const compatibleFormats = (Object.keys(formatPlatforms) as PostType[]).filter((format) =>
-    platforms.length > 0 && platforms.every((platform) => formatPlatforms[format].includes(platform)),
-  )
+  const connectedPlatforms = [
+    ...(selectedAccount ? ["INSTAGRAM"] : []),
+    ...(selectedAccount?.pageName ? ["FACEBOOK"] : []),
+    ...(threadsAccounts.length ? ["THREADS"] : []),
+  ]
+  const compatiblePlatformsFor = (format: PostType) => {
+    const connected = connectedPlatforms.filter((platform) => formatPlatforms[format].includes(platform))
+    const selected = platforms.filter((platform) => connected.includes(platform))
+    return selected.length ? selected : connected
+  }
 
   const changePostType = (nextType: PostType) => {
-    if (!formatPlatforms[nextType].every((platform) => platforms.includes(platform)) || !platforms.every((platform) => formatPlatforms[nextType].includes(platform))) {
-      if (nextType === "TEXT" && threadsAccounts.length > 0) {
-        setPlatforms(["THREADS"])
-        setThreadsAccountId(current => current || threadsAccounts[0].id)
-        setPreviewPlatform("THREADS")
-      } else {
-        toast.error("Esse formato não é compatível com todas as redes selecionadas. Ajuste as redes na etapa 1.")
-        return
-      }
+    if (postType === nextType) return
+
+    const nextPlatforms = compatiblePlatformsFor(nextType)
+    if (!nextPlatforms.length) {
+      setStep(1)
+      toast.error(nextType === "TEXT"
+        ? "Conecte uma conta do Threads para usar publicação somente de texto."
+        : nextType === "STORY"
+          ? "Conecte uma conta profissional do Instagram para publicar Stories."
+          : "Conecte uma conta compatível com este formato.")
+      return
     }
 
+    const destinationsChanged = nextPlatforms.length !== platforms.length || nextPlatforms.some((platform, index) => platform !== platforms[index])
+    if (destinationsChanged) setPlatforms(nextPlatforms)
     setPostType(nextType)
-    if (nextType === "TEXT") setPreviewPlatform("THREADS")
-    else if (!platforms.includes(previewPlatform)) setPreviewPlatform(platforms[0] || "INSTAGRAM")
+    if (nextType === "TEXT") {
+      setThreadsAccountId(current => current || threadsAccounts[0]?.id || "")
+      setPreviewPlatform("THREADS")
+    } else if (!nextPlatforms.includes(previewPlatform)) setPreviewPlatform(nextPlatforms[0])
 
     if (nextType === "TEXT" || nextType === "STORY" || nextType === "REEL" || nextType === "FEED") {
       mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
@@ -248,6 +261,13 @@ export default function ComposerPage() {
       mediaItems.slice(10).forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
       setMediaItems(mediaItems.slice(0, 10))
       setActiveMediaIndex(0)
+    }
+
+    if (destinationsChanged) {
+      const removed = platforms.filter((platform) => !nextPlatforms.includes(platform))
+      toast.success(removed.length
+        ? `${nextType === "STORY" ? "Story" : nextType === "TEXT" ? "Post de texto" : "Formato"} ajustado para ${nextPlatforms.map((platform) => platformNames[platform] || platform).join(" e ")}; destinos incompatíveis removidos.`
+        : `Destino ajustado para ${nextPlatforms.map((platform) => platformNames[platform] || platform).join(" e ")}.`)
     }
   }
 
@@ -623,8 +643,10 @@ export default function ComposerPage() {
                 { id: "TEXT" as const, label: "Post de texto", description: "Threads · até 500 caracteres", icon: PencilLine },
               ].map(type => (
                 (() => {
-                  const available = compatibleFormats.includes(type.id)
-                  const platformSpecific = platforms.length === 1 ? networkFormatDetails[platforms[0]]?.[type.id] : undefined
+                  const targetPlatforms = compatiblePlatformsFor(type.id)
+                  const available = targetPlatforms.length > 0
+                  const platformSpecific = targetPlatforms.length === 1 ? networkFormatDetails[targetPlatforms[0]]?.[type.id] : undefined
+                  const willAdjustDestinations = available && (targetPlatforms.length !== platforms.length || targetPlatforms.some((platform, index) => platform !== platforms[index]))
                   const unavailableReason = type.id === "STORY" ? "Stories só podem ser publicados no Instagram." : type.id === "TEXT" ? "Post de texto sem mídia está disponível somente no Threads." : `Não disponível para todas as redes escolhidas: ${platforms.filter(platform => !formatPlatforms[type.id].includes(platform)).map(platform => platformNames[platform] || platform).join(", ")}.`
                   return <button
                   key={type.id}
@@ -642,13 +664,14 @@ export default function ComposerPage() {
                   <span className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl ${postType === type.id ? "bg-white text-indigo-600" : "bg-slate-50 text-slate-500"}`}><type.icon size={27} strokeWidth={1.9} /></span>
                   <span className="text-sm font-bold">{type.label}</span><span className="mt-1 text-[11px] leading-4 text-slate-500">{platformSpecific?.name || type.description}</span>
                   {!available && <span id={`format-${type.id}-unavailable`} className="mt-1 text-[10px] leading-4 text-slate-500">{unavailableReason}</span>}
+                  {willAdjustDestinations && <span className="mt-2 text-[10px] font-medium leading-4 text-indigo-700">Usar em {targetPlatforms.map(platform => platformNames[platform] || platform).join(" e ")}</span>}
                   {postType === type.id && <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>}
                 </button>
                 })()
               ))}
             </div>
             <div className="mt-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white p-4 md:p-5" role="note" aria-label="Requisitos do formato selecionado por rede">
-              <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs"><ImageIcon size={18} /></span><div><h3 className="text-sm font-bold text-slate-900">Formato e dimensões por plataforma</h3><p className="mt-0.5 text-xs text-slate-500">As opções acima são a interseção dos formatos compatíveis com todos os destinos selecionados.</p></div></div>
+              <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs"><ImageIcon size={18} /></span><div><h3 className="text-sm font-bold text-slate-900">Formato e dimensões por plataforma</h3><p className="mt-0.5 text-xs text-slate-500">Cada formato usa apenas as redes compatíveis; ao escolher Story, por exemplo, a publicação fica só no Instagram.</p></div></div>
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {platforms.map((platform) => {
                   const detail = networkFormatDetails[platform]?.[postType]
@@ -982,19 +1005,36 @@ export default function ComposerPage() {
 
       {/* Compact, feed-faithful social post preview */}
       <aside className="w-full min-w-0 xl:sticky xl:top-24 xl:h-fit">
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs md:p-5">
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-xs md:p-5">
           <div className="flex items-center justify-between gap-3"><div><h3 className="text-base font-bold text-slate-900">Prévia da publicação</h3><p className="text-xs text-slate-500">Visualização compacta do post no feed.</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500"><Eye size={17} /></span></div>
-          <div className="mt-4 flex w-full gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Prévia por plataforma">
-            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }].map(tab => <button key={tab.id} type="button" role="tab" aria-selected={previewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${previewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{tab.label}</button>)}
+          <div className="mt-4 flex w-full gap-1 rounded-md bg-slate-100 p-1" role="tablist" aria-label="Prévia por plataforma">
+            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }].map(tab => <button key={tab.id} type="button" role="tab" aria-selected={previewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${previewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{tab.label}</button>)}
           </div>
           <div className="mt-4 flex justify-center">
-            <article className="w-full max-w-[380px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <header className="flex h-12 items-center justify-between border-b border-slate-100 px-3">
-                <span className="font-serif text-lg font-bold tracking-tight text-slate-900">{previewPlatform === "FACEBOOK" ? "facebook" : previewPlatform === "THREADS" ? "Threads" : "Instagram"}</span>
-                <div className="flex items-center gap-3 text-slate-900"><Plus size={17} /><MessageCircle size={17} /></div>
-              </header>
-              {postType === "TEXT" ? <div className="min-h-32 px-4 py-5 text-sm leading-6 text-slate-800"><span className="font-semibold">@{threadsAccounts.find(account => account.id === threadsAccountId)?.username || "sua_conta"}</span><p className="mt-2 whitespace-pre-wrap break-words">{caption || <span className="text-slate-400">Seu post de texto aparecerá aqui.</span>}</p></div> : (postType === "STORY" || postType === "REEL") ? <div className="flex justify-center bg-slate-50 p-2">
-                <div className="relative max-h-[420px] w-full max-w-[236px] overflow-hidden rounded-xl bg-slate-950 text-white">
+            <article className="w-full max-w-[380px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              {postType === "TEXT" ? <div className="bg-white px-4 py-5 text-slate-950 sm:px-5 sm:py-6">
+                <div className="flex items-start gap-3">
+                  <div className="relative mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                    {(threadsAccounts.find(account => account.id === threadsAccountId)?.name || threadsAccounts.find(account => account.id === threadsAccountId)?.username || "?").slice(0, 1).toUpperCase()}
+                    <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-slate-950 text-white"><Plus size={12} strokeWidth={2.5} /></span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-[13px] font-semibold leading-5">{threadsAccounts.find(account => account.id === threadsAccountId)?.username || "sua_conta"}</p>
+                      <span className="shrink-0 text-xs text-slate-500">· agora</span>
+                      <SiThreads className="ml-auto h-[18px] w-[18px] shrink-0 text-slate-900" title="Threads" />
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-[1.55] tracking-[0.005em] text-slate-900">{caption || <span className="text-slate-400">Seu texto aparecerá aqui, com as quebras de linha exatamente como você escreveu.</span>}</p>
+                    <div className="mt-5 flex items-center gap-6 text-slate-700" aria-label="Ações da publicação no Threads">
+                      <Heart size={21} strokeWidth={1.8} aria-label="Curtir" />
+                      <MessageCircle size={21} strokeWidth={1.8} aria-label="Responder" />
+                      <Repeat2 size={21} strokeWidth={1.8} aria-label="Repostar" />
+                      <Send size={20} strokeWidth={1.8} aria-label="Compartilhar" />
+                    </div>
+                  </div>
+                </div>
+              </div> : (postType === "STORY" || postType === "REEL") ? <div className="flex justify-center bg-slate-50 p-2">
+                <div className="relative max-h-[420px] w-full max-w-[236px] overflow-hidden rounded-lg bg-slate-950 text-white">
                   <div className={`relative aspect-[9/16] w-full ${activeMedia ? "" : "bg-gradient-to-b from-slate-700 to-slate-950"}`}>
                     {activeMedia && (activeMedia.kind === "video" ? <video src={activeMedia.src} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Prévia da publicação" className="h-full w-full object-cover" />)}
                     {!activeMedia && <div className="absolute inset-0 flex flex-col items-center justify-center px-5 text-center text-white/80"><ImageIcon size={26} /><span className="mt-3 text-sm">Sua mídia vertical aparecerá aqui</span><span className="mt-1 text-xs text-white/60">Proporção 9:16</span></div>}
@@ -1018,7 +1058,7 @@ export default function ComposerPage() {
               </>}
             </article>
           </div>
-          <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">A prévia representa a estrutura do formato e da rede selecionada; o recorte final pode variar conforme a plataforma e o dispositivo.</p>
+          <p className="mt-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">A prévia representa a estrutura do formato e da rede selecionada; o recorte final pode variar conforme a plataforma e o dispositivo.</p>
         </section>
       </aside>
       </div>

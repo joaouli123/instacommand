@@ -140,3 +140,11 @@ The browser security policy rejected opening the workspace reference image for a
 - Full visual comparison at matched interaction state and a persisted implementation screenshot are unavailable; this iteration therefore remains blocked for formal design-QA sign-off.
 
 **final result: blocked**
+
+## Iteration — Light Threads text preview (2026-09-23)
+
+- Implemented a light-background Threads text-post preview with avatar/add badge, username and time, readable multiline post text, Threads mark, and like/reply/repost/share actions.
+- `npm run build` passed, including TypeScript.
+- `git diff --check` passed.
+- Local composer inspection shows no connected Instagram, Facebook, or Threads accounts, so the text-post state could not be reached for visual confirmation. No live publication was attempted.
+- **final result: blocked** for the full visual check pending a connected local Threads account.
