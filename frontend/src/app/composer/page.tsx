@@ -31,22 +31,30 @@ const formatPlatforms: Record<PostType, string[]> = {
   TEXT: ["THREADS"],
 }
 
-const networkFormatDetails: Record<string, Partial<Record<PostType, { name: string; shape: string; dimensions: string; note: string }>>> = {
+type PlatformFormatDetail = {
+  name: string
+  shape: string
+  dimensions: string
+  note: string
+  acceptedRatio?: { min: number; max: number; tolerance?: number }
+}
+
+const networkFormatDetails: Record<string, Partial<Record<PostType, PlatformFormatDetail>>> = {
   INSTAGRAM: {
-    FEED: { name: "Foto no feed", shape: "1,91:1 a 4:5", dimensions: "1080 × 1350 px recomendado", note: "Imagem única; o Instagram aceita proporções dentro da faixa indicada." },
-    CAROUSEL: { name: "Carrossel do feed", shape: "1,91:1 a 4:5", dimensions: "2 a 10 itens", note: "Use a mesma proporção em todos; o primeiro item define o enquadramento." },
-    REEL: { name: "Reel", shape: "9:16 recomendado", dimensions: "1080 × 1920 px recomendado", note: "Vídeo vertical; o limite de upload deste app é 100 MB." },
-    STORY: { name: "Story", shape: "9:16", dimensions: "1080 × 1920 px recomendado", note: "Publicação via API disponível para contas Instagram Business." },
+    FEED: { name: "Foto no feed", shape: "App 1,91:1–3:4 · API conservadora 1,91:1–4:5", dimensions: "4:5 · 1080 × 1350 px (API) · 3:4 · 1080 × 1440 px (app)", note: "O app Instagram também aceita 3:4. Como a validação da API pode divergir, 4:5 é a opção conservadora para autopublicar; a prévia mostra o ratio original." },
+    CAROUSEL: { name: "Carrossel do feed", shape: "App 1,91:1–3:4 · API conservadora 1,91:1–4:5", dimensions: "4:5 · 1080 × 1350 px (API) · 3:4 · 1080 × 1440 px (app)", note: "O app Instagram aceita 3:4 em carrosséis; a API pode validar diferente. Use um ratio uniforme e 4:5 para a opção conservadora; confira cada item." },
+    REEL: { name: "Reel", shape: "9:16 recomendado", dimensions: "1080 × 1920 px · 9:16", note: "API aceita outras proporções; 9:16 evita áreas vazias ou cortes. 3 s–15 min; este app limita o arquivo a 100 MB." },
+    STORY: { name: "Story", shape: "9:16 recomendado", dimensions: "1080 × 1920 px · 9:16", note: "Vídeo de 3 a 60 s; publicação via API para conta Instagram Business. Upload deste app: até 100 MB." },
   },
   FACEBOOK: {
-    FEED: { name: "Foto da Página", shape: "Feed: retrato, quadrado ou paisagem", dimensions: "Sem proporção única obrigatória", note: "A Página pode ajustar o enquadramento conforme a superfície." },
-    CAROUSEL: { name: "Carrossel de fotos da Página", shape: "Proporção consistente entre itens", dimensions: "2 a 10 fotos", note: "Publicado como várias fotos anexadas a uma publicação da Página." },
-    REEL: { name: "Vídeo da Página / Reel", shape: "9:16 recomendado para Reels", dimensions: "Vídeo · upload do app até 100 MB", note: "A API deste app envia vídeo para a Página; a Meta determina a exibição como vídeo/Reel." },
+    FEED: { name: "Foto da Página", shape: "Proporção original · sem ratio único", dimensions: "4:5 · 1080 × 1350 px (referência)", note: "A API de publicação da Página não fixa um único canvas; o enquadramento pode variar por dispositivo e posicionamento." },
+    CAROUSEL: { name: "Álbum de fotos da Página", shape: "Proporção original de cada foto", dimensions: "2 a 10 fotos · 1080 px de largura (referência)", note: "Este formato publica várias fotos anexadas à publicação, não o anúncio de carrossel. A prévia preserva o ratio do item selecionado." },
+    REEL: { name: "Reel do Facebook", shape: "9:16 obrigatório", dimensions: "Mínimo 540 × 960 px · recomendado 1080 × 1920 px", note: "Vídeo de 4 a 60 s e pelo menos 23 fps. O limite de upload deste app é 100 MB.", acceptedRatio: { min: 9 / 16, max: 9 / 16, tolerance: 0.001 } },
   },
   THREADS: {
-    FEED: { name: "Post com imagem", shape: "Imagem única", dimensions: "Sem tamanho fixo informado pela API", note: "O texto da publicação acompanha a imagem." },
-    CAROUSEL: { name: "Carrossel", shape: "Imagens e/ou vídeos", dimensions: "2 a 10 itens neste app", note: "A API publica cada mídia como item do carrossel." },
-    REEL: { name: "Post com vídeo", shape: "Vídeo vertical recomendado", dimensions: "Vídeo · upload do app até 100 MB", note: "Threads recebe um post com vídeo, não um Reel do Instagram." },
+    FEED: { name: "Post com imagem", shape: "Proporção original", dimensions: "Sem dimensão fixa publicada pela API", note: "O texto acompanha a imagem; a prévia mantém as dimensões originais do arquivo." },
+    CAROUSEL: { name: "Carrossel", shape: "Proporção original por item", dimensions: "2 a 10 mídias neste app", note: "Pode combinar imagens e vídeos. Threads publica um carrossel, não um Reel; confira cada item na prévia." },
+    REEL: { name: "Post com vídeo", shape: "Proporção original · sem ratio fixo", dimensions: "Até 5 min · upload deste app até 100 MB", note: "É um post de vídeo no Threads (não Reel). A API não define um canvas vertical obrigatório." },
     TEXT: { name: "Post de texto", shape: "Somente texto", dimensions: "Até 500 caracteres", note: "Formato exclusivo do Threads; sem mídia anexada." },
   },
 }
@@ -60,6 +68,36 @@ type MediaItem = {
   kind: "image" | "video"
   file?: File
   isObjectUrl: boolean
+  width?: number
+  height?: number
+}
+
+function getMediaDimensions(src: string, kind: MediaItem["kind"]) {
+  return new Promise<{ width: number; height: number } | undefined>((resolve) => {
+    if (kind === "image") {
+      const image = new Image()
+      image.onload = () => resolve(image.naturalWidth && image.naturalHeight ? { width: image.naturalWidth, height: image.naturalHeight } : undefined)
+      image.onerror = () => resolve(undefined)
+      image.src = src
+      return
+    }
+
+    const video = document.createElement("video")
+    video.preload = "metadata"
+    video.onloadedmetadata = () => resolve(video.videoWidth && video.videoHeight ? { width: video.videoWidth, height: video.videoHeight } : undefined)
+    video.onerror = () => resolve(undefined)
+    video.src = src
+  })
+}
+
+function formatAspectRatio(width: number, height: number) {
+  const ratio = width / height
+  const commonRatios: Array<[number, string]> = [
+    [1, "1:1"], [3 / 4, "3:4"], [4 / 5, "4:5"], [9 / 16, "9:16"],
+    [16 / 9, "16:9"], [1.91, "1,91:1"],
+  ]
+  const common = commonRatios.find(([value]) => Math.abs(value - ratio) < 0.015)
+  return common?.[1] ?? `${ratio.toFixed(2).replace(".", ",")}:1`
 }
 
 type ConnectedAccount = { id: string; igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null; isActive: boolean }
@@ -95,7 +133,7 @@ type SocialPreviewProps = {
   hashtags: string[]
 }
 
-function PreviewMedia({ media, emptyMessage, className = "" }: { media: MediaItem | null; emptyMessage: string; className?: string }) {
+function PreviewMedia({ media, emptyMessage, className = "", preserveSourceRatio = false, aspectRatioOverride }: { media: MediaItem | null; emptyMessage: string; className?: string; preserveSourceRatio?: boolean; aspectRatioOverride?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(true)
@@ -157,7 +195,8 @@ function PreviewMedia({ media, emptyMessage, className = "" }: { media: MediaIte
     if (video) video.muted = nextMuted
   }
 
-  return <div className={`group/video relative overflow-hidden bg-[#eef1f4] ${className}`}>
+  const aspectRatio = aspectRatioOverride || (preserveSourceRatio && media?.width && media.height ? `${media.width} / ${media.height}` : undefined)
+  return <div style={aspectRatio ? { aspectRatio } : undefined} className={`group/video relative overflow-hidden bg-[#eef1f4] ${className}`}>
     {media ? media.kind === "video"
       ? <>
         <video
@@ -214,6 +253,10 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
   const tagText = hashtags.map(tag => `#${tag}`).join(" ")
   const allCaption = [caption, tagText].filter(Boolean).join(" ")
   const accountPhoto = selectedAccount?.igProfilePicUrl
+  const firstCarouselItem = mediaItems[0]
+  const instagramCarouselRatio = isInstagram && postType === "CAROUSEL" && firstCarouselItem?.width && firstCarouselItem.height
+    ? `${firstCarouselItem.width} / ${firstCarouselItem.height}`
+    : undefined
 
   if (isInstagram && postType === "STORY") {
     return <article aria-label="Prévia de Instagram Story" className="relative aspect-[9/16] w-full max-w-[248px] overflow-hidden rounded-[15px] bg-[#16171b] text-white ring-1 ring-black/10">
@@ -314,7 +357,7 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
           <div className="flex items-center gap-1.5"><p className="truncate text-[13px] font-semibold">{username}</p><span className="shrink-0 text-xs text-[#777b83]">· agora</span><SiThreads className="ml-auto h-[19px] w-[19px] shrink-0 text-[#101114]" title="Threads" /></div>
           <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-[1.48] text-[#101114]">{caption || <span className="text-[#8b9098]">Seu texto aparecerá aqui, preservando as quebras de linha.</span>}</p>
           {tagText && <p className="mt-1 break-words text-[15px] leading-[1.48] text-[#101114]">{tagText}</p>}
-          {media && <PreviewMedia media={media} emptyMessage="" className={`mx-auto mt-3 rounded-xl border border-[#e4e6eb] ${postType === "REEL" ? "aspect-[9/16] w-full max-w-[245px]" : "aspect-[4/5] w-full"}`} />}
+          {media && <PreviewMedia media={media} emptyMessage="" preserveSourceRatio={postType !== "REEL" || (!isInstagram && !isFacebook)} className={`mx-auto mt-3 rounded-xl border border-[#e4e6eb] ${postType === "REEL" ? "aspect-[9/16] w-full max-w-[245px]" : "aspect-[4/5] w-full"}`} />}
           <div className="mt-5 flex items-center gap-6 text-[#34373d]" aria-label="Ações da publicação no Threads"><RiHeartLine size={22} /><RiChat3Line size={22} /><RiRepeat2Line size={22} /><RiSendPlaneLine size={21} /></div>
         </div>
       </div>
@@ -325,7 +368,7 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
     return <article aria-label="Prévia de publicação no Facebook" className="w-full max-w-[390px] overflow-hidden border-y border-[#e4e6eb] bg-white text-[#1c1e21]">
       <header className="flex items-center gap-2.5 px-3 py-3"><PreviewAvatar src={accountPhoto} name={username} facebook /><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{username}</p><p className="text-[11px] text-[#65676b]">Agora · <span aria-label="Público">Público</span></p></div><RiMore2Line size={21} className="text-[#65676b]" /></header>
       {allCaption && <p className="px-3 pb-3 text-[13px] leading-5">{allCaption}</p>}
-      <PreviewMedia media={media} emptyMessage="Sua foto ou vídeo aparecerá aqui" className={`border-y border-[#e4e6eb] ${postType === "REEL" ? "mx-auto aspect-[9/16] w-full max-w-[245px]" : "aspect-[4/5]"}`} />
+      <PreviewMedia media={media} emptyMessage="Sua foto ou vídeo aparecerá aqui" preserveSourceRatio={postType !== "REEL"} className={`border-y border-[#e4e6eb] ${postType === "REEL" ? "mx-auto aspect-[9/16] w-full max-w-[245px]" : "aspect-[4/5]"}`} />
       <div className="flex items-center justify-around px-2 py-2.5 text-[12px] font-semibold text-[#65676b]"><span className="flex items-center gap-1.5"><RiHeartLine size={18} />Curtir</span><span className="flex items-center gap-1.5"><RiChat3Line size={18} />Comentar</span><span className="flex items-center gap-1.5"><RiShareForwardLine size={18} />Compartilhar</span></div>
     </article>
   }
@@ -337,7 +380,7 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
       <RiMore2Line size={22} className="text-[#262626]" />
     </header>
     <div className="relative">
-      <PreviewMedia media={media} emptyMessage="Sua arte aparecerá aqui" className="aspect-[4/5]" />
+      <PreviewMedia media={media} emptyMessage="Sua arte aparecerá aqui" preserveSourceRatio={!instagramCarouselRatio} aspectRatioOverride={instagramCarouselRatio} className="aspect-[3/4]" />
       {postType === "CAROUSEL" && mediaItems.length > 1 && <span className="absolute right-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] font-semibold text-white">{activeMediaIndex + 1}/{mediaItems.length}</span>}
     </div>
     {postType === "CAROUSEL" && mediaItems.length > 1 && <nav aria-label="Itens do carrossel" className="flex items-center justify-center gap-1.5 py-2">{mediaItems.map((item, index) => <button key={item.id} type="button" aria-label={`Pré-visualizar item ${index + 1} de ${mediaItems.length}`} aria-pressed={index === activeMediaIndex} onClick={() => onSelectMedia(index)} className={`h-1.5 w-1.5 rounded-full ${index === activeMediaIndex ? "bg-[#0095f6]" : "bg-[#c7c7c7]"}`} />)}</nav>}
@@ -441,6 +484,23 @@ export default function ComposerPage() {
   }, [mediaItems])
 
   useEffect(() => {
+    const unmeasured = mediaItems.filter(item => !item.width || !item.height)
+    if (!unmeasured.length) return
+
+    let isCurrent = true
+    Promise.all(unmeasured.map(async item => ({ item, dimensions: await getMediaDimensions(item.src, item.kind) })))
+      .then(results => {
+        if (!isCurrent || !results.some(result => result.dimensions)) return
+        setMediaItems(current => current.map(item => {
+          const result = results.find(entry => entry.item.id === item.id && entry.item.src === item.src)
+          return !item.width && !item.height && result?.dimensions ? { ...item, ...result.dimensions } : item
+        }))
+      })
+
+    return () => { isCurrent = false }
+  }, [mediaItems])
+
+  useEffect(() => {
     return () => {
       mediaItemsRef.current.forEach(item => {
         if (item.isObjectUrl) URL.revokeObjectURL(item.src)
@@ -453,7 +513,7 @@ export default function ComposerPage() {
     multiple: true,
     maxFiles: 10,
     maxSize: 100 * 1024 * 1024,
-    onDrop: (acceptedFiles, fileRejections) => {
+    onDrop: async (acceptedFiles, fileRejections) => {
       if (postType === "TEXT") return
       if (fileRejections.length > 0) {
         toast.error("Alguns arquivos foram rejeitados. Use imagens ou vídeos de até 100MB.")
@@ -461,13 +521,19 @@ export default function ComposerPage() {
 
       if (acceptedFiles.length === 0) return
 
-      const incomingItems = acceptedFiles.map((file, index): MediaItem => ({
-        id: `${file.name}-${file.lastModified}-${index}`,
-        src: URL.createObjectURL(file),
-        name: file.name,
-        kind: isVideoFile(file) ? "video" : "image",
-        file,
-        isObjectUrl: true,
+      const incomingItems = await Promise.all(acceptedFiles.map(async (file, index): Promise<MediaItem> => {
+        const src = URL.createObjectURL(file)
+        const kind = isVideoFile(file) ? "video" : "image"
+        const dimensions = await getMediaDimensions(src, kind)
+        return {
+          id: `${file.name}-${file.lastModified}-${index}`,
+          src,
+          name: file.name,
+          kind,
+          file,
+          isObjectUrl: true,
+          ...dimensions,
+        }
       }))
 
       if (postType === "CAROUSEL") {
@@ -962,6 +1028,13 @@ export default function ComposerPage() {
                 {platforms.map((platform) => {
                   const detail = networkFormatDetails[platform]?.[postType]
                   if (!detail) return null
+                  const activeRatio = activeMedia?.width && activeMedia.height ? activeMedia.width / activeMedia.height : undefined
+                  const ratioTolerance = detail.acceptedRatio?.tolerance ?? 0.002
+                  const isOutsideAcceptedRatio = Boolean(detail.acceptedRatio && activeRatio !== undefined && (
+                    activeRatio < detail.acceptedRatio.min - ratioTolerance || activeRatio > detail.acceptedRatio.max + ratioTolerance
+                  ))
+                  const firstCarouselRatio = mediaItems[0]?.width && mediaItems[0].height ? mediaItems[0].width / mediaItems[0].height : undefined
+                  const instagramCarouselWillCrop = platform === "INSTAGRAM" && postType === "CAROUSEL" && activeRatio !== undefined && firstCarouselRatio !== undefined && Math.abs(activeRatio - firstCarouselRatio) > 0.002
                   const PlatformIcon = platform === "INSTAGRAM" ? SiInstagram : platform === "FACEBOOK" ? SiFacebook : SiThreads
                   const platformBg = platform === "INSTAGRAM" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : platform === "FACEBOOK" ? "bg-[#1877F2]" : "bg-[#101113]"
                   return <article key={platform} className="min-w-0 rounded-xl border border-white bg-white/90 p-3">
@@ -969,6 +1042,10 @@ export default function ComposerPage() {
                     <p className="mt-3 text-xs font-semibold text-slate-700">{detail.name}</p>
                     <p className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600"><Crop size={13} className="shrink-0 text-indigo-600" />{detail.shape}</p>
                     <p className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600"><Ruler size={13} className="shrink-0 text-indigo-600" />{detail.dimensions}</p>
+                    {activeMedia?.width && activeMedia.height && <p className={`mt-2 rounded-md px-2 py-1.5 text-[10px] leading-4 ${isOutsideAcceptedRatio ? "bg-rose-50 text-rose-700" : instagramCarouselWillCrop ? "bg-amber-50 text-amber-800" : detail.acceptedRatio ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
+                      Arquivo: {activeMedia.width} × {activeMedia.height} px · {formatAspectRatio(activeMedia.width, activeMedia.height)}
+                      {isOutsideAcceptedRatio ? " · fora da faixa aceita" : instagramCarouselWillCrop ? " · o 1º item define o corte" : detail.acceptedRatio ? " · dentro da faixa aceita" : " · confira a recomendação acima"}
+                    </p>}
                     <p className="mt-2 text-[10px] leading-4 text-slate-500">{detail.note}</p>
                   </article>
                 })}
@@ -1206,10 +1283,15 @@ export default function ComposerPage() {
             </div>}
           </div>}
 
-          <ArtworkStudio disabled={isSubmitting} onUse={files => {
+          <ArtworkStudio disabled={isSubmitting} onUse={async files => {
             if (mediaItems.length && !window.confirm('Substituir as mídias selecionadas pelas artes do editor?')) return
             mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
-            setMediaItems(files.map(file => ({ id: crypto.randomUUID(), file, src: URL.createObjectURL(file), name: file.name, kind: 'image' as const, isObjectUrl: true })))
+            const artworkItems = await Promise.all(files.map(async file => {
+              const src = URL.createObjectURL(file)
+              const dimensions = await getMediaDimensions(src, "image")
+              return { id: crypto.randomUUID(), file, src, name: file.name, kind: "image" as const, isObjectUrl: true, ...dimensions }
+            }))
+            setMediaItems(artworkItems)
             setPostType(files.length > 1 ? 'CAROUSEL' : 'FEED'); setActiveMediaIndex(0)
             toast.success('Artes anexadas. Revise a prévia e salve o rascunho; nada foi publicado.')
           }} />

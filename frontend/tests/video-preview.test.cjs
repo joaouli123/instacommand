@@ -18,6 +18,6 @@ test('Reel and Story video previews autoplay muted and expose manual playback an
 test('video files without a video MIME type and common draft-video URLs are still recognized', () => {
   assert.ok(source.includes('file.type.toLowerCase().startsWith("video/") || /\\.(mp4|m4v|mov|webm|ogv|ogg)$/i.test(file.name)'));
   assert.ok(source.includes('const isVideoUrl = (src: string) => /\\.(mp4|m4v|mov|webm|ogv|ogg)(?:[?#].*)?$/i.test(src)'));
-  assert.ok(source.includes('kind: isVideoFile(file) ? "video" : "image"'));
+  assert.ok(source.includes('const kind = isVideoFile(file) ? "video" : "image"'));
   assert.ok(source.includes("kind: isVideoUrl(src) ? 'video' : 'image'"));
 });
