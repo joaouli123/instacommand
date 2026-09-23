@@ -8,6 +8,12 @@ test('Threads-only text is allowed but empty text is rejected', () => {
   assert.doesNotThrow(() => assertPostReady({ mediaType: 'IMAGE', mediaUrls: [], platforms: ['THREADS'], caption: 'Text' }));
   assert.throws(() => assertPostReady({ mediaType: 'IMAGE', mediaUrls: [], platforms: ['THREADS'], caption: ' ' }));
 });
+test('explicit Threads text format is exclusive to Threads, has no media, and is limited to 500 characters', () => {
+  assert.doesNotThrow(() => assertPostReady({ mediaType: 'TEXT', mediaUrls: [], platforms: ['THREADS'], caption: 'Text' }));
+  assert.throws(() => assertPostReady({ mediaType: 'TEXT', mediaUrls: [], platforms: ['INSTAGRAM', 'THREADS'], caption: 'Text' }), /está disponível no Threads/);
+  assert.throws(() => assertPostReady({ mediaType: 'TEXT', mediaUrls: ['https://media.example/image.jpg'], platforms: ['THREADS'], caption: 'Text' }), /não pode conter arquivos/);
+  assert.throws(() => assertPostReady({ mediaType: 'TEXT', mediaUrls: [], platforms: ['THREADS'], caption: 'x'.repeat(501) }), /500 caracteres/);
+});
 test('carousel and single-media cardinality are enforced', () => {
   assert.throws(() => assertPostReady({ mediaType: 'CAROUSEL', mediaUrls: ['a'] }));
   assert.throws(() => assertPostReady({ mediaType: 'IMAGE', mediaUrls: ['a', 'b'] }));

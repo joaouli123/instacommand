@@ -20,7 +20,37 @@ import { DailyContentPlan } from "@/components/dashboard/DailyContentPlan"
 import { ArtworkStudio } from "@/components/dashboard/ArtworkStudio"
 import { selectAccount } from "@/lib/active-account-store"
 
-type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY"
+type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY" | "TEXT"
+
+const formatPlatforms: Record<PostType, string[]> = {
+  FEED: ["INSTAGRAM", "FACEBOOK", "THREADS"],
+  CAROUSEL: ["INSTAGRAM", "FACEBOOK", "THREADS"],
+  REEL: ["INSTAGRAM", "FACEBOOK", "THREADS"],
+  STORY: ["INSTAGRAM"],
+  TEXT: ["THREADS"],
+}
+
+const networkFormatDetails: Record<string, Partial<Record<PostType, { name: string; shape: string; dimensions: string; note: string }>>> = {
+  INSTAGRAM: {
+    FEED: { name: "Foto no feed", shape: "1,91:1 a 4:5", dimensions: "1080 × 1350 px recomendado", note: "Imagem única; o Instagram aceita proporções dentro da faixa indicada." },
+    CAROUSEL: { name: "Carrossel do feed", shape: "1,91:1 a 4:5", dimensions: "2 a 10 itens", note: "Use a mesma proporção em todos; o primeiro item define o enquadramento." },
+    REEL: { name: "Reel", shape: "9:16 recomendado", dimensions: "1080 × 1920 px recomendado", note: "Vídeo vertical; o limite de upload deste app é 100 MB." },
+    STORY: { name: "Story", shape: "9:16", dimensions: "1080 × 1920 px recomendado", note: "Publicação via API disponível para contas Instagram Business." },
+  },
+  FACEBOOK: {
+    FEED: { name: "Foto da Página", shape: "Feed: retrato, quadrado ou paisagem", dimensions: "Sem proporção única obrigatória", note: "A Página pode ajustar o enquadramento conforme a superfície." },
+    CAROUSEL: { name: "Carrossel de fotos da Página", shape: "Proporção consistente entre itens", dimensions: "2 a 10 fotos", note: "Publicado como várias fotos anexadas a uma publicação da Página." },
+    REEL: { name: "Vídeo da Página / Reel", shape: "9:16 recomendado para Reels", dimensions: "Vídeo · upload do app até 100 MB", note: "A API deste app envia vídeo para a Página; a Meta determina a exibição como vídeo/Reel." },
+  },
+  THREADS: {
+    FEED: { name: "Post com imagem", shape: "Imagem única", dimensions: "Sem tamanho fixo informado pela API", note: "O texto da publicação acompanha a imagem." },
+    CAROUSEL: { name: "Carrossel", shape: "Imagens e/ou vídeos", dimensions: "2 a 10 itens neste app", note: "A API publica cada mídia como item do carrossel." },
+    REEL: { name: "Post com vídeo", shape: "Vídeo vertical recomendado", dimensions: "Vídeo · upload do app até 100 MB", note: "Threads recebe um post com vídeo, não um Reel do Instagram." },
+    TEXT: { name: "Post de texto", shape: "Somente texto", dimensions: "Até 500 caracteres", note: "Formato exclusivo do Threads; sem mídia anexada." },
+  },
+}
+
+const platformNames: Record<string, string> = { INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads" }
 
 type MediaItem = {
   id: string
@@ -146,6 +176,7 @@ export default function ComposerPage() {
     maxFiles: 10,
     maxSize: 100 * 1024 * 1024,
     onDrop: (acceptedFiles, fileRejections) => {
+      if (postType === "TEXT") return
       if (fileRejections.length > 0) {
         toast.error("Alguns arquivos foram rejeitados. Use imagens ou vídeos de até 100MB.")
       }
@@ -189,21 +220,33 @@ export default function ComposerPage() {
 
   const activeMedia = mediaItems[activeMediaIndex] ?? null
   const selectedAccount = accounts.find((account) => account.id === accountId)
+  const compatibleFormats = (Object.keys(formatPlatforms) as PostType[]).filter((format) =>
+    platforms.length > 0 && platforms.every((platform) => formatPlatforms[format].includes(platform)),
+  )
 
   const changePostType = (nextType: PostType) => {
-    setPostType(nextType)
-
-    if (nextType === "STORY") {
-      setPlatforms((current) => current.filter((platform) => platform === "INSTAGRAM"))
-    } else if (!platforms.length) {
-      setPlatforms(["INSTAGRAM"])
+    if (!formatPlatforms[nextType].every((platform) => platforms.includes(platform)) || !platforms.every((platform) => formatPlatforms[nextType].includes(platform))) {
+      if (nextType === "TEXT" && threadsAccounts.length > 0) {
+        setPlatforms(["THREADS"])
+        setThreadsAccountId(current => current || threadsAccounts[0].id)
+        setPreviewPlatform("THREADS")
+      } else {
+        toast.error("Esse formato não é compatível com todas as redes selecionadas. Ajuste as redes na etapa 1.")
+        return
+      }
     }
 
-    if (nextType !== "CAROUSEL" && mediaItems.length > 1) {
-      mediaItems.slice(1).forEach(item => {
-        if (item.isObjectUrl) URL.revokeObjectURL(item.src)
-      })
-      setMediaItems([mediaItems[0]])
+    setPostType(nextType)
+    if (nextType === "TEXT") setPreviewPlatform("THREADS")
+    else if (!platforms.includes(previewPlatform)) setPreviewPlatform(platforms[0] || "INSTAGRAM")
+
+    if (nextType === "TEXT" || nextType === "STORY" || nextType === "REEL" || nextType === "FEED") {
+      mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
+      setMediaItems([])
+      setActiveMediaIndex(0)
+    } else if (mediaItems.length > 10) {
+      mediaItems.slice(10).forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
+      setMediaItems(mediaItems.slice(0, 10))
       setActiveMediaIndex(0)
     }
   }
@@ -314,9 +357,16 @@ export default function ComposerPage() {
   }
 
   const togglePlatform = (platform: string) => {
-    setPlatforms((current) => current.includes(platform)
-      ? current.filter((item) => item !== platform)
-      : [...current, platform])
+    const nextPlatforms = platforms.includes(platform)
+      ? platforms.filter((item) => item !== platform)
+      : [...platforms, platform]
+    if (postType === "TEXT" && (nextPlatforms.length !== 1 || nextPlatforms[0] !== "THREADS")) {
+      setPostType("FEED")
+      setMediaItems([])
+      toast("Formato ajustado para foto única, compatível com as redes escolhidas.")
+    }
+    setPlatforms(nextPlatforms)
+    if (!nextPlatforms.includes(previewPlatform)) setPreviewPlatform(nextPlatforms[0] || "INSTAGRAM")
   }
 
   const generateWithAi = async (mode: "caption" | "plan") => {
@@ -355,7 +405,11 @@ export default function ComposerPage() {
   }
 
   const submitPost = async (mode: "publish" | "schedule") => {
-    const textOnlyThreads = platforms.length === 1 && platforms[0] === "THREADS"
+    const textOnlyThreads = postType === "TEXT" && platforms.length === 1 && platforms[0] === "THREADS"
+    if (postType === "TEXT" && !textOnlyThreads) {
+      toast.error("Post de texto sem mídia só pode ser publicado no Threads.")
+      return
+    }
     if (mediaItems.length === 0 && !textOnlyThreads) {
       toast.error(`Adicione pelo menos uma imagem ou vídeo antes de ${mode === "publish" ? "publicar" : "agendar"}.`)
       return
@@ -378,6 +432,14 @@ export default function ComposerPage() {
     }
     if (postType === "CAROUSEL" && mediaItems.length < 2) {
       toast.error("Um carrossel precisa ter pelo menos duas mídias.")
+      return
+    }
+    if (postType === "FEED" && mediaItems.some((item) => item.kind !== "image")) {
+      toast.error("Foto única aceita apenas uma imagem. Para vídeos, escolha o formato de vídeo/Reel.")
+      return
+    }
+    if (textOnlyThreads && caption.length > 500) {
+      toast.error("O texto do Threads tem limite de 500 caracteres.")
       return
     }
     if (postType === "REEL" && mediaItems.some((item) => item.kind !== "video")) {
@@ -411,6 +473,10 @@ export default function ComposerPage() {
       const finalCaption = [caption.trim(), hashtags.filter(tag => !existingTags.has(`#${tag}`.toLowerCase())).map((tag) => `#${tag}`).join(" ")]
         .filter(Boolean)
         .join("\n\n")
+      if (textOnlyThreads && finalCaption.length > 500) {
+        toast.error("Texto e hashtags juntos ultrapassam o limite de 500 caracteres do Threads.")
+        return
+      }
       const payload = {
         accountId,
         threadsAccountId: platforms.includes("THREADS") ? threadsAccountId : undefined,
@@ -464,7 +530,10 @@ export default function ComposerPage() {
   const saveDraftChanges = async () => {
     if (isSubmitting) return
     if (!accountId) { toast.error('Selecione uma conta antes de salvar.'); return }
-    if (!draftId && !mediaItems.length) { toast.error('Adicione uma mídia antes de criar este rascunho.'); return }
+    const textOnlyThreads = postType === 'TEXT' && platforms.length === 1 && platforms[0] === 'THREADS'
+    if (!draftId && !mediaItems.length && !textOnlyThreads) { toast.error('Adicione uma mídia ou escolha Post de texto no Threads antes de criar este rascunho.'); return }
+    if (textOnlyThreads && !caption.trim()) { toast.error('Escreva o texto do post antes de salvar.'); return }
+    if (textOnlyThreads && caption.length > 500) { toast.error('O texto do Threads tem limite de 500 caracteres.'); return }
     setIsSubmitting(true)
     try {
       const files = mediaItems.flatMap(item => item.file ? [item.file] : [])
@@ -540,40 +609,62 @@ export default function ComposerPage() {
           <div className="border-b border-slate-100 pb-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-indigo-600">Nova publicação · etapa {step} de 4</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 md:text-[28px]">{["Onde você quer publicar?", "Qual formato você deseja usar?", "Como você quer criar o conteúdo?", "Tudo pronto para publicar?"][step - 1]}</h2><p className="mt-1 text-sm text-slate-500">{["Selecione a rede social onde seu post será publicado.", "Escolha o formato ideal para o seu conteúdo.", "Escreva seu texto, adicione as mídias e personalize o post.", "Revise os detalhes e escolha quando publicar."][step - 1]}</p></div>
           {/* Post Type Selector */}
           {step === 2 && <div className="animate-fade-in">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <span className="text-xs font-semibold text-slate-600">Destinos escolhidos</span>
+              {platforms.map((platform) => <span key={platform} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700">{platformNames[platform] || platform}</span>)}
+              {!platforms.length && <span className="text-xs text-slate-500">Volte à etapa 1 e escolha uma rede.</span>}
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {[
-                { id: "FEED", label: "Post único", description: "Uma foto no feed", icon: ImageIcon },
-                { id: "CAROUSEL", label: "Carrossel", description: "Várias mídias em um post", icon: Copy },
-                { id: "REEL", label: "Reels", description: "Vídeo vertical", icon: Video },
-                { id: "STORY", label: "Story", description: "Conteúdo temporário", icon: PlusCircle },
+                { id: "FEED" as const, label: platforms.length === 1 && platforms[0] === "FACEBOOK" ? "Foto da Página" : platforms.length === 1 && platforms[0] === "THREADS" ? "Post com imagem" : "Foto única", description: "Uma imagem · feed ou post", icon: ImageIcon },
+                { id: "CAROUSEL" as const, label: platforms.length === 1 && platforms[0] === "FACEBOOK" ? "Álbum de fotos" : "Carrossel", description: "2 a 10 mídias no mesmo post", icon: Copy },
+                { id: "REEL" as const, label: platforms.length === 1 && platforms[0] === "INSTAGRAM" ? "Reel" : platforms.length === 1 && platforms[0] === "FACEBOOK" ? "Vídeo da Página" : platforms.length === 1 && platforms[0] === "THREADS" ? "Vídeo" : "Vídeo vertical", description: "Vídeo · nome muda por rede", icon: Video },
+                { id: "STORY" as const, label: "Story", description: "Instagram Business apenas", icon: PlusCircle },
+                { id: "TEXT" as const, label: "Post de texto", description: "Threads · até 500 caracteres", icon: PencilLine },
               ].map(type => (
-                <button
+                (() => {
+                  const available = compatibleFormats.includes(type.id)
+                  const platformSpecific = platforms.length === 1 ? networkFormatDetails[platforms[0]]?.[type.id] : undefined
+                  const unavailableReason = type.id === "STORY" ? "Stories só podem ser publicados no Instagram." : type.id === "TEXT" ? "Post de texto sem mídia está disponível somente no Threads." : `Não disponível para todas as redes escolhidas: ${platforms.filter(platform => !formatPlatforms[type.id].includes(platform)).map(platform => platformNames[platform] || platform).join(", ")}.`
+                  return <button
                   key={type.id}
                   type="button"
-                  onClick={() => changePostType(type.id as PostType)}
+                  onClick={() => available && changePostType(type.id)}
+                  disabled={!available}
                   aria-pressed={postType === type.id}
-                  className={`relative flex min-h-32 flex-col items-start rounded-2xl border p-3 text-left transition-all md:min-h-36 md:p-4 ${
+                  aria-describedby={!available ? `format-${type.id}-unavailable` : undefined}
+                  className={`relative flex min-h-32 flex-col items-start rounded-2xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-55 md:min-h-36 md:p-4 ${
                     postType === type.id
                       ? "border-indigo-600 bg-indigo-50/70 text-indigo-700 shadow-xs ring-1 ring-indigo-600"
                       : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
                   <span className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl ${postType === type.id ? "bg-white text-indigo-600" : "bg-slate-50 text-slate-500"}`}><type.icon size={27} strokeWidth={1.9} /></span>
-                  <span className="text-sm font-bold">{type.label}</span><span className="mt-1 text-[11px] leading-4 text-slate-500">{type.description}</span>
+                  <span className="text-sm font-bold">{type.label}</span><span className="mt-1 text-[11px] leading-4 text-slate-500">{platformSpecific?.name || type.description}</span>
+                  {!available && <span id={`format-${type.id}-unavailable`} className="mt-1 text-[10px] leading-4 text-slate-500">{unavailableReason}</span>}
                   {postType === type.id && <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>}
                 </button>
+                })()
               ))}
             </div>
-            <div className="mt-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white p-4 md:p-5" role="note" aria-label="Requisitos do formato selecionado">
-              <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs"><ImageIcon size={18} /></span><div><h3 className="text-sm font-bold text-slate-900">Requisitos deste formato</h3><p className="mt-0.5 text-xs text-slate-500">Recomendação de tamanho e limites para preparar a publicação.</p></div></div>
-              <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-                {(postType === "STORY" ? [["Proporção", "9:16 vertical", Crop], ["Tamanho recomendado", "1080 × 1920 px", Ruler], ["Acesso via API", "Conta Business", BadgeCheck], ["Arquivo", "Este app: até 100 MB", HardDrive]] : postType === "REEL" ? [["Proporção", "9:16 recomendado", Crop], ["Tamanho recomendado", "1080 × 1920 px", Ruler], ["Duração", "3 s a 15 min", Timer], ["Vídeo", "MP4/MOV · app até 100 MB", FileImage]] : postType === "CAROUSEL" ? [["Quantidade", "2 a 10 mídias", Copy], ["Proporção", "Igual em todos os itens", Scaling], ["Tamanho recomendado", "1080 × 1350 px · 4:5", Ruler], ["Arquivo", "Este app: até 100 MB/item", HardDrive]] : [["Proporção aceita", "1,91:1 a 4:5", Crop], ["Tamanho recomendado", "1080 × 1350 px · 4:5", Ruler], ["Imagem", "JPEG", FileImage], ["Arquivo", "Este app: até 100 MB", HardDrive]]).map(([label, value, Icon]) => {
-                  const RequirementIcon = Icon as typeof Crop
-                  return <div key={label as string} className="min-w-0 rounded-xl border border-white bg-white/90 px-3 py-2.5"><div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600"><RequirementIcon size={18} strokeWidth={1.9} /></div><span className="block text-[10px] font-medium uppercase tracking-wide text-slate-500">{label as string}</span><span className="mt-1 block text-xs font-semibold leading-4 text-slate-800">{value as string}</span></div>
+            <div className="mt-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white p-4 md:p-5" role="note" aria-label="Requisitos do formato selecionado por rede">
+              <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs"><ImageIcon size={18} /></span><div><h3 className="text-sm font-bold text-slate-900">Formato e dimensões por plataforma</h3><p className="mt-0.5 text-xs text-slate-500">As opções acima são a interseção dos formatos compatíveis com todos os destinos selecionados.</p></div></div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {platforms.map((platform) => {
+                  const detail = networkFormatDetails[platform]?.[postType]
+                  if (!detail) return null
+                  const PlatformIcon = platform === "INSTAGRAM" ? SiInstagram : platform === "FACEBOOK" ? SiFacebook : SiThreads
+                  const platformBg = platform === "INSTAGRAM" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : platform === "FACEBOOK" ? "bg-[#1877F2]" : "bg-[#101113]"
+                  return <article key={platform} className="min-w-0 rounded-xl border border-white bg-white/90 p-3">
+                    <div className="flex items-center gap-2"><span className={`flex h-8 w-8 items-center justify-center rounded-lg ${platformBg}`}><PlatformIcon size={18} color="#fff" /></span><h4 className="text-sm font-bold text-slate-900">{platformNames[platform]}</h4></div>
+                    <p className="mt-3 text-xs font-semibold text-slate-700">{detail.name}</p>
+                    <p className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600"><Crop size={13} className="shrink-0 text-indigo-600" />{detail.shape}</p>
+                    <p className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600"><Ruler size={13} className="shrink-0 text-indigo-600" />{detail.dimensions}</p>
+                    <p className="mt-2 text-[10px] leading-4 text-slate-500">{detail.note}</p>
+                  </article>
                 })}
               </div>
-              {postType === "REEL" && <p className="mt-3 text-[11px] leading-4 text-slate-500">A referência da API da Meta aceita arquivos de Reel até 1 GB; o limite próprio do upload do InstaCommand é 100 MB.</p>}
-              {postType === "STORY" && <p className="mt-3 text-[11px] leading-4 text-slate-500">No fluxo de publicação via API, Stories estão disponíveis para contas Instagram Business.</p>}
+              {postType === "TEXT" && <p className="mt-3 text-[11px] leading-4 text-slate-500">O limite de texto do Threads é 500 caracteres. O compositor também permite hashtags dentro desse limite.</p>}
             </div>
           </div>
           }
@@ -594,7 +685,7 @@ export default function ComposerPage() {
                 { id: "THREADS", label: "Threads", Icon: SiThreads, handle: threadsAccounts[0] ? `@${threadsAccounts[0].username}` : "Conta do Threads", help: threadsAccounts.length ? "Conectado" : "Não conectado", color: "threads" },
               ].map((target) => {
                 const selected = platforms.includes(target.id)
-                const unavailable = (target.id === "INSTAGRAM" && !selectedAccount) || (target.id === "THREADS" && (!threadsAccounts.length || postType === "STORY")) || (target.id === "FACEBOOK" && (!selectedAccount?.pageName || postType === "STORY"))
+                const unavailable = (target.id === "INSTAGRAM" && (!selectedAccount || postType === "TEXT")) || (target.id === "THREADS" && (!threadsAccounts.length || postType === "STORY")) || (target.id === "FACEBOOK" && (!selectedAccount?.pageName || postType === "STORY" || postType === "TEXT"))
                 return (
                   <button
                     key={target.id}
@@ -696,9 +787,9 @@ export default function ComposerPage() {
           <div>
             <div className="mb-2 flex items-center justify-between gap-3">
               <label htmlFor="post-caption" className="block text-sm font-semibold text-slate-800">Texto do post</label>
-              <span className={`text-xs font-medium ${caption.length > 2100 ? "text-amber-700" : "text-slate-400"}`}>{caption.length.toLocaleString("pt-BR")}/2.200 caracteres</span>
+              <span className={`text-xs font-medium ${caption.length > (postType === "TEXT" ? 450 : 2100) ? "text-amber-700" : "text-slate-400"}`}>{caption.length.toLocaleString("pt-BR")}/{postType === "TEXT" ? "500" : "2.200"} caracteres</span>
             </div>
-            <textarea id="post-caption" className="h-28 w-full resize-y rounded-xl border border-slate-200 bg-white p-3.5 text-sm leading-5 text-slate-900 shadow-xs transition placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 md:h-32" placeholder="Escreva sua legenda, conte a ideia e personalize o post..." value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={2200} />
+            <textarea id="post-caption" className="h-28 w-full resize-y rounded-xl border border-slate-200 bg-white p-3.5 text-sm leading-5 text-slate-900 shadow-xs transition placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 md:h-32" placeholder={postType === "TEXT" ? "Escreva seu post para o Threads..." : "Escreva sua legenda, conte a ideia e personalize o post..."} value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={postType === "TEXT" ? 500 : 2200} />
             <div className="mt-2 flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={speakCaption} disabled={!caption.trim()} className="h-9 gap-2 rounded-lg border-indigo-100 px-3 text-xs text-indigo-700"><Mic size={15} />Ouvir texto</Button>
               <Button type="button" variant="outline" disabled={aiLoading || !caption.trim()} onClick={improveCaption} className="h-9 gap-2 rounded-lg border-indigo-100 px-3 text-xs text-indigo-700"><Sparkles size={15} />{aiLoading ? "Revisando…" : "Melhorar com IA"}</Button>
@@ -706,7 +797,7 @@ export default function ComposerPage() {
           </div>
 
           {/* Media upload */}
-          <div>
+          {postType !== "TEXT" && <div>
             <div className="mb-2.5 flex items-center justify-between gap-3">
               <label className="block text-sm font-semibold text-slate-800">Mídias</label>
               <span className="text-xs font-medium text-slate-400">{mediaItems.length}{postType === "CAROUSEL" ? " de 10 itens" : mediaItems.length === 1 ? " arquivo" : " arquivos"}</span>
@@ -804,7 +895,7 @@ export default function ComposerPage() {
                 </p>
               </div>
             </div>}
-          </div>
+          </div>}
 
           <ArtworkStudio disabled={isSubmitting} onUse={files => {
             if (mediaItems.length && !window.confirm('Substituir as mídias selecionadas pelas artes do editor?')) return
@@ -877,7 +968,7 @@ export default function ComposerPage() {
 
           {step === 4 && <div className="animate-fade-in space-y-5">
             <section><h3 className="text-sm font-bold text-slate-900">Redes sociais selecionadas</h3><div className="mt-2 flex flex-wrap gap-2">{platforms.map(platform => { const network = platform === "INSTAGRAM" ? { label: `Instagram · @${selectedAccount?.igUsername || "conta"}`, Icon: SiInstagram, bg: "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" } : platform === "FACEBOOK" ? { label: `Facebook · ${selectedAccount?.pageName || "Página"}`, Icon: SiFacebook, bg: "bg-[#1877F2]" } : { label: `Threads · @${threadsAccounts.find(account => account.id === threadsAccountId)?.username || "conta"}`, Icon: SiThreads, bg: "bg-[#101113]" }; return <span key={platform} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><span className={`flex h-7 w-7 items-center justify-center rounded-lg ${network.bg}`}><network.Icon size={17} color="#fff" title={network.label} /></span>{network.label}</span> })}</div></section>
-            <section className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Formato</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "FEED" ? "Post único · foto" : postType === "CAROUSEL" ? "Carrossel" : postType === "REEL" ? "Reel" : "Story"}</p></div><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Mídia</span><p className="mt-1 text-sm font-semibold text-slate-900">{mediaItems.length} {mediaItems.length === 1 ? "arquivo" : "arquivos"}</p></div></section>
+            <section className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Formato</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "FEED" ? "Foto única" : postType === "CAROUSEL" ? "Carrossel" : postType === "REEL" ? "Vídeo / Reel" : postType === "STORY" ? "Story" : "Post de texto · Threads"}</p></div><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Mídia</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "TEXT" ? "Somente texto" : `${mediaItems.length} ${mediaItems.length === 1 ? "arquivo" : "arquivos"}`}</p></div></section>
             <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-bold text-slate-900">Resumo do conteúdo</h3><div className="mt-3 flex gap-3">{activeMedia && <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white">{activeMedia.kind === "video" ? <video src={activeMedia.src} muted playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Mídia selecionada" className="h-full w-full object-cover" />}</div>}<div className="min-w-0"><p className="line-clamp-4 whitespace-pre-wrap text-sm leading-5 text-slate-700">{caption || "Adicione a legenda na etapa Conteúdo."}</p>{hashtags.length > 0 && <p className="mt-1 line-clamp-1 text-xs text-indigo-600">{hashtags.map(tag => `#${tag} `)}</p>}</div></div></section>
             <section className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4"><label htmlFor="publish-date" className="text-sm font-semibold text-slate-900">Data e horário para agendar</label><p className="mb-2 mt-1 text-xs text-slate-500">A publicação imediata ignora este horário.</p><Input id="publish-date" type="datetime-local" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="h-11 rounded-xl bg-white text-sm font-medium" /></section>
           </div>}
@@ -902,7 +993,7 @@ export default function ComposerPage() {
                 <span className="font-serif text-lg font-bold tracking-tight text-slate-900">{previewPlatform === "FACEBOOK" ? "facebook" : previewPlatform === "THREADS" ? "Threads" : "Instagram"}</span>
                 <div className="flex items-center gap-3 text-slate-900"><Plus size={17} /><MessageCircle size={17} /></div>
               </header>
-              {(postType === "STORY" || postType === "REEL") ? <div className="flex justify-center bg-slate-50 p-2">
+              {postType === "TEXT" ? <div className="min-h-32 px-4 py-5 text-sm leading-6 text-slate-800"><span className="font-semibold">@{threadsAccounts.find(account => account.id === threadsAccountId)?.username || "sua_conta"}</span><p className="mt-2 whitespace-pre-wrap break-words">{caption || <span className="text-slate-400">Seu post de texto aparecerá aqui.</span>}</p></div> : (postType === "STORY" || postType === "REEL") ? <div className="flex justify-center bg-slate-50 p-2">
                 <div className="relative max-h-[420px] w-full max-w-[236px] overflow-hidden rounded-xl bg-slate-950 text-white">
                   <div className={`relative aspect-[9/16] w-full ${activeMedia ? "" : "bg-gradient-to-b from-slate-700 to-slate-950"}`}>
                     {activeMedia && (activeMedia.kind === "video" ? <video src={activeMedia.src} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Prévia da publicação" className="h-full w-full object-cover" />)}
@@ -927,7 +1018,7 @@ export default function ComposerPage() {
               </>}
             </article>
           </div>
-          <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">A prévia é estimada; mídias de feed e carrossel usam a proporção vertical do Instagram. Legenda, botões e indicadores seguem o layout do post.</p>
+          <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">A prévia representa a estrutura do formato e da rede selecionada; o recorte final pode variar conforme a plataforma e o dispositivo.</p>
         </section>
       </aside>
       </div>

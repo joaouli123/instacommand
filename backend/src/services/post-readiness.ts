@@ -4,6 +4,13 @@ export function assertPostReady(post: { mediaType: string; mediaUrls: string[]; 
   const platforms = post.platforms?.length ? post.platforms : ['INSTAGRAM'];
   if (platforms.some(p => !['INSTAGRAM', 'FACEBOOK', 'THREADS'].includes(p))) throw new ValidationError('Rede de publicação inválida.');
   if (!Array.isArray(post.mediaUrls)) throw new ValidationError('Mídias inválidas.');
+  if (post.mediaType === 'TEXT') {
+    if (platforms.length !== 1 || platforms[0] !== 'THREADS') throw new ValidationError('Post de texto sem mídia só está disponível no Threads.');
+    if (post.mediaUrls.length) throw new ValidationError('Post de texto não pode conter arquivos de mídia.');
+    if (!post.caption?.trim()) throw new ValidationError('Escreva o texto da publicação.');
+    if (post.caption.length > 500) throw new ValidationError('O texto do Threads deve ter até 500 caracteres.');
+    return;
+  }
   const textOnly = platforms.length === 1 && platforms[0] === 'THREADS' && !post.mediaUrls.length;
   if (textOnly) {
     if (!post.caption?.trim()) throw new ValidationError('Escreva o texto da publicação.');

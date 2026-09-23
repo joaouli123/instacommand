@@ -63,8 +63,11 @@ router.post('/', async (req: any, res, next) => {
     if (textOnlyThreads && mediaUrls.length === 0 && !String(caption || '').trim()) {
       return res.status(400).json({ error: 'Escreva um texto antes de publicar somente no Threads.' });
     }
-    if (!['IMAGE', 'CAROUSEL', 'REEL', 'STORY'].includes(mediaType)) {
+    if (!['IMAGE', 'CAROUSEL', 'REEL', 'STORY', 'TEXT'].includes(mediaType)) {
       return res.status(400).json({ error: 'Formato de publicação inválido.' });
+    }
+    if (mediaType === 'TEXT' && (!textOnlyThreads || mediaUrls.length > 0 || !String(caption || '').trim() || String(caption).length > 500)) {
+      return res.status(400).json({ error: 'Post de texto exige somente Threads, sem mídia e com até 500 caracteres.' });
     }
     if (mediaType === 'STORY' && normalizedPlatforms.some((platform: string) => platform !== 'INSTAGRAM')) {
       return res.status(400).json({ error: 'Stories só podem ser publicados pelo Instagram nesta versão da API.' });
@@ -158,7 +161,7 @@ router.patch('/:id', async (req: any, res, next) => {
     if (!['DRAFT', 'SCHEDULED', 'FAILED'].includes(post.status)) return res.status(409).json({ error: 'Esta publicação não pode mais ser editada.' });
     if (status !== undefined && !['DRAFT', 'SCHEDULED'].includes(status)) return res.status(400).json({ error: 'Status de edição inválido.' });
     if (mediaUrls !== undefined && (!Array.isArray(mediaUrls) || mediaUrls.length > 10 || mediaUrls.some((url: unknown) => typeof url !== 'string' || !/^https?:\/\//.test(url)))) return res.status(400).json({ error: 'Mídias inválidas.' });
-    if (mediaType !== undefined && !['IMAGE', 'CAROUSEL', 'REEL', 'STORY'].includes(mediaType)) return res.status(400).json({ error: 'Formato inválido.' });
+    if (mediaType !== undefined && !['IMAGE', 'CAROUSEL', 'REEL', 'STORY', 'TEXT'].includes(mediaType)) return res.status(400).json({ error: 'Formato inválido.' });
     if (caption !== undefined && (typeof caption !== 'string' || caption.length > 2200)) return res.status(400).json({ error: 'A legenda deve ter até 2200 caracteres.' });
     if (hashtags !== undefined && (!Array.isArray(hashtags) || hashtags.length > 30 || hashtags.some((tag: unknown) => typeof tag !== 'string' || tag.length > 100))) return res.status(400).json({ error: 'Hashtags inválidas.' });
     if (platforms !== undefined && (!Array.isArray(platforms) || !platforms.length)) return res.status(400).json({ error: 'Selecione ao menos uma rede.' });
@@ -178,6 +181,12 @@ router.patch('/:id', async (req: any, res, next) => {
       const account = await prisma.instagramAccount.findFirst({ where: { id: post.accountId, userId: req.user.id, isActive: true } });
       if (!account?.pageId) return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
     }
+    const nextMediaType = mediaType || post.mediaType;
+    const nextMediaUrls = mediaUrls ?? post.mediaUrls;
+    const nextCaption = caption ?? post.caption;
+    if (nextMediaType === 'TEXT' && (nextPlatforms.length !== 1 || nextPlatforms[0] !== 'THREADS' || nextMediaUrls.length > 0 || !String(nextCaption || '').trim() || String(nextCaption).length > 500)) {
+      return res.status(400).json({ error: 'Post de texto exige somente Threads, sem mídia e com até 500 caracteres.' });
+    }
     if ((mediaType || post.mediaType) === 'STORY' && nextPlatforms.some((platform: string) => platform !== 'INSTAGRAM')) {
       return res.status(400).json({ error: 'Stories só podem ser publicados pelo Instagram nesta versão da API.' });
     }
@@ -186,7 +195,7 @@ router.patch('/:id', async (req: any, res, next) => {
     if (Number.isNaN(nextDate.getTime())) return res.status(400).json({ error: 'Data de publicação inválida.' });
     if ((status || post.status) === 'SCHEDULED') {
       if (nextDate <= new Date()) return res.status(400).json({ error: 'Escolha uma data futura.' });
-      assertPostReady({ ...post, caption: caption ?? post.caption, mediaType: mediaType || post.mediaType, mediaUrls: mediaUrls ?? post.mediaUrls, platforms: nextPlatforms });
+      assertPostReady({ ...post, caption: nextCaption, mediaType: nextMediaType, mediaUrls: nextMediaUrls, platforms: nextPlatforms });
     }
 
     if (post.status === 'SCHEDULED' && (status === 'DRAFT' || scheduledFor)) {
