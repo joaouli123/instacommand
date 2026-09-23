@@ -12,7 +12,7 @@ import {
   Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search
 } from "lucide-react"
 import { SiInstagram, SiFacebook, SiThreads } from "@icons-pack/react-simple-icons"
-import { RiAccountCircleLine, RiAddBoxLine, RiAddLine, RiArrowLeftLine, RiBatteryLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiEmotionHappyLine, RiFileGifLine, RiHeartFill, RiHeartLine, RiHome5Fill, RiImageLine, RiMore2Line, RiMusic2Line, RiMovieLine, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiSignalWifiLine, RiThumbUpFill, RiThumbUpLine, RiUser3Line, RiVolumeUpLine, RiWifiLine } from "@remixicon/react"
+import { RiAccountCircleLine, RiAddBoxLine, RiAddLine, RiArrowLeftLine, RiBatteryLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiEmotionHappyLine, RiFileGifLine, RiHeartFill, RiHeartLine, RiHome5Fill, RiImageLine, RiMore2Line, RiMusic2Line, RiMovieLine, RiPauseFill, RiPlayFill, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiSignalWifiLine, RiThumbUpFill, RiThumbUpLine, RiUser3Line, RiVolumeMuteLine, RiVolumeUpLine, RiWifiLine } from "@remixicon/react"
 import { useDropzone } from "react-dropzone"
 import toast from "react-hot-toast"
 import { api } from "@/lib/api"
@@ -70,6 +70,17 @@ type HashtagLookup = { igHashtagId: string; topMediaCount: number; recentMediaCo
 type PublishOutcome = { succeeded: string[]; failed: Array<{ platform: string; message: string }> }
 
 const normalizeHashtag = (value: string) => value.replace(/^#+/, "").trim()
+const isVideoFile = (file: Pick<File, "type" | "name">) => file.type.toLowerCase().startsWith("video/") || /\.(mp4|m4v|mov|webm|ogv|ogg)$/i.test(file.name)
+const isVideoUrl = (src: string) => /\.(mp4|m4v|mov|webm|ogv|ogg)(?:[?#].*)?$/i.test(src)
+const getVideoMimeType = (media: MediaItem) => {
+  if (media.file?.type.toLowerCase().startsWith("video/")) return media.file.type
+  const name = (media.file?.name || media.name || media.src).toLowerCase().split(/[?#]/)[0]
+  if (/\.(mp4|m4v)$/.test(name)) return "video/mp4"
+  if (name.endsWith(".mov")) return "video/quicktime"
+  if (name.endsWith(".webm")) return "video/webm"
+  if (/\.(ogv|ogg)$/.test(name)) return "video/ogg"
+  return undefined
+}
 
 type SocialPreviewProps = {
   postType: PostType
@@ -85,9 +96,105 @@ type SocialPreviewProps = {
 }
 
 function PreviewMedia({ media, emptyMessage, className = "" }: { media: MediaItem | null; emptyMessage: string; className?: string }) {
-  return <div className={`relative isolate overflow-hidden bg-[#eef1f4] ${className}`}>
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(true)
+  const [videoError, setVideoError] = useState(false)
+
+  useEffect(() => {
+    if (media?.kind !== "video") {
+      setIsPlaying(false)
+      setIsMuted(true)
+      setVideoError(false)
+      return
+    }
+
+    const video = videoRef.current
+    if (!video) return
+
+    let isCurrentVideo = true
+    video.muted = true
+    setIsMuted(true)
+    setVideoError(false)
+    try {
+      const playRequest = video.play()
+      playRequest?.then(() => {
+        if (isCurrentVideo) setIsPlaying(true)
+      }).catch(() => {
+        // Autoplay may be blocked; the visible play control remains available.
+        if (isCurrentVideo) setIsPlaying(false)
+      })
+    } catch {
+      // Autoplay may be blocked; the visible play control remains available.
+      if (isCurrentVideo) setIsPlaying(false)
+    }
+
+    return () => {
+      isCurrentVideo = false
+      video.pause()
+    }
+  }, [media?.id, media?.kind, media?.src])
+
+  const togglePlayback = async () => {
+    const video = videoRef.current
+    if (!video) return
+    if (video.paused) {
+      setVideoError(false)
+      try {
+        await video.play()
+      } catch {
+        setIsPlaying(false)
+      }
+    } else {
+      video.pause()
+    }
+  }
+
+  const toggleMute = () => {
+    const video = videoRef.current
+    const nextMuted = !isMuted
+    setIsMuted(nextMuted)
+    if (video) video.muted = nextMuted
+  }
+
+  return <div className={`group/video relative overflow-hidden bg-[#eef1f4] ${className}`}>
     {media ? media.kind === "video"
-      ? <video src={media.src} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover" aria-label="Prévia do vídeo" />
+      ? <>
+        <video
+          key={media.id}
+          ref={videoRef}
+          autoPlay
+          muted={isMuted}
+          loop
+          playsInline
+          preload="auto"
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onError={() => { setVideoError(true); setIsPlaying(false) }}
+          onLoadedData={() => setVideoError(false)}
+          className="absolute inset-0 h-full w-full object-cover"
+          aria-label="Prévia do vídeo"
+        ><source src={media.src} type={getVideoMimeType(media)} /></video>
+        <button
+          type="button"
+          onClick={togglePlayback}
+          aria-label={isPlaying ? "Pausar prévia do vídeo" : "Reproduzir prévia do vídeo"}
+          aria-pressed={isPlaying}
+          className={`absolute left-1/2 top-1/2 z-20 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white shadow-lg ring-1 ring-white/50 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${isPlaying ? "opacity-0 group-hover/video:opacity-100" : "opacity-100"}`}
+        >
+          {isPlaying ? <RiPauseFill size={24} aria-hidden="true" /> : <RiPlayFill size={24} className="ml-0.5" aria-hidden="true" />}
+        </button>
+        <button
+          type="button"
+          onClick={toggleMute}
+          aria-label={isMuted ? "Ativar som do vídeo" : "Desativar som do vídeo"}
+          aria-pressed={!isMuted}
+          className="absolute left-3 top-[19%] z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/30 transition hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          {isMuted ? <RiVolumeMuteLine size={20} aria-hidden="true" /> : <RiVolumeUpLine size={20} aria-hidden="true" />}
+        </button>
+        {videoError && <p role="status" className="absolute inset-x-3 bottom-3 z-20 rounded-lg bg-black/80 px-3 py-2 text-center text-[11px] leading-4 text-white shadow-lg">Não foi possível reproduzir este arquivo no navegador. Tente MP4 com vídeo H.264.</p>}
+      </>
       : <img src={media.src} alt="Prévia da publicação" className="absolute inset-0 h-full w-full object-cover" />
       : <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#eef1f4] px-5 text-center text-[#536171]"><RiImageLine size={27} className="text-[#7b8da3]" aria-hidden="true" /><p className="mt-3 text-sm font-medium">{emptyMessage}</p><p className="mt-1 text-xs text-[#728197]">Adicione uma mídia para ver a prévia real.</p></div>}
   </div>
@@ -139,7 +246,6 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
         <button type="button" aria-label="Mais opções do Story" className="p-1"><RiMore2Line size={21} /></button>
         <button type="button" aria-label="Fechar prévia do Story" className="p-1"><RiCloseLine size={22} /></button>
       </header>
-      <button type="button" aria-label="Ativar ou desativar som" className="absolute left-3 top-[19%] flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#1c1e21] shadow-md"><RiVolumeUpLine size={20} /></button>
       {allCaption && <p className="absolute inset-x-5 bottom-[86px] line-clamp-3 whitespace-pre-wrap break-words text-center text-[12px] font-medium leading-[17px] [text-shadow:0_1px_4px_rgba(0,0,0,0.85)]">{allCaption}</p>}
       <footer className="absolute inset-x-2.5 bottom-3 flex items-center gap-1.5">
         <button type="button" aria-label="Enviar mensagem" className="flex h-11 min-w-0 flex-1 items-center justify-between rounded-full border border-white/25 bg-[#3a3b3c]/90 px-3 text-left text-[11px] text-white/90 shadow-sm"><span className="truncate">Enviar mensagem...</span><RiEmotionHappyLine size={20} className="ml-2 shrink-0" /></button>
@@ -310,7 +416,7 @@ export default function ComposerPage() {
           setEditorialBrief(draft.editorialBrief || null)
           const date = new Date(draft.scheduledFor); const pad = (v: number) => String(v).padStart(2, '0')
           setSelectedDate(`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`)
-          setMediaItems((draft.mediaUrls || []).map((src: string, i: number) => ({ id: `saved-${i}`, src, name: `Mídia ${i + 1}`, kind: /\.(mp4|mov)(\?|$)/i.test(src) ? 'video' : 'image', isObjectUrl: false })))
+          setMediaItems((draft.mediaUrls || []).map((src: string, i: number) => ({ id: `saved-${i}`, src, name: `Mídia ${i + 1}`, kind: isVideoUrl(src) ? 'video' : 'image', isObjectUrl: false })))
         }
       })
       .catch((error) => {
@@ -359,7 +465,7 @@ export default function ComposerPage() {
         id: `${file.name}-${file.lastModified}-${index}`,
         src: URL.createObjectURL(file),
         name: file.name,
-        kind: file.type.startsWith("video/") ? "video" : "image",
+        kind: isVideoFile(file) ? "video" : "image",
         file,
         isObjectUrl: true,
       }))
