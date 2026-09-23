@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api, fetchApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { rankFacebookPosts } from '@/lib/facebook-report'
 
 type Post = { id: string; text: string; createdAt: string; permalink: string | null; reactions: number | null; comments: number | null; shares: number | null }
 type Total = { value: number; availablePosts: number; complete: boolean }
@@ -26,6 +27,7 @@ export function FacebookReport() {
     queryFn: ({ signal }) => fetchApi(`/analytics/networks/facebook/${encodeURIComponent(accountId)}?days=${days}`, { signal }), staleTime: 60_000, retry: false })
   const report = query.data
   useEffect(() => setPage(1), [accountId, days])
+  const rankedPosts = report ? rankFacebookPosts(report.posts) : []
   const exportCsv = () => {
     if (!report) return
     const cell = (value: unknown) => { let text = String(value ?? ''); if (/^[\s]*[=+\-@]/.test(text)) text = `'${text}`; return `"${text.replace(/"/g, '""')}"` }
@@ -51,6 +53,10 @@ export function FacebookReport() {
         <Card className="p-5"><h3 className="text-sm text-slate-500">Publicações recuperadas</h3><p className="mt-2 text-2xl font-bold">{report.contentAvailable ? number(report.posts.length) : 'Indisponível'}</p><p className="mt-1 text-xs text-slate-500">{report.complete ? 'Consulta do período concluída' : 'Consulta parcial ou indisponível'}</p></Card>
         <Card className="p-5"><h3 className="text-sm text-slate-500">Visualizações da Página</h3><p className="mt-2 text-2xl font-bold">{number(report.insights.mediaViews)}</p><p className="mt-1 text-xs text-slate-500">{report.insights.mediaViewsAvailable ? `Soma diária no período selecionado (${periods.find(p => p.days === days)?.label || days + ' dias'}).` : 'Não disponível para este token, Página ou período; não estimamos o valor.'}</p></Card></div>
       <Card className="p-5"><h3 className="font-bold">Interações nas publicações selecionadas</h3><p className="mt-2 text-sm text-slate-600">{report.measurement}</p><div className="mt-4 grid gap-3 sm:grid-cols-3">{[['reactions', 'Reações'], ['comments', 'Comentários'], ['shares', 'Compartilhamentos']].map(([key, label]) => { const total = report.totals[key]; return <div key={key} className="rounded-lg bg-slate-50 p-4"><p className="text-sm text-slate-500">{label}</p><p className="text-xl font-bold">{total.complete || total.availablePosts ? number(total.value) : 'Indisponível'}</p><p className="text-xs text-slate-500">{total.complete ? 'Cobertura completa dos posts recuperados' : `${total.availablePosts} de ${report.posts.length} posts com dados; soma parcial`}</p></div> })}</div></Card>
+      <Card className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold">Publicações com mais interações observadas</h3><p className="mt-1 text-sm text-slate-600">Ranking pela soma de reações, comentários e compartilhamentos retornados pela Meta. Não é taxa de engajamento nem alcance.</p></div><span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-800">{rankedPosts.length} com dados</span></div>
+        {!rankedPosts.length ? <p className="py-6 text-sm text-slate-500">Ainda não há contadores disponíveis para comparar as publicações deste período.</p> : <ol className="mt-4 grid gap-3 lg:grid-cols-3">{rankedPosts.slice(0, 3).map(({ post, interactions }, index) => <li key={post.id} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="flex items-center justify-between gap-3"><span className="text-xs font-bold uppercase tracking-wide text-indigo-700">Destaque {index + 1}</span><span className="text-lg font-bold text-slate-900">{number(interactions.value)}</span></div><p className="mt-1 text-[11px] text-slate-500">{interactions.complete ? '3 de 3 contadores disponíveis' : `${interactions.availableMetrics} de 3 contadores; soma parcial`}</p><p className="mt-3 line-clamp-3 break-words text-sm text-slate-700">{post.text || 'Publicação sem texto'}</p><p className="mt-3 text-xs text-slate-500">{new Date(post.createdAt).toLocaleDateString('pt-BR')}</p>{post.permalink && /^https:\/\/(www\.)?facebook\.com\//.test(post.permalink) && <a className="mt-3 inline-block text-sm font-semibold text-indigo-600 underline" href={post.permalink} target="_blank" rel="noreferrer">Abrir publicação</a>}</li>)}</ol>}
+        {report.posts.some(post => post.reactions === null || post.comments === null || post.shares === null) && <p className="mt-3 text-xs text-amber-800">A Meta omitiu alguns contadores. Eles permanecem como indisponíveis e não entram como zero neste ranking.</p>}
+      </Card>
       <Card className="p-5"><h3 className="font-bold">Publicações do período</h3>{!report.complete && report.contentAvailable && <p className="mt-2 text-sm text-amber-800">Resultado parcial: limite de consulta ou interrupção da Meta. Escolha um período menor.</p>}
         {report.contentAvailable && !report.posts.length && <p className="py-8 text-sm text-slate-500">Nenhuma publicação retornada nesse período. Experimente “Último ano” ou “Últimos 2 anos” para ver o histórico.</p>}
         {!report.contentAvailable && <p className="py-8 text-sm text-slate-500">Não foi possível consultar as publicações.</p>}

@@ -2,6 +2,12 @@
 
 This is a work-in-progress evidence log, not a claim that the platform is complete.
 
+## Follow-up — 2026-09-23
+
+- Facebook report improvement (commit pending): added a separate “Publicações com mais interações observadas” ranking based only on returned reaction/comment/share counters, with per-post coverage and a warning that this is neither reach nor an engagement rate. Missing counters are excluded rather than treated as zero; posts with no counters are omitted. Two unit tests cover verified zero, partial/missing values, ordering and ties. Frontend tests (21), TypeScript and production build pass. Production visual/runtime verification pending.
+- Graph Explorer read-only review: the currently displayed `/me/permissions` list grants Instagram publishing/basic access and Facebook Page/content-management scopes, but does not list `read_insights` or Threads-specific permissions. This supports why Facebook Page insights/visualizations are unavailable and does not prove an app review is complete. No token was copied or used, no permission request was changed, and no API write was issued. To unlock Page insights, the app still needs Meta approval plus a fresh user authorization that grants `read_insights`; the app owner must complete Meta's review.
+- Prior carousel preview correction `640baa0` is pushed and deployed to the frontend. Production Composer reopened the private two-image test draft; navigation controls appeared below the artwork. Next/previous changed 1/2→2/2→1/2. Draft was not saved, scheduled or published.
+
 ## Follow-up — 2026-09-22
 
 - Meta Threads Insights review test follow-up: the user authorized a test limited to `threads_manage_insights` on their own Threads profile, with no publication. The Graph API Explorer was switched to `graph.threads.net` v1.0, but its “Generate Threads Access Token” control did not open OAuth or yield a Threads token; the explorer still showed the existing Facebook/Instagram permissions response. No Threads API test call was made and Meta's review counter remains unfulfilled. The review submission is still blocked by its required OAuth screencast, API test call, and compliance attestation; no submission or legal attestation was made. During diagnosis, the Graph Explorer exposed its existing Facebook/Instagram access token in an inspection output. Treat that token as compromised and revoke/regenerate it; it was not intentionally used for the Threads test. Do not revoke automatically because it may disrupt connected assets.
