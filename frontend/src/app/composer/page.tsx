@@ -251,7 +251,7 @@ function PreviewMedia({ media, emptyMessage, className = "", preserveSourceRatio
               : "Não foi possível carregar este vídeo. Confira se o arquivo está íntegro e tente novamente.")
           }}
           onLoadedData={() => { setIsVideoReady(true); setVideoError(false); setVideoErrorMessage("") }}
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-contain"
           aria-label="Prévia do vídeo"
           src={media.src}
         />

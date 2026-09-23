@@ -7,6 +7,7 @@ const source = fs.readFileSync(path.join(__dirname, '../src/app/composer/page.ts
 
 test('Reel and Story video previews autoplay muted and expose manual playback and sound controls', () => {
   assert.match(source, /<video[\s\S]*?autoPlay[\s\S]*?muted=\{isMuted\}[\s\S]*?loop[\s\S]*?playsInline[\s\S]*?preload="auto"/);
+  assert.match(source, /<video[\s\S]*?className="absolute inset-0 h-full w-full object-contain"/);
   assert.match(source, /aria-label=\{isPlaying \? "Pausar prévia do vídeo" : "Reproduzir prévia do vídeo"\}/);
   assert.match(source, /aria-label=\{isMuted \? "Ativar som do vídeo" : "Desativar som do vídeo"\}/);
   assert.match(source, /video\.play\(\)/);
