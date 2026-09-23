@@ -123,7 +123,7 @@ type SocialPreviewProps = {
   hashtags: string[]
 }
 
-function PreviewMedia({ media, emptyMessage, className = "", preserveSourceRatio = false, aspectRatioOverride, onSwipe, fill = false }: { media: MediaItem | null; emptyMessage: string; className?: string; preserveSourceRatio?: boolean; aspectRatioOverride?: string; onSwipe?: (direction: -1 | 1) => void; fill?: boolean }) {
+function PreviewMedia({ media, emptyMessage, className = "", backgroundClassName = "bg-[#eef1f4]", preserveSourceRatio = false, aspectRatioOverride, onSwipe, fill = false }: { media: MediaItem | null; emptyMessage: string; className?: string; backgroundClassName?: string; preserveSourceRatio?: boolean; aspectRatioOverride?: string; onSwipe?: (direction: -1 | 1) => void; fill?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const swipeStart = useRef<{ x: number; y: number } | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -215,7 +215,7 @@ function PreviewMedia({ media, emptyMessage, className = "", preserveSourceRatio
   const aspectRatio = aspectRatioOverride || (preserveSourceRatio && media?.width && media.height ? `${media.width} / ${media.height}` : undefined)
   return <div
     style={{ ...(aspectRatio ? { aspectRatio } : {}), ...(onSwipe ? { touchAction: "pan-y" } : {}) }}
-    className={`group/video ${fill ? "absolute inset-0" : "relative"} overflow-hidden bg-[#eef1f4] ${onSwipe ? "cursor-grab select-none active:cursor-grabbing" : ""} ${className}`}
+    className={`group/video ${fill ? "absolute inset-0" : "relative"} overflow-hidden ${backgroundClassName} ${onSwipe ? "cursor-grab select-none active:cursor-grabbing" : ""} ${className}`}
     onPointerDown={onSwipe ? handlePointerDown : undefined}
     onPointerUp={onSwipe ? handlePointerUp : undefined}
     onPointerCancel={() => { swipeStart.current = null }}
@@ -308,7 +308,7 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
 
   if (isInstagram && postType === "STORY") {
     return <article data-preview="instagram-story" aria-label="Prévia de Instagram Story" className="relative aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-[10px] bg-[#16171b] text-white ring-1 ring-black/10 shadow-sm">
-      <PreviewMedia media={media} emptyMessage="Sua mídia de Story aparecerá aqui" fill />
+      <PreviewMedia media={media} emptyMessage="Sua mídia de Story aparecerá aqui" fill backgroundClassName="bg-[#16171b]" />
       <div className="absolute inset-x-3 top-2 flex gap-1" aria-hidden="true"><span className="h-[2px] flex-1 rounded bg-white" /><span className="h-[2px] flex-1 rounded bg-white/50" /><span className="h-[2px] flex-1 rounded bg-white/35" /></div>
       <header className="absolute inset-x-3 top-5 flex items-center gap-1.5 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
         <PreviewAvatar src={accountPhoto} name={username} ring compact />
@@ -324,7 +324,7 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
 
   if (isFacebook && postType === "STORY") {
     return <article data-preview="facebook-story" aria-label="Prévia visual de Facebook Stories" className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-[10px] bg-[#111217] text-white ring-1 ring-black/10 shadow-sm">
-      <PreviewMedia media={media} emptyMessage="Sua mídia do Story aparecerá aqui" fill className="bg-[#25262a]" />
+      <PreviewMedia media={media} emptyMessage="Sua mídia do Story aparecerá aqui" fill backgroundClassName="bg-[#25262a]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/55 via-black/25 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black/65 via-black/30 to-transparent" />
       <div className="absolute inset-x-3 top-2 flex gap-1.5" aria-hidden="true">
@@ -348,7 +348,7 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
 
   if (isInstagram && postType === "REEL") {
     return <article data-preview="instagram-reel" aria-label="Prévia de Instagram Reel" className="relative aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-lg bg-[#101114] text-white ring-1 ring-black/10">
-      <PreviewMedia media={media} emptyMessage="Sua capa do Reel aparecerá aqui" fill className="bg-[#202126]" />
+      <PreviewMedia media={media} emptyMessage="Sua capa do Reel aparecerá aqui" fill backgroundClassName="bg-[#202126]" />
       <header className="absolute inset-x-3 top-3 flex items-center justify-between text-white drop-shadow-sm"><button type="button" aria-label="Criar" className="flex h-7 w-7 items-center justify-center rounded-full bg-black/35"><RiAddLine size={20} /></button><div className="flex items-center gap-3 text-[11px] font-semibold"><span>Seguindo</span><span className="border-b-2 border-white pb-1">Para você</span></div><button type="button" aria-label="Curtir" className="flex h-7 w-7 items-center justify-center rounded-full bg-black/35"><RiHeartLine size={19} /></button></header>
       <nav aria-label="Ações do Reel" className="absolute right-2 top-[38%] flex flex-col items-center gap-2.5 text-white drop-shadow-sm">
         <span className="flex flex-col items-center gap-0.5"><RiHeartLine size={21} /><span className="text-[8px]">Curtir</span></span>
@@ -366,7 +366,7 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
 
   if (isFacebook && postType === "REEL") {
     return <article data-preview="facebook-reel" aria-label="Prévia de Facebook Reels" className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-lg bg-[#141519] text-white ring-1 ring-black/10">
-      <PreviewMedia media={media} emptyMessage="Seu vídeo do Reel aparecerá aqui" fill className="bg-[#202126]" />
+      <PreviewMedia media={media} emptyMessage="Seu vídeo do Reel aparecerá aqui" fill backgroundClassName="bg-[#202126]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/75 via-black/35 to-transparent" />
       <nav aria-label="Navegação do Facebook Reels" className="absolute inset-x-3 top-2 flex items-center justify-between text-white drop-shadow-sm">

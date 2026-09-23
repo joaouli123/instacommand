@@ -18,13 +18,14 @@ test('Reel and Story video previews autoplay muted and expose manual playback an
 
 test('immersive Reel and Story previews fill the 9:16 stage and preserve source video proportions', () => {
   assert.match(source, /fill \? "absolute inset-0" : "relative"/);
-  assert.match(source, /className=\{`group\/video \$\{fill \? "absolute inset-0" : "relative"\} overflow-hidden bg-\[#eef1f4\]/);
+  assert.match(source, /backgroundClassName = "bg-\[#eef1f4\]"/);
+  assert.match(source, /overflow-hidden \$\{backgroundClassName\}/);
 
   for (const previewCall of [
-    'emptyMessage="Sua mídia de Story aparecerá aqui" fill',
-    'emptyMessage="Sua mídia do Story aparecerá aqui" fill',
-    'emptyMessage="Sua capa do Reel aparecerá aqui" fill',
-    'emptyMessage="Seu vídeo do Reel aparecerá aqui" fill',
+    'emptyMessage="Sua mídia de Story aparecerá aqui" fill backgroundClassName="bg-[#16171b]"',
+    'emptyMessage="Sua mídia do Story aparecerá aqui" fill backgroundClassName="bg-[#25262a]"',
+    'emptyMessage="Sua capa do Reel aparecerá aqui" fill backgroundClassName="bg-[#202126]"',
+    'emptyMessage="Seu vídeo do Reel aparecerá aqui" fill backgroundClassName="bg-[#202126]"',
   ]) {
     assert.ok(source.includes(previewCall), `Expected immersive preview to fill its stage: ${previewCall}`);
   }
