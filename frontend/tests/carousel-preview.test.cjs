@@ -4,19 +4,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '../src/app/composer/page.tsx'), 'utf8');
-const previewStart = source.indexOf('{/* Compact, feed-faithful social post preview */}');
+const previewStart = source.indexOf('{/* Each social destination and post format gets its own native-style preview. */}');
 const previewEnd = source.indexOf('</aside>', previewStart);
 const preview = source.slice(previewStart, previewEnd);
 
-test('compact feed preview shows the selected carousel media and accessible controls', () => {
+test('compact Instagram carousel preview shows the selected media and dot navigation', () => {
   assert.notEqual(previewStart, -1);
   assert.notEqual(previewEnd, -1);
-  assert.match(preview, /src=\{activeMedia\.src\}/);
-  assert.match(preview, /aspect-\[4\/5\]/);
+  assert.match(source, /src=\{media\.src\}/);
+  assert.match(source, /aspect-\[4\/5\]/);
   assert.doesNotMatch(preview, /rounded-\[2\.7rem\]|border-\[7px\]/);
-  assert.match(preview, /aria-label="Navegação da prévia do carrossel"/);
-  assert.match(preview, /aria-label="Ver mídia anterior"/);
-  assert.match(preview, /aria-label="Ver próxima mídia"/);
-  assert.match(preview, /aria-pressed=\{index === activeMediaIndex\}/);
-  assert.match(preview, /\{activeMediaIndex \+ 1\}\/\{mediaItems\.length\}/);
+  assert.match(source, /aria-label="Itens do carrossel"/);
+  assert.match(source, /aria-label=\{`Pré-visualizar item \$\{index \+ 1\} de \$\{mediaItems\.length\}`\}/);
+  assert.match(source, /aria-pressed=\{index === activeMediaIndex\}/);
+  assert.match(source, /onClick=\{\(\) => onSelectMedia\(index\)\}/);
 });

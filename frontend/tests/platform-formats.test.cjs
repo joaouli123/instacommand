@@ -15,8 +15,11 @@ test('composer defines platform-specific formats and makes Stories Instagram-onl
   assert.match(source, /1080 × 1350 px recomendado/);
 });
 
-test('format options are restricted to the intersection of selected destination capabilities', () => {
-  assert.match(source, /platforms\.every\(\(platform\) => formatPlatforms\[format\]\.includes\(platform\)\)/);
-  assert.match(source, /compatíveis com todos os destinos selecionados/);
+test('format options derive compatible connected destinations and explain destination changes', () => {
+  assert.match(source, /connectedPlatforms\.filter\(\(platform\) => formatPlatforms\[format\]\.includes\(platform\)\)/);
+  assert.match(source, /selected\.length \? selected : connected/);
+  assert.match(source, /const targetPlatforms = compatiblePlatformsFor\(type\.id\)/);
+  assert.match(source, /Usar em \{targetPlatforms\.map\(platform => platformNames\[platform\] \|\| platform\)\.join\(" e "\)\}/);
+  assert.match(source, /Não disponível para todas as redes escolhidas/);
   assert.match(source, /postType === "TEXT" \? "500" : "2\.200"/);
 });

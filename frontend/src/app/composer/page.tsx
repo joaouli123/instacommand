@@ -9,9 +9,10 @@ import {
   Heart, MessageCircle, Bookmark, Share2, MoreHorizontal,
   Layers, Video, Image as ImageIcon, Sparkles, Crop, Ruler, FileImage, HardDrive,
   Copy, Timer, BadgeCheck, Scaling,
-  Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search, Repeat2
+  Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search
 } from "lucide-react"
 import { SiInstagram, SiFacebook, SiThreads } from "@icons-pack/react-simple-icons"
+import { RiAddBoxLine, RiAddLine, RiBatteryLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiHeartLine, RiHome5Fill, RiImageLine, RiMore2Line, RiMovieLine, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiSignalWifiLine, RiUser3Line, RiWifiLine } from "@remixicon/react"
 import { useDropzone } from "react-dropzone"
 import toast from "react-hot-toast"
 import { api } from "@/lib/api"
@@ -69,6 +70,124 @@ type HashtagLookup = { igHashtagId: string; topMediaCount: number; recentMediaCo
 type PublishOutcome = { succeeded: string[]; failed: Array<{ platform: string; message: string }> }
 
 const normalizeHashtag = (value: string) => value.replace(/^#+/, "").trim()
+
+type SocialPreviewProps = {
+  postType: PostType
+  previewPlatform: string
+  selectedAccount?: ConnectedAccount
+  threadsAccount?: ThreadsAccount
+  media: MediaItem | null
+  mediaItems: MediaItem[]
+  activeMediaIndex: number
+  onSelectMedia: (index: number) => void
+  caption: string
+  hashtags: string[]
+}
+
+function PreviewMedia({ media, emptyMessage, className = "" }: { media: MediaItem | null; emptyMessage: string; className?: string }) {
+  return <div className={`relative isolate overflow-hidden bg-[#eef1f4] ${className}`}>
+    {media ? media.kind === "video"
+      ? <video src={media.src} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover" aria-label="Prévia do vídeo" />
+      : <img src={media.src} alt="Prévia da publicação" className="absolute inset-0 h-full w-full object-cover" />
+      : <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#eef1f4] px-5 text-center text-[#536171]"><RiImageLine size={27} className="text-[#7b8da3]" aria-hidden="true" /><p className="mt-3 text-sm font-medium">{emptyMessage}</p><p className="mt-1 text-xs text-[#728197]">Adicione uma mídia para ver a prévia real.</p></div>}
+  </div>
+}
+
+function PreviewAvatar({ src, name, ring = false, facebook = false }: { src?: string | null; name: string; ring?: boolean; facebook?: boolean }) {
+  return <span className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e9edf2] text-sm font-semibold text-[#43536a] ${ring ? "ring-2 ring-[#c13584] ring-offset-2 ring-offset-white" : ""} ${facebook ? "bg-[#1877f2] text-white" : ""}`} aria-label={`Foto de ${name}`}>
+    {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : (name.replace(/^@/, "")[0] || "?").toUpperCase()}
+  </span>
+}
+
+function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, threadsAccount, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags }: SocialPreviewProps) {
+  const isInstagram = previewPlatform === "INSTAGRAM"
+  const isFacebook = previewPlatform === "FACEBOOK"
+  const username = isFacebook ? selectedAccount?.pageName || "Sua Página" : isInstagram ? selectedAccount?.igUsername || "sua_conta" : threadsAccount?.username || "sua_conta"
+  const captionPlaceholder = "A legenda da publicação aparecerá aqui."
+  const tagText = hashtags.map(tag => `#${tag}`).join(" ")
+  const allCaption = [caption, tagText].filter(Boolean).join(" ")
+  const accountPhoto = selectedAccount?.igProfilePicUrl
+
+  if (isInstagram && postType === "STORY") {
+    return <article aria-label="Prévia de Instagram Story" className="relative aspect-[9/16] w-full max-w-[248px] overflow-hidden rounded-[15px] bg-[#16171b] text-white ring-1 ring-black/10">
+      <PreviewMedia media={media} emptyMessage="Sua mídia de Story aparecerá aqui" className="absolute inset-0" />
+      <div className="absolute inset-x-3 top-2 flex items-center justify-between text-[10px] font-semibold text-white drop-shadow"><span>9:41</span><span className="flex items-center gap-1"><RiSignalWifiLine size={14} /><RiWifiLine size={14} /><RiBatteryLine size={16} /></span></div>
+      <div className="absolute inset-x-3 top-8 flex gap-1" aria-hidden="true"><span className="h-[2px] flex-1 rounded bg-white" /><span className="h-[2px] flex-1 rounded bg-white/50" /><span className="h-[2px] flex-1 rounded bg-white/35" /></div>
+      <header className="absolute inset-x-3 top-[46px] flex items-center gap-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
+        <PreviewAvatar src={accountPhoto} name={username} ring />
+        <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{username} <span className="font-normal text-white/75">· agora</span></p><p className="mt-0.5 truncate text-[10px] text-white/85">Story</p></div>
+        <button type="button" aria-label="Mais opções" className="p-1"><RiMore2Line size={20} /></button><button type="button" aria-label="Fechar prévia" className="p-1"><RiCloseLine size={20} /></button>
+      </header>
+      {caption && <p className="absolute inset-x-4 bottom-[72px] line-clamp-4 whitespace-pre-wrap break-words text-center text-sm font-semibold leading-5 text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.85)]">{caption}</p>}
+      <footer className="absolute inset-x-3 bottom-3 flex items-center gap-2.5">
+        <div className="flex h-10 min-w-0 flex-1 items-center rounded-full border border-white/80 px-3 text-xs text-white/90">Responder...</div><RiHeartLine size={24} /><RiSendPlaneLine size={23} />
+      </footer>
+    </article>
+  }
+
+  if (isInstagram && postType === "REEL") {
+    return <article aria-label="Prévia de Instagram Reel" className="relative aspect-[9/16] w-full max-w-[248px] overflow-hidden rounded-[17px] bg-[#101114] text-white ring-1 ring-black/10">
+      <PreviewMedia media={media} emptyMessage="Sua capa do Reel aparecerá aqui" className="absolute inset-0 bg-[#202126]" />
+      <div className="absolute inset-x-3 top-2 flex items-center justify-between text-[10px] font-semibold text-white drop-shadow"><span>9:41</span><span className="flex items-center gap-1"><RiSignalWifiLine size={14} /><RiWifiLine size={14} /><RiBatteryLine size={16} /></span></div>
+      <header className="absolute inset-x-3 top-8 flex items-center justify-between text-white drop-shadow-sm"><button type="button" aria-label="Criar" className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35"><RiAddLine size={23} /></button><div className="flex items-center gap-3 text-xs font-semibold"><span>Seguindo</span><span className="border-b-2 border-white pb-1">Para você</span></div><button type="button" aria-label="Curtir" className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35"><RiHeartLine size={21} /></button></header>
+      <nav aria-label="Ações do Reel" className="absolute right-2 top-[34%] flex flex-col items-center gap-4 text-white drop-shadow-sm">
+        <span className="flex flex-col items-center gap-1"><RiHeartLine size={26} /><span className="text-[9px]">Curtir</span></span>
+        <span className="flex flex-col items-center gap-1"><RiChat3Line size={25} /><span className="text-[9px]">Comentar</span></span>
+        <span className="flex flex-col items-center gap-1"><RiRepeat2Line size={25} /><span className="text-[9px]">Repostar</span></span>
+        <span className="flex flex-col items-center gap-1"><RiSendPlaneLine size={24} /><span className="text-[9px]">Enviar</span></span>
+        <RiMore2Line size={22} />
+      </nav>
+      <div className="absolute inset-x-0 bottom-10 bg-black/35 px-3 pb-3 pt-8 text-white">
+        <div className="flex items-center gap-2"><PreviewAvatar src={accountPhoto} name={username} ring /><p className="truncate text-xs font-semibold">@{selectedAccount?.igUsername || "sua_conta"}</p><span className="rounded-md border border-white/80 px-2 py-1 text-[10px] font-semibold">Seguir</span></div>
+        <p className="mt-2 line-clamp-2 break-words text-[11px] leading-4">{allCaption || "Sua legenda aparecerá aqui."}</p>
+      </div>
+      <nav aria-label="Navegação do Instagram" className="absolute inset-x-0 bottom-0 flex h-10 items-center justify-around border-t border-white/15 bg-[#111216]/95 text-white">
+        <RiHome5Fill size={18} /><RiSearchLine size={19} /><RiAddBoxLine size={19} /><RiMovieLine size={19} /><RiUser3Line size={19} />
+      </nav>
+    </article>
+  }
+
+  if (!isInstagram && !isFacebook) {
+    return <article aria-label="Prévia de publicação no Threads" className="w-full max-w-[390px] border-y border-[#e4e6eb] bg-white px-4 py-4 text-[#101114] sm:px-5">
+      <div className="flex items-start gap-3">
+        <div className="relative mt-0.5"><PreviewAvatar src={accountPhoto} name={username} /><span className="absolute -bottom-0.5 -right-0.5 flex h-[19px] w-[19px] items-center justify-center rounded-full border-2 border-white bg-[#101114] text-white"><Plus size={12} strokeWidth={2.7} /></span></div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5"><p className="truncate text-[13px] font-semibold">{username}</p><span className="shrink-0 text-xs text-[#777b83]">· agora</span><SiThreads className="ml-auto h-[19px] w-[19px] shrink-0 text-[#101114]" title="Threads" /></div>
+          <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-[1.48] text-[#101114]">{caption || <span className="text-[#8b9098]">Seu texto aparecerá aqui, preservando as quebras de linha.</span>}</p>
+          {tagText && <p className="mt-1 break-words text-[15px] leading-[1.48] text-[#101114]">{tagText}</p>}
+          {media && <PreviewMedia media={media} emptyMessage="" className={`mx-auto mt-3 rounded-xl border border-[#e4e6eb] ${postType === "REEL" ? "aspect-[9/16] w-full max-w-[245px]" : "aspect-[4/5] w-full"}`} />}
+          <div className="mt-5 flex items-center gap-6 text-[#34373d]" aria-label="Ações da publicação no Threads"><RiHeartLine size={22} /><RiChat3Line size={22} /><RiRepeat2Line size={22} /><RiSendPlaneLine size={21} /></div>
+        </div>
+      </div>
+    </article>
+  }
+
+  if (isFacebook) {
+    return <article aria-label="Prévia de publicação no Facebook" className="w-full max-w-[390px] overflow-hidden border-y border-[#e4e6eb] bg-white text-[#1c1e21]">
+      <header className="flex items-center gap-2.5 px-3 py-3"><PreviewAvatar src={accountPhoto} name={username} facebook /><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{username}</p><p className="text-[11px] text-[#65676b]">Agora · <span aria-label="Público">Público</span></p></div><RiMore2Line size={21} className="text-[#65676b]" /></header>
+      {allCaption && <p className="px-3 pb-3 text-[13px] leading-5">{allCaption}</p>}
+      <PreviewMedia media={media} emptyMessage="Sua foto ou vídeo aparecerá aqui" className={`border-y border-[#e4e6eb] ${postType === "REEL" ? "mx-auto aspect-[9/16] w-full max-w-[245px]" : "aspect-[4/5]"}`} />
+      <div className="flex items-center justify-around px-2 py-2.5 text-[12px] font-semibold text-[#65676b]"><span className="flex items-center gap-1.5"><RiHeartLine size={18} />Curtir</span><span className="flex items-center gap-1.5"><RiChat3Line size={18} />Comentar</span><span className="flex items-center gap-1.5"><RiShareForwardLine size={18} />Compartilhar</span></div>
+    </article>
+  }
+
+  return <article aria-label={postType === "CAROUSEL" ? "Prévia de carrossel do Instagram" : "Prévia de publicação do Instagram"} className="w-full max-w-[390px] overflow-hidden border-y border-[#dbdbdb] bg-white text-[#0f1419]">
+    <header className="flex items-center gap-2.5 px-3 py-3">
+      <PreviewAvatar src={accountPhoto} name={username} ring />
+      <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{username}</p><p className="truncate text-[11px] leading-4 text-[#737373]">São Paulo, Brasil</p></div>
+      <RiMore2Line size={22} className="text-[#262626]" />
+    </header>
+    <div className="relative">
+      <PreviewMedia media={media} emptyMessage="Sua arte aparecerá aqui" className="aspect-[4/5]" />
+      {postType === "CAROUSEL" && mediaItems.length > 1 && <span className="absolute right-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] font-semibold text-white">{activeMediaIndex + 1}/{mediaItems.length}</span>}
+    </div>
+    {postType === "CAROUSEL" && mediaItems.length > 1 && <nav aria-label="Itens do carrossel" className="flex items-center justify-center gap-1.5 py-2">{mediaItems.map((item, index) => <button key={item.id} type="button" aria-label={`Pré-visualizar item ${index + 1} de ${mediaItems.length}`} aria-pressed={index === activeMediaIndex} onClick={() => onSelectMedia(index)} className={`h-1.5 w-1.5 rounded-full ${index === activeMediaIndex ? "bg-[#0095f6]" : "bg-[#c7c7c7]"}`} />)}</nav>}
+    <div className="px-3 pb-3 pt-2">
+      <div className="flex items-center justify-between"><div className="flex items-center gap-4 text-[#262626]"><RiHeartLine size={25} /><RiChat3Line size={24} /><RiSendPlaneLine size={23} /></div><RiBookmarkLine size={23} className="text-[#262626]" /></div>
+      {allCaption ? <p className="mt-2 line-clamp-3 break-words text-[12px] leading-[17px]"><span className="font-semibold">{username}</span>{" "}{allCaption}</p> : <p className="mt-2 text-[12px] leading-[17px]"><span className="font-semibold">{username}</span>{" "}<span className="text-[#737373]">{captionPlaceholder}</span></p>}
+    </div>
+  </article>
+}
 
 const getDefaultDate = () => {
   const date = new Date(Date.now() + 60 * 60 * 1000)
@@ -220,6 +339,14 @@ export default function ComposerPage() {
 
   const activeMedia = mediaItems[activeMediaIndex] ?? null
   const selectedAccount = accounts.find((account) => account.id === accountId)
+  const resolvedPreviewPlatform = postType === "TEXT" ? "THREADS" : postType === "STORY" ? "INSTAGRAM" : previewPlatform
+  const previewDescription = {
+    FEED: "Prévia da publicação única no feed, sem faixa de Stories.",
+    CAROUSEL: "Prévia do carrossel no feed, com navegação entre os itens.",
+    REEL: resolvedPreviewPlatform === "INSTAGRAM" ? "Prévia vertical da experiência de Reels." : `Prévia do vídeo em ${platformNames[resolvedPreviewPlatform] || resolvedPreviewPlatform}.`,
+    STORY: "Prévia vertical de Story em tela cheia.",
+    TEXT: "Prévia clara do post de texto no Threads.",
+  }[postType]
   const connectedPlatforms = [
     ...(selectedAccount ? ["INSTAGRAM"] : []),
     ...(selectedAccount?.pageName ? ["FACEBOOK"] : []),
@@ -1003,62 +1130,28 @@ export default function ComposerPage() {
         </Card>
       </div>
 
-      {/* Compact, feed-faithful social post preview */}
+      {/* Each social destination and post format gets its own native-style preview. */}
       <aside className="w-full min-w-0 xl:sticky xl:top-24 xl:h-fit">
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-xs md:p-5">
-          <div className="flex items-center justify-between gap-3"><div><h3 className="text-base font-bold text-slate-900">Prévia da publicação</h3><p className="text-xs text-slate-500">Visualização compacta do post no feed.</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500"><Eye size={17} /></span></div>
+          <div className="flex items-center justify-between gap-3"><div><h3 className="text-base font-bold text-slate-900">Prévia da publicação</h3><p className="text-xs text-slate-500">{previewDescription}</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500"><Eye size={17} /></span></div>
           <div className="mt-4 flex w-full gap-1 rounded-md bg-slate-100 p-1" role="tablist" aria-label="Prévia por plataforma">
-            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }].map(tab => <button key={tab.id} type="button" role="tab" aria-selected={previewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${previewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{tab.label}</button>)}
+            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }].filter(tab => postType === "TEXT" ? tab.id === "THREADS" : postType === "STORY" ? tab.id === "INSTAGRAM" : true).map(tab => <button key={tab.id} type="button" role="tab" aria-selected={resolvedPreviewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${resolvedPreviewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{tab.label}</button>)}
           </div>
-          <div className="mt-4 flex justify-center">
-            <article className="w-full max-w-[380px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-              {postType === "TEXT" ? <div className="bg-white px-4 py-5 text-slate-950 sm:px-5 sm:py-6">
-                <div className="flex items-start gap-3">
-                  <div className="relative mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
-                    {(threadsAccounts.find(account => account.id === threadsAccountId)?.name || threadsAccounts.find(account => account.id === threadsAccountId)?.username || "?").slice(0, 1).toUpperCase()}
-                    <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-slate-950 text-white"><Plus size={12} strokeWidth={2.5} /></span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-[13px] font-semibold leading-5">{threadsAccounts.find(account => account.id === threadsAccountId)?.username || "sua_conta"}</p>
-                      <span className="shrink-0 text-xs text-slate-500">· agora</span>
-                      <SiThreads className="ml-auto h-[18px] w-[18px] shrink-0 text-slate-900" title="Threads" />
-                    </div>
-                    <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-[1.55] tracking-[0.005em] text-slate-900">{caption || <span className="text-slate-400">Seu texto aparecerá aqui, com as quebras de linha exatamente como você escreveu.</span>}</p>
-                    <div className="mt-5 flex items-center gap-6 text-slate-700" aria-label="Ações da publicação no Threads">
-                      <Heart size={21} strokeWidth={1.8} aria-label="Curtir" />
-                      <MessageCircle size={21} strokeWidth={1.8} aria-label="Responder" />
-                      <Repeat2 size={21} strokeWidth={1.8} aria-label="Repostar" />
-                      <Send size={20} strokeWidth={1.8} aria-label="Compartilhar" />
-                    </div>
-                  </div>
-                </div>
-              </div> : (postType === "STORY" || postType === "REEL") ? <div className="flex justify-center bg-slate-50 p-2">
-                <div className="relative max-h-[420px] w-full max-w-[236px] overflow-hidden rounded-lg bg-slate-950 text-white">
-                  <div className={`relative aspect-[9/16] w-full ${activeMedia ? "" : "bg-gradient-to-b from-slate-700 to-slate-950"}`}>
-                    {activeMedia && (activeMedia.kind === "video" ? <video src={activeMedia.src} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Prévia da publicação" className="h-full w-full object-cover" />)}
-                    {!activeMedia && <div className="absolute inset-0 flex flex-col items-center justify-center px-5 text-center text-white/80"><ImageIcon size={26} /><span className="mt-3 text-sm">Sua mídia vertical aparecerá aqui</span><span className="mt-1 text-xs text-white/60">Proporção 9:16</span></div>}
-                    <div className="absolute inset-x-3 top-3 flex items-center gap-2"><div className="h-1 flex-1 rounded-full bg-white/80" /><div className="h-1 flex-1 rounded-full bg-white/40" /></div>
-                    <div className="absolute inset-x-3 bottom-4 flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/70 bg-indigo-500 text-xs font-bold">{selectedAccount?.igUsername?.[0]?.toUpperCase() || "?"}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">@{selectedAccount?.igUsername || "sua_conta"}</p><p className="line-clamp-2 text-[11px] text-white/90">{caption || "Sua legenda aparece sobre o vídeo."}</p></div><Heart size={19} /></div>
-                  </div>
-                </div>
-              </div> : <>
-                <div className="flex h-14 items-center justify-between px-3"><div className="flex min-w-0 items-center gap-2.5"><div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[2px]"><div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-white text-xs font-bold text-indigo-700">{selectedAccount?.igProfilePicUrl ? <img src={selectedAccount.igProfilePicUrl} alt="" className="h-full w-full object-cover" /> : selectedAccount?.igUsername?.[0]?.toUpperCase() || "?"}</div></div><div className="min-w-0"><p className="truncate text-xs font-semibold text-slate-900">{previewPlatform === "FACEBOOK" ? selectedAccount?.pageName || "Sua Página" : previewPlatform === "THREADS" ? threadsAccounts.find(account => account.id === threadsAccountId)?.username || "Sua conta Threads" : selectedAccount?.igUsername || "Sua conta"}</p><p className="text-[10px] text-slate-500">{previewPlatform === "FACEBOOK" ? "Publicação" : "São Paulo, Brasil"}</p></div></div><MoreHorizontal size={18} className="shrink-0 text-slate-500" /></div>
-                <div className={`relative w-full overflow-hidden bg-slate-100 ${postType === "FEED" || postType === "CAROUSEL" ? "aspect-[4/5]" : "aspect-[9/16] max-h-[420px]"}`}>
-                  {activeMedia ? activeMedia.kind === "video" ? <video src={activeMedia.src} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Prévia da publicação" className="h-full w-full object-cover" /> : <div className="flex h-full w-full flex-col items-center justify-center bg-slate-100 p-5 text-center"><ImageIcon size={27} className="text-slate-400" /><p className="mt-3 text-sm font-medium text-slate-600">Sua arte aparecerá aqui</p><p className="mt-1 text-xs text-slate-500">Adicione uma mídia para ver a prévia real.</p></div>}
-                  {postType === "CAROUSEL" && mediaItems.length > 1 && <span className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-lg bg-slate-950/60 text-white" title={`${mediaItems.length} mídias no carrossel`}><Layers size={16} /></span>}
-                </div>
-                {postType === "CAROUSEL" && mediaItems.length > 1 && <nav aria-label="Navegação da prévia do carrossel" className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
-                  <button type="button" aria-label="Ver mídia anterior" onClick={() => setActiveMediaIndex(current => (current - 1 + mediaItems.length) % mediaItems.length)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50"><ChevronLeft size={17} /></button>
-                  <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">{mediaItems.map((item, index) => <button type="button" key={item.id} aria-label={`Ver item ${index + 1}`} aria-pressed={index === activeMediaIndex} onClick={() => setActiveMediaIndex(index)} className={`h-2 w-2 rounded-full transition-colors ${index === activeMediaIndex ? "bg-sky-500" : "bg-slate-300"}`} />)}</div>
-                  <span className="min-w-8 text-center text-[11px] font-medium text-slate-500">{activeMediaIndex + 1}/{mediaItems.length}</span>
-                  <button type="button" aria-label="Ver próxima mídia" onClick={() => setActiveMediaIndex(current => (current + 1) % mediaItems.length)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50"><ChevronRight size={17} /></button>
-                </nav>}
-                <div className="px-3 pb-3 pt-2"><div className="flex items-center justify-between"><div className="flex items-center gap-3 text-slate-900"><Heart size={19} /><MessageCircle size={18} /><Share2 size={18} /></div><Bookmark size={18} className="text-slate-800" /></div><p className="mt-2 line-clamp-3 break-words text-xs leading-4 text-slate-800"><span className="font-semibold">{previewPlatform === "FACEBOOK" ? selectedAccount?.pageName || "Sua Página" : previewPlatform === "THREADS" ? threadsAccounts.find(account => account.id === threadsAccountId)?.username || "sua_conta" : selectedAccount?.igUsername || "sua_conta"}</span>{" "}{caption || <span className="text-slate-400">A legenda da publicação aparecerá aqui.</span>}</p>{hashtags.length > 0 && <p className="mt-1 line-clamp-1 break-words text-xs text-indigo-600">{hashtags.map(tag => `#${tag} `)}</p>}</div>
-              </>}
-            </article>
+          <div className="social-preview-native mt-4 flex justify-center">
+            <ComposerSocialPreview
+              postType={postType}
+              previewPlatform={resolvedPreviewPlatform}
+              selectedAccount={selectedAccount}
+              threadsAccount={threadsAccounts.find(account => account.id === threadsAccountId)}
+              media={activeMedia}
+              mediaItems={mediaItems}
+              activeMediaIndex={activeMediaIndex}
+              onSelectMedia={setActiveMediaIndex}
+              caption={caption}
+              hashtags={hashtags}
+            />
           </div>
-          <p className="mt-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">A prévia representa a estrutura do formato e da rede selecionada; o recorte final pode variar conforme a plataforma e o dispositivo.</p>
+          <p className="mt-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">A prévia segue a estrutura visual da rede e do formato escolhidos. A aparência final pode variar conforme as atualizações do aplicativo.</p>
         </section>
       </aside>
       </div>
