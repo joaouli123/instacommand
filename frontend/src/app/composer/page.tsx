@@ -1062,7 +1062,7 @@ export default function ComposerPage() {
               ))}
             </div>
             <div className="mt-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white p-4 md:p-5" role="note" aria-label="Requisitos do formato selecionado por rede">
-              <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs"><ImageIcon size={18} /></span><div><h3 className="text-sm font-bold text-slate-900">Formato e dimensões por plataforma</h3><p className="mt-0.5 text-xs text-slate-500">Cada formato usa apenas as redes compatíveis; ao escolher Story, por exemplo, a publicação fica só no Instagram.</p></div></div>
+              <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs"><ImageIcon size={20} /></span><div><h3 className="text-sm font-bold text-slate-900">Formato e dimensões por plataforma</h3><p className="mt-0.5 text-xs text-slate-500">Cada formato usa apenas as redes compatíveis; ao escolher Story, por exemplo, a publicação fica só no Instagram.</p></div></div>
               <div className="mt-4 grid gap-2 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
                 {platforms.map((platform) => {
                   const detail = networkFormatDetails[platform]?.[postType]
@@ -1076,16 +1076,16 @@ export default function ComposerPage() {
                   const instagramCarouselWillCrop = platform === "INSTAGRAM" && postType === "CAROUSEL" && activeRatio !== undefined && firstCarouselRatio !== undefined && Math.abs(activeRatio - firstCarouselRatio) > 0.002
                   const PlatformIcon = platform === "INSTAGRAM" ? SiInstagram : platform === "FACEBOOK" ? SiFacebook : SiThreads
                   const platformBg = platform === "INSTAGRAM" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : platform === "FACEBOOK" ? "bg-[#1877F2]" : "bg-[#101113]"
-                  return <article key={platform} className="grid min-w-0 grid-cols-2 content-start gap-x-4 gap-y-1 rounded-xl border border-white bg-white/90 p-3">
-                    <div className="col-span-2 flex items-center gap-2"><span className={`flex h-8 w-8 items-center justify-center rounded-lg ${platformBg}`}><PlatformIcon size={18} color="#fff" /></span><h4 className="text-sm font-bold text-slate-900">{platformNames[platform]}</h4></div>
-                    <p className="col-span-2 mt-2 text-xs font-semibold text-slate-700">{detail.name}</p>
-                    <p className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-600"><Crop size={13} className="shrink-0 text-indigo-600" />{detail.shape}</p>
-                    <p className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-600"><Ruler size={13} className="shrink-0 text-indigo-600" />{detail.dimensions}</p>
-                    {activeMedia?.width && activeMedia.height && <p className={`col-span-2 mt-1 rounded-md px-2 py-1.5 text-[10px] leading-4 ${isOutsideAcceptedRatio ? "bg-rose-50 text-rose-700" : instagramCarouselWillCrop ? "bg-amber-50 text-amber-800" : detail.acceptedRatio ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
+                  return <article key={platform} className="flex min-w-0 flex-col items-start gap-2 rounded-xl border border-white bg-white/90 p-3">
+                    <div className="flex items-center gap-2.5"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${platformBg}`}><PlatformIcon size={24} color="#fff" /></span><h4 className="text-sm font-bold text-slate-900">{platformNames[platform]}</h4></div>
+                    <p className="mt-1 text-xs font-semibold text-slate-700">{detail.name}</p>
+                    <p className="flex w-full min-w-0 items-start gap-2 text-[11px] leading-4 text-slate-600"><Crop size={16} className="mt-0.5 shrink-0 text-indigo-600" /><span className="min-w-0 break-words">{detail.shape}</span></p>
+                    <p className="flex w-full min-w-0 items-start gap-2 text-[11px] leading-4 text-slate-600"><Ruler size={16} className="mt-0.5 shrink-0 text-indigo-600" /><span className="min-w-0 break-words">{detail.dimensions}</span></p>
+                    {activeMedia?.width && activeMedia.height && <p className={`w-full rounded-md px-2 py-1.5 text-[10px] leading-4 ${isOutsideAcceptedRatio ? "bg-rose-50 text-rose-700" : instagramCarouselWillCrop ? "bg-amber-50 text-amber-800" : detail.acceptedRatio ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
                       Arquivo: {activeMedia.width} × {activeMedia.height} px · {formatAspectRatio(activeMedia.width, activeMedia.height)}
                       {isOutsideAcceptedRatio ? " · fora da faixa aceita" : instagramCarouselWillCrop ? " · o 1º item define o corte" : detail.acceptedRatio ? " · dentro da faixa aceita" : " · confira a recomendação acima"}
                     </p>}
-                    <p className="col-span-2 mt-1 text-[10px] leading-4 text-slate-500">{detail.note}</p>
+                    <p className="text-[10px] leading-4 text-slate-500">{detail.note}</p>
                   </article>
                 })}
               </div>

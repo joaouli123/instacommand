@@ -64,7 +64,10 @@ test('Facebook Stories can be previewed but remain unavailable as a publishing d
   assert.match(source, /Apenas prévia visual\. Facebook Stories não está habilitado para publicação neste compositor\./);
 });
 
-test('Selected platform format details expand to use the available horizontal space', () => {
+test('Selected platform format details wrap instead of squeezing text and use larger icons', () => {
   assert.match(source, /grid gap-2 sm:grid-cols-\[repeat\(auto-fit,minmax\(260px,1fr\)\)\]/);
-  assert.match(source, /grid min-w-0 grid-cols-2 content-start gap-x-4/);
+  assert.match(source, /article key={platform} className="flex min-w-0 flex-col items-start gap-2/);
+  assert.match(source, /h-10 w-10 shrink-0 items-center justify-center rounded-xl \$\{platformBg\}.*PlatformIcon size=\{24\}/);
+  assert.match(source, /<Crop size=\{16\}/);
+  assert.match(source, /<Ruler size=\{16\}/);
 });
