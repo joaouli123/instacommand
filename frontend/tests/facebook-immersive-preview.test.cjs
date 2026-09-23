@@ -46,6 +46,7 @@ test('Instagram and Facebook Stories use a larger 9:16 canvas without phone stat
 
   assert.match(instagramStory, /data-preview="instagram-story"[^\n]*aspect-\[9\/16\][^\n]*max-w-\[340px\]/);
   assert.match(facebookStory, /data-preview="facebook-story"[^\n]*aspect-\[9\/16\][^\n]*max-w-\[340px\]/);
+  assert.match(instagramStory, /<header className="absolute inset-x-3 top-5/);
   for (const story of [instagramStory, facebookStory]) {
     assert.doesNotMatch(story, /9:41|RiSignalWifiLine|RiWifiLine|RiBatteryLine/);
     assert.match(story, /compact/);
@@ -61,4 +62,9 @@ test('Facebook Stories can be previewed but remain unavailable as a publishing d
   assert.match(source, /STORY: \["INSTAGRAM"\]/);
   assert.match(source, /Facebook \(prévia visual\)/);
   assert.match(source, /Apenas prévia visual\. Facebook Stories não está habilitado para publicação neste compositor\./);
+});
+
+test('Selected platform format details expand to use the available horizontal space', () => {
+  assert.match(source, /grid gap-2 sm:grid-cols-\[repeat\(auto-fit,minmax\(260px,1fr\)\)\]/);
+  assert.match(source, /grid min-w-0 grid-cols-2 content-start gap-x-4/);
 });
