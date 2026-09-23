@@ -7,8 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { 
   ImagePlus, Hash, Calendar as CalendarIcon, Send, 
   Heart, MessageCircle, Bookmark, Share2, MoreHorizontal,
-  Layers, Video, Image as ImageIcon, Sparkles, Instagram, Facebook, AtSign
+  Layers, Video, Image as ImageIcon, Sparkles,
+  Check, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle
 } from "lucide-react"
+import { SiInstagram, SiFacebook, SiThreads } from "@icons-pack/react-simple-icons"
 import { useDropzone } from "react-dropzone"
 import toast from "react-hot-toast"
 import { api } from "@/lib/api"
@@ -57,7 +59,7 @@ export default function ComposerPage() {
   const [threadsAccounts, setThreadsAccounts] = useState<ThreadsAccount[]>([])
   const [accountId, setAccountId] = useState("")
   const [threadsAccountId, setThreadsAccountId] = useState("")
-  const [platforms, setPlatforms] = useState<string[]>(["INSTAGRAM"])
+  const [platforms, setPlatforms] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showAiAssistant, setShowAiAssistant] = useState(true)
   const [aiTopic, setAiTopic] = useState("")
@@ -66,6 +68,9 @@ export default function ComposerPage() {
   const [aiObjective, setAiObjective] = useState("Atrair e gerar conversa")
   const [aiLoading, setAiLoading] = useState(false)
   const [aiPlan, setAiPlan] = useState<AiPlanItem[]>([])
+  const [step, setStep] = useState(1)
+  const [previewPlatform, setPreviewPlatform] = useState("INSTAGRAM")
+  const [creationMode, setCreationMode] = useState<"manual" | "ai" | null>("manual")
   const mediaItemsRef = useRef<MediaItem[]>([])
 
   useEffect(() => {
@@ -78,6 +83,7 @@ export default function ComposerPage() {
         const nextThreads = (threadAccounts as ThreadsAccount[]).filter((account) => account.isActive)
         setAccounts(nextAccounts)
         setThreadsAccounts(nextThreads)
+        if (!requestedDraft) setPlatforms(nextAccounts.length ? ["INSTAGRAM"] : [])
         const storedAccountId = window.localStorage.getItem("instacommand_active_account")
         if (nextAccounts.length) setAccountId(nextAccounts.find((account) => account.id === storedAccountId)?.id || nextAccounts[0].id)
         if (nextThreads[0]) setThreadsAccountId(nextThreads[0].id)
@@ -220,6 +226,28 @@ export default function ComposerPage() {
 
   const removeHashtag = (tag: string) => {
     setHashtags(hashtags.filter(t => t !== tag))
+  }
+
+  const speakCaption = () => {
+    if (!caption.trim()) { toast.error("Escreva uma legenda antes de ouvir a prévia."); return }
+    if (!("speechSynthesis" in window)) { toast.error("Seu navegador não oferece leitura de texto."); return }
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(caption)
+    utterance.lang = "pt-BR"
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const improveCaption = async () => {
+    if (!caption.trim()) { toast.error("Escreva um texto antes de pedir uma melhoria."); return }
+    setAiTopic(caption)
+    setAiLoading(true)
+    try {
+      const response = await api.generateAi({ mode: "caption", accountId: accountId || undefined, topic: caption, audience: aiAudience || undefined, tone: aiTone, objective: aiObjective, mediaType: postType, platforms }) as { result?: { caption?: string; hashtags?: string[] } }
+      if (response.result?.caption) setCaption(response.result.caption)
+      if (response.result?.hashtags) setHashtags(response.result.hashtags.map(tag => tag.replace(/^#/, "")).filter(Boolean).slice(0, 8))
+      toast.success("Texto revisado. Confira antes de publicar.")
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível melhorar o texto.") }
+    finally { setAiLoading(false) }
   }
 
   const togglePlatform = (platform: string) => {
@@ -386,77 +414,93 @@ export default function ComposerPage() {
   if (draftLoading) return <p role="status">Abrindo rascunho salvo...</p>
   if (draftError) return <Card className="p-6"><p role="alert">{draftError}</p><a href="/calendar" className="text-indigo-700 underline">Voltar ao calendário</a></Card>
   return (
-    <div className="flex min-w-0 flex-col 2xl:flex-row gap-8 min-h-[calc(100vh-8rem)] animate-fade-in">
+    <div className="space-y-5 animate-fade-in">
+      <nav className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-xs md:grid-cols-4 md:gap-5 md:px-7" aria-label="Etapas da publicação">
+        {[
+          { label: "Onde publicar", help: "Escolha a rede social" },
+          { label: "Formato", help: "Defina o tipo de post" },
+          { label: "Conteúdo", help: "Crie seu post" },
+          { label: "Revisar", help: "Confira e publique" },
+        ].map((item, index) => <button key={item.label} type="button" onClick={() => setStep(index + 1)} aria-current={step === index + 1 ? "step" : undefined} className="flex min-w-0 items-center gap-2.5 text-left">
+          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-bold transition-colors ${step === index + 1 ? "border-indigo-600 bg-indigo-600 text-white shadow-sm" : step > index + 1 ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-300 bg-white text-slate-500"}`}>{index + 1}</span>
+          <span className="min-w-0"><span className={`block truncate text-xs font-semibold md:text-sm ${step === index + 1 ? "text-indigo-700" : "text-slate-800"}`}>{item.label}</span><span className="hidden truncate text-[11px] text-slate-500 sm:block">{item.help}</span></span>
+        </button>)}
+      </nav>
+      <div className="grid min-h-[calc(100vh-14rem)] min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(390px,1fr)]">
       {/* Editor Panel */}
       <div className="min-w-0 flex-1 flex flex-col gap-6">
         {draftId && <Card className="space-y-2 border-indigo-200 p-4"><p className="font-semibold">Editando rascunho salvo · @{accounts.find(a => a.id === accountId)?.igUsername}</p><p className="text-xs text-slate-500">Adicione as mídias antes de publicar ou agendar. Esta edição mantém a conta original.</p>{editorialBrief && <details><summary className="cursor-pointer text-sm font-semibold">Briefing e Story do plano</summary><p className="mt-2 whitespace-pre-wrap text-sm">{editorialBrief.creativeBrief}</p><p className="mt-2 whitespace-pre-wrap text-sm">Story: {editorialBrief.storyIdea}</p></details>}<Button type="button" variant="outline" disabled={isSubmitting} onClick={saveDraftChanges}>Salvar alterações do rascunho</Button><a href="/calendar" className="ml-3 text-sm text-indigo-700 underline">Calendário</a></Card>}
-        <Card className="p-6 md:p-8 border border-slate-200/80 bg-white rounded-2xl shadow-xs space-y-6">
+        <Card className="p-5 md:p-7 border border-slate-200/80 bg-white rounded-2xl shadow-xs space-y-6">
+          <div className="border-b border-slate-100 pb-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-indigo-600">Nova publicação · etapa {step} de 4</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 md:text-[28px]">{["Onde você quer publicar?", "Qual formato você deseja usar?", "Como você quer criar o conteúdo?", "Tudo pronto para publicar?"][step - 1]}</h2><p className="mt-1 text-sm text-slate-500">{["Selecione a rede social onde seu post será publicado.", "Escolha o formato ideal para o seu conteúdo.", "Escreva seu texto, adicione as mídias e personalize o post.", "Revise os detalhes e escolha quando publicar."][step - 1]}</p></div>
           {/* Post Type Selector */}
-          <div>
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5 block">
-              Formato da Publicação
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {step === 2 && <div className="animate-fade-in">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { id: "FEED", label: "Post Único", icon: ImageIcon },
-                { id: "CAROUSEL", label: "Carrossel", icon: Layers },
-                { id: "REEL", label: "Reels", icon: Video },
-                { id: "STORY", label: "Story", icon: Sparkles },
+                { id: "FEED", label: "Post único", description: "Uma foto no feed", icon: ImageIcon },
+                { id: "CAROUSEL", label: "Carrossel", description: "Várias mídias em um post", icon: Layers },
+                { id: "REEL", label: "Reels", description: "Vídeo vertical", icon: Video },
+                { id: "STORY", label: "Story", description: "Conteúdo temporário", icon: PlusCircle },
               ].map(type => (
                 <button
                   key={type.id}
                   type="button"
                   onClick={() => changePostType(type.id as PostType)}
-                  className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-xs font-semibold transition-all ${
+                  aria-pressed={postType === type.id}
+                  className={`relative flex min-h-32 flex-col items-start rounded-2xl border p-3 text-left transition-all md:min-h-36 md:p-4 ${
                     postType === type.id
                       ? "border-indigo-600 bg-indigo-50/70 text-indigo-700 shadow-xs ring-1 ring-indigo-600"
                       : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
-                  <type.icon size={16} />
-                  <span>{type.label}</span>
+                  <span className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${postType === type.id ? "bg-white text-indigo-600" : "bg-slate-50 text-slate-500"}`}><type.icon size={21} /></span>
+                  <span className="text-sm font-bold">{type.label}</span><span className="mt-1 text-[11px] leading-4 text-slate-500">{type.description}</span>
+                  {postType === type.id && <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>}
                 </button>
               ))}
             </div>
+            <div className="mt-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white p-4 md:p-5" role="note" aria-label="Requisitos do formato selecionado">
+              <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs"><ImageIcon size={18} /></span><div><h3 className="text-sm font-bold text-slate-900">Requisitos deste formato</h3><p className="mt-0.5 text-xs text-slate-500">Recomendação de tamanho e limites para preparar a publicação.</p></div></div>
+              <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+                {(postType === "STORY" ? [["Proporção", "9:16 vertical"], ["Tamanho recomendado", "1080 × 1920 px"], ["Acesso via API", "Conta Business"], ["Arquivo", "Este app: até 100 MB"]] : postType === "REEL" ? [["Proporção", "9:16 recomendado"], ["Tamanho recomendado", "1080 × 1920 px"], ["Duração", "3 s a 15 min"], ["Vídeo", "MP4/MOV · app até 100 MB"]] : postType === "CAROUSEL" ? [["Quantidade", "2 a 10 mídias"], ["Proporção", "Igual em todos os itens"], ["Tamanho recomendado", "1080 × 1350 px · 4:5"], ["Arquivo", "Este app: até 100 MB/item"]] : [["Proporção aceita", "1,91:1 a 4:5"], ["Tamanho recomendado", "1080 × 1350 px · 4:5"], ["Imagem", "JPEG"], ["Arquivo", "Este app: até 100 MB"]]).map(([label, value]) => <div key={label} className="min-w-0 rounded-xl border border-white bg-white/90 px-3 py-2.5"><span className="block text-[10px] font-medium uppercase tracking-wide text-slate-500">{label}</span><span className="mt-1 block text-xs font-semibold leading-4 text-slate-800">{value}</span></div>)}
+              </div>
+              {postType === "REEL" && <p className="mt-3 text-[11px] leading-4 text-slate-500">A referência da API da Meta aceita arquivos de Reel até 1 GB; o limite próprio do upload do InstaCommand é 100 MB.</p>}
+              {postType === "STORY" && <p className="mt-3 text-[11px] leading-4 text-slate-500">No fluxo de publicação via API, Stories estão disponíveis para contas Instagram Business.</p>}
+            </div>
           </div>
+          }
 
           {/* Publication targets */}
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+          {step === 1 && <div className="animate-fade-in rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-700">Onde publicar</p>
                 <p className="mt-1 text-xs text-slate-500">Escolha uma ou várias redes para este conteúdo.</p>
               </div>
-              <select
-                value={accountId}
-                onChange={(event) => setAccountId(event.target.value)}
-                className="h-9 max-w-[210px] rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500"
-                aria-label="Conta do Instagram"
-                disabled={!!draftId}
-              >
-                <option value="">Selecione a conta</option>
-                {accounts.map((account) => <option key={account.id} value={account.id}>@{account.igUsername}</option>)}
-              </select>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">{selectedAccount ? `@${selectedAccount.igUsername}` : "Nenhuma conta do Instagram ativa"}</span>
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3">
               {[
-                { id: "INSTAGRAM", label: "Instagram", icon: Instagram, help: "Feed, carrossel, Reels e Stories" },
-                { id: "FACEBOOK", label: "Facebook", icon: Facebook, help: postType === "STORY" ? "Stories não disponíveis pela API" : selectedAccount?.pageName ? `Página ${selectedAccount.pageName}` : "Selecione uma conta com Página vinculada" },
-                { id: "THREADS", label: "Threads", icon: AtSign, help: postType === "STORY" ? "Stories não disponíveis pela API" : threadsAccounts.length ? `@${threadsAccounts[0].username}` : "Conecte uma conta" },
+                { id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram, handle: selectedAccount ? `@${selectedAccount.igUsername}` : "Nenhuma conta selecionada", help: selectedAccount ? "Conectado" : "Conecte uma conta em Contas", color: "instagram" },
+                { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook, handle: selectedAccount?.pageName || "Página do Facebook", help: selectedAccount?.pageName ? "Conectado" : "Não conectado", color: "facebook" },
+                { id: "THREADS", label: "Threads", Icon: SiThreads, handle: threadsAccounts[0] ? `@${threadsAccounts[0].username}` : "Conta do Threads", help: threadsAccounts.length ? "Conectado" : "Não conectado", color: "threads" },
               ].map((target) => {
                 const selected = platforms.includes(target.id)
-                const unavailable = (target.id === "THREADS" && (!threadsAccounts.length || postType === "STORY")) || (target.id === "FACEBOOK" && (!selectedAccount?.pageName || postType === "STORY"))
+                const unavailable = (target.id === "INSTAGRAM" && !selectedAccount) || (target.id === "THREADS" && (!threadsAccounts.length || postType === "STORY")) || (target.id === "FACEBOOK" && (!selectedAccount?.pageName || postType === "STORY"))
                 return (
                   <button
                     key={target.id}
                     type="button"
                     onClick={() => !unavailable && togglePlatform(target.id)}
                     aria-disabled={unavailable}
-                    className={`rounded-xl border p-3 text-left transition-all ${selected ? "border-indigo-500 bg-white ring-1 ring-indigo-500/20" : "border-slate-200 bg-white/60 hover:border-indigo-300"} ${unavailable ? "cursor-not-allowed opacity-60" : ""}`}
+                    className={`flex min-h-[78px] w-full items-center gap-4 rounded-xl border px-4 py-3 text-left transition-all ${selected ? "border-indigo-600 bg-indigo-50/50 shadow-[0_0_0_1px_rgba(99,102,241,.16)]" : "border-slate-200 bg-white hover:border-slate-300"} ${unavailable ? "cursor-not-allowed opacity-60" : ""}`}
                     aria-pressed={selected}
                   >
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><target.icon size={16} className={selected ? "text-indigo-600" : "text-slate-400"} />{target.label}<span className={`ml-auto h-2 w-2 rounded-full ${selected ? "bg-emerald-500" : "bg-slate-300"}`} /></div>
-                    <p className="mt-1 text-[11px] text-slate-500">{target.help}</p>
+                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${target.color === "instagram" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : target.color === "facebook" ? "bg-[#1877F2]" : "bg-[#101113]"}`}>
+                      <target.Icon size={25} color="#fff" title={`${target.label} logo`} />
+                    </span>
+                    <span className="min-w-0 flex-1"><span className="block text-[13px] font-semibold leading-4 text-slate-800">{target.label}</span><span className="mt-0.5 block truncate text-[10px] text-slate-500">{target.handle}</span></span>
+                    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${!unavailable ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-400"}`}><span className={`h-2 w-2 rounded-full ${!unavailable ? "bg-emerald-500" : "bg-slate-300"}`} />{target.help}</span>
+                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${selected ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 bg-white"}`}>{selected && <Check size={16} strokeWidth={3} />}</span>
                   </button>
                 )
               })}
@@ -466,11 +510,18 @@ export default function ComposerPage() {
                 {threadsAccounts.map((account) => <option key={account.id} value={account.id}>Threads @{account.username}</option>)}
               </select>
             )}
-            {!threadsAccounts.length && <a href={`${BACKEND_ORIGIN}/api/auth/threads`} className="inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar conta do Threads →</a>}
+            {!selectedAccount && <a href="/accounts" className="inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar Instagram em Contas →</a>}
+            {!threadsAccounts.length && <a href={`${BACKEND_ORIGIN}/api/auth/threads`} className="ml-4 inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar conta do Threads →</a>}
+            <p className="flex items-center gap-2 border-t border-slate-200 pt-3 text-xs text-slate-500"><span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold">i</span>Para trocar de perfil, use o seletor no topo da página.</p>
           </div>
+          }
 
           {/* AI assistant */}
-          <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 p-4 shadow-xs">
+          {step === 3 && <div className="animate-fade-in space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[{ id: "manual" as const, title: "Fazer por conta", detail: "Escreva o texto, adicione mídias e personalize do seu jeito.", Icon: PencilLine }, { id: "ai" as const, title: "Criar com IA", detail: "Gere uma legenda e hashtags a partir de um tema.", Icon: Sparkles }].map(option => <button key={option.id} type="button" onClick={() => { setCreationMode(option.id); setShowAiAssistant(true) }} aria-pressed={creationMode === option.id} className={`flex min-h-[88px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${creationMode === option.id ? "border-indigo-600 bg-indigo-50/60 ring-1 ring-indigo-600" : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50"}`}><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${creationMode === option.id ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-indigo-600"}`}><option.Icon size={22} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-900">{option.title}</span><span className="mt-1 block text-xs leading-4 text-slate-500">{option.detail}</span></span><span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${creationMode === option.id ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 bg-white"}`}>{creationMode === option.id && <Check size={12} />}</span></button>)}
+          </div>
+          {creationMode === "ai" && <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 p-4 shadow-xs">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm"><Sparkles size={18} /></div>
@@ -502,31 +553,37 @@ export default function ComposerPage() {
               }} />
               {aiPlan.length > 0 && <div className="max-h-64 space-y-2 overflow-auto rounded-xl border border-indigo-100 bg-white p-3">{aiPlan.map((item, index) => <div key={`${item.day}-${index}`} className="rounded-lg border border-slate-100 p-3"><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold text-indigo-700">{item.day} · {item.format}</p><span className="text-[11px] text-slate-400">{item.suggestedTime}</span></div><p className="mt-1 text-sm font-semibold text-slate-800">{item.topic}</p><p className="mt-1 text-xs text-slate-500">{item.hook}</p><p className="mt-1 text-xs font-medium text-slate-600">CTA: {item.cta}</p></div>)}</div>}
             </div>}
+          </div>}
+
+          {/* Caption */}
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label htmlFor="post-caption" className="block text-sm font-semibold text-slate-800">Texto do post</label>
+              <span className={`text-xs font-medium ${caption.length > 2100 ? "text-amber-700" : "text-slate-400"}`}>{caption.length.toLocaleString("pt-BR")}/2.200 caracteres</span>
+            </div>
+            <textarea id="post-caption" className="h-28 w-full resize-y rounded-xl border border-slate-200 bg-white p-3.5 text-sm leading-5 text-slate-900 shadow-xs transition placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 md:h-32" placeholder="Escreva sua legenda, conte a ideia e personalize o post..." value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={2200} />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={speakCaption} disabled={!caption.trim()} className="h-9 gap-2 rounded-lg border-indigo-100 px-3 text-xs text-indigo-700"><Mic size={15} />Ouvir texto</Button>
+              <Button type="button" variant="outline" disabled={aiLoading || !caption.trim()} onClick={improveCaption} className="h-9 gap-2 rounded-lg border-indigo-100 px-3 text-xs text-indigo-700"><Sparkles size={15} />{aiLoading ? "Revisando…" : "Melhorar com IA"}</Button>
+            </div>
           </div>
 
-          <ArtworkStudio disabled={isSubmitting} onUse={files => {
-            if (mediaItems.length && !window.confirm('Substituir as mídias selecionadas pelas artes do editor?')) return
-            mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
-            setMediaItems(files.map(file => ({ id: crypto.randomUUID(), file, src: URL.createObjectURL(file), name: file.name, kind: 'image' as const, isObjectUrl: true })))
-            setPostType(files.length > 1 ? 'CAROUSEL' : 'FEED'); setActiveMediaIndex(0)
-            toast.success('Artes anexadas. Revise a prévia e salve o rascunho; nada foi publicado.')
-          }} />
-          {!draftId && <Button type="button" variant="outline" disabled={isSubmitting || !accountId || !mediaItems.length} onClick={saveDraftChanges}>Salvar como rascunho</Button>}
-          {/* Media Upload */}
+          {/* Media upload */}
           <div>
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5 block">
-              Mídia Visual
-            </label>
+            <div className="mb-2.5 flex items-center justify-between gap-3">
+              <label className="block text-sm font-semibold text-slate-800">Mídias</label>
+              <span className="text-xs font-medium text-slate-400">{mediaItems.length}{postType === "CAROUSEL" ? " de 10 itens" : mediaItems.length === 1 ? " arquivo" : " arquivos"}</span>
+            </div>
             {mediaItems.length > 0 && (
-              <div className="space-y-3 mb-3">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="mb-3">
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
                   {mediaItems.map((item, index) => (
-                    <div key={item.id} className="relative aspect-square group">
+                    <div key={item.id} className="group relative aspect-[1.1]">
                       <button
                         type="button"
                         onClick={() => setActiveMediaIndex(index)}
                         title={item.name}
-                        className={`w-full h-full overflow-hidden rounded-xl border bg-slate-100 transition-all ${
+                        className={`h-full w-full overflow-hidden rounded-xl border bg-slate-100 transition-all ${
                           index === activeMediaIndex
                             ? "border-indigo-600 ring-2 ring-indigo-500/25"
                             : "border-slate-200 hover:border-indigo-300"
@@ -538,14 +595,14 @@ export default function ComposerPage() {
                           <img src={item.src} alt={item.name} className="w-full h-full object-cover" />
                         )}
                       </button>
-                      <span className="absolute left-2 top-2 min-w-5 h-5 px-1 rounded-full bg-slate-950/75 text-white text-[10px] font-bold flex items-center justify-center">
+                      <span className="absolute bottom-2 left-2 flex h-5 min-w-5 items-center justify-center rounded-md bg-slate-950/75 px-1 text-[10px] font-bold text-white">
                         {index + 1}
                       </span>
                       <button
                         type="button"
                         onClick={() => removeMedia(item.id)}
                         aria-label={`Remover ${item.name}`}
-                        className="absolute right-2 top-2 w-6 h-6 rounded-full bg-white/95 text-slate-700 shadow-sm text-sm leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-rose-50 hover:text-rose-600"
+                        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-950/75 text-sm leading-none text-white opacity-100 shadow-sm transition hover:bg-rose-600 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
                       >
                         ×
                       </button>
@@ -556,6 +613,7 @@ export default function ComposerPage() {
                       )}
                     </div>
                   ))}
+                  {mediaItems.length < (postType === "CAROUSEL" ? 10 : 1) && <div {...getRootProps()} className={`flex aspect-[1.1] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-2 text-center transition ${isDragActive ? "border-indigo-500 bg-indigo-50" : "border-indigo-200 bg-slate-50/70 hover:border-indigo-400 hover:bg-indigo-50/40"}`}><input {...getInputProps()} /><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><ImagePlus size={18} /></span><span className="mt-2 text-[11px] font-semibold text-indigo-700">Adicionar mídia</span><span className="mt-1 text-[9px] leading-3 text-slate-500">Imagem ou vídeo<br />(até 100 MB)</span></div>}
                 </div>
 
                 {postType === "CAROUSEL" && (
@@ -588,19 +646,19 @@ export default function ComposerPage() {
               </div>
             )}
 
-            <div
+            {mediaItems.length === 0 && <div
               {...getRootProps()}
-              className={`border-2 border-dashed rounded-2xl ${mediaItems.length > 0 ? "p-4" : "p-8"} flex items-center justify-center text-center cursor-pointer transition-all ${
+              className={`flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
                 isDragActive
                   ? "border-indigo-500 bg-indigo-50/50"
                   : "border-slate-200 bg-slate-50/60 hover:bg-slate-50 hover:border-slate-300"
               }`}
             >
               <input {...getInputProps()} />
-              <div className={`w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs ${mediaItems.length > 0 ? "mr-3" : "mb-3"}`}>
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-100 bg-indigo-50 text-indigo-600 shadow-xs">
                 <ImagePlus size={22} />
               </div>
-              <div className={mediaItems.length > 0 ? "text-left" : "text-center"}>
+              <div className="text-center">
                 <p className="text-sm font-semibold text-slate-800">
                   {isDragActive ? "Solte os arquivos aqui" : mediaItems.length > 0 ? "Adicionar mais mídias" : "Arraste imagens ou vídeos aqui"}
                 </p>
@@ -608,36 +666,26 @@ export default function ComposerPage() {
                   {platforms.length === 1 && platforms[0] === "THREADS" ? "Opcional no Threads quando você publicar somente texto • PNG, JPG, MP4 ou MOV" : postType === "CAROUSEL" ? "Até 10 itens • PNG, JPG, MP4 ou MOV" : "PNG, JPG, MP4 ou MOV até 100MB"}
                 </p>
               </div>
-            </div>
+            </div>}
           </div>
 
-          {/* Caption */}
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                Legenda do Post
-              </label>
-              <span className="text-xs font-medium text-slate-400">{caption.length}/2200 caracteres</span>
-            </div>
-            <textarea 
-              className="w-full h-36 rounded-xl border border-slate-200 bg-white p-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all resize-none shadow-xs"
-              placeholder="Escreva a legenda com um hook impactante na primeira linha..."
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              maxLength={2200}
-            />
-          </div>
+          <ArtworkStudio disabled={isSubmitting} onUse={files => {
+            if (mediaItems.length && !window.confirm('Substituir as mídias selecionadas pelas artes do editor?')) return
+            mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
+            setMediaItems(files.map(file => ({ id: crypto.randomUUID(), file, src: URL.createObjectURL(file), name: file.name, kind: 'image' as const, isObjectUrl: true })))
+            setPostType(files.length > 1 ? 'CAROUSEL' : 'FEED'); setActiveMediaIndex(0)
+            toast.success('Artes anexadas. Revise a prévia e salve o rascunho; nada foi publicado.')
+          }} />
+          {!draftId && <Button type="button" variant="outline" disabled={isSubmitting || !accountId || !mediaItems.length} onClick={saveDraftChanges}>Salvar como rascunho</Button>}
 
           {/* Hashtags */}
           <div>
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 block">
-              Palavras-chave e Hashtags
-            </label>
+            <div className="mb-2 flex items-center justify-between gap-3"><label className="block text-sm font-semibold text-slate-800">Hashtags <span className="font-normal text-slate-400">(opcional)</span></label><span className="text-xs text-slate-400">{hashtags.length} {hashtags.length === 1 ? "hashtag" : "hashtags"}</span></div>
             <div className="flex gap-2 mb-3">
               <div className="relative flex-1">
                 <Hash className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
                 <Input 
-                  className="pl-9.5 rounded-xl text-sm" 
+                  className="rounded-xl pl-9.5 text-sm"
                   placeholder="Digite uma hashtag e pressione Enter..." 
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
@@ -670,165 +718,57 @@ export default function ComposerPage() {
           </div>
 
           {/* Scheduling Date and Actions */}
-          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-4 items-center">
-            <div className="w-full sm:w-auto flex-1">
-              <label className="text-xs font-semibold text-slate-500 mb-1 block">Agendar Disparo</label>
-              <Input 
-                type="datetime-local" 
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="text-xs font-medium rounded-xl h-10"
-              />
-            </div>
+          </div>}
 
-            <div className="w-full sm:w-auto flex gap-2.5 pt-4 sm:pt-0">
-              <Button 
-                variant="outline" 
-                onClick={() => submitPost("schedule")}
-                disabled={isSubmitting}
-                className="flex-1 sm:flex-initial gap-2 rounded-xl border-slate-200 text-slate-700 font-semibold h-11 px-5 shadow-xs"
-              >
-                <CalendarIcon size={16} />
-                Agendar Post
-              </Button>
-              <Button 
-                onClick={() => submitPost("publish")}
-                disabled={isSubmitting}
-                className="flex-1 sm:flex-initial gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold h-11 px-6 shadow-xs shadow-indigo-200"
-              >
-                <Send size={16} />
-                {isSubmitting ? "Enviando..." : "Publicar Agora"}
-              </Button>
-            </div>
+          {step === 4 && <div className="animate-fade-in space-y-5">
+            <section><h3 className="text-sm font-bold text-slate-900">Redes sociais selecionadas</h3><div className="mt-2 flex flex-wrap gap-2">{platforms.map(platform => { const network = platform === "INSTAGRAM" ? { label: `Instagram · @${selectedAccount?.igUsername || "conta"}`, Icon: SiInstagram, bg: "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" } : platform === "FACEBOOK" ? { label: `Facebook · ${selectedAccount?.pageName || "Página"}`, Icon: SiFacebook, bg: "bg-[#1877F2]" } : { label: `Threads · @${threadsAccounts.find(account => account.id === threadsAccountId)?.username || "conta"}`, Icon: SiThreads, bg: "bg-[#101113]" }; return <span key={platform} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><span className={`flex h-7 w-7 items-center justify-center rounded-lg ${network.bg}`}><network.Icon size={17} color="#fff" title={network.label} /></span>{network.label}</span> })}</div></section>
+            <section className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Formato</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "FEED" ? "Post único · foto" : postType === "CAROUSEL" ? "Carrossel" : postType === "REEL" ? "Reel" : "Story"}</p></div><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Mídia</span><p className="mt-1 text-sm font-semibold text-slate-900">{mediaItems.length} {mediaItems.length === 1 ? "arquivo" : "arquivos"}</p></div></section>
+            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-bold text-slate-900">Resumo do conteúdo</h3><div className="mt-3 flex gap-3">{activeMedia && <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white">{activeMedia.kind === "video" ? <video src={activeMedia.src} muted playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Mídia selecionada" className="h-full w-full object-cover" />}</div>}<div className="min-w-0"><p className="line-clamp-4 whitespace-pre-wrap text-sm leading-5 text-slate-700">{caption || "Adicione a legenda na etapa Conteúdo."}</p>{hashtags.length > 0 && <p className="mt-1 line-clamp-1 text-xs text-indigo-600">{hashtags.map(tag => `#${tag} `)}</p>}</div></div></section>
+            <section className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4"><label htmlFor="publish-date" className="text-sm font-semibold text-slate-900">Data e horário para agendar</label><p className="mb-2 mt-1 text-xs text-slate-500">A publicação imediata ignora este horário.</p><Input id="publish-date" type="datetime-local" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="h-11 rounded-xl bg-white text-sm font-medium" /></section>
+          </div>}
+
+          <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+            <Button type="button" variant="outline" disabled={step === 1} onClick={() => setStep(current => Math.max(1, current - 1))} className="gap-1"><ChevronLeft size={16} />Voltar</Button>
+            {step < 4 ? <Button type="button" onClick={() => { if (step === 1 && (!accountId || !platforms.length)) { toast.error("Selecione uma rede disponível antes de continuar."); return } if (step === 3 && !caption.trim() && !mediaItems.length) { toast.error("Adicione uma legenda ou mídia antes de revisar."); return } setStep(current => current + 1) }} className="gap-1 bg-indigo-600 text-white hover:bg-indigo-700">Continuar<ChevronRight size={16} /></Button> : <div className="flex flex-1 justify-end gap-2"><Button type="button" variant="outline" onClick={() => submitPost("schedule")} disabled={isSubmitting} className="gap-2"><CalendarIcon size={16} />Programar para depois</Button><Button type="button" onClick={() => submitPost("publish")} disabled={isSubmitting} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Send size={16} />{isSubmitting ? "Enviando..." : "Publicar agora"}</Button></div>}
           </div>
         </Card>
       </div>
 
-      {/* Realistic Mobile Preview Panel */}
-      <div className="w-full 2xl:w-[380px] flex flex-col items-center 2xl:shrink-0">
-        <div className="w-full mb-3 flex items-center justify-between px-2">
-          <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-            Prévia em Tempo Real
-          </span>
-          <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-            Mockup Instagram
-          </span>
-        </div>
-
-        {/* Clean iPhone Mockup Frame */}
-        <div className="w-[330px] bg-white border-4 border-slate-200 rounded-[2.5rem] overflow-hidden shadow-2xl relative">
-          {/* Top Notch / Dynamic Island */}
-          <div className="h-5 bg-slate-100 flex justify-center items-center border-b border-slate-200">
-            <div className="w-20 h-3 bg-slate-300 rounded-full" />
+      {/* Live, proportional social preview */}
+      <aside className="w-full min-w-0 xl:sticky xl:top-24 xl:h-fit">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs md:p-5">
+          <div className="flex items-center justify-between gap-3"><div><h3 className="text-base font-bold text-slate-900">Prévia da publicação</h3><p className="text-xs text-slate-500">Veja como o conteúdo se adapta à rede.</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500"><Eye size={17} /></span></div>
+          <div className="mt-4 flex w-full gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Prévia por plataforma">
+            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }].map(tab => <button key={tab.id} type="button" role="tab" aria-selected={previewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${previewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{tab.label}</button>)}
           </div>
-
-          {/* Instagram Post Header */}
-          <div className="p-3 flex items-center justify-between border-b border-slate-100 bg-white">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 overflow-hidden rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shadow-xs">
-                {selectedAccount?.igProfilePicUrl ? <img src={selectedAccount.igProfilePicUrl} alt="" className="h-full w-full rounded-full object-cover" /> : <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[10px] font-bold text-indigo-700">{selectedAccount?.igUsername?.[0]?.toUpperCase() || "?"}</div>}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-slate-900 leading-none">{selectedAccount?.igUsername || "Sua conta"}</span>
-                <span className="text-[9px] text-slate-400">Prévia da publicação</span>
+          <div className="mt-4 flex justify-center">
+            <div className="w-full max-w-[300px] rounded-[2.7rem] border-[7px] border-slate-900 bg-slate-900 p-[3px] shadow-[0_18px_40px_-18px_rgba(15,23,42,0.45)]">
+              <div className="overflow-hidden rounded-[2.15rem] bg-white">
+                <div className="flex h-8 items-center justify-between px-5 text-[9px] font-semibold text-slate-900"><span>9:41</span><span className="h-[15px] w-[76px] rounded-full bg-slate-950" /><span>●●● ▰</span></div>
+                {postType === "STORY" || postType === "REEL" ? <div className="relative overflow-hidden bg-slate-950 text-white">
+                  <div className={`relative aspect-[9/16] w-full ${activeMedia ? "" : "bg-gradient-to-b from-slate-700 to-slate-950"}`}>
+                    {activeMedia && (activeMedia.kind === "video" ? <video src={activeMedia.src} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Prévia da publicação" className="h-full w-full object-cover" />)}
+                    {!activeMedia && <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-white/80"><ImageIcon size={27} /><span className="mt-3 text-sm">Sua mídia vertical aparecerá aqui</span><span className="mt-1 text-xs text-white/60">Proporção 9:16</span></div>}
+                    <div className="absolute inset-x-3 top-3 flex items-center gap-2"><div className="h-1 flex-1 rounded-full bg-white/80" /><div className="h-1 flex-1 rounded-full bg-white/40" /></div>
+                    <div className="absolute inset-x-4 bottom-5 flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/70 bg-indigo-500 text-xs font-bold">{selectedAccount?.igUsername?.[0]?.toUpperCase() || "?"}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">@{selectedAccount?.igUsername || "sua_conta"}</p><p className="line-clamp-2 text-[11px] text-white/90">{caption || "Sua legenda aparece sobre o vídeo."}</p></div><Heart size={19} /></div>
+                  </div>
+                </div> : <>
+                  <div className="flex h-11 items-center justify-between border-b border-slate-100 px-3"><span className="font-serif text-base font-bold tracking-tight text-slate-900">{previewPlatform === "FACEBOOK" ? "facebook" : previewPlatform === "THREADS" ? "Threads" : "Instagram"}</span><div className="flex items-center gap-3 text-slate-900"><Plus size={16} /><MessageCircle size={16} /></div></div>
+                  <div className="flex h-12 items-center justify-between px-3"><div className="flex min-w-0 items-center gap-2"><div className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[2px]"><div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-white text-[10px] font-bold text-indigo-700">{selectedAccount?.igProfilePicUrl ? <img src={selectedAccount.igProfilePicUrl} alt="" className="h-full w-full object-cover" /> : selectedAccount?.igUsername?.[0]?.toUpperCase() || "?"}</div></div><div className="min-w-0"><p className="truncate text-[11px] font-semibold text-slate-900">{previewPlatform === "FACEBOOK" ? selectedAccount?.pageName || "Sua Página" : previewPlatform === "THREADS" ? threadsAccounts.find(account => account.id === threadsAccountId)?.username || "Sua conta Threads" : selectedAccount?.igUsername || "Sua conta"}</p><p className="text-[9px] text-slate-500">{previewPlatform === "FACEBOOK" ? "Publicação" : "São Paulo, Brasil"}</p></div></div><MoreHorizontal size={17} className="shrink-0 text-slate-500" /></div>
+                  <div className={`relative w-full overflow-hidden bg-slate-100 ${postType === "CAROUSEL" && mediaItems.length > 1 ? "" : ""} ${postType === "FEED" || postType === "CAROUSEL" ? "aspect-[4/5]" : "aspect-[9/16]"}`}>
+                    {activeMedia ? activeMedia.kind === "video" ? <video src={activeMedia.src} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Prévia da publicação" className="h-full w-full object-cover" /> : <div className="flex h-full w-full flex-col items-center justify-center bg-slate-100 p-5 text-center"><ImageIcon size={28} className="text-slate-400" /><p className="mt-3 text-sm font-medium text-slate-600">Sua arte aparecerá aqui</p><p className="mt-1 text-xs text-slate-500">Adicione uma mídia para ver a prévia real.</p></div>}
+                    {postType === "CAROUSEL" && mediaItems.length > 1 && <span className="absolute right-3 top-3 rounded-full bg-slate-950/65 px-2 py-1 text-[10px] font-semibold text-white">{activeMediaIndex + 1}/{mediaItems.length}</span>}
+                    {mediaItems.length > 1 && <><button type="button" aria-label="Mídia anterior" onClick={() => setActiveMediaIndex(current => (current - 1 + mediaItems.length) % mediaItems.length)} className="absolute left-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-slate-800 shadow-sm"><ChevronLeft size={17} /></button><button type="button" aria-label="Próxima mídia" onClick={() => setActiveMediaIndex(current => (current + 1) % mediaItems.length)} className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-slate-800 shadow-sm"><ChevronRight size={17} /></button></>}
+                  </div>
+                  <div className="px-3 pb-3 pt-2"><div className="flex items-center justify-between"><div className="flex items-center gap-3 text-slate-900"><Heart size={18} /><MessageCircle size={17} /><Share2 size={17} /></div><Bookmark size={17} className="text-slate-800" /></div>{mediaItems.length > 1 && <div className="mt-2 flex justify-center gap-1">{mediaItems.map((item, index) => <button type="button" key={item.id} aria-label={`Ver item ${index + 1}`} onClick={() => setActiveMediaIndex(index)} className={`h-1.5 w-1.5 rounded-full ${index === activeMediaIndex ? "bg-indigo-600" : "bg-slate-300"}`} />)}</div>}<p className="mt-2 line-clamp-3 break-words text-[10px] leading-4 text-slate-800"><span className="font-semibold">{previewPlatform === "FACEBOOK" ? selectedAccount?.pageName || "Sua Página" : previewPlatform === "THREADS" ? threadsAccounts.find(account => account.id === threadsAccountId)?.username || "sua_conta" : selectedAccount?.igUsername || "sua_conta"}</span>{" "}{caption || <span className="text-slate-400">A legenda da publicação aparecerá aqui.</span>}</p>{hashtags.length > 0 && <p className="mt-1 line-clamp-1 break-words text-[10px] text-indigo-600">{hashtags.map(tag => `#${tag} `)}</p>}</div>
+                </>}
+                <div className="flex h-7 items-center justify-center bg-white"><span className="h-1 w-20 rounded-full bg-slate-900" /></div>
               </div>
             </div>
-            <MoreHorizontal size={16} className="text-slate-400" />
           </div>
-
-          {/* Media Container */}
-          <div className="w-full aspect-square bg-slate-100 relative overflow-hidden flex items-center justify-center">
-            {activeMedia ? (
-              activeMedia.kind === "video" ? (
-                <video src={activeMedia.src} autoPlay muted loop playsInline className="w-full h-full object-cover" />
-              ) : (
-                <img src={activeMedia.src} alt="Prévia da publicação" className="w-full h-full object-cover" />
-              )
-            ) : (
-              <div className="text-center p-6">
-                <ImageIcon size={32} className="mx-auto text-slate-300 mb-2" />
-                <p className="text-xs text-slate-400 font-medium">Adicione uma mídia para ver a prévia</p>
-              </div>
-            )}
-            <div className="absolute top-3 right-3 bg-white/90 text-slate-700 border border-slate-200 text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-xs shadow-sm">
-              {postType === "CAROUSEL" && mediaItems.length > 0 ? `${postType} ${activeMediaIndex + 1}/${mediaItems.length}` : postType}
-            </div>
-          </div>
-
-          {mediaItems.length > 1 && (
-            <div
-              role="group"
-              aria-label="Navegação da prévia do carrossel"
-              className="flex items-center justify-between gap-1 border-y border-slate-100 bg-white px-2 py-2"
-            >
-              <button
-                type="button"
-                onClick={() => setActiveMediaIndex(current => (current - 1 + mediaItems.length) % mediaItems.length)}
-                aria-label="Ver mídia anterior"
-                className="min-h-8 rounded-full px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              >
-                ← Anterior
-              </button>
-              <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto px-1">
-                <span aria-live="polite" className="shrink-0 text-[11px] text-slate-500">
-                  {activeMediaIndex + 1}/{mediaItems.length}
-                </span>
-                {mediaItems.map((item, index) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveMediaIndex(index)}
-                    aria-label={`Ver mídia ${index + 1}`}
-                    aria-pressed={index === activeMediaIndex}
-                    className={`flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${index === activeMediaIndex ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-                  >
-                    {index + 1}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveMediaIndex(current => (current + 1) % mediaItems.length)}
-                aria-label="Ver próxima mídia"
-                className="min-h-8 rounded-full px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              >
-                Próxima →
-              </button>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="p-3 bg-white">
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex gap-3 text-slate-700">
-                <Heart size={20} className="hover:text-rose-500 cursor-pointer transition-colors" />
-                <MessageCircle size={20} className="hover:text-indigo-600 cursor-pointer transition-colors" />
-                <Share2 size={20} className="hover:text-indigo-600 cursor-pointer transition-colors" />
-              </div>
-              <Bookmark size={20} className="text-slate-700 hover:text-amber-500 cursor-pointer transition-colors" />
-            </div>
-
-            <p className="text-xs font-bold text-slate-900 mb-1">Prévia sem métricas</p>
-
-            {/* Caption Text */}
-            <div className="text-xs text-slate-800 leading-relaxed break-words">
-              <span className="font-bold text-slate-900 mr-1.5">{selectedAccount?.igUsername || "sua_conta"}</span>
-              <span>{caption || "Aqui aparecerá a legenda da sua publicação com todo o conteúdo e chamada para ação configurados..."}</span>
-              {hashtags.length > 0 && (
-                <div className="text-indigo-600 font-medium mt-1">
-                  {hashtags.map(t => `#${t} `)}
-                </div>
-              )}
-            </div>
-
-            <p className="text-[10px] text-slate-400 uppercase mt-2">Prévia em tempo real</p>
-          </div>
-
-          {/* Bottom Bar Indicator */}
-          <div className="h-4 bg-white flex justify-center items-center pb-1">
-            <div className="w-24 h-1 bg-slate-300 rounded-full" />
-          </div>
-        </div>
+          <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">A prévia é uma estimativa. A proporção acompanha o formato escolhido e o feed não exibe Stories.</p>
+        </section>
+      </aside>
       </div>
     </div>
   )

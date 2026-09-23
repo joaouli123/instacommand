@@ -310,7 +310,19 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
   }
 };
 
-export const deletePost = async (igMediaId: string, accountId: string) => {
+export const deleteFacebookPost = async (facebookPostId: string, accountId: string) => {
   const token = await getDecryptedToken(accountId);
-  return apiDelete(`/${igMediaId}`, token);
+  return apiDelete(`/${facebookPostId}`, token);
+};
+
+export const deleteThreadsPost = async (threadsPostId: string, threadsAccountId: string) => {
+  const token = await getDecryptedThreadsToken(threadsAccountId);
+  const url = new URL(`https://graph.threads.net/${threadsPostId}`);
+  url.searchParams.set('access_token', token);
+  const response = await fetch(url, { method: 'DELETE', signal: AbortSignal.timeout(30_000) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error || data?.success === false) {
+    throw new Error(data?.error?.message || `Threads API error ${response.status}`);
+  }
+  return data;
 };

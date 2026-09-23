@@ -45,6 +45,9 @@ test('platform Threads credentials are used as a matching pair', async () => {
   const url = new URL(await getThreadsOAuthUrl('user'));
   assert.equal(url.searchParams.get('client_id'), 'threads-app-id');
   assert.notEqual(url.searchParams.get('client_id'), 'facebook-app-id');
+  assert.deepEqual(new Set(url.searchParams.get('scope').split(',')), new Set([
+    'threads_basic', 'threads_content_publish', 'threads_delete',
+  ]));
 });
 
 test('a partial server configuration is reported and never mixed with workspace credentials', async () => {

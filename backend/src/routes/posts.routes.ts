@@ -3,7 +3,7 @@ import multer from 'multer';
 import { authenticate } from '../middleware/auth';
 import { PrismaClient, MediaType, PostStatus } from '@prisma/client';
 import { schedulePost, cancelScheduledPost } from '../services/scheduler.service';
-import { publishPost, deletePost } from '../services/instagram/publish.service';
+import { publishPost, deleteFacebookPost, deleteThreadsPost } from '../services/instagram/publish.service';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -236,15 +236,28 @@ router.delete('/:id', async (req: any, res, next) => {
 
     const warnings: string[] = [];
     if (post.publishedPost?.igMediaId) {
+      warnings.push('O post do Instagram não foi removido do perfil: a API oficial não permite excluir mídia publicada. Exclua-o no Instagram.');
+    }
+    if (post.publishedPost?.facebookPostId) {
       try {
-        await deletePost(post.publishedPost.igMediaId, post.accountId);
+        await deleteFacebookPost(post.publishedPost.facebookPostId, post.accountId);
       } catch (error) {
-        console.error(`Could not delete Instagram media ${post.publishedPost.igMediaId}:`, error);
-        warnings.push('O conteúdo do Instagram não pôde ser removido remotamente; verifique a conexão da Meta.');
+        console.error(`Could not delete Facebook post ${post.publishedPost.facebookPostId}:`, error);
+        warnings.push('O post do Facebook pode continuar na Página; a Meta recusou a exclusão. Confira permissões e remova-o na Página se necessário.');
       }
     }
-    if (post.publishedPost?.facebookPostId) warnings.push('A publicação do Facebook permanece na Página; a API atual não permite removê-la por este painel.');
-    if (post.publishedPost?.threadsPostId) warnings.push('A publicação do Threads permanece no perfil; a API atual não permite removê-la por este painel.');
+    if (post.publishedPost?.threadsPostId) {
+      if (!post.threadsAccountId) {
+        warnings.push('O post do Threads pode continuar no perfil; não foi possível localizar a conta conectada.');
+      } else {
+        try {
+          await deleteThreadsPost(post.publishedPost.threadsPostId, post.threadsAccountId);
+        } catch (error) {
+          console.error(`Could not delete Threads post ${post.publishedPost.threadsPostId}:`, error);
+          warnings.push('O post do Threads pode continuar no perfil; reconecte a conta autorizando a permissão threads_delete e tente novamente.');
+        }
+      }
+    }
 
     const uploadRoot = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);
     const publicBase = publicMediaBase();
