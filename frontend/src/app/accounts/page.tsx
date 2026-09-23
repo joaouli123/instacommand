@@ -214,7 +214,7 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Conexões</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Contas conectadas</h2><p className="mt-1 text-sm text-slate-500">Conecte Instagram, Facebook e Threads para publicar em conjunto.</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />Adicionar conta</Button></div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Conexões</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Contas conectadas</h2><p className="mt-1 text-sm text-slate-500">Gerencie Instagram e Facebook. Threads fica disponível apenas como destino de publicação.</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />Adicionar conta</Button></div>
 
       <ScreenshotAnalysis />
       <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
@@ -258,7 +258,7 @@ export default function AccountsPage() {
 
       <Card className="border-slate-200/80 bg-white p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-white"><AtSign size={19} /></div><div><h3 className="font-bold text-slate-900">Threads</h3><p className="text-sm text-slate-500">{threadsAccounts.length ? `@${threadsAccounts[0].username} conectado` : "Conecte para publicar junto com Instagram e Facebook."}</p></div></div>
+          <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-white"><AtSign size={19} /></div><div><h3 className="font-bold text-slate-900">Threads · publicação</h3><p className="text-sm text-slate-500">{threadsAccounts.length ? `@${threadsAccounts[0].username} conectado como destino de publicação` : "Conecte um perfil para habilitar Threads como destino no compositor."}</p><p className="mt-1 text-xs text-slate-500">Métricas e relatórios do Threads estão pausados; Instagram e Facebook continuam no Analytics.</p></div></div>
           <Button variant={threadsAccounts.length ? "outline" : "secondary"} onClick={connectThreads} disabled={Boolean(threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured))} className="gap-2">{threadsAccounts.length ? "Conectar outra conta" : threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) ? "Conexão em configuração" : "Entrar com Threads"}</Button>
         </div>
         {threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-semibold">A conexão automática ainda não está pronta</p><p className="mt-1">O administrador do InstaCommand precisa concluir a configuração do Threads uma vez no servidor. Você não precisa criar aplicativo, copiar ID ou colar token.</p></div>}

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Bell, Database, ShieldCheck, Save, Instagram, KeyRound, CheckCircle2, AtSign, ArrowRight, Sparkles } from "lucide-react"
+import { Bell, Database, ShieldCheck, Save, Instagram, KeyRound, CheckCircle2, ArrowRight, Sparkles } from "lucide-react"
 import toast from "react-hot-toast"
 import { fetchApi } from "@/lib/api"
 
@@ -16,15 +16,6 @@ type MetaConfigStatus = {
   appIdConfigured: boolean
   appSecretConfigured: boolean
   clientTokenConfigured: boolean
-}
-
-type ThreadsConfigStatus = {
-  appId: string
-  appIdConfigured: boolean
-  appSecretConfigured: boolean
-  platformConfigured?: boolean
-  platformPartiallyConfigured?: boolean
-  credentialSource?: "platform" | "workspace" | "missing"
 }
 
 type AiConfigStatus = {
@@ -52,7 +43,6 @@ export default function SettingsPage() {
   const [metaStatus, setMetaStatus] = useState<MetaConfigStatus | null>(null)
   const [loadingMeta, setLoadingMeta] = useState(true)
   const [savingMeta, setSavingMeta] = useState(false)
-  const [threadsStatus, setThreadsStatus] = useState<ThreadsConfigStatus | null>(null)
   const [aiConfig, setAiConfig] = useState({ apiKey: "", model: "gemini-2.5-flash" })
   const [aiStatus, setAiStatus] = useState<AiConfigStatus | null>(null)
   const [savingAi, setSavingAi] = useState(false)
@@ -62,15 +52,13 @@ export default function SettingsPage() {
   const [savingSettings, setSavingSettings] = useState(false)
 
   useEffect(() => {
-    Promise.all([fetchApi("/settings/meta"), fetchApi("/settings/threads"), fetchApi("/settings/ai"), fetchApi("/settings/preferences")])
-      .then(([metaData, threadsData, aiData, preferencesData]) => {
+    Promise.all([fetchApi("/settings/meta"), fetchApi("/settings/ai"), fetchApi("/settings/preferences")])
+      .then(([metaData, aiData, preferencesData]) => {
         const status = metaData as MetaConfigStatus
-        const threads = threadsData as ThreadsConfigStatus
         const ai = aiData as AiConfigStatus
         const nextPreferences = preferencesData as UserPreferences
         setMetaStatus(status)
         setMetaConfig((current) => ({ ...current, appId: status.appId || "" }))
-        setThreadsStatus(threads)
         setAiStatus(ai)
         setAiConfig((current) => ({ ...current, model: ai.model || current.model }))
         setPreferences(nextPreferences)
@@ -146,7 +134,6 @@ export default function SettingsPage() {
     toast.success("Alterações descartadas")
   }
   const metaReady = Boolean(metaStatus?.appIdConfigured && metaStatus?.appSecretConfigured)
-  const threadsReady = Boolean(threadsStatus?.appIdConfigured && threadsStatus?.appSecretConfigured)
   const openAccounts = () => { window.location.assign("/accounts") }
 
   return (
@@ -193,21 +180,6 @@ export default function SettingsPage() {
               <Button onClick={saveMetaConfig} disabled={savingMeta || loadingMeta} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Save size={15} />{savingMeta ? "Salvando..." : "Salvar Meta"}</Button>
             </div>
             </>}
-          </div>
-        </Card>
-
-        <Card className="overflow-hidden p-0">
-          <div className="flex items-start gap-3 border-b border-slate-100 p-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white"><AtSign size={19} /></div>
-            <div>
-              <h3 className="font-bold text-slate-900">Conexão com o Threads</h3>
-              <p className="mt-1 text-xs text-slate-500">Conecte o Threads pelo botão de autorização, sem colar tokens.</p>
-            </div>
-            {threadsReady && <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={13} />Pronto para conectar</span>}
-          </div>
-
-          <div className="space-y-4 p-6">
-            {threadsReady ? <div className="flex flex-col gap-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-emerald-900">Login automático ativado</p><p className="mt-1 text-xs leading-relaxed text-emerald-800">A conexão está configurada {threadsStatus?.credentialSource === "platform" ? "pelo InstaCommand" : "para este workspace"}. Na tela Contas conectadas, escolha “Entrar com Threads” e autorize o perfil desejado.</p></div><Button onClick={openAccounts} className="shrink-0 gap-2 bg-slate-900 text-white hover:bg-slate-800"><AtSign size={15} />Conectar Threads <ArrowRight size={15} /></Button></div> : <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-semibold">A conexão automática ainda não está habilitada</p><p className="mt-1 text-xs leading-relaxed">Você não precisa criar um aplicativo, informar App ID ou copiar tokens. O administrador do InstaCommand precisa concluir a configuração OAuth do Threads uma única vez no servidor. {threadsStatus?.platformPartiallyConfigured ? "A configuração do servidor está incompleta: falta um dos dois valores exigidos." : "Depois disso, cada pessoa poderá conectar o próprio perfil pelo botão Entrar com Threads."}</p></div>}
           </div>
         </Card>
 
