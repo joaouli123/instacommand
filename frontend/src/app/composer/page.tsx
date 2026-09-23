@@ -753,38 +753,49 @@ export default function ComposerPage() {
             <div className="absolute top-3 right-3 bg-white/90 text-slate-700 border border-slate-200 text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-xs shadow-sm">
               {postType === "CAROUSEL" && mediaItems.length > 0 ? `${postType} ${activeMediaIndex + 1}/${mediaItems.length}` : postType}
             </div>
-            {mediaItems.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setActiveMediaIndex(current => (current - 1 + mediaItems.length) % mediaItems.length)}
-                  aria-label="Ver mídia anterior"
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 text-slate-800 shadow-sm hover:bg-white"
-                >
-                  ←
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveMediaIndex(current => (current + 1) % mediaItems.length)}
-                  aria-label="Ver próxima mídia"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 text-slate-800 shadow-sm hover:bg-white"
-                >
-                  →
-                </button>
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 rounded-full bg-slate-950/45 px-2 py-1">
-                  {mediaItems.map((item, index) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setActiveMediaIndex(index)}
-                      aria-label={`Ver mídia ${index + 1}`}
-                      className={`w-1.5 h-1.5 rounded-full transition-colors ${index === activeMediaIndex ? "bg-white" : "bg-white/45"}`}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
           </div>
+
+          {mediaItems.length > 1 && (
+            <div
+              role="group"
+              aria-label="Navegação da prévia do carrossel"
+              className="flex items-center justify-between gap-1 border-y border-slate-100 bg-white px-2 py-2"
+            >
+              <button
+                type="button"
+                onClick={() => setActiveMediaIndex(current => (current - 1 + mediaItems.length) % mediaItems.length)}
+                aria-label="Ver mídia anterior"
+                className="min-h-8 rounded-full px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                ← Anterior
+              </button>
+              <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto px-1">
+                <span aria-live="polite" className="shrink-0 text-[11px] text-slate-500">
+                  {activeMediaIndex + 1}/{mediaItems.length}
+                </span>
+                {mediaItems.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveMediaIndex(index)}
+                    aria-label={`Ver mídia ${index + 1}`}
+                    aria-pressed={index === activeMediaIndex}
+                    className={`flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${index === activeMediaIndex ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveMediaIndex(current => (current + 1) % mediaItems.length)}
+                aria-label="Ver próxima mídia"
+                className="min-h-8 rounded-full px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                Próxima →
+              </button>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="p-3 bg-white">
