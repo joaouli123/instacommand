@@ -32,7 +32,11 @@ export async function getFacebookReport(userId: string, accountId: string, days:
     const values = Array.isArray(metric?.values) ? metric.values : [];
     const numericValues = values.map((item: any) => item.value).filter((value: unknown): value is number =>
       typeof value === 'number' && Number.isFinite(value) && value >= 0);
-    if (numericValues.length) mediaViews = numericValues.reduce((sum: number, value: number) => sum + value, 0);
+    if (numericValues.length) {
+      mediaViews = numericValues.reduce((sum: number, value: number) => sum + value, 0);
+    } else {
+      issues.push('A Meta não retornou visualizações da Página (page_media_view). Confira se read_insights está autorizado no app e para esta Página; a disponibilidade também depende da elegibilidade da Página e do período.');
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     issues.push(/permission|read_insights|insight/i.test(message)

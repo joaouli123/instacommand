@@ -45,7 +45,8 @@ test('partial failure preserves first page and cannot report a complete total', 
   pages = [{ data: [post('1')], paging: { next: 'next', cursors: { after: 'cursor' } } }, new Error('Graph failure')];
   const report = await getFacebookReport('current', 'account1', 30);
   assert.equal(report.posts.length, 1); assert.equal(report.complete, false); assert.equal(report.contentAvailable, true);
-  assert.equal(report.totals.comments.complete, false); assert.equal(report.issues.length, 1);
+  assert.equal(report.totals.comments.complete, false);
+  assert.match(report.issues.join(' '), /consulta de publicações não foi concluída/);
 });
 test('failed profile fields do not discard publications', async () => {
   profile = new Error('Permission failure'); pages = [{ data: [post('1')] }];
@@ -69,5 +70,12 @@ test('missing Page views remain unavailable and permission failures are explaine
   pageInsights = new Error('Missing permission read_insights');
   const report = await getFacebookReport('current', 'account1', 30);
   assert.equal(report.insights.mediaViews, null); assert.equal(report.insights.mediaViewsAvailable, false);
+  assert.match(report.issues.join(' '), /read_insights/);
+});
+test('an empty Page insight response explains why views remain unavailable', async () => {
+  pageInsights = { data: [] };
+  const report = await getFacebookReport('current', 'account1', 30);
+  assert.equal(report.insights.mediaViews, null);
+  assert.match(report.issues.join(' '), /page_media_view/);
   assert.match(report.issues.join(' '), /read_insights/);
 });

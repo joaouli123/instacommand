@@ -30,7 +30,7 @@ export function Header() {
   
   const titles: Record<string, { title: string; subtitle: string }> = {
     '/': { title: 'Dashboard Executivo', subtitle: 'Visão unificada das suas contas e métricas principais' },
-    '/composer': { title: 'Compositor de Conteúdo', subtitle: 'Crie, visualize e agende publicações no Instagram' },
+    '/composer': { title: 'Compositor de Conteúdo', subtitle: 'Crie, visualize e agende para Instagram, Facebook e Threads' },
     '/calendar': { title: 'Calendário Editorial', subtitle: 'Cronograma visual de postagens programadas' },
     '/analytics': { title: 'Analytics Avançado', subtitle: 'Métricas de alcance, engajamento e demografia' },
     '/competitors': { title: 'Monitor de Concorrentes', subtitle: 'Benchmarking e acompanhamento de mercado' },

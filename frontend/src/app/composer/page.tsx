@@ -386,9 +386,9 @@ export default function ComposerPage() {
   if (draftLoading) return <p role="status">Abrindo rascunho salvo...</p>
   if (draftError) return <Card className="p-6"><p role="alert">{draftError}</p><a href="/calendar" className="text-indigo-700 underline">Voltar ao calendário</a></Card>
   return (
-    <div className="flex flex-col lg:flex-row gap-8 min-h-[calc(100vh-8rem)] animate-fade-in">
+    <div className="flex min-w-0 flex-col 2xl:flex-row gap-8 min-h-[calc(100vh-8rem)] animate-fade-in">
       {/* Editor Panel */}
-      <div className="flex-1 flex flex-col gap-6">
+      <div className="min-w-0 flex-1 flex flex-col gap-6">
         {draftId && <Card className="space-y-2 border-indigo-200 p-4"><p className="font-semibold">Editando rascunho salvo · @{accounts.find(a => a.id === accountId)?.igUsername}</p><p className="text-xs text-slate-500">Adicione as mídias antes de publicar ou agendar. Esta edição mantém a conta original.</p>{editorialBrief && <details><summary className="cursor-pointer text-sm font-semibold">Briefing e Story do plano</summary><p className="mt-2 whitespace-pre-wrap text-sm">{editorialBrief.creativeBrief}</p><p className="mt-2 whitespace-pre-wrap text-sm">Story: {editorialBrief.storyIdea}</p></details>}<Button type="button" variant="outline" disabled={isSubmitting} onClick={saveDraftChanges}>Salvar alterações do rascunho</Button><a href="/calendar" className="ml-3 text-sm text-indigo-700 underline">Calendário</a></Card>}
         <Card className="p-6 md:p-8 border border-slate-200/80 bg-white rounded-2xl shadow-xs space-y-6">
           {/* Post Type Selector */}
@@ -705,7 +705,7 @@ export default function ComposerPage() {
       </div>
 
       {/* Realistic Mobile Preview Panel */}
-      <div className="w-full lg:w-[380px] flex flex-col items-center shrink-0">
+      <div className="w-full 2xl:w-[380px] flex flex-col items-center 2xl:shrink-0">
         <div className="w-full mb-3 flex items-center justify-between px-2">
           <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
             Prévia em Tempo Real
