@@ -17,14 +17,19 @@ export function DailyContentPlan({ accountId, topic, audience, tone, objective, 
   const [requestId, setRequestId] = useState('')
   const [date, setDate] = useState(() => new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(new Date()))
   const request = useRef(0)
-  useEffect(() => { request.current++; setPlan(null); setSaved([]); setSaving(false); setLoading(false); return () => { request.current++ } }, [accountId])
+  const briefKey = JSON.stringify([topic.trim(), audience.trim(), tone, objective])
+  const [generatedBriefKey, setGeneratedBriefKey] = useState('')
+  const planOutdated = !!plan && generatedBriefKey !== briefKey
+  useEffect(() => { request.current++; setPlan(null); setGeneratedBriefKey(''); setSaved([]); setSaving(false); setLoading(false); return () => { request.current++ } }, [accountId])
   const generate = async () => {
+    if (!topic.trim()) { toast.error('Conte para a IA qual é o assunto antes de montar o plano.'); return }
     const version = ++request.current
     setLoading(true)
     try {
       const response = await api.generateAi({ mode: 'daily', accountId, topic, audience, tone, objective }) as { result: Plan }
       if (version !== request.current) return
       setPlan(response.result)
+      setGeneratedBriefKey(briefKey)
       setRequestId(crypto.randomUUID()); setSaved([])
       toast.success('Plano de três posts pronto para revisão.')
     } catch (error) { if (version === request.current) toast.error(error instanceof Error ? error.message : 'Não foi possível gerar o plano.') }
@@ -41,18 +46,19 @@ export function DailyContentPlan({ accountId, topic, audience, tone, objective, 
     } catch (error) { if (version === request.current) toast.error(error instanceof Error ? error.message : 'Não foi possível salvar.') }
     finally { if (version === request.current) setSaving(false) }
   }
-  return <div className="space-y-3 border-t border-indigo-100 pt-4">
-    <Button type="button" variant="outline" disabled={loading || saving || !accountId} onClick={generate}>{loading ? 'Preparando seu dia...' : 'Planejar 3 posts para o dia'}</Button>
-    <p className="text-xs text-slate-500">Usa o assunto, público e objetivo acima. Você revisa cada ideia antes de criar ou publicar. Nada é agendado automaticamente.</p>
-    {plan && <div className="space-y-4"><p className="text-sm font-medium text-slate-800">{plan.summary}</p><p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{plan.timingNote} Fuso: São Paulo. {saved.length ? 'Rascunhos salvos no calendário; ainda não agendados.' : 'Salve os rascunhos para não perder o plano ao sair.'}</p>
-      <div className="flex flex-wrap items-end gap-3"><label className="text-xs font-semibold">Dia do plano<input type="date" className="mt-1 block rounded-lg border bg-white p-2" value={date} onChange={e => setDate(e.target.value)} disabled={saving || !!saved.length} /></label><Button type="button" disabled={saving || !!saved.length || !date} onClick={save}>{saving ? 'Salvando...' : saved.length ? 'Rascunhos salvos' : 'Salvar os 3 rascunhos'}</Button>{saved.length > 0 && <a href="/calendar" className="text-sm text-indigo-700 underline">Abrir calendário</a>}</div>
+  return <div className="space-y-3">
+    <Button type="button" variant="outline" disabled={loading || saving || !accountId || !topic.trim() || !!saved.length} onClick={generate}>{loading ? 'Preparando seu dia...' : saved.length ? 'Rascunhos salvos' : plan ? planOutdated ? 'Atualizar com o novo briefing' : 'Gerar outra versão' : 'Planejar 3 posts para o dia'}</Button>
+    {!accountId && <p className="text-xs text-amber-700">Conecte uma conta do Instagram para criar e salvar os rascunhos.</p>}
+    {planOutdated && !saved.length && <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Você alterou o briefing. Atualize o plano para usar as novas informações.</p>}
+    {plan && <div className="space-y-4"><p className="text-sm font-medium text-slate-800">{plan.summary}</p><p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{plan.timingNote} Fuso: São Paulo. {saved.length ? 'Rascunhos salvos no calendário; ainda não agendados.' : 'Revise e salve os rascunhos quando estiver satisfeito.'}</p>
+      <div className="flex flex-wrap items-end gap-3"><label className="text-xs font-semibold">Dia do plano<input type="date" className="mt-1 block rounded-lg border bg-white p-2" value={date} onChange={e => setDate(e.target.value)} disabled={saving || !!saved.length} /></label><Button type="button" disabled={saving || !!saved.length || !date || planOutdated} onClick={save}>{saving ? 'Salvando...' : saved.length ? 'Rascunhos salvos' : 'Salvar os 3 rascunhos'}</Button>{saved.length > 0 && <a href="/calendar" className="text-sm text-indigo-700 underline">Abrir calendário</a>}</div>
       {plan.posts.map((post, index) => <article key={index} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-slate-900">{index + 1}. {post.topic}</h3><span className="text-xs text-indigo-700">{post.format === 'IMAGE' ? 'Imagem' : post.format === 'CAROUSEL' ? 'Carrossel' : 'Reel'} · {post.suggestedTime}</span></div>
         <p className="text-xs text-slate-500">Por que nessa ordem: {post.reason}</p>
         <label className="block text-xs font-semibold text-slate-600">Legenda editável<textarea className="mt-1 min-h-36 w-full rounded-lg border border-slate-200 p-3 text-sm font-normal" maxLength={2200} value={post.caption} disabled={saving || !!saved.length} onChange={event => setPlan(current => current ? { ...current, posts: current.posts.map((item, i) => i === index ? { ...item, caption: event.target.value } : item) } : current)} /></label>
         <p className="text-xs text-slate-600">CTA sugerido: {post.cta}</p><p className="break-words text-xs text-indigo-700">{post.hashtags.map(tag => `#${tag.replace(/^#/, '')}`).join(' ')}</p>
         <details className="text-sm text-slate-700"><summary className="cursor-pointer font-semibold">Briefing da arte e ideia de Story</summary><p className="mt-2 whitespace-pre-wrap">{post.creativeBrief}</p><p className="mt-2 whitespace-pre-wrap">Story: {post.storyIdea}</p><p className="mt-2 text-xs text-slate-500">Este briefing ainda não é uma imagem ou vídeo gerado.</p></details>
-        {saved[index] ? <a className="inline-block text-sm font-semibold text-indigo-700 underline" href={`/composer?draft=${encodeURIComponent(saved[index].id)}`}>Abrir rascunho salvo</a> : <Button type="button" variant="outline" onClick={() => onEdit(post)}>Editar este post no compositor</Button>}
+        {saved[index] ? <a className="inline-block text-sm font-semibold text-indigo-700 underline" href={`/composer?draft=${encodeURIComponent(saved[index].id)}`}>Abrir rascunho salvo</a> : <Button type="button" variant="outline" disabled={planOutdated} onClick={() => onEdit(post)}>Editar este post no compositor</Button>}
       </article>)}
     </div>}
   </div>
