@@ -12,7 +12,7 @@ import {
   Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search
 } from "lucide-react"
 import { SiInstagram, SiFacebook, SiThreads } from "@icons-pack/react-simple-icons"
-import { RiAddBoxLine, RiAddLine, RiBatteryLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiHeartLine, RiHome5Fill, RiImageLine, RiMore2Line, RiMovieLine, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiSignalWifiLine, RiUser3Line, RiWifiLine } from "@remixicon/react"
+import { RiAccountCircleLine, RiAddBoxLine, RiAddLine, RiArrowLeftLine, RiBatteryLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiEmotionHappyLine, RiFileGifLine, RiHeartFill, RiHeartLine, RiHome5Fill, RiImageLine, RiMore2Line, RiMusic2Line, RiMovieLine, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiSignalWifiLine, RiThumbUpFill, RiThumbUpLine, RiUser3Line, RiVolumeUpLine, RiWifiLine } from "@remixicon/react"
 import { useDropzone } from "react-dropzone"
 import toast from "react-hot-toast"
 import { api } from "@/lib/api"
@@ -125,6 +125,31 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
     </article>
   }
 
+  if (isFacebook && postType === "STORY") {
+    return <article data-preview="facebook-story" aria-label="Prévia visual de Facebook Stories" className="relative isolate aspect-[9/20] w-full max-w-[248px] overflow-hidden rounded-[14px] bg-[#111217] text-white ring-1 ring-black/10">
+      <PreviewMedia media={media} emptyMessage="Sua mídia do Story aparecerá aqui" className="absolute inset-0 bg-[#25262a]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/55 via-black/25 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black/65 via-black/30 to-transparent" />
+      <div className="absolute inset-x-3 top-2 flex gap-1.5" aria-hidden="true">
+        <span className="h-[2px] flex-1 rounded-full bg-white" /><span className="h-[2px] flex-1 rounded-full bg-white/55" /><span className="h-[2px] flex-1 rounded-full bg-white/45" /><span className="h-[2px] flex-1 rounded-full bg-white/35" />
+      </div>
+      <header className="absolute inset-x-3 top-5 flex items-center gap-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
+        <PreviewAvatar src={accountPhoto} name={username} facebook />
+        <div className="min-w-0 flex-1"><p className="truncate text-[12px] font-semibold">{username} <span className="font-normal text-white/75">· agora</span></p><p className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[10px] text-white/85"><RiMusic2Line size={12} aria-hidden="true" />Áudio da publicação</p></div>
+        <button type="button" aria-label="Mais opções do Story" className="p-1"><RiMore2Line size={21} /></button>
+        <button type="button" aria-label="Fechar prévia do Story" className="p-1"><RiCloseLine size={22} /></button>
+      </header>
+      <button type="button" aria-label="Ativar ou desativar som" className="absolute left-3 top-[19%] flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#1c1e21] shadow-md"><RiVolumeUpLine size={20} /></button>
+      {allCaption && <p className="absolute inset-x-5 bottom-[86px] line-clamp-3 whitespace-pre-wrap break-words text-center text-[12px] font-medium leading-[17px] [text-shadow:0_1px_4px_rgba(0,0,0,0.85)]">{allCaption}</p>}
+      <footer className="absolute inset-x-2.5 bottom-3 flex items-center gap-1.5">
+        <button type="button" aria-label="Enviar mensagem" className="flex h-11 min-w-0 flex-1 items-center justify-between rounded-full border border-white/25 bg-[#3a3b3c]/90 px-3 text-left text-[11px] text-white/90 shadow-sm"><span className="truncate">Enviar mensagem...</span><RiEmotionHappyLine size={20} className="ml-2 shrink-0" /></button>
+        <button type="button" aria-label="Reagir com coração" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e1306c] text-white shadow-sm"><RiHeartFill size={20} /></button>
+        <button type="button" aria-label="Reagir com curtir" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0866ff] text-white shadow-sm"><RiThumbUpFill size={20} /></button>
+        <button type="button" aria-label="Reagir com emoção" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f7b928] text-white shadow-sm"><RiEmotionHappyLine size={20} /></button>
+      </footer>
+    </article>
+  }
+
   if (isInstagram && postType === "REEL") {
     return <article aria-label="Prévia de Instagram Reel" className="relative aspect-[9/16] w-full max-w-[248px] overflow-hidden rounded-[17px] bg-[#101114] text-white ring-1 ring-black/10">
       <PreviewMedia media={media} emptyMessage="Sua capa do Reel aparecerá aqui" className="absolute inset-0 bg-[#202126]" />
@@ -144,6 +169,34 @@ function ComposerSocialPreview({ postType, previewPlatform, selectedAccount, thr
       <nav aria-label="Navegação do Instagram" className="absolute inset-x-0 bottom-0 flex h-10 items-center justify-around border-t border-white/15 bg-[#111216]/95 text-white">
         <RiHome5Fill size={18} /><RiSearchLine size={19} /><RiAddBoxLine size={19} /><RiMovieLine size={19} /><RiUser3Line size={19} />
       </nav>
+    </article>
+  }
+
+  if (isFacebook && postType === "REEL") {
+    return <article data-preview="facebook-reel" aria-label="Prévia de Facebook Reels" className="relative isolate aspect-[9/20] w-full max-w-[248px] overflow-hidden rounded-[14px] bg-[#141519] text-white ring-1 ring-black/10">
+      <PreviewMedia media={media} emptyMessage="Seu vídeo do Reel aparecerá aqui" className="absolute inset-0 bg-[#202126]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/60 via-black/30 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/80 via-black/45 to-transparent" />
+      <div className="absolute inset-x-0 top-0 flex items-center gap-2 px-3 pt-2 text-[9px] font-semibold text-white drop-shadow"><span>9:41</span><span className="ml-auto flex items-center gap-1"><RiSignalWifiLine size={13} /><RiWifiLine size={13} /><RiBatteryLine size={15} /></span></div>
+      <nav aria-label="Navegação do Facebook Reels" className="absolute inset-x-3 top-8 flex items-center justify-between text-white drop-shadow-sm">
+        <button type="button" aria-label="Voltar" className="flex h-8 w-8 items-center justify-center"><RiArrowLeftLine size={23} /></button>
+        <div className="flex items-center gap-4"><button type="button" aria-label="Pesquisar" className="flex h-8 w-8 items-center justify-center"><RiSearchLine size={22} /></button><button type="button" aria-label="Perfil" className="flex h-8 w-8 items-center justify-center"><RiAccountCircleLine size={22} /></button></div>
+      </nav>
+      <nav aria-label="Ações do Facebook Reel" className="absolute right-2.5 top-[39%] flex flex-col items-center gap-3.5 text-white drop-shadow-md">
+        <span className="flex flex-col items-center gap-0.5"><RiThumbUpLine size={26} /><span className="text-[9px] leading-3">0</span></span>
+        <span className="flex flex-col items-center gap-0.5"><RiChat3Line size={25} /><span className="text-[9px] leading-3">0</span></span>
+        <span className="flex flex-col items-center gap-0.5"><RiShareForwardLine size={25} /><span className="text-[9px] leading-3">0</span></span>
+        <span className="flex flex-col items-center gap-0.5"><RiBookmarkLine size={24} /><span className="text-[9px] leading-3">0</span></span>
+        <RiMore2Line size={22} aria-label="Mais opções" />
+      </nav>
+      <div className="absolute inset-x-3 bottom-[58px] pr-10 text-white drop-shadow-sm">
+        <div className="flex items-center gap-2"><PreviewAvatar src={accountPhoto} name={username} facebook /><p className="min-w-0 flex-1 truncate text-[11px] font-semibold">{username}</p><span className="shrink-0 rounded-full border border-white/80 px-2.5 py-1 text-[10px] font-semibold">Seguir</span></div>
+        <p className="mt-2 flex items-center gap-1.5 truncate text-[10px] text-white/95"><RiMusic2Line size={13} aria-hidden="true" />Áudio original · {username}</p>
+        <p className="mt-1 line-clamp-2 break-words text-[11px] leading-[15px]">{allCaption || "Sua legenda aparecerá aqui."}</p>
+      </div>
+      <footer className="absolute inset-x-2.5 bottom-2 flex h-9 items-center gap-2 rounded-full border border-white/15 bg-[#17181c]/90 px-3 text-[10px] text-white/90 shadow-sm">
+        <span className="min-w-0 flex-1 truncate">Adicione um comentário...</span><RiEmotionHappyLine size={18} className="shrink-0" aria-hidden="true" /><RiFileGifLine size={19} className="shrink-0" aria-hidden="true" />
+      </footer>
     </article>
   }
 
@@ -339,12 +392,12 @@ export default function ComposerPage() {
 
   const activeMedia = mediaItems[activeMediaIndex] ?? null
   const selectedAccount = accounts.find((account) => account.id === accountId)
-  const resolvedPreviewPlatform = postType === "TEXT" ? "THREADS" : postType === "STORY" ? "INSTAGRAM" : previewPlatform
+  const resolvedPreviewPlatform = postType === "TEXT" ? "THREADS" : previewPlatform
   const previewDescription = {
     FEED: "Prévia da publicação única no feed, sem faixa de Stories.",
     CAROUSEL: "Prévia do carrossel no feed, com navegação entre os itens.",
     REEL: resolvedPreviewPlatform === "INSTAGRAM" ? "Prévia vertical da experiência de Reels." : `Prévia do vídeo em ${platformNames[resolvedPreviewPlatform] || resolvedPreviewPlatform}.`,
-    STORY: "Prévia vertical de Story em tela cheia.",
+    STORY: resolvedPreviewPlatform === "FACEBOOK" ? "Prévia visual da interface de Facebook Stories." : "Prévia vertical de Story em tela cheia.",
     TEXT: "Prévia clara do post de texto no Threads.",
   }[postType]
   const connectedPlatforms = [
@@ -1135,8 +1188,9 @@ export default function ComposerPage() {
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-xs md:p-5">
           <div className="flex items-center justify-between gap-3"><div><h3 className="text-base font-bold text-slate-900">Prévia da publicação</h3><p className="text-xs text-slate-500">{previewDescription}</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500"><Eye size={17} /></span></div>
           <div className="mt-4 flex w-full gap-1 rounded-md bg-slate-100 p-1" role="tablist" aria-label="Prévia por plataforma">
-            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }].filter(tab => postType === "TEXT" ? tab.id === "THREADS" : postType === "STORY" ? tab.id === "INSTAGRAM" : true).map(tab => <button key={tab.id} type="button" role="tab" aria-selected={resolvedPreviewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${resolvedPreviewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{tab.label}</button>)}
+            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }].filter(tab => postType === "TEXT" ? tab.id === "THREADS" : postType === "STORY" ? tab.id === "INSTAGRAM" || tab.id === "FACEBOOK" : true).map(tab => <button key={tab.id} type="button" role="tab" aria-label={postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook (prévia visual)" : tab.label} aria-selected={resolvedPreviewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${resolvedPreviewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook · prévia" : tab.label}</button>)}
           </div>
+          {postType === "STORY" && resolvedPreviewPlatform === "FACEBOOK" && <p role="note" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">Apenas prévia visual. Facebook Stories não está habilitado para publicação neste compositor.</p>}
           <div className="social-preview-native mt-4 flex justify-center">
             <ComposerSocialPreview
               postType={postType}
