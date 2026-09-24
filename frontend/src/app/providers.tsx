@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -13,6 +13,27 @@ export function Providers({ children }: { children: React.ReactNode }) {
       },
     },
   }))
+
+  useEffect(() => {
+    const refreshConnectedAccounts = () => {
+      void queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      void queryClient.invalidateQueries({ queryKey: ['threads-accounts'] })
+    }
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('instacommand-oauth') : null
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'accounts-connected') refreshConnectedAccounts()
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'instacommand-oauth-completed') refreshConnectedAccounts()
+    }
+    channel?.addEventListener('message', onMessage)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      channel?.removeEventListener('message', onMessage)
+      channel?.close()
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [queryClient])
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -44,11 +44,23 @@ export default function AccountsPage() {
   const [disconnectingThreadId, setDisconnectingThreadId] = useState<string | null>(null)
 
   const startOAuth = async (path: string) => {
+    // Open synchronously from the click handler so browser popup blockers do
+    // not reject the authorization tab after the API request completes.
+    const authWindow = window.open("about:blank", "_blank")
+    if (!authWindow) {
+      toast.error("Permita pop-ups para conectar a conta sem sair desta página.")
+      return
+    }
+    authWindow.opener = null
+    authWindow.document.title = "Conectar conta"
+    authWindow.document.body.textContent = "Abrindo a autorização segura…"
+
     try {
       const result = await fetchApi(path) as { url?: string }
       if (!result.url) throw new Error("A Meta não disponibilizou o endereço de autorização")
-      window.location.assign(result.url)
+      authWindow.location.replace(result.url)
     } catch (error) {
+      authWindow.close()
       toast.error(error instanceof Error ? error.message : "Não foi possível iniciar a conexão")
     }
   }
@@ -70,6 +82,20 @@ export default function AccountsPage() {
     }
     void startOAuth("/auth/threads/url")
   }
+
+  const refreshAccounts = useCallback(async () => {
+    const [data, threads, pending, oauthStatus] = await Promise.all([
+      api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts(),
+      api.getThreadsOAuthStatus().catch(() => null),
+    ])
+    setAccounts(data as ConnectedAccount[])
+    setThreadsAccounts(threads as ConnectedThreadsAccount[])
+    setThreadsOAuthStatus(oauthStatus as ThreadsOAuthStatus | null)
+    const pendingList = pending as ConnectedAccount[]
+    setPendingAccounts(pendingList)
+    setSelectedPendingIds(pendingList.map((account) => account.id))
+    queryClient.setQueryData(["accounts"], data)
+  }, [queryClient])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -113,17 +139,17 @@ export default function AccountsPage() {
               : "A conexão Threads falhou. Verifique a configuração do app Threads, as permissões autorizadas e tente novamente.")
         if ((connected || threadsConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
 
-        const [data, threads, pending, oauthStatus] = await Promise.all([
-          api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts(),
-          api.getThreadsOAuthStatus().catch(() => null),
-        ])
+        await refreshAccounts()
         if (!active) return
-        setAccounts(data as ConnectedAccount[])
-        setThreadsAccounts(threads as ConnectedThreadsAccount[])
-        setThreadsOAuthStatus(oauthStatus as ThreadsOAuthStatus | null)
-        const pendingList = pending as ConnectedAccount[]
-        setPendingAccounts(pendingList)
-        setSelectedPendingIds(pendingList.map((account) => account.id))
+        if (connected === "1" || connected === "pending" || threadsConnected === "1") {
+          if (typeof BroadcastChannel !== "undefined") {
+            const channel = new BroadcastChannel("instacommand-oauth")
+            channel.postMessage({ type: "accounts-connected" })
+            channel.close()
+          } else {
+            localStorage.setItem("instacommand-oauth-completed", Date.now().toString())
+          }
+        }
       } catch (error) {
         if (active) toast.error(error instanceof Error ? error.message : "Entre na plataforma para carregar suas contas")
       } finally {
@@ -133,8 +159,26 @@ export default function AccountsPage() {
 
     void loadAccounts()
 
-    return () => { active = false }
-  }, [])
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("instacommand-oauth") : null
+    const refreshFromOtherTab = (event: MessageEvent) => {
+      if (event.data?.type !== "accounts-connected") return
+      void refreshAccounts().then(() => toast.success("Conexão atualizada com sucesso")).catch(() => {
+        toast.error("A conexão foi concluída, mas não foi possível atualizar a lista. Recarregue a página.")
+      })
+    }
+    channel?.addEventListener("message", refreshFromOtherTab)
+    const refreshFromStorage = (event: StorageEvent) => {
+      if (event.key === "instacommand-oauth-completed") void refreshAccounts().catch(() => undefined)
+    }
+    window.addEventListener("storage", refreshFromStorage)
+
+    return () => {
+      active = false
+      channel?.removeEventListener("message", refreshFromOtherTab)
+      channel?.close()
+      window.removeEventListener("storage", refreshFromStorage)
+    }
+  }, [refreshAccounts])
 
   const totalFollowers = useMemo(() => accounts.reduce((total, account) => total + (account.igFollowersCount || 0), 0), [accounts])
 
