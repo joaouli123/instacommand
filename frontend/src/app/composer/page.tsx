@@ -41,21 +41,21 @@ type PlatformFormatDetail = {
 
 const networkFormatDetails: Record<string, Partial<Record<PostType, PlatformFormatDetail>>> = {
   INSTAGRAM: {
-    FEED: { name: "Foto no feed", shape: "Foto horizontal ou vertical", dimensions: "Para publicar por aqui: 1080 × 1350 px (4:5)", note: "No Instagram pelo celular, também são aceitas fotos 3:4 (1080 × 1440 px). Para publicar automaticamente, prefira 4:5." },
-    CAROUSEL: { name: "Carrossel do feed", shape: "Todas as fotos no mesmo formato", dimensions: "Recomendado: 1080 × 1350 px (4:5)", note: "No Instagram pelo celular, carrosséis 3:4 também funcionam. Para publicar automaticamente, prefira 4:5 em todas as fotos." },
-    REEL: { name: "Reel", shape: "Formato recomendado: vertical 9:16", dimensions: "1080 × 1920 px · 9:16", note: "O formato 9:16 preenche a tela do celular. Vídeos de 3 s a 15 min; arquivo de até 100 MB neste sistema." },
-    STORY: { name: "Story", shape: "Formato recomendado: vertical 9:16", dimensions: "1080 × 1920 px · 9:16", note: "O sistema publica Stories em contas profissionais do Instagram. Vídeos de 3 a 60 s; arquivo de até 100 MB." },
+    FEED: { name: "Foto no feed", shape: "Proporção: 1,91:1 a 3:4", dimensions: "1080 × 566 a 1440 px", note: "Fotos fora desse formato podem ser cortadas." },
+    CAROUSEL: { name: "Carrossel do feed", shape: "Todas as fotos no mesmo formato", dimensions: "1080 × 1350 px · 4:5 recomendado", note: "Use o mesmo formato em todas as fotos para evitar cortes." },
+    REEL: { name: "Reel", shape: "Vertical · proporção 9:16", dimensions: "1080 × 1920 px", note: "Vídeo de 3 s a 15 min · até 100 MB." },
+    STORY: { name: "Story", shape: "Vertical · proporção 9:16", dimensions: "1080 × 1920 px", note: "Vídeo de 3 a 60 s · até 100 MB." },
   },
   FACEBOOK: {
-    FEED: { name: "Foto da Página", shape: "Foto horizontal ou vertical", dimensions: "Tamanho recomendado: 1080 × 1350 px (4:5)", note: "O Facebook pode enquadrar a foto de forma diferente conforme o aparelho e o lugar onde ela aparece." },
-    CAROUSEL: { name: "Álbum de fotos da Página", shape: "Álbum com 2 a 10 fotos", dimensions: "Largura recomendada: 1080 px", note: "As fotos são publicadas juntas em uma única publicação. Cada uma mantém seu formato original." },
-    REEL: { name: "Reel do Facebook", shape: "Vídeo vertical 9:16", dimensions: "Mínimo: 540 × 960 px · recomendado: 1080 × 1920 px", note: "Vídeo de 4 a 60 s, com pelo menos 23 quadros por segundo. Limite deste sistema: 100 MB.", acceptedRatio: { min: 9 / 16, max: 9 / 16, tolerance: 0.001 } },
+    FEED: { name: "Foto da Página", shape: "Horizontal ou vertical", dimensions: "1080 × 1350 px · 4:5 recomendado", note: "A exibição pode variar conforme o local e o aparelho." },
+    CAROUSEL: { name: "Álbum de fotos da Página", shape: "2 a 10 fotos", dimensions: "1080 px de largura recomendado", note: "As fotos aparecem juntas; cada uma mantém seu formato." },
+    REEL: { name: "Reel do Facebook", shape: "Vertical · proporção 9:16", dimensions: "1080 × 1920 px · mínimo 540 × 960 px", note: "Vídeo de 4 a 60 s · até 100 MB.", acceptedRatio: { min: 9 / 16, max: 9 / 16, tolerance: 0.001 } },
   },
   THREADS: {
-    FEED: { name: "Post com imagem", shape: "Mantém o formato da imagem", dimensions: "Sem tamanho obrigatório", note: "O texto acompanha a imagem; a prévia mantém o arquivo original." },
-    CAROUSEL: { name: "Carrossel", shape: "Cada item mantém seu formato", dimensions: "2 a 10 fotos ou vídeos", note: "As mídias são publicadas juntas em um carrossel. Confira cada item na prévia." },
-    REEL: { name: "Post com vídeo", shape: "Mantém o formato do vídeo", dimensions: "Até 5 min · arquivo de até 100 MB", note: "No Threads, ele será publicado como vídeo, não como Reel. Não precisa adaptar para um formato vertical específico." },
-    TEXT: { name: "Post de texto", shape: "Somente texto", dimensions: "Até 500 caracteres", note: "Formato exclusivo do Threads; sem mídia anexada." },
+    FEED: { name: "Post com imagem", shape: "Mantém o formato original", dimensions: "Sem dimensão fixa", note: "A prévia mostra a imagem sem cortes." },
+    CAROUSEL: { name: "Carrossel", shape: "Cada item mantém seu formato", dimensions: "2 a 10 fotos ou vídeos", note: "As mídias aparecem juntas na mesma publicação." },
+    REEL: { name: "Post com vídeo", shape: "Mantém o formato original", dimensions: "Até 5 min · até 100 MB", note: "No Threads, o vídeo não é publicado como Reel." },
+    TEXT: { name: "Post de texto", shape: "Somente texto", dimensions: "Até 500 caracteres", note: "Sem mídia anexada." },
   },
 }
 
@@ -1190,7 +1190,7 @@ export default function ComposerPage() {
                       Arquivo: {activeMedia.width} × {activeMedia.height} px · {formatAspectRatio(activeMedia.width, activeMedia.height)}
                       {isOutsideAcceptedRatio ? " · fora da faixa aceita" : instagramCarouselWillCrop ? " · o 1º item define o corte" : detail.acceptedRatio ? " · dentro da faixa aceita" : " · confira a recomendação acima"}
                     </p>}
-                    <p className="text-[10px] leading-4 text-slate-500">{detail.note}</p>
+                    {detail.note && <p className="text-[10px] leading-4 text-slate-500">{detail.note}</p>}
                   </article>
                 })}
               </div>

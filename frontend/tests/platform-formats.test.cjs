@@ -11,11 +11,12 @@ test('composer defines platform-specific formats and makes Stories Instagram-onl
   assert.match(source, /STORY: \["INSTAGRAM"\]/);
   assert.match(source, /TEXT: \["THREADS"\]/);
   assert.match(source, /Formato e dimensões por plataforma/);
-  assert.match(source, /App 1,91:1–3:4 · API conservadora 1,91:1–4:5/);
-  assert.match(source, /1080 × 1350 px \(API\) · 3:4 · 1080 × 1440 px \(app\)/);
-  assert.match(source, /9:16 obrigatório/);
-  assert.match(source, /Mínimo 540 × 960 px · recomendado 1080 × 1920 px/);
-  assert.match(source, /Sem dimensão fixa publicada pela API/);
+  assert.match(source, /Proporção: 1,91:1 a 3:4/);
+  assert.match(source, /1080 × 566 a 1440 px/);
+  assert.match(source, /Vertical · proporção 9:16/);
+  assert.match(source, /1080 × 1920 px · mínimo 540 × 960 px/);
+  assert.match(source, /Sem dimensão fixa/);
+  assert.doesNotMatch(source, /API conservadora|\(API\)|\(app\)/);
   assert.match(source, /Até 5 min/);
 });
 
