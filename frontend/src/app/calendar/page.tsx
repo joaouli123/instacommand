@@ -101,15 +101,15 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="h-full flex flex-col gap-6 animate-fade-in">
+    <div className="flex h-full min-w-0 flex-col gap-4 animate-fade-in sm:gap-6">
       {/* Calendar Header Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600">
+      <div className="flex min-w-0 flex-col items-start justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs sm:flex-row sm:items-center sm:gap-4 sm:p-5">
+          <div className="flex min-w-0 w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
+          <div className="hidden rounded-xl border border-indigo-100 bg-indigo-50 p-2.5 text-indigo-600 sm:block">
             <CalendarIcon size={20} />
           </div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-slate-900">{currentMonth}</h2>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h2 className="text-base font-bold text-slate-900 sm:text-xl">{currentMonth}</h2>
             <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-slate-50">
               <Button aria-label="Mês anterior" variant="ghost" size="icon" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))} className="h-7 w-7 rounded-md text-slate-600 hover:text-slate-900">
                 <ChevronLeft size={16} />
@@ -118,12 +118,12 @@ export default function CalendarPage() {
                 <ChevronRight size={16} />
               </Button>
             </div>
-            {activeAccount && <select value={accountId} onChange={(event) => { window.localStorage.setItem("instacommand_active_account", event.target.value); window.dispatchEvent(new Event("instacommand-account-changed")) }} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700" aria-label="Conta do calendário">{accounts.map((account) => <option key={account.id} value={account.id}>@{account.igUsername}</option>)}</select>}
+            {activeAccount && <select value={accountId} onChange={(event) => { window.localStorage.setItem("instacommand_active_account", event.target.value); window.dispatchEvent(new Event("instacommand-account-changed")) }} className="h-9 max-w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 sm:w-auto" aria-label="Conta do calendário">{accounts.map((account) => <option key={account.id} value={account.id}>@{account.igUsername}</option>)}</select>}
           </div>
         </div>
 
         {/* Status Legend & Quick Action */}
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] font-semibold sm:gap-4 sm:text-xs">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
             <span className="text-slate-600">Publicado</span>
@@ -141,8 +141,8 @@ export default function CalendarPage() {
             <span className="text-slate-600">Falhou</span>
           </div>
 
-          <Link href="/composer">
-            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs gap-1.5 h-8">
+          <Link href="/composer" className="ml-auto">
+            <Button size="sm" className="h-8 gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700">
               <Plus size={14} />
               Agendar Post
             </Button>
@@ -193,13 +193,13 @@ export default function CalendarPage() {
             return (
               <div 
                 key={i} 
-                className={`p-2 min-h-[110px] flex flex-col justify-between transition-colors relative group hover:bg-indigo-50/20 ${
+              className={`group relative flex min-h-[72px] flex-col justify-between p-1 transition-colors hover:bg-indigo-50/20 sm:min-h-[110px] sm:p-2 ${
                   !isCurrentMonth ? 'bg-slate-50/60 opacity-40' : 'bg-white'
                 } ${isToday ? 'bg-indigo-50/30' : ''}`}
               >
                 {/* Date Header */}
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className={`inline-flex items-center justify-center text-xs font-bold w-6 h-6 rounded-full ${
+                <div className="mb-1 flex items-center justify-center sm:mb-1.5 sm:justify-between">
+                  <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold sm:h-6 sm:w-6 sm:text-xs ${
                     isToday 
                       ? 'bg-indigo-600 text-white shadow-xs' 
                       : isCurrentMonth ? 'text-slate-800' : 'text-slate-400'
@@ -223,7 +223,9 @@ export default function CalendarPage() {
                       role="button"
                       tabIndex={0}
                       onKeyDown={(keyboardEvent) => { if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") setSelectedPost(event.post) }}
-                      className={`p-1.5 rounded-lg border text-[11px] font-semibold flex flex-col gap-0.5 truncate cursor-pointer transition-all ${
+                      aria-label={`${event.type}, ${event.time}: ${event.title}`}
+                      title={`${event.type} · ${event.time} · ${event.title}`}
+                      className={`mx-auto flex min-h-8 min-w-8 w-fit cursor-pointer items-center justify-center rounded-lg border p-1 text-[11px] font-semibold transition-all sm:mx-0 sm:w-full sm:p-1.5 ${
                         event.status === 'published'
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80 hover:bg-emerald-100/70'
                           : event.status === 'scheduled'
@@ -233,11 +235,12 @@ export default function CalendarPage() {
                           : 'bg-amber-50 text-amber-800 border-amber-200/80 hover:bg-amber-100/70'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
+                      <span className="mx-auto block h-2 w-2 rounded-full bg-current sm:hidden" />
+                      <div className="hidden items-center justify-between gap-1 sm:flex">
                         <span className="font-bold truncate">{event.type}</span>
                         <span className="text-[9px] opacity-75">{event.time}</span>
                       </div>
-                      <span className="truncate font-normal text-[10px]">{event.title}</span>
+                      <span className="hidden truncate font-normal text-[10px] sm:block">{event.title}</span>
                     </div>
                   ))}
                 </div>

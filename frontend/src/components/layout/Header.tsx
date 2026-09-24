@@ -74,9 +74,9 @@ export function Header() {
   }
 
   return (
-    <header className="h-16 md:h-[72px] border-b border-slate-200/80 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 md:px-8 sticky top-0 z-20 shadow-sm">
-      <div>
-        <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight leading-tight">
+    <header className="sticky top-0 z-20 flex h-14 min-w-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/95 px-3 shadow-sm backdrop-blur-md sm:h-16 sm:px-6 md:h-[72px] md:px-8">
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight text-slate-900 sm:text-lg md:text-xl">
           {current.title}
         </h1>
         <p className="text-xs text-slate-500 hidden sm:block">
@@ -84,16 +84,16 @@ export function Header() {
         </p>
       </div>
       
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
         {/* Account Switcher Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-slate-100/80 text-sm font-medium text-slate-800 transition-all shadow-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+            <button aria-label={activeAccount ? `Conta ativa @${activeAccount.igUsername}` : 'Selecionar conta'} className="flex h-9 min-w-0 max-w-[36vw] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-2 text-sm font-medium text-slate-800 shadow-xs transition-all hover:bg-slate-100/80 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:h-auto sm:max-w-none sm:gap-2.5 sm:px-3 sm:py-1.5">
               <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shrink-0 overflow-hidden">
                 {activeAccount?.igProfilePicUrl ? <img src={activeAccount.igProfilePicUrl} alt="" className="h-full w-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-indigo-700">{activeAccount?.igUsername?.substring(0, 1).toUpperCase() || "?"}</div>}
               </div>
-              <span className="font-semibold text-xs tracking-tight">{isLoading ? "Carregando..." : activeAccount ? `@${activeAccount.igUsername}` : currentUser?.name || "Seu workspace"}</span>
-              <ChevronDown size={14} className="text-slate-400" />
+              <span className="min-w-0 truncate text-[11px] font-semibold tracking-tight sm:text-xs">{isLoading ? "Carregando..." : activeAccount ? `@${activeAccount.igUsername}` : currentUser?.name || "Seu workspace"}</span>
+              <ChevronDown size={14} className="shrink-0 text-slate-400" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-white border-slate-200 shadow-lg rounded-xl p-1.5">
@@ -131,7 +131,7 @@ export function Header() {
         <DropdownMenu onOpenChange={(open) => { if (open) notificationsQuery.refetch() }}>
           <DropdownMenuTrigger asChild>
             <button
-              className="relative rounded-xl border border-slate-200/80 p-2 text-slate-500 shadow-xs transition-colors hover:bg-slate-100 hover:text-slate-800"
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 p-2 text-slate-500 shadow-xs transition-colors hover:bg-slate-100 hover:text-slate-800"
               title="Notificações"
               aria-label="Notificações"
             >
@@ -157,8 +157,8 @@ export function Header() {
         </DropdownMenu>
 
         {/* Quick Post Action */}
-        <Link href="/composer">
-          <Button size="sm" className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-xs shadow-indigo-200 h-9 px-3.5">
+        <Link href="/composer" aria-label="Nova publicação">
+          <Button size="sm" className="h-9 gap-1.5 rounded-xl bg-indigo-600 px-2.5 font-semibold text-white shadow-xs shadow-indigo-200 hover:bg-indigo-700 sm:px-3.5">
             <Plus size={16} />
             <span className="hidden sm:inline">Nova Publicação</span>
           </Button>

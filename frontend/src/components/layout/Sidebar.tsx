@@ -4,19 +4,21 @@ import { usePathname } from 'next/navigation'
 import { 
   LayoutDashboard, PenSquare, Calendar, BarChart3, 
   Users, TrendingUp, Settings, MessageCircle, ChevronLeft, ChevronRight,
-  Instagram, ShieldCheck
+  Instagram, ShieldCheck, MoreHorizontal
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { User } from '@/types'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Criar Publicação', href: '/composer', icon: PenSquare },
   { name: 'Calendário', href: '/calendar', icon: Calendar },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Contas', href: '/accounts', icon: Instagram },
   { name: 'Concorrentes', href: '/competitors', icon: Users },
   { name: 'Tendências', href: '/trends', icon: TrendingUp },
   { name: 'Comunidade', href: '/community', icon: MessageCircle },
@@ -33,11 +35,16 @@ export function Sidebar() {
   })
   const user = userQuery.data
   const initials = user?.name?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'WS'
+  const isActive = (href: string) => href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`)
+  const mobileMainHrefs = ['/', '/composer', '/calendar', '/analytics']
+  const moreItems = navItems.filter((item) => !mobileMainHrefs.includes(item.href))
+  const moreActive = moreItems.some((item) => isActive(item.href))
 
   return (
+    <>
     <aside className={cn(
       "flex flex-col border-r border-slate-200/80 bg-white transition-all duration-300 shadow-sm select-none",
-      collapsed ? "w-20" : "w-64"
+      collapsed ? "hidden w-20 md:flex" : "hidden w-64 md:flex"
     )}>
       {/* Brand Header */}
       <div className="flex h-16 items-center justify-between px-4 border-b border-slate-100">
@@ -75,14 +82,14 @@ export function Sidebar() {
       {/* Navigation Links */}
       <nav className="flex-1 py-4 space-y-1 overflow-y-auto px-3">
         {navItems.map((item) => {
-          const isActive = pathname === item.href
+          const active = isActive(item.href)
           return (
             <Link
               key={item.name}
               href={item.href}
               className={cn(
                 "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group relative",
-                isActive 
+                active
                   ? "bg-indigo-50 text-indigo-700 font-semibold shadow-xs" 
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               )}
@@ -90,12 +97,12 @@ export function Sidebar() {
             >
               <item.icon className={cn(
                 "h-5 w-5 shrink-0 transition-colors", 
-                isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-700"
+                active ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-700"
               )} />
               
               {!collapsed && <span>{item.name}</span>}
 
-              {isActive && (
+              {active && (
                 <div className="absolute right-0 top-2 bottom-2 w-1 bg-indigo-600 rounded-l-full" />
               )}
             </Link>
@@ -121,5 +128,37 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    <nav aria-label="Navegação principal" className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200/90 bg-white/95 px-1 pt-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl md:hidden">
+      <div className="grid grid-cols-5">
+        {[
+          { name: 'Início', href: '/', icon: LayoutDashboard },
+          { name: 'Criar', href: '/composer', icon: PenSquare },
+          { name: 'Agenda', href: '/calendar', icon: Calendar },
+          { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+        ].map((item) => {
+          const active = isActive(item.href)
+          return <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} className={cn('flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-semibold transition-colors', active ? 'text-indigo-700' : 'text-slate-500 hover:text-slate-800')}>
+            <item.icon size={19} strokeWidth={active ? 2.3 : 1.9} />
+            <span className="max-w-full truncate">{item.name}</span>
+          </Link>
+        })}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" aria-label="Mais seções" aria-current={moreActive ? 'page' : undefined} className={cn('flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-semibold transition-colors', moreActive ? 'text-indigo-700' : 'text-slate-500 hover:text-slate-800')}>
+              <MoreHorizontal size={20} strokeWidth={moreActive ? 2.3 : 1.9} />
+              <span>Mais</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="end" className="mb-2 w-56 rounded-xl border-slate-200 bg-white p-1.5 shadow-xl">
+            {moreItems.map((item) => <DropdownMenuItem key={item.href} asChild>
+              <Link href={item.href} className={cn('flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm', isActive(item.href) && 'bg-indigo-50 font-semibold text-indigo-700')}>
+                <item.icon size={17} />{item.name}
+              </Link>
+            </DropdownMenuItem>)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </nav>
+    </>
   )
 }
