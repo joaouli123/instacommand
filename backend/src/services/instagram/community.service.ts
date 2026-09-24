@@ -88,7 +88,7 @@ export const listRecentComments = async (accountId: string, userId: string, limi
 
 const assertMediaBelongsToAccount = async (accountId: string, userId: string, mediaId: string) => {
   const account = await getOwnedAccount(accountId, userId);
-  const localMedia = await prisma.publishedPost.findFirst({ where: { accountId: account.id, igMediaId: mediaId }, select: { id: true } });
+  const localMedia = await prisma.publishedPost.findFirst({ where: { accountId: account.id, igMediaId: mediaId, instagramDeletedAt: null }, select: { id: true } });
   if (localMedia) return account;
 
   const token = await getDecryptedToken(account.id);

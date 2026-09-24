@@ -71,6 +71,7 @@ export const api = {
     return fetchApi('/posts/upload', { method: 'POST', body: formData });
   },
   createPost: (data: Record<string, unknown>) => fetchApi('/posts', { method: 'POST', body: JSON.stringify(data) }),
+  searchInstagramAudio: (accountId: string, type: 'music' | 'original_sound', query = '') => fetchApi(`/posts/instagram-audio?accountId=${encodeURIComponent(accountId)}&type=${type}&q=${encodeURIComponent(query)}`),
   publishPost: (id: string) => fetchApi(`/posts/${id}/publish`, { method: 'POST' }),
   getPosts: (params = '') => fetchApi(`/posts${params ? `?${params}` : ''}`),
   getPost: (id: string) => fetchApi(`/posts/${encodeURIComponent(id)}`),

@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { graphGet, graphGetAll } from '../../utils/instagram-api';
+import { graphGet, graphGetAllWithStatus } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
 import { MediaType } from '@prisma/client';
 import { maybeNotifyEngagement } from '../notifications.service';
@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 type InsightItem = {
   name?: string;
   values?: Array<{ value?: unknown }>;
-  total_value?: { value?: unknown };
+  total_value?: { value?: unknown; breakdowns?: Array<{ results?: Array<{ dimension_values?: unknown[]; value?: unknown }> }> };
 };
 
 const readInsightValue = (item: InsightItem) => {
@@ -56,15 +56,12 @@ export const getProfileInsights = async (igUserId: string, token: string, period
     igUserId,
     token,
     [
-      'reach,impressions',
-      'profile_views',
-      'website_clicks',
-      'email_contacts',
-      'phone_call_clicks',
-      'follows',
-      'profile_activity',
+      'views,reach,accounts_engaged,total_interactions',
+      'likes,comments,shares,saves,replies,reposts',
+      'follows_and_unfollows',
+      'profile_links_taps',
     ],
-    { period },
+    { period, metric_type: 'total_value' },
   );
 };
 
@@ -75,22 +72,42 @@ export const getPostInsights = async (igMediaId: string, token: string) => {
     [
       // These are the current high-value media metrics. Keeping them in
       // separate groups prevents one unsupported metric from hiding the rest.
-      'impressions,reach,saved',
-      'total_interactions,likes,comments,shares',
-      // Video accounts may expose one of these names depending on media type.
-      'plays,video_views',
+      'reach,views',
+      'likes,comments,shares',
+      'saved,replies',
+      'total_interactions',
     ],
     {},
   );
 };
 
-export const getAudienceDemographics = async (igUserId: string, token: string) => {
-  return bestEffortInsights(
-    igUserId,
-    token,
-    ['audience_city', 'audience_country', 'audience_gender_age'],
-    { period: 'lifetime' },
-  );
+export const getAudienceDemographics = async (igUserId: string, token: string, audience: 'followers' | 'engaged' = 'followers') => {
+  const metric = audience === 'engaged' ? 'engaged_audience_demographics' : 'follower_demographics';
+  const breakdowns = ['gender', 'age', 'country', 'city'];
+  const responses = await Promise.all(breakdowns.map(async (breakdown) => {
+    try {
+      const response = await graphGet(`/${igUserId}/insights`, token, {
+        metric,
+        period: 'lifetime',
+        metric_type: 'total_value',
+        timeframe: 'last_30_days',
+        breakdown,
+      });
+      const item = Array.isArray(response.data) ? response.data.find((entry: InsightItem) => entry.name === metric) : null;
+      const results = item?.total_value?.breakdowns?.flatMap((group: any) => Array.isArray(group.results) ? group.results : []) || [];
+      const values: Record<string, number> = {};
+      results.forEach((result: any) => {
+        const label = Array.isArray(result.dimension_values) ? result.dimension_values[result.dimension_values.length - 1] : undefined;
+        const value = result.value;
+        if (typeof label === 'string' && typeof value === 'number' && Number.isFinite(value)) values[label] = (values[label] || 0) + value;
+      });
+      return Object.keys(values).length ? { name: `${metric}_${breakdown}`, values: [{ value: values }] } : null;
+    } catch (error) {
+      console.warn(`Audience ${breakdown} unavailable for ${igUserId}:`, error instanceof Error ? error.message : error);
+      return null;
+    }
+  }));
+  return responses.filter((item): item is NonNullable<typeof item> => Boolean(item));
 };
 
 export const saveProfileSnapshot = async (accountId: string) => {
@@ -112,15 +129,20 @@ export const saveProfileSnapshot = async (accountId: string) => {
   } catch (error) {
     console.error(`Profile insights unavailable for ${account.igUsername}:`, error);
   }
-  let reach = 0, impressions = 0, profileViews = 0;
+  let reach = 0, views = 0, profileViews = 0;
   
   insights.forEach((insight) => {
     const value = readInsightValue(insight);
     if (insight.name === 'reach') reach = value;
-    if (insight.name === 'impressions') impressions = value;
+    if (insight.name === 'views') views = value;
     if (insight.name === 'profile_views' || insight.name === 'profile_visits') profileViews = value;
   });
 
+  // When Insights is not available, importing the media should still finish
+  // quickly. Calling the Insights endpoint once per post can otherwise leave
+  // the account stuck in "Sincronizando" for a long time.
+  const mediaSync = await syncAccountMedia(accountId, { fetchInsights: insights.length > 0 });
+  const storySync = await syncAccountStories(accountId, { fetchInsights: insights.length > 0, token });
   await prisma.profileInsight.create({
     data: {
       accountId,
@@ -128,12 +150,14 @@ export const saveProfileSnapshot = async (accountId: string) => {
       following: Number(profileData.follows_count || 0),
       mediaCount: Number(profileData.media_count || 0),
       reach,
-      impressions,
+      views,
+      accountsEngaged: insights.some((insight) => insight.name === 'accounts_engaged') ? readInsightValue(insights.find((insight) => insight.name === 'accounts_engaged') || {}) : null,
+      totalInteractions: insights.some((insight) => insight.name === 'total_interactions') ? readInsightValue(insights.find((insight) => insight.name === 'total_interactions') || {}) : null,
+      profileLinkTaps: insights.some((insight) => insight.name === 'profile_links_taps') ? readInsightValue(insights.find((insight) => insight.name === 'profile_links_taps') || {}) : null,
       profileViews,
       availableMetrics: receivedMetrics(insights),
     },
   });
-
   await prisma.instagramAccount.update({
     where: { id: accountId },
     data: {
@@ -143,15 +167,14 @@ export const saveProfileSnapshot = async (accountId: string) => {
       lastSyncAt: new Date(),
     },
   });
-
-  // When Insights is not available, importing the media should still finish
-  // quickly. Calling the Insights endpoint once per post can otherwise leave
-  // the account stuck in "Sincronizando" for a long time.
-  const mediaSync = await syncAccountMedia(accountId, { fetchInsights: insights.length > 0 });
   return {
     profileInsightsAvailable: insights.length > 0,
     importedMedia: mediaSync.importedMedia,
     mediaInsightsAvailable: mediaSync.mediaInsightsAvailable,
+    removedMedia: mediaSync.removedMedia,
+    mediaSnapshotComplete: mediaSync.snapshotComplete,
+    storiesAvailable: storySync.available,
+    importedStories: storySync.importedStories,
   };
 };
 
@@ -163,14 +186,15 @@ const toPublishedMediaType = (mediaType: string): MediaType => {
 
 export const syncAccountMedia = async (accountId: string, options: { fetchInsights?: boolean } = {}) => {
   const account = await prisma.instagramAccount.findUnique({ where: { id: accountId } });
-  if (!account) return { importedMedia: 0, mediaInsightsAvailable: false };
+  if (!account) return { importedMedia: 0, mediaInsightsAvailable: false, removedMedia: 0, snapshotComplete: false };
 
   const token = await getDecryptedToken(accountId);
   const fetchInsights = options.fetchInsights ?? true;
-  const media = await graphGetAll<any>(`/${account.igUserId}/media`, token, {
+  const snapshot = await graphGetAllWithStatus<any>(`/${account.igUserId}/media`, token, {
     fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
     limit: 50,
   }, 20);
+  const media = snapshot.items;
   let mediaInsightsAvailable = false;
 
   for (const item of media) {
@@ -182,6 +206,7 @@ export const syncAccountMedia = async (accountId: string, options: { fetchInsigh
       where: { igMediaId: item.id },
       update: {
         accountId,
+        instagramDeletedAt: null,
         mediaType,
         caption: item.caption || null,
         igMediaUrl: item.media_url || item.thumbnail_url || null,
@@ -218,6 +243,9 @@ export const syncAccountMedia = async (accountId: string, options: { fetchInsigh
       }
     }
 
+    const viewInsight = postInsightItems.find((insight) => insight.name === 'views');
+    const views = viewInsight ? readInsightValue(viewInsight) : null;
+
     const insightLikes = postInsightItems.find((insight) => insight.name === 'likes');
     const insightComments = postInsightItems.find((insight) => insight.name === 'comments');
     const insightShares = postInsightItems.find((insight) => insight.name === 'shares');
@@ -238,13 +266,93 @@ export const syncAccountMedia = async (accountId: string, options: { fetchInsigh
         saves,
         reach,
         impressions,
+        views,
         engagement,
         availableMetrics: [...new Set(availableMetrics)],
       },
     });
   }
 
-  return { importedMedia: media.length, mediaInsightsAvailable };
+  // Absence only means deletion when Meta returned every page successfully.
+  // Keep recently published posts for 24 hours to avoid hiding content while
+  // Meta's media edge is still catching up after publication.
+  let removedMedia = 0;
+  if (snapshot.complete) {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const result = await prisma.publishedPost.updateMany({
+      where: {
+        accountId,
+        mediaType: { not: MediaType.STORY },
+        igMediaId: { not: null, notIn: media.map((item) => item.id) },
+        instagramDeletedAt: null,
+        publishedAt: { lt: cutoff },
+      },
+      data: { instagramDeletedAt: new Date() },
+    });
+    removedMedia = result.count;
+  }
+
+  return {
+    importedMedia: media.length,
+    mediaInsightsAvailable,
+    removedMedia,
+    snapshotComplete: snapshot.complete,
+  };
+};
+
+export const syncAccountStories = async (accountId: string, options: { fetchInsights?: boolean; token?: string } = {}) => {
+  const account = await prisma.instagramAccount.findUnique({ where: { id: accountId } });
+  if (!account) return { available: false, importedStories: 0 };
+  const token = options.token || await getDecryptedToken(accountId);
+  let snapshot;
+  try {
+    snapshot = await graphGetAllWithStatus<any>(`/${account.igUserId}/stories`, token, {
+      fields: 'id,media_type,media_url,thumbnail_url,permalink,timestamp',
+      limit: 50,
+    }, 10);
+  } catch (error) {
+    console.warn(`Active Stories unavailable for ${account.igUsername}:`, error instanceof Error ? error.message : error);
+    return { available: false, importedStories: 0 };
+  }
+
+  for (const item of snapshot.items) {
+    if (typeof item.id !== 'string' || !item.id) continue;
+    const publishedAt = item.timestamp && !Number.isNaN(new Date(item.timestamp).getTime()) ? new Date(item.timestamp) : new Date();
+    const post = await prisma.publishedPost.upsert({
+      where: { igMediaId: item.id },
+      update: { accountId, mediaType: MediaType.STORY, caption: null, igMediaUrl: item.media_url || item.thumbnail_url || null, igPermalink: item.permalink || null, publishedAt },
+      create: { accountId, igMediaId: item.id, mediaType: MediaType.STORY, caption: null, igMediaUrl: item.media_url || item.thumbnail_url || null, igPermalink: item.permalink || null, publishedAt },
+    });
+
+    let insightItems: InsightItem[] = [];
+    if (options.fetchInsights !== false) {
+      try { insightItems = await getPostInsights(item.id, token); }
+      catch (error) { console.warn(`Story insights unavailable for ${item.id}:`, error instanceof Error ? error.message : error); }
+    }
+    const valueFor = (names: string[]) => {
+      const insight = insightItems.find((candidate) => names.includes(candidate.name || ''));
+      return insight ? readInsightValue(insight) : null;
+    };
+    const availableMetrics = receivedMetrics(insightItems);
+    const views = valueFor(['views']);
+    const reach = valueFor(['reach']);
+    await prisma.postInsight.create({
+      data: {
+        postId: post.id,
+        views,
+        reach: reach ?? 0,
+        likes: valueFor(['likes']) ?? 0,
+        comments: valueFor(['comments']) ?? 0,
+        replies: valueFor(['replies']),
+        shares: valueFor(['shares']) ?? 0,
+        saves: valueFor(['saved']) ?? 0,
+        impressions: 0,
+        engagement: 0,
+        availableMetrics,
+      },
+    });
+  }
+  return { available: true, importedStories: snapshot.items.length };
 };
 
 export const savePostInsights = async (accountId: string) => {
@@ -253,7 +361,7 @@ export const savePostInsights = async (accountId: string) => {
 
   const token = await getDecryptedToken(accountId);
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null } },
+    where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null },
     take: 20,
     orderBy: { publishedAt: 'desc' },
   });
@@ -266,7 +374,7 @@ export const savePostInsights = async (accountId: string) => {
       });
       const insights = await getPostInsights(post.igMediaId, token);
       
-      let reach = 0, impressions = 0, saves = 0, shares = 0;
+      let reach = 0, impressions = 0, saves = 0, shares = 0, views: number | null = null, replies: number | null = null;
       let insightLikes = 0, insightComments = 0;
       insights.forEach((i: InsightItem) => {
         const val = readInsightValue(i);
@@ -276,6 +384,8 @@ export const savePostInsights = async (accountId: string) => {
         if (i.name === 'shares') shares = val;
         if (i.name === 'likes') insightLikes = val;
         if (i.name === 'comments') insightComments = val;
+        if (i.name === 'views') views = val;
+        if (i.name === 'replies') replies = val;
       });
 
       const likes = Number(mediaData.like_count ?? insightLikes);
@@ -295,6 +405,8 @@ export const savePostInsights = async (accountId: string) => {
           saves,
           reach,
           impressions,
+          views,
+          replies,
           engagement,
           availableMetrics: [...new Set(availableMetrics)],
         },
@@ -317,7 +429,7 @@ export const savePostInsights = async (accountId: string) => {
 
 export const calculateEngagementRate = async (accountId: string) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null } },
+    where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null },
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
     take: 50,
     orderBy: { publishedAt: 'desc' },
@@ -329,7 +441,7 @@ export const calculateEngagementRate = async (accountId: string) => {
 
 export const getBestTimeToPost = async (accountId: string, days = 30) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
+    where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days) },
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
   });
   const groups = new Map<string, { day: string; hour: number; posts: number; score: number; interactions: number }>();
@@ -361,7 +473,7 @@ export const getBestTimeToPost = async (accountId: string, days = 30) => {
 
 export const getContentTypeAnalysis = async (accountId: string, days = 30) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
+    where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days) },
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
   });
   const groups = new Map<string, typeof posts>();

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { MediaType, PrismaClient } from '@prisma/client';
 import { publicationPeriod } from './analytics-period';
 import { metricValue, aggregateMetrics, normalizedMetrics } from './metric-availability';
 
@@ -13,7 +13,7 @@ export const getDashboardStats = async (accountId: string, days = 30) => {
         take: 2,
       },
       publishedPosts: {
-        where: { igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
+        where: { igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days) },
         include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
         orderBy: { publishedAt: 'desc' },
       },
@@ -39,7 +39,10 @@ export const getDashboardStats = async (accountId: string, days = 30) => {
     followerGrowth,
     hasFollowerHistory: Boolean(previousInsight && latestInsight),
     reach: metricValue(latestInsight, 'reach'),
+    views: metricValue(latestInsight, 'views'),
     impressions: metricValue(latestInsight, 'impressions'),
+    accountsEngaged: metricValue(latestInsight, 'accountsEngaged'),
+    profileLinkTaps: metricValue(latestInsight, 'profileLinkTaps'),
     interactions: totals.interactions,
     interactionsPartial: totals.partial,
     metricScope: 'latest-profile-snapshot; lifetime-counters-of-posts-published-in-period',
@@ -57,20 +60,23 @@ export const getGrowthData = async (accountId: string, days = 30) => {
 
   // The worker may collect several snapshots in one day. Keep the latest
   // real snapshot per calendar day so the chart does not repeat dates.
-  const byDay = new Map<string, { date: Date; followers: number }>();
+  const byDay = new Map<string, { date: string; followers: number; reach: number | null; views: number | null; interactions: number | null }>();
   for (const insight of insights) {
-    const day = insight.collectedAt.toISOString().slice(0, 10);
-    byDay.set(day, { date: insight.collectedAt, followers: insight.followers });
+    const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(insight.collectedAt);
+    byDay.set(day, {
+      date: day,
+      followers: insight.followers,
+      reach: metricValue(insight, 'reach'),
+      views: metricValue(insight, 'views'),
+      interactions: metricValue(insight, 'totalInteractions'),
+    });
   }
-  return Array.from(byDay.values()).map((item) => ({
-    date: item.date,
-    followers: item.followers,
-  }));
+  return Array.from(byDay.values());
 };
 
 export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
+    where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days) },
     orderBy: { publishedAt: 'asc' },
     include: {
       insights: { orderBy: { collectedAt: 'desc' }, take: 1 },
@@ -88,9 +94,9 @@ export const getEngagementTimeSeries = async (accountId: string, days = 30) => {
   }));
 };
 
-export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engagement', days = 30) => {
+export const getTopPosts = async (accountId: string, limit = 20, sortBy = 'interactions', days = 30, mediaType?: MediaType | MediaType[]) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
+    where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days), ...(mediaType ? { mediaType: Array.isArray(mediaType) ? { in: mediaType } : mediaType } : {}) },
     include: {
       insights: {
         orderBy: { collectedAt: 'desc' },
@@ -100,24 +106,30 @@ export const getTopPosts = async (accountId: string, limit = 5, sortBy = 'engage
   });
 
   const processed = posts.map(p => {
-    const latestInsight = normalizedMetrics(p.insights[0]);
+    const insight = p.insights[0];
+    const latestInsight = normalizedMetrics(insight);
+    const interactions = aggregateMetrics([insight || {}]);
+    const storyReplies = p.mediaType === MediaType.STORY ? metricValue(insight, 'replies') : null;
+    const interactionScore = interactions.interactions === null && storyReplies === null
+      ? null
+      : (interactions.interactions || 0) + (storyReplies || 0);
     return {
       ...p,
-      metrics: latestInsight,
+      metrics: { ...latestInsight, interactions: interactionScore, interactionsPartial: interactions.partial || (p.mediaType === MediaType.STORY && storyReplies !== null), replies: storyReplies, coverage: interactions.coverage },
     };
   });
 
-  processed.sort((a, b) => {
-    const valA = Number(a.metrics[sortBy as keyof typeof a.metrics]) || 0;
-    const valB = Number(b.metrics[sortBy as keyof typeof b.metrics]) || 0;
-    return valB - valA;
-  });
-  return processed.slice(0, limit);
+  const ranked = processed.map((post) => ({
+    post,
+    score: post.metrics[sortBy as keyof typeof post.metrics] as number | null,
+  })).filter((row): row is { post: typeof processed[number]; score: number } => row.score !== null && typeof row.score === 'number');
+  ranked.sort((a, b) => b.score - a.score);
+  return ranked.slice(0, limit).map((row) => ({ ...row.post, score: row.score }));
 };
 
 export const getPostPerformanceTable = async (accountId: string, page = 1, limit = 10, days = 30) => {
   const skip = (page - 1) * limit;
-  const where = { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) };
+  const where = { accountId, igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days) };
   const posts = await prisma.publishedPost.findMany({
     where,
     skip,
@@ -143,7 +155,7 @@ export const getPostPerformanceTable = async (accountId: string, page = 1, limit
 
 export const getRecommendations = async (accountId: string, days = 30) => {
   const posts = await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null }, publishedAt: publicationPeriod(days) },
+    where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days) },
     orderBy: { publishedAt: 'desc' },
     include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
   });

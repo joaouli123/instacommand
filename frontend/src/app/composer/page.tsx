@@ -41,20 +41,20 @@ type PlatformFormatDetail = {
 
 const networkFormatDetails: Record<string, Partial<Record<PostType, PlatformFormatDetail>>> = {
   INSTAGRAM: {
-    FEED: { name: "Foto no feed", shape: "App 1,91:1–3:4 · API conservadora 1,91:1–4:5", dimensions: "4:5 · 1080 × 1350 px (API) · 3:4 · 1080 × 1440 px (app)", note: "O app Instagram também aceita 3:4. Como a validação da API pode divergir, 4:5 é a opção conservadora para autopublicar; a prévia mostra o ratio original." },
-    CAROUSEL: { name: "Carrossel do feed", shape: "App 1,91:1–3:4 · API conservadora 1,91:1–4:5", dimensions: "4:5 · 1080 × 1350 px (API) · 3:4 · 1080 × 1440 px (app)", note: "O app Instagram aceita 3:4 em carrosséis; a API pode validar diferente. Use um ratio uniforme e 4:5 para a opção conservadora; confira cada item." },
-    REEL: { name: "Reel", shape: "9:16 recomendado", dimensions: "1080 × 1920 px · 9:16", note: "API aceita outras proporções; 9:16 evita áreas vazias ou cortes. 3 s–15 min; este app limita o arquivo a 100 MB." },
-    STORY: { name: "Story", shape: "9:16 recomendado", dimensions: "1080 × 1920 px · 9:16", note: "Vídeo de 3 a 60 s; publicação via API para conta Instagram Business. Upload deste app: até 100 MB." },
+    FEED: { name: "Foto no feed", shape: "Foto horizontal ou vertical", dimensions: "Para publicar por aqui: 1080 × 1350 px (4:5)", note: "No Instagram pelo celular, também são aceitas fotos 3:4 (1080 × 1440 px). Para publicar automaticamente, prefira 4:5." },
+    CAROUSEL: { name: "Carrossel do feed", shape: "Todas as fotos no mesmo formato", dimensions: "Recomendado: 1080 × 1350 px (4:5)", note: "No Instagram pelo celular, carrosséis 3:4 também funcionam. Para publicar automaticamente, prefira 4:5 em todas as fotos." },
+    REEL: { name: "Reel", shape: "Formato recomendado: vertical 9:16", dimensions: "1080 × 1920 px · 9:16", note: "O formato 9:16 preenche a tela do celular. Vídeos de 3 s a 15 min; arquivo de até 100 MB neste sistema." },
+    STORY: { name: "Story", shape: "Formato recomendado: vertical 9:16", dimensions: "1080 × 1920 px · 9:16", note: "O sistema publica Stories em contas profissionais do Instagram. Vídeos de 3 a 60 s; arquivo de até 100 MB." },
   },
   FACEBOOK: {
-    FEED: { name: "Foto da Página", shape: "Proporção original · sem ratio único", dimensions: "4:5 · 1080 × 1350 px (referência)", note: "A API de publicação da Página não fixa um único canvas; o enquadramento pode variar por dispositivo e posicionamento." },
-    CAROUSEL: { name: "Álbum de fotos da Página", shape: "Proporção original de cada foto", dimensions: "2 a 10 fotos · 1080 px de largura (referência)", note: "Este formato publica várias fotos anexadas à publicação, não o anúncio de carrossel. A prévia preserva o ratio do item selecionado." },
-    REEL: { name: "Reel do Facebook", shape: "9:16 obrigatório", dimensions: "Mínimo 540 × 960 px · recomendado 1080 × 1920 px", note: "Vídeo de 4 a 60 s e pelo menos 23 fps. O limite de upload deste app é 100 MB.", acceptedRatio: { min: 9 / 16, max: 9 / 16, tolerance: 0.001 } },
+    FEED: { name: "Foto da Página", shape: "Foto horizontal ou vertical", dimensions: "Tamanho recomendado: 1080 × 1350 px (4:5)", note: "O Facebook pode enquadrar a foto de forma diferente conforme o aparelho e o lugar onde ela aparece." },
+    CAROUSEL: { name: "Álbum de fotos da Página", shape: "Álbum com 2 a 10 fotos", dimensions: "Largura recomendada: 1080 px", note: "As fotos são publicadas juntas em uma única publicação. Cada uma mantém seu formato original." },
+    REEL: { name: "Reel do Facebook", shape: "Vídeo vertical 9:16", dimensions: "Mínimo: 540 × 960 px · recomendado: 1080 × 1920 px", note: "Vídeo de 4 a 60 s, com pelo menos 23 quadros por segundo. Limite deste sistema: 100 MB.", acceptedRatio: { min: 9 / 16, max: 9 / 16, tolerance: 0.001 } },
   },
   THREADS: {
-    FEED: { name: "Post com imagem", shape: "Proporção original", dimensions: "Sem dimensão fixa publicada pela API", note: "O texto acompanha a imagem; a prévia mantém as dimensões originais do arquivo." },
-    CAROUSEL: { name: "Carrossel", shape: "Proporção original por item", dimensions: "2 a 10 mídias neste app", note: "Pode combinar imagens e vídeos. Threads publica um carrossel, não um Reel; confira cada item na prévia." },
-    REEL: { name: "Post com vídeo", shape: "Proporção original · sem ratio fixo", dimensions: "Até 5 min · upload deste app até 100 MB", note: "É um post de vídeo no Threads (não Reel). A API não define um canvas vertical obrigatório." },
+    FEED: { name: "Post com imagem", shape: "Mantém o formato da imagem", dimensions: "Sem tamanho obrigatório", note: "O texto acompanha a imagem; a prévia mantém o arquivo original." },
+    CAROUSEL: { name: "Carrossel", shape: "Cada item mantém seu formato", dimensions: "2 a 10 fotos ou vídeos", note: "As mídias são publicadas juntas em um carrossel. Confira cada item na prévia." },
+    REEL: { name: "Post com vídeo", shape: "Mantém o formato do vídeo", dimensions: "Até 5 min · arquivo de até 100 MB", note: "No Threads, ele será publicado como vídeo, não como Reel. Não precisa adaptar para um formato vertical específico." },
     TEXT: { name: "Post de texto", shape: "Somente texto", dimensions: "Até 500 caracteres", note: "Formato exclusivo do Threads; sem mídia anexada." },
   },
 }
@@ -105,6 +105,7 @@ type ThreadsAccount = { id: string; username: string; name?: string | null; isAc
 type AiPlanItem = { day: string; format: string; topic: string; hook: string; cta: string; suggestedTime: string }
 type HashtagMedia = { id: string; caption?: string }
 type HashtagLookup = { igHashtagId: string; topMediaCount: number; recentMediaCount: number; topMedia: HashtagMedia[]; recentMedia: HashtagMedia[] }
+type InstagramAudioTrack = { id: string; title: string; audioType?: string; durationInMs?: number | null; artist?: string | null; creatorUsername?: string | null; coverUrl?: string | null; previewUrl?: string | null; previewLink?: string | null }
 type PublishOutcome = { succeeded: string[]; failed: Array<{ platform: string; message: string }> }
 
 const normalizeHashtag = (value: string) => value.replace(/^#+/, "").trim()
@@ -478,8 +479,19 @@ export default function ComposerPage() {
   const [step, setStep] = useState(1)
   const [previewPlatform, setPreviewPlatform] = useState("INSTAGRAM")
   const [creationMode, setCreationMode] = useState<"manual" | "ai" | null>("manual")
+  const [isAiGenerated, setIsAiGenerated] = useState(false)
+  const [audioType, setAudioType] = useState<"music" | "original_sound">("music")
+  const [audioSearchQuery, setAudioSearchQuery] = useState("")
+  const [audioTracks, setAudioTracks] = useState<InstagramAudioTrack[]>([])
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState<InstagramAudioTrack | null>(null)
+  const [audioSearching, setAudioSearching] = useState(false)
+  const [audioVolume, setAudioVolume] = useState(80)
+  const [videoVolume, setVideoVolume] = useState(60)
+  const [previewingAudioId, setPreviewingAudioId] = useState<string | null>(null)
   const mediaItemsRef = useRef<MediaItem[]>([])
   const hashtagLookupCache = useRef<Record<string, HashtagLookup>>({})
+  const audioPreviewRef = useRef<HTMLAudioElement>(null)
+  const previousAccountIdRef = useRef(accountId)
 
   useEffect(() => {
     setSelectedDate(getDefaultDate())
@@ -502,6 +514,12 @@ export default function ComposerPage() {
           setCaption(draft.caption || ''); setHashtags(draft.hashtags || []); setPlatforms(draft.platforms || ['INSTAGRAM'])
           setThreadsAccountId(draft.threadsAccountId || ''); setPostType(draft.mediaType === 'IMAGE' ? 'FEED' : draft.mediaType)
           setEditorialBrief(draft.editorialBrief || null)
+          setIsAiGenerated(draft.isAiGenerated === true)
+          if (draft.instagramAudioId) {
+            setSelectedAudioTrack({ id: draft.instagramAudioId, title: draft.instagramAudioTitle || 'Áudio selecionado', artist: draft.instagramAudioArtist || null })
+            setAudioVolume(Number.isInteger(draft.instagramAudioVolume) ? draft.instagramAudioVolume : 80)
+            setVideoVolume(Number.isInteger(draft.instagramVideoVolume) ? draft.instagramVideoVolume : 60)
+          }
           const date = new Date(draft.scheduledFor); const pad = (v: number) => String(v).padStart(2, '0')
           setSelectedDate(`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`)
           setMediaItems((draft.mediaUrls || []).map((src: string, i: number) => ({ id: `saved-${i}`, src, name: `Mídia ${i + 1}`, kind: isVideoUrl(src) ? 'video' : 'image', isObjectUrl: false })))
@@ -529,6 +547,16 @@ export default function ComposerPage() {
   }, [mediaItems])
 
   useEffect(() => {
+    if (previousAccountIdRef.current && accountId && previousAccountIdRef.current !== accountId) {
+      audioPreviewRef.current?.pause()
+      setSelectedAudioTrack(null)
+      setAudioTracks([])
+      setPreviewingAudioId(null)
+    }
+    previousAccountIdRef.current = accountId
+  }, [accountId])
+
+  useEffect(() => {
     const unmeasured = mediaItems.filter(item => !item.width || !item.height)
     if (!unmeasured.length) return
 
@@ -547,6 +575,7 @@ export default function ComposerPage() {
 
   useEffect(() => {
     return () => {
+      audioPreviewRef.current?.pause()
       mediaItemsRef.current.forEach(item => {
         if (item.isObjectUrl) URL.revokeObjectURL(item.src)
       })
@@ -645,6 +674,12 @@ export default function ComposerPage() {
     const destinationsChanged = nextPlatforms.length !== platforms.length || nextPlatforms.some((platform, index) => platform !== platforms[index])
     if (destinationsChanged) setPlatforms(nextPlatforms)
     setPostType(nextType)
+    if (nextType !== "REEL") {
+      setSelectedAudioTrack(null)
+      setAudioTracks([])
+      setPreviewingAudioId(null)
+      audioPreviewRef.current?.pause()
+    }
     if (nextType === "TEXT") {
       setThreadsAccountId(current => current || threadsAccounts[0]?.id || "")
       setPreviewPlatform("THREADS")
@@ -782,8 +817,57 @@ export default function ComposerPage() {
       setMediaItems([])
       toast("Formato ajustado para foto única, compatível com as redes escolhidas.")
     }
+    if (!nextPlatforms.includes("INSTAGRAM")) {
+      setIsAiGenerated(false)
+      setSelectedAudioTrack(null)
+      setAudioTracks([])
+      setPreviewingAudioId(null)
+      audioPreviewRef.current?.pause()
+    }
     setPlatforms(nextPlatforms)
     if (!nextPlatforms.includes(previewPlatform)) setPreviewPlatform(nextPlatforms[0] || "INSTAGRAM")
+  }
+
+  const searchInstagramAudio = async () => {
+    if (!accountId || !platforms.includes("INSTAGRAM") || postType !== "REEL") {
+      toast.error("A biblioteca de áudio está disponível para Reels do Instagram.")
+      return
+    }
+    setAudioSearching(true)
+    try {
+      const response = await api.searchInstagramAudio(accountId, audioType, audioSearchQuery.trim()) as { items?: InstagramAudioTrack[] }
+      setAudioTracks(Array.isArray(response.items) ? response.items : [])
+      if (!response.items?.length) toast("Não encontrei faixas para essa busca. Tente outro termo ou veja os áudios em alta.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível buscar áudios do Instagram.")
+      setAudioTracks([])
+    } finally {
+      setAudioSearching(false)
+    }
+  }
+
+  const toggleAudioPreview = async (track: InstagramAudioTrack) => {
+    const player = audioPreviewRef.current
+    if (!player || !track.previewUrl) {
+      toast("A Meta não forneceu uma prévia de áudio para esta faixa.")
+      return
+    }
+    if (previewingAudioId === track.id) {
+      player.pause()
+      setPreviewingAudioId(null)
+      return
+    }
+    player.pause()
+    player.src = track.previewUrl
+    player.currentTime = 0
+    player.volume = audioVolume / 100
+    try {
+      await player.play()
+      setPreviewingAudioId(track.id)
+    } catch {
+      setPreviewingAudioId(null)
+      toast.error("Não foi possível reproduzir a prévia dessa faixa.")
+    }
   }
 
   const generateWithAi = async (mode: "caption" | "plan") => {
@@ -864,7 +948,7 @@ export default function ComposerPage() {
       return
     }
     if (postType === "STORY" && platforms.some((platform) => platform !== "INSTAGRAM")) {
-      toast.error("Stories só podem ser publicados pelo Instagram nesta versão da API.")
+      toast.error("Stories só podem ser publicados pelo Instagram neste sistema.")
       return
     }
     if (platforms.includes("FACEBOOK") && !selectedAccount?.pageName) {
@@ -902,6 +986,12 @@ export default function ComposerPage() {
         caption: finalCaption,
         hashtags,
         platforms,
+        isAiGenerated: platforms.includes("INSTAGRAM") && isAiGenerated,
+        instagramAudioId: postType === "REEL" && platforms.includes("INSTAGRAM") ? selectedAudioTrack?.id ?? null : null,
+        instagramAudioTitle: selectedAudioTrack?.title ?? null,
+        instagramAudioArtist: selectedAudioTrack?.artist ?? null,
+        instagramAudioVolume: audioVolume,
+        instagramVideoVolume: videoVolume,
         scheduledFor: scheduledFor.toISOString(),
         status: mode === "schedule" ? "SCHEDULED" : "DRAFT",
       }
@@ -958,7 +1048,13 @@ export default function ComposerPage() {
       let index = 0
       const urls = mediaItems.map(item => item.file ? upload.urls[index++] : item.src)
       const data = { caption, hashtags, mediaUrls: urls, mediaType: postType === 'FEED' ? 'IMAGE' : postType,
-        platforms, threadsAccountId: platforms.includes('THREADS') ? threadsAccountId : null, status: 'DRAFT' }
+        platforms, threadsAccountId: platforms.includes('THREADS') ? threadsAccountId : null, status: 'DRAFT',
+        isAiGenerated: platforms.includes('INSTAGRAM') && isAiGenerated,
+        instagramAudioId: postType === 'REEL' && platforms.includes('INSTAGRAM') ? selectedAudioTrack?.id ?? null : null,
+        instagramAudioTitle: selectedAudioTrack?.title ?? null,
+        instagramAudioArtist: selectedAudioTrack?.artist ?? null,
+        instagramAudioVolume: audioVolume,
+        instagramVideoVolume: videoVolume }
       const saved = draftId ? await api.updatePost(draftId, data) : await api.createPost({ ...data, accountId, scheduledFor: new Date(selectedDate || Date.now()).toISOString() })
       setDraftId(saved.id)
       window.history.replaceState(null, '', `/composer?draft=${encodeURIComponent(saved.id)}`)
@@ -977,6 +1073,7 @@ export default function ComposerPage() {
     const startAnother = () => {
       mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
       setPublishOutcome(null); setStep(1); setCaption(""); setHashtags([]); setTagInput(""); setMediaItems([]); setActiveMediaIndex(0); setDraftId(""); setEditorialBrief(null)
+      setIsAiGenerated(false); setSelectedAudioTrack(null); setAudioTracks([]); setAudioSearchQuery(""); setPreviewingAudioId(null); audioPreviewRef.current?.pause()
     }
     return <main className="mx-auto flex min-h-[65vh] w-full max-w-2xl items-center justify-center px-3 py-8">
       <Card className="w-full overflow-hidden rounded-3xl border-slate-200 shadow-sm">
@@ -1400,6 +1497,45 @@ export default function ComposerPage() {
               </span>)}
             </div>}
           </div>
+
+          <details className="group rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-800 marker:hidden">
+              <span className="flex items-center gap-2"><RiMore2Line size={18} className="text-indigo-600" />Configurações avançadas</span>
+              <ChevronDown size={16} className="shrink-0 text-slate-500 transition group-open:rotate-180" />
+            </summary>
+            <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
+              {platforms.includes("INSTAGRAM") ? <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                <input type="checkbox" checked={isAiGenerated} onChange={(event) => setIsAiGenerated(event.target.checked)} className="mt-0.5 h-4 w-4 accent-indigo-600" />
+                <span className="min-w-0"><span className="block text-sm font-semibold text-slate-800">Conteúdo gerado ou alterado por IA</span><span className="mt-1 block text-xs leading-5 text-slate-500">Ative para informar ao Instagram que a imagem ou o vídeo foi criado ou alterado com inteligência artificial. Usar IA apenas para escrever a legenda não exige esta marcação.</span></span>
+              </label> : <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600">A identificação de conteúdo gerado por IA está disponível quando o Instagram está selecionado.</p>}
+
+              {postType === "REEL" && platforms.includes("INSTAGRAM") ? <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="instagram-audio-heading">
+                <div><h3 id="instagram-audio-heading" className="flex items-center gap-2 text-sm font-semibold text-slate-800"><RiMusic2Line size={17} className="text-indigo-600" />Música ou áudio do Instagram</h3><p className="mt-1 text-xs leading-5 text-slate-500">Escolha uma faixa autorizada para anexar ao Reel. A faixa será aplicada na publicação do Instagram; Facebook e Threads continuarão usando o áudio do vídeo original.</p></div>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
+                  <select aria-label="Tipo de áudio" value={audioType} onChange={(event) => { setAudioType(event.target.value as "music" | "original_sound"); setAudioTracks([]) }} className="h-10 min-w-0 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700">
+                    <option value="music">Músicas</option><option value="original_sound">Áudios originais</option>
+                  </select>
+                  <Input aria-label="Buscar música ou áudio" value={audioSearchQuery} maxLength={100} onChange={(event) => setAudioSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchInstagramAudio() } }} placeholder="Buscar por nome ou artista" className="h-10 rounded-lg text-sm" />
+                  <Button type="button" variant="outline" onClick={() => void searchInstagramAudio()} disabled={audioSearching || !accountId} className="h-10 gap-2 border-indigo-200 text-indigo-700"><Search size={15} />{audioSearching ? "Buscando…" : "Buscar"}</Button>
+                </div>
+                {audioTracks.length > 0 && <ul className="max-h-64 space-y-2 overflow-y-auto" aria-label="Faixas de áudio encontradas">
+                  {audioTracks.map((track) => <li key={track.id} className={`flex min-w-0 items-center gap-3 rounded-lg border p-2 ${selectedAudioTrack?.id === track.id ? "border-indigo-300 bg-indigo-50/60" : "border-slate-200"}`}>
+                    {track.coverUrl ? <img src={track.coverUrl} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" /> : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500"><RiMusic2Line size={18} /></span>}
+                    <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-slate-800">{track.title}</span><span className="block truncate text-[11px] text-slate-500">{track.artist || (track.creatorUsername ? `@${track.creatorUsername}` : "Áudio do Instagram")}{track.durationInMs ? ` · ${Math.floor(track.durationInMs / 60000)}:${String(Math.floor(track.durationInMs / 1000) % 60).padStart(2, "0")}` : ""}</span></span>
+                    {track.previewUrl ? <Button type="button" size="icon" variant="outline" aria-label={previewingAudioId === track.id ? `Pausar ${track.title}` : `Ouvir ${track.title}`} onClick={() => void toggleAudioPreview(track)} className="h-9 w-9 shrink-0">{previewingAudioId === track.id ? <RiPauseFill size={17} /> : <RiPlayFill size={17} />}</Button> : track.previewLink ? <a href={track.previewLink} target="_blank" rel="noreferrer" aria-label={`Abrir prévia de ${track.title} no Instagram`} className="flex h-9 shrink-0 items-center rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-indigo-700">Ouvir</a> : null}
+                    <Button type="button" size="sm" variant={selectedAudioTrack?.id === track.id ? "default" : "outline"} onClick={() => { audioPreviewRef.current?.pause(); setPreviewingAudioId(null); setSelectedAudioTrack(current => current?.id === track.id ? null : track) }} className="h-9 shrink-0 px-3 text-xs">{selectedAudioTrack?.id === track.id ? "Selecionada" : "Usar faixa"}</Button>
+                  </li>)}
+                </ul>}
+                {selectedAudioTrack && <div className="space-y-3 rounded-lg bg-indigo-50/70 p-3">
+                  <div className="flex items-start justify-between gap-3"><p className="min-w-0 text-xs text-indigo-950"><span className="font-semibold">Faixa escolhida:</span> {selectedAudioTrack.title}{selectedAudioTrack.artist ? ` · ${selectedAudioTrack.artist}` : ""}</p><button type="button" onClick={() => setSelectedAudioTrack(null)} className="shrink-0 text-xs font-semibold text-indigo-700 underline">Remover</button></div>
+                  <label className="block text-xs text-slate-700">Volume da faixa: <span className="font-semibold">{audioVolume}%</span><input type="range" min={0} max={100} value={audioVolume} onChange={(event) => { const value = Number(event.target.value); setAudioVolume(value); if (audioPreviewRef.current) audioPreviewRef.current.volume = value / 100 }} className="mt-1 block w-full accent-indigo-600" /></label>
+                  <label className="block text-xs text-slate-700">Áudio original do vídeo: <span className="font-semibold">{videoVolume}%</span><input type="range" min={0} max={100} value={videoVolume} onChange={(event) => setVideoVolume(Number(event.target.value))} className="mt-1 block w-full accent-indigo-600" /></label>
+                </div>}
+                <p className="text-[11px] leading-4 text-slate-500">A conta precisa estar conectada pelo Facebook e a faixa deve estar disponível para ela e sua região. O preview do vídeo não mistura a faixa escolhida; a Meta a anexa durante a publicação do Reel.</p>
+              </section> : postType === "REEL" ? <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600">A biblioteca de música e áudio está disponível somente para Reels publicados no Instagram.</p> : null}
+              <audio ref={audioPreviewRef} className="hidden" onEnded={() => setPreviewingAudioId(null)} />
+            </div>
+          </details>
 
           {/* Scheduling Date and Actions */}
           </div>}

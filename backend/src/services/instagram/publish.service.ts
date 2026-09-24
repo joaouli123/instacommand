@@ -14,9 +14,18 @@ export const createMediaContainer = async (
   token: string,
   mediaType: string,
   mediaUrls: string[],
-  caption?: string
+  caption?: string,
+  advanced: { isAiGenerated?: boolean; audioId?: string | null; audioVolume?: number | null; videoVolume?: number | null } = {},
 ) => {
   let params: any = { caption };
+  if (advanced.isAiGenerated) params.is_ai_generated = true;
+  if (mediaType === 'REEL' && advanced.audioId) {
+    params.audio_configuration = JSON.stringify({
+      audio_id: advanced.audioId,
+      audio_volume: advanced.audioVolume ?? 80,
+      video_volume: advanced.videoVolume ?? 60,
+    });
+  }
 
   if (mediaType === 'IMAGE') {
     params.image_url = mediaUrls[0];
@@ -231,7 +240,12 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
     if (platforms.includes('INSTAGRAM')) {
       try {
         const token = await getDecryptedToken(post.accountId);
-        const containerId = await createMediaContainer(post.account.igUserId, token, post.mediaType, post.mediaUrls, post.caption || undefined);
+        const containerId = await createMediaContainer(post.account.igUserId, token, post.mediaType, post.mediaUrls, post.caption || undefined, {
+          isAiGenerated: post.isAiGenerated,
+          audioId: post.instagramAudioId,
+          audioVolume: post.instagramAudioVolume,
+          videoVolume: post.instagramVideoVolume,
+        });
         const isReady = await checkContainerStatus(containerId, token);
         if (!isReady) throw new Error('A mídia não foi processada pelo Instagram.');
         const igMediaId = await publishContainer(post.account.igUserId, containerId, token);

@@ -1,4 +1,4 @@
-export const postMetricKeys = ['likes', 'comments', 'saves', 'shares', 'reach', 'impressions', 'engagement'] as const;
+export const postMetricKeys = ['likes', 'comments', 'replies', 'saves', 'shares', 'reach', 'impressions', 'views', 'engagement'] as const;
 type MetricRow = { availableMetrics?: string[]; [key: string]: unknown };
 
 // Old collectors stored absent metrics as zero. Preserve those rows but do
@@ -28,5 +28,12 @@ export const aggregateMetrics = (rows: MetricRow[]) => {
 };
 
 export const receivedMetrics = (items: Array<{ name?: string; values?: Array<{ value?: unknown }>; total_value?: { value?: unknown } }>) =>
-  items.filter(item => typeof (item.values?.[0]?.value ?? item.total_value?.value) === 'number' && Number.isFinite(item.values?.[0]?.value ?? item.total_value?.value))
-    .map(item => item.name === 'saved' ? 'saves' : item.name).filter((name): name is string => Boolean(name));
+  [...new Set(items.filter(item => typeof (item.values?.[0]?.value ?? item.total_value?.value) === 'number' && Number.isFinite(item.values?.[0]?.value ?? item.total_value?.value))
+    .map(item => {
+      if (item.name === 'saved') return 'saves';
+      if (['video_views', 'plays'].includes(item.name || '')) return 'views';
+      if (item.name === 'accounts_engaged') return 'accountsEngaged';
+      if (item.name === 'total_interactions') return 'totalInteractions';
+      if (item.name === 'profile_links_taps') return 'profileLinkTaps';
+      return item.name;
+    }).filter((name): name is string => Boolean(name)))];

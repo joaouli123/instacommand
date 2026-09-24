@@ -75,24 +75,39 @@ export const graphPost = (path: string, token: string, data: Record<string, unkn
 export const graphDelete = (path: string, token: string) =>
   requestGraph('DELETE', path, token);
 
-export const graphGetAll = async <T = any>(
+export type GraphCollection<T> = {
+  items: T[];
+  complete: boolean;
+  pagesFetched: number;
+};
+
+export const graphGetAllWithStatus = async <T = any>(
   path: string,
   token: string,
   params: Record<string, unknown> = {},
   maxPages = 20,
-): Promise<T[]> => {
+): Promise<GraphCollection<T>> => {
   const items: T[] = [];
   let nextPath: string | null = path;
   let page = 0;
   let pageParams = params;
+  let validPages = true;
 
   while (nextPath && page < maxPages) {
     const response = await graphGet(nextPath, token, pageParams);
     if (Array.isArray(response.data)) items.push(...response.data as T[]);
+    else validPages = false;
     nextPath = response.paging?.next ? normalizeGraphPagePath(String(response.paging.next)) : null;
     pageParams = {};
     page += 1;
   }
 
-  return items;
+  return { items, complete: validPages && !nextPath, pagesFetched: page };
 };
+
+export const graphGetAll = async <T = any>(
+  path: string,
+  token: string,
+  params: Record<string, unknown> = {},
+  maxPages = 20,
+): Promise<T[]> => (await graphGetAllWithStatus<T>(path, token, params, maxPages)).items;

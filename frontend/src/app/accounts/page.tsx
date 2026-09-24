@@ -141,11 +141,20 @@ export default function AccountsPage() {
   const syncAccount = async (id: string) => {
     setSyncingId(id)
     try {
-      const result = await fetchApi(`/accounts/${id}/sync`, { method: "POST" }) as { sync?: { importedMedia?: number; profileInsightsAvailable?: boolean } }
-      await queryClient.invalidateQueries({ queryKey: ["accounts"] })
+      const result = await fetchApi(`/accounts/${id}/sync`, { method: "POST" }) as { sync?: { importedMedia?: number; removedMedia?: number; mediaSnapshotComplete?: boolean; profileInsightsAvailable?: boolean } }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+      ])
       const importedMedia = result.sync?.importedMedia ?? 0
+      const removedMedia = result.sync?.removedMedia ?? 0
+      const mediaMessage = removedMedia
+        ? ` ${removedMedia} publicação(ões) apagada(s) removida(s) do dashboard.`
+        : result.sync?.mediaSnapshotComplete === false
+          ? " Leitura parcial da Meta; os posts antigos foram mantidos por segurança."
+          : ""
       const insightsMessage = result.sync?.profileInsightsAvailable ? " métricas de perfil atualizadas." : " perfil atualizado; Insights ainda não liberado no app Meta."
-      toast.success(`${importedMedia} publicações importadas.${insightsMessage}`)
+      toast.success(`${importedMedia} publicações encontradas.${mediaMessage}${insightsMessage}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível sincronizar esta conta")
     } finally {

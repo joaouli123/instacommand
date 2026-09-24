@@ -12,6 +12,8 @@ import { assertPostReady } from '../services/post-readiness';
 import { ConflictError } from '../utils/errors';
 import { publicMediaBase, normalizeMediaUrl } from '../utils/public-media';
 import { publicMetaMessage } from '../utils/public-meta-message';
+import { graphGet } from '../utils/instagram-api';
+import { getDecryptedToken } from '../services/instagram/auth.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -41,7 +43,9 @@ router.use(authenticate);
 
 router.post('/', async (req: any, res, next) => {
   try {
-    const { accountId, threadsAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status } = req.body;
+    const { accountId, threadsAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status,
+      isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
+      instagramAudioVolume, instagramVideoVolume } = req.body;
     if (status !== undefined && !['DRAFT', 'SCHEDULED'].includes(status)) return res.status(400).json({ error: 'Status de criação inválido.' });
     const normalizedPlatforms = Array.isArray(platforms) && platforms.length ? platforms : ['INSTAGRAM'];
     const textOnlyThreads = normalizedPlatforms.length === 1 && normalizedPlatforms[0] === 'THREADS';
@@ -73,6 +77,28 @@ router.post('/', async (req: any, res, next) => {
     if (mediaType === 'STORY' && normalizedPlatforms.some((platform: string) => platform !== 'INSTAGRAM')) {
       return res.status(400).json({ error: 'Stories só podem ser publicados pelo Instagram nesta versão da API.' });
     }
+    if (isAiGenerated !== undefined && typeof isAiGenerated !== 'boolean') {
+      return res.status(400).json({ error: 'A opção de conteúdo gerado por IA é inválida.' });
+    }
+    if (isAiGenerated === true && !normalizedPlatforms.includes('INSTAGRAM')) {
+      return res.status(400).json({ error: 'A identificação de conteúdo gerado por IA está disponível para publicações no Instagram.' });
+    }
+    const normalizedAudioId = instagramAudioId === undefined || instagramAudioId === null || instagramAudioId === ''
+      ? null
+      : typeof instagramAudioId === 'string' && /^\d{1,30}$/.test(instagramAudioId) ? instagramAudioId : undefined;
+    if (normalizedAudioId === undefined) return res.status(400).json({ error: 'Escolha uma faixa de áudio válida do Instagram.' });
+    if (normalizedAudioId && (mediaType !== 'REEL' || !normalizedPlatforms.includes('INSTAGRAM'))) {
+      return res.status(400).json({ error: 'A música da biblioteca do Instagram só pode ser adicionada a um Reel do Instagram.' });
+    }
+    const validVolume = (value: unknown) => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 100;
+    if (normalizedAudioId && ((instagramAudioVolume !== undefined && !validVolume(instagramAudioVolume))
+      || (instagramVideoVolume !== undefined && !validVolume(instagramVideoVolume)))) {
+      return res.status(400).json({ error: 'Os volumes do áudio precisam ficar entre 0 e 100.' });
+    }
+    if (normalizedAudioId && ((instagramAudioTitle !== undefined && (typeof instagramAudioTitle !== 'string' || instagramAudioTitle.length > 200))
+      || (instagramAudioArtist !== undefined && (typeof instagramAudioArtist !== 'string' || instagramAudioArtist.length > 200)))) {
+      return res.status(400).json({ error: 'Os dados da faixa de áudio são inválidos.' });
+    }
     if (mediaType === 'CAROUSEL' && (mediaUrls.length < 2 || mediaUrls.length > 10)) {
       return res.status(400).json({ error: 'Um carrossel precisa ter entre 2 e 10 mídias.' });
     }
@@ -93,6 +119,12 @@ router.post('/', async (req: any, res, next) => {
         caption,
         hashtags: Array.isArray(hashtags) ? hashtags : [],
         platforms: normalizedPlatforms,
+        isAiGenerated: isAiGenerated === true,
+        instagramAudioId: normalizedAudioId,
+        instagramAudioTitle: normalizedAudioId ? instagramAudioTitle || null : null,
+        instagramAudioArtist: normalizedAudioId ? instagramAudioArtist || null : null,
+        instagramAudioVolume: normalizedAudioId ? instagramAudioVolume ?? 80 : null,
+        instagramVideoVolume: normalizedAudioId ? instagramVideoVolume ?? 60 : null,
         scheduledFor: targetDate,
         status: status || PostStatus.DRAFT,
       }
@@ -138,6 +170,46 @@ router.get('/', async (req: any, res, next) => {
   }
 });
 
+router.get('/instagram-audio', async (req: any, res, next) => {
+  try {
+    const accountId = String(req.query.accountId || '');
+    const audioType = String(req.query.type || 'music');
+    const query = String(req.query.q || '').trim();
+    if (!accountId) return res.status(400).json({ error: 'Selecione uma conta do Instagram.' });
+    if (!['music', 'original_sound'].includes(audioType)) return res.status(400).json({ error: 'Escolha música ou áudio original.' });
+    if (query.length > 100) return res.status(400).json({ error: 'A busca de áudio deve ter até 100 caracteres.' });
+
+    const account = await prisma.instagramAccount.findFirst({ where: { id: accountId, userId: req.user.id, isActive: true } });
+    if (!account) return res.status(404).json({ error: 'A conta do Instagram selecionada não está ativa.' });
+
+    const token = await getDecryptedToken(account.id);
+    const response = await graphGet('/ig_audio', token, {
+      ig_user_id: account.igUserId,
+      audio_type: audioType,
+      q: query || undefined,
+      fields: 'id,title,audio_type,duration_in_ms,display_artist,cover_artwork_thumbnail_url,download_url,ig_username,profile_picture_url,is_ads_eligible,on_platform_audio_preview_link',
+      limit: 30,
+    });
+    const items = Array.isArray(response.data) ? response.data.slice(0, 30).flatMap((track: any) => {
+      if (!track?.id) return [];
+      return [{
+        id: String(track.id),
+        title: String(track.title || 'Áudio do Instagram'),
+        audioType: track.audio_type || audioType,
+        durationInMs: Number.isFinite(Number(track.duration_in_ms)) ? Number(track.duration_in_ms) : null,
+        artist: track.display_artist || null,
+        creatorUsername: track.ig_username || null,
+        coverUrl: track.cover_artwork_thumbnail_url || track.profile_picture_url || null,
+        previewUrl: track.download_url || null,
+        previewLink: track.on_platform_audio_preview_link || null,
+      }];
+    }) : [];
+    res.json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', async (req: any, res, next) => {
   try {
     const post = await prisma.scheduledPost.findFirst({
@@ -152,7 +224,9 @@ router.get('/:id', async (req: any, res, next) => {
 
 router.patch('/:id', async (req: any, res, next) => {
   try {
-    const { caption, scheduledFor, status, platforms, threadsAccountId, mediaUrls, mediaType, hashtags } = req.body;
+    const { caption, scheduledFor, status, platforms, threadsAccountId, mediaUrls, mediaType, hashtags,
+      isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
+      instagramAudioVolume, instagramVideoVolume } = req.body;
     const post = await prisma.scheduledPost.findFirst({
       where: { id: req.params.id, userId: req.user.id }
     });
@@ -166,6 +240,7 @@ router.patch('/:id', async (req: any, res, next) => {
     if (caption !== undefined && (typeof caption !== 'string' || caption.length > 2200)) return res.status(400).json({ error: 'A legenda deve ter até 2200 caracteres.' });
     if (hashtags !== undefined && (!Array.isArray(hashtags) || hashtags.length > 30 || hashtags.some((tag: unknown) => typeof tag !== 'string' || tag.length > 100))) return res.status(400).json({ error: 'Hashtags inválidas.' });
     if (platforms !== undefined && (!Array.isArray(platforms) || !platforms.length)) return res.status(400).json({ error: 'Selecione ao menos uma rede.' });
+    if (isAiGenerated !== undefined && typeof isAiGenerated !== 'boolean') return res.status(400).json({ error: 'A opção de conteúdo gerado por IA é inválida.' });
 
     const nextPlatforms = Array.isArray(platforms) && platforms.length ? platforms : post.platforms;
     const unsupportedPlatform = nextPlatforms.find((platform: unknown) => !['INSTAGRAM', 'FACEBOOK', 'THREADS'].includes(String(platform)));
@@ -185,6 +260,22 @@ router.patch('/:id', async (req: any, res, next) => {
     const nextMediaType = mediaType || post.mediaType;
     const nextMediaUrls = mediaUrls ?? post.mediaUrls;
     const nextCaption = caption ?? post.caption;
+    const nextIsAiGenerated = isAiGenerated === undefined ? post.isAiGenerated : isAiGenerated;
+    if (nextIsAiGenerated && !nextPlatforms.includes('INSTAGRAM')) return res.status(400).json({ error: 'A identificação de conteúdo gerado por IA está disponível para publicações no Instagram.' });
+    const nextAudioId = instagramAudioId === undefined ? post.instagramAudioId : instagramAudioId === null || instagramAudioId === '' ? null
+      : typeof instagramAudioId === 'string' && /^\d{1,30}$/.test(instagramAudioId) ? instagramAudioId : undefined;
+    if (nextAudioId === undefined) return res.status(400).json({ error: 'Escolha uma faixa de áudio válida do Instagram.' });
+    if (nextAudioId && (nextMediaType !== 'REEL' || !nextPlatforms.includes('INSTAGRAM'))) return res.status(400).json({ error: 'A música da biblioteca do Instagram só pode ser adicionada a um Reel do Instagram.' });
+    const validVolume = (value: unknown) => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 100;
+    const nextAudioVolume = instagramAudioVolume === undefined ? post.instagramAudioVolume : instagramAudioVolume;
+    const nextVideoVolume = instagramVideoVolume === undefined ? post.instagramVideoVolume : instagramVideoVolume;
+    if (nextAudioId && ((nextAudioVolume !== null && !validVolume(nextAudioVolume)) || (nextVideoVolume !== null && !validVolume(nextVideoVolume)))) {
+      return res.status(400).json({ error: 'Os volumes do áudio precisam ficar entre 0 e 100.' });
+    }
+    if (nextAudioId && ((instagramAudioTitle !== undefined && instagramAudioTitle !== null && (typeof instagramAudioTitle !== 'string' || instagramAudioTitle.length > 200))
+      || (instagramAudioArtist !== undefined && instagramAudioArtist !== null && (typeof instagramAudioArtist !== 'string' || instagramAudioArtist.length > 200)))) {
+      return res.status(400).json({ error: 'Os dados da faixa de áudio são inválidos.' });
+    }
     if (nextMediaType === 'TEXT' && (nextPlatforms.length !== 1 || nextPlatforms[0] !== 'THREADS' || nextMediaUrls.length > 0 || !String(nextCaption || '').trim() || String(nextCaption).length > 500)) {
       return res.status(400).json({ error: 'Post de texto exige somente Threads, sem mídia e com até 500 caracteres.' });
     }
@@ -211,6 +302,12 @@ router.patch('/:id', async (req: any, res, next) => {
         mediaUrls,
         mediaType,
         hashtags,
+        isAiGenerated: isAiGenerated === undefined ? undefined : nextIsAiGenerated,
+        instagramAudioId: instagramAudioId === undefined ? undefined : nextAudioId,
+        instagramAudioTitle: nextAudioId ? (instagramAudioTitle === undefined ? undefined : instagramAudioTitle) : null,
+        instagramAudioArtist: nextAudioId ? (instagramAudioArtist === undefined ? undefined : instagramAudioArtist) : null,
+        instagramAudioVolume: nextAudioId ? nextAudioVolume ?? 80 : null,
+        instagramVideoVolume: nextAudioId ? nextVideoVolume ?? 60 : null,
         scheduledFor: scheduledFor ? nextDate : undefined,
         status,
         platforms: Array.isArray(platforms) && platforms.length ? nextPlatforms : undefined,

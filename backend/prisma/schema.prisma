@@ -140,6 +140,12 @@ model ScheduledPost {
   caption          String?
   hashtags         String[]
   platforms        String[]          @default(["INSTAGRAM"])
+  isAiGenerated    Boolean           @default(false)
+  instagramAudioId String?
+  instagramAudioTitle String?
+  instagramAudioArtist String?
+  instagramAudioVolume Int?
+  instagramVideoVolume Int?
   scheduledFor     DateTime
   status           PostStatus        @default(DRAFT)
   errorMessage     String?
@@ -169,6 +175,7 @@ model PublishedPost {
   igPermalink   String?
   mediaType     MediaType
   caption       String?
+  instagramDeletedAt DateTime?
   publishedAt   DateTime           @default(now())
   createdAt     DateTime           @default(now())
 
@@ -177,15 +184,18 @@ model PublishedPost {
   insights      PostInsight[]
 
   @@index([accountId])
+  @@index([accountId, instagramDeletedAt])
 }
 
 model PostInsight {
   id          String        @id @default(uuid())
   postId      String
   impressions Int           @default(0)
+  views       Int?
   reach       Int           @default(0)
   likes       Int           @default(0)
   comments    Int           @default(0)
+  replies     Int?
   shares      Int           @default(0)
   saves       Int           @default(0)
   engagement  Float         @default(0)
@@ -205,6 +215,10 @@ model ProfileInsight {
   mediaCount    Int              @default(0)
   reach         Int              @default(0)
   impressions   Int              @default(0)
+  views         Int?
+  accountsEngaged Int?
+  totalInteractions Int?
+  profileLinkTaps Int?
   profileViews  Int              @default(0)
   websiteClicks Int              @default(0)
   emailClicks   Int              @default(0)
