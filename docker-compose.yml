@@ -62,7 +62,7 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-this-encryption-key-before-production}
       MEDIA_UPLOAD_DIR: /app/uploads
       MEDIA_PUBLIC_URL: ${MEDIA_PUBLIC_URL:-https://api-instacommand.179.198.98.63.sslip.io/uploads}
-      WEBHOOK_VERIFY_TOKEN: ${WEBHOOK_VERIFY_TOKEN:-change-this-webhook-token}
+      WEBHOOK_VERIFY_TOKEN: ${WEBHOOK_VERIFY_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
