@@ -25,12 +25,24 @@ beforeEach(() => {
 });
 test('Facebook Login subscribes the verified Page, never the Instagram ID', async () => {
   assert.deepEqual(await subscribeInstagramAccountToWebhooks('owner', 'account'), { success: true });
-  assert.deepEqual(writes, [{ path: '/page-123/subscribed_apps', token: 'test-page-token', params: { subscribed_fields: 'comments,messages' } }]);
+  assert.deepEqual(writes, [{ path: '/page-123/subscribed_apps', token: 'test-page-token', params: { subscribed_fields: 'feed' } }]);
 });
-test('subscription includes only fields granted for this account', async () => {
+test('comment-only access installs the Page without sending Instagram field names', async () => {
   scopes = ['instagram_manage_comments', 'pages_manage_metadata'];
   await subscribeInstagramAccountToWebhooks('owner', 'account');
-  assert.equal(writes[0].params.subscribed_fields, 'comments');
+  assert.equal(writes[0].params.subscribed_fields, 'feed');
+});
+
+test('message-only access installs the Page without subscribing to Facebook Messenger', async () => {
+  scopes = ['instagram_manage_messages', 'pages_manage_metadata'];
+  await subscribeInstagramAccountToWebhooks('owner', 'account');
+  assert.equal(writes[0].params.subscribed_fields, 'feed');
+});
+
+test('no Instagram automation permission stops before subscription', async () => {
+  scopes = ['pages_manage_metadata'];
+  await assert.rejects(subscribeInstagramAccountToWebhooks('owner', 'account'), /permissões/);
+  assert.equal(writes.length, 0);
 });
 test('missing webhook permission stops before subscription', async () => {
   scopes = ['instagram_manage_messages'];
