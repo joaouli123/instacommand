@@ -39,17 +39,19 @@ export class InstagramApiError extends AppError {
   public metaSubcode?: number;
   public metaType?: string;
   public fbtraceId?: string;
+  public metaMessage?: string;
 
   constructor(
     message: string,
     statusCode = 502,
-    details: { metaCode?: number; metaSubcode?: number; metaType?: string; fbtraceId?: string } = {},
+    details: { metaCode?: number; metaSubcode?: number; metaType?: string; fbtraceId?: string; metaMessage?: string } = {},
   ) {
     super(`Instagram API Error: ${message}`, statusCode);
     this.metaCode = details.metaCode;
     this.metaSubcode = details.metaSubcode;
     this.metaType = details.metaType;
     this.fbtraceId = details.fbtraceId;
+    this.metaMessage = details.metaMessage;
   }
 }
 

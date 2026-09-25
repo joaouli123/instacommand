@@ -68,6 +68,7 @@ const requestGraph = async (
         metaSubcode: typeof metaError.error_subcode === 'number' ? metaError.error_subcode : undefined,
         metaType: typeof metaError.type === 'string' ? metaError.type : undefined,
         fbtraceId: typeof metaError.fbtrace_id === 'string' ? metaError.fbtrace_id : undefined,
+        metaMessage: normalizedPath.endsWith('/subscribed_apps') ? safeMetaDiagnostic(metaError.message) : undefined,
       };
       console.warn('Meta Graph API rejected a request:', {
         endpoint: normalizedPath.replace(/^\/\d+(?=\/|$)/, '/:id'),
@@ -76,9 +77,7 @@ const requestGraph = async (
         // This endpoint's generic code 3 is otherwise ambiguous. Keep the
         // provider's short reason in private server logs, with tokens and
         // long account identifiers stripped, so we can diagnose access gates.
-        ...(normalizedPath.endsWith('/subscribed_apps')
-          ? { metaMessage: safeMetaDiagnostic(metaError.message) }
-          : {}),
+        ...(details.metaMessage ? { metaMessage: details.metaMessage } : {}),
       });
       throw new InstagramApiError(
         'Meta Graph API request was rejected.',

@@ -81,9 +81,13 @@ test('subscription diagnostics retain Meta reason while redacting credentials an
     }),
   });
 
+  let captured;
   await assert.rejects(
     graphPost('/17841400000000000/subscribed_apps', 'another-sensitive-access-token', { subscribed_fields: 'comments,messages' }),
-    (error) => error instanceof InstagramApiError && error.metaCode === 3,
+    (error) => {
+      captured = error;
+      return error instanceof InstagramApiError && error.metaCode === 3;
+    },
   );
 
   const log = JSON.stringify(warnings);
@@ -92,4 +96,16 @@ test('subscription diagnostics retain Meta reason while redacting credentials an
   assert.doesNotMatch(log, new RegExp(secretFromProvider));
   assert.doesNotMatch(log, new RegExp(longOpaqueValue));
   assert.doesNotMatch(log, /another-sensitive-access-token/);
+
+  let responseBody;
+  const res = {
+    status(code) { this.statusCode = code; return this; },
+    json(body) { responseBody = body; return this; },
+  };
+  errorHandler(captured, {}, res, () => {});
+  assert.match(responseBody.message, /Application does not have the capability/);
+  assert.doesNotMatch(responseBody.message, /17841400000000000/);
+  assert.doesNotMatch(responseBody.message, new RegExp(secretFromProvider));
+  assert.doesNotMatch(responseBody.message, new RegExp(longOpaqueValue));
+  assert.doesNotMatch(responseBody.message, /another-sensitive-access-token/);
 });

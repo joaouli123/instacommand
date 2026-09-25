@@ -26,6 +26,7 @@ const publicMessage = (message: string) => {
 const metaGraphPublicMessage = (error: InstagramApiError) => {
   const code = error.metaCode === undefined ? '' : ` (código Meta ${error.metaCode}${error.metaSubcode === undefined ? '' : `/${error.metaSubcode}`})`;
   const reference = error.fbtraceId ? ` Referência: ${error.fbtraceId}.` : '';
+  const diagnostic = error.metaCode === 3 && error.metaMessage ? ` Detalhe informado pela Meta: ${error.metaMessage}` : '';
 
   if (error.metaCode === 10 || error.metaCode === 200) {
     return `A Meta recusou a operação por permissão ou configuração do app.${code}${reference}`;
@@ -36,7 +37,7 @@ const metaGraphPublicMessage = (error: InstagramApiError) => {
   if (error.metaCode === 100) {
     return `A Meta recusou um parâmetro da solicitação. Confira a configuração dos eventos.${code}${reference}`;
   }
-  return `A Meta recusou a operação.${code}${reference}`;
+  return `A Meta recusou a operação.${code}${reference}${diagnostic}`;
 };
 
 export const errorHandler = (
