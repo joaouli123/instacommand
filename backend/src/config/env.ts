@@ -51,16 +51,14 @@ export const env = {
   FB_APP_ID: parsed.META_APP_ID || parsed.FB_APP_ID || '',
   FB_APP_SECRET: parsed.META_APP_SECRET || parsed.FB_APP_SECRET || '',
   FB_REDIRECT_URI: parsed.FB_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/facebook/callback`,
-  // Public Meta configuration ID for this personal deployment; override it in Coolify when using another app.
-  FB_LOGIN_CONFIG_ID: parsed.FB_LOGIN_CONFIG_ID || '1443592261011561',
+  // Dedicated InstaCommand configuration with only the Page/Instagram access this app uses.
+  // Override it in Coolify when deploying against a different Meta app/configuration.
+  FB_LOGIN_CONFIG_ID: parsed.FB_LOGIN_CONFIG_ID || '2156831831569762',
   FB_OAUTH_HOST: parsed.FB_OAUTH_HOST || 'www.facebook.com',
   FB_OAUTH_SCOPES:
     parsed.FB_OAUTH_SCOPES ||
-    // Keep the default aligned with the currently published Meta Login for
-    // Business configuration. Advanced permissions must be added to that
-    // configuration and supplied explicitly through FB_OAUTH_SCOPES after
-    // Meta approves them; requesting undeclared permissions can make the
-    // Meta consent dialog fail before the callback is reached.
+    // This is only used when Login for Business is disabled. When
+    // FB_LOGIN_CONFIG_ID is set, permissions come from that Meta configuration.
     'business_management,instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
   THREADS_REDIRECT_URI: parsed.THREADS_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/threads/callback`,
   MEDIA_PUBLIC_URL: parsed.MEDIA_PUBLIC_URL || `${parsed.BACKEND_URL.replace(/\/$/, '')}/uploads`,
