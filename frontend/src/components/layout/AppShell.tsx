@@ -7,8 +7,9 @@ import { Header } from "./Header"
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
-  // Do not mount workspace navigation or its authenticated queries on login.
-  if (pathname === "/login") {
+  // Public legal documents must remain accessible without an authenticated workspace.
+  const isPublicPage = ["/login", "/politica-de-privacidade", "/termos-de-servico", "/exclusao-de-dados"].includes(pathname)
+  if (isPublicPage) {
     return <main className="min-h-dvh w-full">{children}</main>
   }
 

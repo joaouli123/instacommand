@@ -121,6 +121,11 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-[11px] text-slate-400">Cada cliente conecta e administra somente as próprias contas.</p>
+        <nav aria-label="Informações legais" className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-[11px] text-slate-500">
+          <a href="/politica-de-privacidade" className="underline underline-offset-2 hover:text-indigo-600">Política de Privacidade</a>
+          <a href="/termos-de-servico" className="underline underline-offset-2 hover:text-indigo-600">Termos de Serviço</a>
+          <a href="/exclusao-de-dados" className="underline underline-offset-2 hover:text-indigo-600">Exclusão de dados</a>
+        </nav>
       </Card>
     </div>
   )
