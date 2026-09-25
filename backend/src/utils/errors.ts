@@ -35,8 +35,21 @@ export class ConflictError extends AppError {
 }
 
 export class InstagramApiError extends AppError {
-  constructor(message: string, statusCode = 502) {
+  public metaCode?: number;
+  public metaSubcode?: number;
+  public metaType?: string;
+  public fbtraceId?: string;
+
+  constructor(
+    message: string,
+    statusCode = 502,
+    details: { metaCode?: number; metaSubcode?: number; metaType?: string; fbtraceId?: string } = {},
+  ) {
     super(`Instagram API Error: ${message}`, statusCode);
+    this.metaCode = details.metaCode;
+    this.metaSubcode = details.metaSubcode;
+    this.metaType = details.metaType;
+    this.fbtraceId = details.fbtraceId;
   }
 }
 

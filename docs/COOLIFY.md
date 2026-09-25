@@ -24,8 +24,9 @@ ENCRYPTION_KEY=outra-chave-aleatoria-com-mais-de-32-caracteres
 META_APP_ID=seu_app_id
 META_APP_SECRET=seu_app_secret
 META_GRAPH_API_VERSION=v25.0
-FB_LOGIN_CONFIG_ID=identificador_da_configuracao_do_login_para_empresas
-FB_OAUTH_SCOPES=business_management,instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement
+FB_LOGIN_CONFIG_ID=2156831831569762
+# Fallback only when FB_LOGIN_CONFIG_ID is empty; the dedicated Meta config requests all eight scopes below.
+FB_OAUTH_SCOPES=business_management,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_messages,pages_manage_metadata,pages_read_engagement,pages_show_list
 FB_REDIRECT_URI=https://api-instacommand.seudominio.com/api/auth/facebook/callback
 THREADS_APP_ID=identificador_do_app_do_threads
 THREADS_APP_SECRET=segredo_do_app_do_threads

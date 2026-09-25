@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError } from '../utils/errors';
+import { AppError, InstagramApiError } from '../utils/errors';
 import { ZodError } from 'zod';
 import { publicMetaMessage } from '../utils/public-meta-message';
 
@@ -23,6 +23,22 @@ const publicMessage = (message: string) => {
   return message;
 };
 
+const metaGraphPublicMessage = (error: InstagramApiError) => {
+  const code = error.metaCode === undefined ? '' : ` (código Meta ${error.metaCode}${error.metaSubcode === undefined ? '' : `/${error.metaSubcode}`})`;
+  const reference = error.fbtraceId ? ` Referência: ${error.fbtraceId}.` : '';
+
+  if (error.metaCode === 10 || error.metaCode === 200) {
+    return `A Meta recusou a operação por permissão ou configuração do app.${code}${reference}`;
+  }
+  if (error.metaCode === 190) {
+    return `A autorização da Meta expirou ou foi revogada. Reconecte a conta.${code}${reference}`;
+  }
+  if (error.metaCode === 100) {
+    return `A Meta recusou um parâmetro da solicitação. Confira a configuração dos eventos.${code}${reference}`;
+  }
+  return `A Meta recusou a operação.${code}${reference}`;
+};
+
 export const errorHandler = (
   err: Error,
   req: Request,
@@ -32,7 +48,7 @@ export const errorHandler = (
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       status: 'error',
-      message: publicMessage(err.message),
+      message: err instanceof InstagramApiError ? metaGraphPublicMessage(err) : publicMessage(err.message),
     });
   }
 

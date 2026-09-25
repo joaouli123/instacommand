@@ -53,9 +53,22 @@ const requestGraph = async (
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok || data?.error) {
+      const metaError = data?.error || {};
+      const details = {
+        metaCode: typeof metaError.code === 'number' ? metaError.code : undefined,
+        metaSubcode: typeof metaError.error_subcode === 'number' ? metaError.error_subcode : undefined,
+        metaType: typeof metaError.type === 'string' ? metaError.type : undefined,
+        fbtraceId: typeof metaError.fbtrace_id === 'string' ? metaError.fbtrace_id : undefined,
+      };
+      console.warn('Meta Graph API rejected a request:', {
+        endpoint: normalizedPath.replace(/^\/\d+(?=\/|$)/, '/:id'),
+        status: response.status,
+        ...details,
+      });
       throw new InstagramApiError(
-        data?.error?.message || `Graph API request failed with status ${response.status}`,
-        response.status,
+        'Meta Graph API request was rejected.',
+        response.ok ? 502 : response.status,
+        details,
       );
     }
 
