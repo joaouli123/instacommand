@@ -22,11 +22,14 @@ import settingsRoutes from './routes/settings.routes';
 import aiRoutes from './routes/ai.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import communityRoutes from './routes/community.routes';
+import automationsRoutes from './routes/automations.routes';
+import instagramWebhookRoutes from './routes/instagram-webhook.routes';
 
 // Workers
 import { setupPublishPostWorker } from './jobs/publishPost.job';
 import { setupCollectInsightsWorker } from './jobs/collectInsights.job';
 import { setupCollectCompetitorsWorker } from './jobs/collectCompetitors.job';
+import { setupInstagramAutomationWorker } from './jobs/instagramAutomation.job';
 import { setupRecurringJobs } from './services/scheduler.service';
 
 const app = express();
@@ -59,8 +62,14 @@ app.use(cors({
 app.use(morgan('dev'));
 app.use(compression());
 app.use(cookieParser());
-app.use(express.json());
+app.use(express.json({ verify: (req, _res, buffer) => {
+  const request = req as express.Request & { rawBody?: Buffer };
+  if (request.originalUrl.startsWith('/api/webhooks/instagram')) request.rawBody = Buffer.from(buffer);
+} }));
 app.use(express.urlencoded({ extended: true }));
+// Meta's signed webhooks have their own HMAC verification; keep provider
+// deliveries out of the per-client API budget so busy accounts don't drop events.
+app.use('/api/webhooks', instagramWebhookRoutes);
 // Limit only API traffic. Health checks and uploaded media should not consume
 // a user's API request budget, and authenticated users get separate buckets
 // even when Coolify/Traefik shares one proxy IP.
@@ -97,6 +106,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/community', communityRoutes);
+app.use('/api/automations', automationsRoutes);
 
 // Error handling
 app.use(errorHandler);
@@ -108,6 +118,7 @@ const startServer = async () => {
     setupPublishPostWorker();
     setupCollectInsightsWorker();
     setupCollectCompetitorsWorker();
+    setupInstagramAutomationWorker();
     
     // Setup cron jobs
     await setupRecurringJobs();

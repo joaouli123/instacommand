@@ -37,6 +37,7 @@ Para funcionamento completo, você precisará solicitar estas permissões via **
 | `instagram_content_publish` | Publicar posts |
 | `instagram_manage_insights` | Acessar métricas e analytics |
 | `instagram_manage_comments` | Gerenciar comentários |
+| `instagram_manage_messages` | Ler e responder mensagens recebidas da conta profissional |
 | `pages_show_list` | Listar páginas do Facebook |
 | `pages_read_engagement` | Ler dados da página |
 | `pages_manage_posts` | Publicar e gerenciar posts da Página |
@@ -51,16 +52,20 @@ Para funcionamento completo, você precisará solicitar estas permissões via **
    - **App ID** → Cole em `META_APP_ID` no seu `.env`
    - **App Secret** → Cole em `META_APP_SECRET` no seu `.env`
 
-## Passo 5: Configurar Webhooks (Opcional)
+## Passo 5: Configurar Webhooks para automações
 
 1. No painel do app, vá em **Webhooks**
 2. Selecione **Instagram** 
 3. Configure:
-   - **Callback URL**: `https://seu-dominio.com/api/webhooks/instagram`
+   - **Callback URL**: `https://sua-api.com/api/webhooks/instagram`
    - **Verify Token**: O mesmo valor de `WEBHOOK_VERIFY_TOKEN` no seu `.env`
-4. Inscreva-se para: `comments`, `mentions`
+4. Assine os campos `comments` e `messages` do produto Instagram.
+5. Configure `META_APP_SECRET` e `WEBHOOK_VERIFY_TOKEN` no backend; a assinatura HMAC é validada antes de aceitar os eventos.
+6. Depois do App Review e da autorização da conta, abra **Automações** e conecte os eventos daquela conta.
 
-> ⚠️ Webhooks exigem HTTPS. Para desenvolvimento local, use ferramentas como
+As automações recebem comentários e mensagens que chegam pelo webhook. Mensagens diretas só podem continuar dentro da janela/regras da Meta; a resposta privada de comentário é limitada pela Meta e não abre uma conversa irrestrita. Curtidas e novos seguidores não são oferecidos como gatilho. O envio pela IA vem desligado por padrão e casos sinalizados como incertos ficam para revisão humana.
+
+> Webhooks exigem HTTPS. Para desenvolvimento local, use ferramentas como
 > [ngrok](https://ngrok.com/) para criar um túnel seguro.
 
 ## Passo 6: Vincular Contas Instagram

@@ -27,6 +27,9 @@ model User {
   scheduledPosts ScheduledPost[]
   preferences     UserPreference?
   notifications   Notification[]
+  socialAutomations SocialAutomation[]
+  automationTemplates AutomationTemplate[]
+  instagramAgents InstagramAgentSettings[]
 }
 
 model UserPreference {
@@ -88,8 +91,141 @@ model InstagramAccount {
   profileInsights      ProfileInsight[]
   audienceDemographics AudienceDemographic[]
   competitors          Competitor[]
+  socialAutomations    SocialAutomation[]
+  automationTemplates  AutomationTemplate[]
+  instagramAgent       InstagramAgentSettings?
+  automationExecutions AutomationExecution[]
+  privateReplyClaims   PrivateReplyClaim[]
 
   @@index([userId])
+}
+
+enum SocialAutomationTrigger {
+  COMMENT_ANY
+  COMMENT_KEYWORD
+  MESSAGE_ANY
+  MESSAGE_KEYWORD
+}
+
+enum SocialAutomationReplyMode {
+  TEMPLATE
+  AI
+}
+
+enum AutomationTemplateType {
+  PUBLIC_COMMENT
+  PRIVATE_COMMENT
+  DIRECT_MESSAGE
+}
+
+enum AutomationExecutionStatus {
+  RECEIVED
+  PROCESSING
+  SENT
+  NEEDS_REVIEW
+  BLOCKED
+  SKIPPED
+  FAILED
+}
+
+model SocialAutomation {
+  id                    String                    @id @default(uuid())
+  userId                String
+  accountId             String
+  name                  String                    @db.VarChar(100)
+  trigger               SocialAutomationTrigger
+  keywords              String[]                  @default([])
+  replyMode             SocialAutomationReplyMode @default(TEMPLATE)
+  publicCommentReply    String?                   @db.VarChar(1000)
+  privateCommentReply   String?                   @db.VarChar(1000)
+  directMessageReply    String?                   @db.VarChar(1000)
+  enabled               Boolean                   @default(false)
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account               InstagramAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  executions            AutomationExecution[]
+
+  @@index([userId, accountId, enabled])
+  @@index([accountId, trigger, enabled])
+}
+
+model AutomationTemplate {
+  id          String                @id @default(uuid())
+  userId      String
+  accountId   String
+  name        String                @db.VarChar(100)
+  type        AutomationTemplateType
+  content     String                @db.VarChar(1000)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account     InstagramAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([userId, accountId, type])
+}
+
+model InstagramAgentSettings {
+  id             String           @id @default(uuid())
+  userId         String
+  accountId      String           @unique
+  enabled        Boolean          @default(false)
+  autoSend       Boolean          @default(false)
+  tone           String           @default("Humano, cordial e direto") @db.VarChar(200)
+  instructions   String           @default("") @db.VarChar(2000)
+  knowledgeBase  String           @default("") @db.VarChar(8000)
+  fallback       String           @default("Vou chamar alguém da equipe para continuar com você.") @db.VarChar(1000)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account        InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([userId, accountId])
+}
+
+model AutomationExecution {
+  id               String                    @id @default(uuid())
+  accountId        String
+  automationId     String?
+  eventKey         String                    @unique @db.VarChar(255)
+  eventType        SocialAutomationTrigger
+  status           AutomationExecutionStatus @default(RECEIVED)
+  senderId         String?                   @db.VarChar(255)
+  senderUsername   String?                   @db.VarChar(100)
+  eventText        String?                   @db.VarChar(2000)
+  mediaId          String?                   @db.VarChar(255)
+  commentId        String?                   @db.VarChar(255)
+  sourceMessageId  String?                   @db.VarChar(255)
+  eventAt          DateTime                  @default(now())
+  responseText     String?                   @db.VarChar(1000)
+  publicReplySent  Boolean                   @default(false)
+  privateReplySent Boolean                   @default(false)
+  error            String?                   @db.VarChar(1000)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  account          InstagramAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  automation       SocialAutomation?         @relation(fields: [automationId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, createdAt])
+  @@index([automationId, status, createdAt])
+}
+
+model PrivateReplyClaim {
+  id          String           @id @default(uuid())
+  accountId   String
+  commentId   String           @db.VarChar(255)
+  status      String           @default("SENDING") @db.VarChar(20)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  account     InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, commentId])
+  @@index([createdAt])
 }
 
 model ThreadsAccount {

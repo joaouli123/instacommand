@@ -103,8 +103,6 @@ function formatAspectRatio(width: number, height: number) {
 type ConnectedAccount = { id: string; igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null; isActive: boolean }
 type ThreadsAccount = { id: string; username: string; name?: string | null; isActive: boolean }
 type AiPlanItem = { day: string; format: string; topic: string; hook: string; cta: string; suggestedTime: string }
-type HashtagMedia = { id: string; caption?: string }
-type HashtagLookup = { igHashtagId: string; topMediaCount: number; recentMediaCount: number; topMedia: HashtagMedia[]; recentMedia: HashtagMedia[] }
 type InstagramAudioTrack = { id: string; title: string; audioType?: string; durationInMs?: number | null; artist?: string | null; creatorUsername?: string | null; coverUrl?: string | null; previewUrl?: string | null; previewLink?: string | null }
 type InstagramUserTag = { username: string; x: number; y: number; mediaIndex: number }
 type InstagramAdvancedSettings = { altTexts: string[]; collaborators: string[]; firstComment: string; disableComments: boolean; userTags: InstagramUserTag[] }
@@ -459,10 +457,6 @@ export default function ComposerPage() {
   const [selectedDate, setSelectedDate] = useState("")
   const [hashtags, setHashtags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
-  const [hashtagLookup, setHashtagLookup] = useState<HashtagLookup | null>(null)
-  const [hashtagLookupTerm, setHashtagLookupTerm] = useState("")
-  const [hashtagSearching, setHashtagSearching] = useState(false)
-  const [showAllTagSuggestions, setShowAllTagSuggestions] = useState(false)
   const [publishOutcome, setPublishOutcome] = useState<PublishOutcome | null>(null)
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [activeMediaIndex, setActiveMediaIndex] = useState(0)
@@ -495,7 +489,6 @@ export default function ComposerPage() {
   const [videoVolume, setVideoVolume] = useState(60)
   const [previewingAudioId, setPreviewingAudioId] = useState<string | null>(null)
   const mediaItemsRef = useRef<MediaItem[]>([])
-  const hashtagLookupCache = useRef<Record<string, HashtagLookup>>({})
   const audioPreviewRef = useRef<HTMLAudioElement>(null)
   const previousAccountIdRef = useRef(accountId)
 
@@ -778,51 +771,6 @@ export default function ComposerPage() {
 
   const removeHashtag = (tag: string) => {
     setHashtags(current => current.filter(t => t !== tag))
-  }
-
-  const lookupHashtag = async () => {
-    const clean = normalizeHashtag(tagInput)
-    if (!accountId) { toast.error("Conecte e selecione uma conta do Instagram para buscar hashtags."); return }
-    if (!clean || !/^[\w\u00c0-\u024f]+$/i.test(clean)) { toast.error("Digite uma hashtag válida, sem espaços ou pontuação."); return }
-    setHashtagSearching(true)
-    setHashtagLookup(null)
-    setHashtagLookupTerm(clean)
-    const cacheKey = `${accountId}:${clean.toLocaleLowerCase()}`
-    if (hashtagLookupCache.current[cacheKey]) {
-      setHashtagLookup(hashtagLookupCache.current[cacheKey])
-      setHashtagSearching(false)
-      return
-    }
-    try {
-      const result = await api.searchHashtag(accountId, clean) as HashtagLookup
-      hashtagLookupCache.current[cacheKey] = result
-      setHashtagLookup(result)
-    } catch (error) {
-      setHashtagLookupTerm("")
-      toast.error(error instanceof Error ? error.message : "Não foi possível buscar essa hashtag no Instagram.")
-    } finally {
-      setHashtagSearching(false)
-    }
-  }
-
-  const relatedHashtagSuggestions = (() => {
-    if (!hashtagLookup) return [] as Array<{ tag: string; count: number }>
-    const posts: Record<string, string[]> = Object.create(null)
-    const media = [...(hashtagLookup.topMedia || []), ...(hashtagLookup.recentMedia || [])]
-    for (const item of media) {
-      const uniqueTags = (item.caption?.match(/#[\w\u00c0-\u024f]+/gi) || []).map(tag => normalizeHashtag(tag).toLocaleLowerCase())
-      for (const tag of uniqueTags) {
-        if (!tag || tag.toLocaleLowerCase() === hashtagLookupTerm.toLocaleLowerCase()) continue
-        const items = posts[tag] || (posts[tag] = [])
-        if (items.indexOf(item.id) === -1) items.push(item.id)
-      }
-    }
-    return Object.keys(posts).map(tag => ({ tag, count: posts[tag].length })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
-  })()
-
-  const addSuggestedHashtag = (tag: string) => {
-    if (hashtags.some(item => item.toLocaleLowerCase() === tag.toLocaleLowerCase())) return
-    setHashtags(current => [...current, tag])
   }
 
   const speakCaption = () => {
@@ -1541,40 +1489,13 @@ export default function ComposerPage() {
               </div>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" onClick={addHashtag} disabled={!tagInput.trim()} className="h-11 flex-1 rounded-xl px-4 text-xs font-semibold sm:flex-none">Adicionar</Button>
-                <Button type="button" variant="outline" onClick={lookupHashtag} disabled={!tagInput.trim() || hashtagSearching || !accountId} className="h-11 flex-1 gap-2 rounded-xl border-indigo-200 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 sm:flex-none">
-                  <Search size={14} />{hashtagSearching ? "Buscando…" : "Sugestões do Instagram"}
-                </Button>
               </div>
             </div>
-            <p className="mt-2 text-xs leading-5 text-slate-500">Adicione uma tag manualmente ou busque sugestões reais. A busca é feita só quando você clicar, para evitar consultas desnecessárias à Meta.</p>
-
-            {hashtagLookup && <section aria-live="polite" className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-900">Resultados para <span className="text-indigo-700">#{hashtagLookupTerm}</span></p>
-                  <p className="mt-1 text-xs leading-5 text-slate-600">A Meta retornou uma amostra de {hashtagLookup.recentMediaCount} posts recentes e {hashtagLookup.topMediaCount} em destaque. Não é o total de publicações existentes com essa tag.</p>
-                </div>
-                <Button type="button" size="sm" variant="outline" onClick={() => addSuggestedHashtag(hashtagLookupTerm)} disabled={hashtags.some(tag => tag.toLocaleLowerCase() === hashtagLookupTerm.toLocaleLowerCase())} className="shrink-0 gap-1.5 border-indigo-200 bg-white text-indigo-700">
-                  <Plus size={14} />{hashtags.some(tag => tag.toLocaleLowerCase() === hashtagLookupTerm.toLocaleLowerCase()) ? "Adicionada" : "Adicionar tag"}
-                </Button>
-              </div>
-              {relatedHashtagSuggestions.length > 0 && <div className="mt-3 border-t border-indigo-100 pt-3">
-                <div className="mb-2 flex items-center justify-between gap-2"><p className="text-xs font-semibold text-slate-700">Tags encontradas nas legendas dessa amostra</p><span className="text-[11px] text-slate-500">{relatedHashtagSuggestions.length} sugestões</span></div>
-                <div className="flex flex-wrap gap-2">
-                  {(showAllTagSuggestions ? relatedHashtagSuggestions : relatedHashtagSuggestions.slice(0, 6)).map(({ tag, count }) => {
-                    const added = hashtags.some(item => item.toLocaleLowerCase() === tag.toLocaleLowerCase())
-                    return <button key={tag} type="button" onClick={() => addSuggestedHashtag(tag)} disabled={added} title={`Encontrada em ${count} ${count === 1 ? "post desta amostra" : "posts desta amostra"}`} className="inline-flex min-h-8 items-center gap-2 rounded-full border border-indigo-100 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-default disabled:bg-indigo-100 disabled:text-indigo-700"><span>#{tag}</span><span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{count}</span>{added && <Check size={12} />}</button>
-                  })}
-                </div>
-                {relatedHashtagSuggestions.length > 6 && <button type="button" onClick={() => setShowAllTagSuggestions(value => !value)} className="mt-2 text-xs font-semibold text-indigo-700 hover:text-indigo-900">{showAllTagSuggestions ? "Mostrar menos" : `Ver mais ${relatedHashtagSuggestions.length - 6} sugestões`}</button>}
-                <p className="mt-2 text-[11px] text-slate-500">O número ao lado indica em quantas legendas da amostra a tag apareceu; não mede o volume total nem popularidade global.</p>
-              </div>}
-              {relatedHashtagSuggestions.length === 0 && <p className="mt-3 border-t border-indigo-100 pt-3 text-xs text-slate-500">Não encontrei outras hashtags nas legendas retornadas. Você ainda pode adicionar esta tag manualmente.</p>}
-            </section>}
+            <p className="mt-2 text-xs leading-5 text-slate-500">Digite uma hashtag e clique em Adicionar ou pressione Enter.</p>
 
             {hashtags.length > 0 && <div className="mt-3 flex flex-wrap gap-2" aria-label="Hashtags adicionadas">
               {hashtags.map(tag => <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800">
-                #{tag}{hashtagLookup && tag.toLocaleLowerCase() === hashtagLookupTerm.toLocaleLowerCase() && <span className="ml-1 font-normal text-indigo-600" title="Quantidade retornada pela Meta nesta consulta, não total global">· amostra {hashtagLookup.recentMediaCount}+{hashtagLookup.topMediaCount}</span>}
+                #{tag}
                 <button type="button" onClick={() => removeHashtag(tag)} aria-label={`Remover hashtag ${tag}`} className="ml-1 rounded-full px-1 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-900">×</button>
               </span>)}
             </div>}

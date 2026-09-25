@@ -22,3 +22,10 @@ test('hashtag media with missing likes is not rendered as zero likes', () => {
   assert.match(source, /item\.like_count === null \|\| item\.like_count === undefined \? "Curtidas indisponíveis"/);
   assert.doesNotMatch(source, /item\.like_count \|\| 0/);
 });
+
+test('composer keeps manual hashtag addition and removes Instagram suggestions', () => {
+  const source = read('composer/page.tsx');
+  assert.match(source, /onClick=\{addHashtag\}[^>]*>Adicionar<\/Button>/);
+  assert.match(source, /Digite uma hashtag e clique em Adicionar ou pressione Enter\./);
+  assert.doesNotMatch(source, /Sugestões do Instagram|lookupHashtag|relatedHashtagSuggestions|api\.searchHashtag/);
+});

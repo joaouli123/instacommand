@@ -102,4 +102,13 @@ export const api = {
   getComments: (accountId: string) => fetchApi(`/community/comments?accountId=${encodeURIComponent(accountId)}`),
   replyComment: (data: { accountId: string; mediaId: string; commentId: string; message: string }) => fetchApi(`/community/comments/${encodeURIComponent(data.commentId)}/reply`, { method: 'POST', body: JSON.stringify(data) }),
   deleteComment: (data: { accountId: string; mediaId: string; commentId: string }) => fetchApi(`/community/comments/${encodeURIComponent(data.commentId)}?accountId=${encodeURIComponent(data.accountId)}&mediaId=${encodeURIComponent(data.mediaId)}`, { method: 'DELETE' }),
+  getAutomationWorkspace: (accountId: string) => fetchApi(`/automations?accountId=${encodeURIComponent(accountId)}`),
+  createAutomation: (data: Record<string, unknown>) => fetchApi('/automations', { method: 'POST', body: JSON.stringify(data) }),
+  updateAutomation: (id: string, data: Record<string, unknown>) => fetchApi(`/automations/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAutomation: (accountId: string, id: string) => fetchApi(`/automations/${encodeURIComponent(id)}?accountId=${encodeURIComponent(accountId)}`, { method: 'DELETE' }),
+  createAutomationTemplate: (data: Record<string, unknown>) => fetchApi('/automations/templates', { method: 'POST', body: JSON.stringify(data) }),
+  deleteAutomationTemplate: (accountId: string, id: string) => fetchApi(`/automations/templates/${encodeURIComponent(id)}?accountId=${encodeURIComponent(accountId)}`, { method: 'DELETE' }),
+  saveInstagramAgent: (data: Record<string, unknown>) => fetchApi('/automations/agent', { method: 'PUT', body: JSON.stringify(data) }),
+  subscribeInstagramAutomation: (accountId: string) => fetchApi('/automations/subscribe', { method: 'POST', body: JSON.stringify({ accountId }) }),
+  sendReviewedAutomationReply: (accountId: string, executionId: string, message: string) => fetchApi(`/automations/executions/${encodeURIComponent(executionId)}/send`, { method: 'POST', body: JSON.stringify({ accountId, message }) }),
 };

@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { 
   LayoutDashboard, PenSquare, Calendar, BarChart3, 
   Users, TrendingUp, Settings, MessageCircle, ChevronLeft, ChevronRight,
-  Instagram, ShieldCheck, MoreHorizontal
+  Instagram, ShieldCheck, MoreHorizontal, Zap
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -22,6 +22,7 @@ const navItems = [
   { name: 'Concorrentes', href: '/competitors', icon: Users },
   { name: 'Tendências', href: '/trends', icon: TrendingUp },
   { name: 'Comunidade', href: '/community', icon: MessageCircle },
+  { name: 'Automações', href: '/automations', icon: Zap },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ]
 

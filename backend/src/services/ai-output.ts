@@ -25,6 +25,11 @@ export const replySchema = z.object({
   alternatives: z.array(text.max(1000)).length(3)
     .refine(items => new Set(items.map(item => item.toLocaleLowerCase('pt-BR'))).size === 3, 'As alternativas devem ser distintas.'),
 });
+export const automationReplySchema = z.object({
+  response: text.max(1000),
+  shouldEscalate: z.boolean(),
+  reason: z.string().trim().max(500),
+});
 export const imageAnalysisSchema = z.object({
   summary: text.max(3000),
   observations: z.array(z.object({ imageIndex: z.number().int().min(1).max(3), evidence: text.max(1000), interpretation: text.max(1500) })).min(1).max(12),
@@ -55,6 +60,7 @@ export function validateAiOutput(mode: string, result: unknown) {
   if (mode === 'plan') return weeklyPlanSchema.parse(result);
   if (mode === 'audit') return auditSchema.parse(result);
   if (mode === 'reply') return replySchema.parse(result);
+  if (mode === 'automation-reply') return automationReplySchema.parse(result);
   if (mode === 'daily') return dailyPlanSchema.parse(result);
   if (mode === 'image-analysis') return imageAnalysisSchema.parse(result);
   throw new Error('Modo de IA não suportado.');
