@@ -14,12 +14,24 @@ import { PrismaClient } from '@prisma/client';
 import { MediaType } from '@prisma/client';
 import { InstagramApiError } from '../utils/errors';
 import { getFacebookReport } from '../services/facebook-report.service';
+import { getThreadsReport } from '../services/threads-report.service';
 import { analyticsDays } from '../services/analytics-period';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 router.use(authenticate);
+
+// Network-specific routes must precede the Instagram account middleware.
+router.get('/networks/threads/:accountId', async (req: any, res, next) => {
+  const days = Number(req.query.days || 30);
+  if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
+  try {
+    const report = await getThreadsReport(req.user.id, req.params.accountId, days);
+    if (!report) return res.status(404).json({ error: 'Conta do Threads não encontrada.' });
+    return res.json(report);
+  } catch (error) { next(error); }
+});
 
 router.get('/networks/facebook/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);
