@@ -2,6 +2,7 @@ import { AutomationTemplateType, PrismaClient, SocialAutomationTrigger } from '@
 import { env } from '../config/env';
 import { generateAiContent } from './ai.service';
 import { getAiCredentials, getDecryptedToken, getInstagramGrantedPermissions } from './instagram/auth.service';
+import { verifyFacebookPageLink } from './instagram/facebook-link.service';
 import { graphPost } from '../utils/instagram-api';
 import { ConflictError, NotFoundError, ValidationError } from '../utils/errors';
 import { hasKeywordMatch, matchesEvent } from './automation-logic';
@@ -291,7 +292,11 @@ export const subscribeInstagramAccountToWebhooks = async (userId: string, accoun
   if (!env.WEBHOOK_VERIFY_TOKEN || !env.FB_APP_SECRET) throw new ValidationError('Configure o webhook e o segredo do app Meta no servidor antes de conectar as automações.');
   const status = await getAutomationStatus(userId, accountId, true);
   if (!status.canAutomateComments && !status.canAutomateMessages) throw new ValidationError('A conta ainda não tem permissões aprovadas para automação de comentários ou mensagens.');
+  if (!status.grantedPermissions.includes('pages_manage_metadata')) throw new ValidationError('Reconecte a conta e permita receber eventos da Página vinculada para ativar as automações.');
   const token = await getDecryptedToken(account.id);
+  // Facebook Login subscribes the linked Page; the IG-user edge belongs to Instagram Login.
+  // https://developers.facebook.com/documentation/instagram-platform/webhooks/setup
+  const page = await verifyFacebookPageLink(account.pageId, account.igUserId, token);
   const subscribedFields = [status.canAutomateComments && 'comments', status.canAutomateMessages && 'messages'].filter(Boolean).join(',');
-  return graphPost(`/${account.igUserId}/subscribed_apps`, token, { subscribed_fields: subscribedFields });
+  return graphPost(`/${page.id}/subscribed_apps`, token, { subscribed_fields: subscribedFields });
 };
