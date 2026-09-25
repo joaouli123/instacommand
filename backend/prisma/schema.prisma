@@ -146,6 +146,7 @@ model ScheduledPost {
   instagramAudioArtist String?
   instagramAudioVolume Int?
   instagramVideoVolume Int?
+  advancedSettings  Json?
   scheduledFor     DateTime
   status           PostStatus        @default(DRAFT)
   errorMessage     String?

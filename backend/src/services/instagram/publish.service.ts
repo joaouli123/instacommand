@@ -1,11 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import { graphPost, graphGet, graphDelete as apiDelete } from '../../utils/instagram-api';
-import { getDecryptedToken, getDecryptedThreadsToken } from './auth.service';
+import { getDecryptedToken, getDecryptedThreadsToken, getInstagramGrantedPermissions } from './auth.service';
 import { notifyPublishFailure } from '../notifications.service';
 import { ConflictError } from '../../utils/errors';
 import { verifyFacebookPageLink } from './facebook-link.service';
 import { assertPostReady } from '../post-readiness';
 import { normalizeMediaUrl } from '../../utils/public-media';
+import { InstagramAdvancedSettings } from './advanced-settings';
 
 const prisma = new PrismaClient();
 
@@ -15,10 +16,12 @@ export const createMediaContainer = async (
   mediaType: string,
   mediaUrls: string[],
   caption?: string,
-  advanced: { isAiGenerated?: boolean; audioId?: string | null; audioVolume?: number | null; videoVolume?: number | null } = {},
+  advanced: { isAiGenerated?: boolean; audioId?: string | null; audioVolume?: number | null; videoVolume?: number | null; settings?: InstagramAdvancedSettings | null } = {},
 ) => {
   let params: any = { caption };
   if (advanced.isAiGenerated) params.is_ai_generated = true;
+  const settings = advanced.settings;
+  const collaborators = settings?.collaborators?.length ? settings.collaborators : undefined;
   if (mediaType === 'REEL' && advanced.audioId) {
     params.audio_configuration = JSON.stringify({
       audio_id: advanced.audioId,
@@ -29,19 +32,29 @@ export const createMediaContainer = async (
 
   if (mediaType === 'IMAGE') {
     params.image_url = mediaUrls[0];
+    if (settings?.altTexts[0]) params.alt_text = settings.altTexts[0];
+    if (settings?.userTags.length) params.user_tags = settings.userTags.map(({ username, x, y }) => ({ username, x, y }));
+    if (collaborators) params.collaborators = collaborators;
   } else if (mediaType === 'REEL') {
     params.media_type = 'REELS';
     params.video_url = mediaUrls[0];
+    if (collaborators) params.collaborators = collaborators;
   } else if (mediaType === 'STORY') {
     params.media_type = 'STORIES';
     if (mediaUrls[0]?.match(/\.(mp4|mov)(\?|$)/i)) params.video_url = mediaUrls[0];
     else params.image_url = mediaUrls[0];
   } else if (mediaType === 'CAROUSEL') {
     const childrenContainers = [];
-    for (const url of mediaUrls) {
-      const childParams = url.match(/\.(mp4|mov)(\?|$)/i)
+    for (const [index, url] of mediaUrls.entries()) {
+      const isVideo = url.match(/\.(mp4|mov)(\?|$)/i);
+      const childParams = isVideo
         ? { media_type: 'VIDEO', video_url: url, is_carousel_item: true }
         : { image_url: url, is_carousel_item: true };
+      if (!isVideo && settings?.altTexts[index]) (childParams as Record<string, unknown>).alt_text = settings.altTexts[index];
+      if (!isVideo && settings?.userTags.length) {
+        const tagsForMedia = settings.userTags.filter((tag) => tag.mediaIndex === index);
+        if (tagsForMedia.length) (childParams as Record<string, unknown>).user_tags = tagsForMedia.map(({ username, x, y }) => ({ username, x, y }));
+      }
       const child = await graphPost(`/${igUserId}/media`, token, childParams);
       const childReady = await checkContainerStatus(child.id, token);
       if (!childReady) throw new Error('Uma das mídias do carrossel não foi processada pelo Instagram.');
@@ -49,6 +62,7 @@ export const createMediaContainer = async (
     }
     params.media_type = 'CAROUSEL';
     params.children = childrenContainers.join(',');
+    if (collaborators) params.collaborators = collaborators;
   }
 
   const response = await graphPost(`/${igUserId}/media`, token, params);
@@ -240,19 +254,47 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
     if (platforms.includes('INSTAGRAM')) {
       try {
         const token = await getDecryptedToken(post.accountId);
+        const settings = (post.advancedSettings || null) as InstagramAdvancedSettings | null;
+        if (settings?.firstComment?.trim() || settings?.disableComments) {
+          let permissions: string[];
+          try {
+            permissions = await getInstagramGrantedPermissions(post.accountId);
+          } catch {
+            throw new Error('Não foi possível confirmar a liberação dos comentários pela Meta. Confira a conexão; nenhum post foi enviado ao Instagram.');
+          }
+          if (!permissions.includes('instagram_manage_comments')) {
+            throw new Error('A Meta ainda não liberou o controle de comentários para este sistema. O administrador precisa pedir aprovação e reconectar a conta. Nenhum post foi enviado ao Instagram.');
+          }
+        }
         const containerId = await createMediaContainer(post.account.igUserId, token, post.mediaType, post.mediaUrls, post.caption || undefined, {
           isAiGenerated: post.isAiGenerated,
           audioId: post.instagramAudioId,
           audioVolume: post.instagramAudioVolume,
           videoVolume: post.instagramVideoVolume,
+          settings,
         });
         const isReady = await checkContainerStatus(containerId, token);
         if (!isReady) throw new Error('A mídia não foi processada pelo Instagram.');
         const igMediaId = await publishContainer(post.account.igUserId, containerId, token);
+        const advancedWarnings: string[] = [];
+        if (settings?.firstComment?.trim()) {
+          try {
+            await graphPost(`/${igMediaId}/comments`, token, { message: settings.firstComment.trim() });
+          } catch (error) {
+            advancedWarnings.push(`O post foi publicado, mas o primeiro comentário não foi adicionado: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+          }
+        }
+        if (settings?.disableComments) {
+          try {
+            await graphPost(`/${igMediaId}`, token, { comment_enabled: false });
+          } catch (error) {
+            advancedWarnings.push(`O post foi publicado, mas não foi possível desativar os comentários: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+          }
+        }
         // Enrichment must not turn a successful remote publication into a
         // retryable failure (which would send the same content again).
         const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_url' }).catch(() => ({}));
-        results.INSTAGRAM = { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaDetails.media_url };
+        results.INSTAGRAM = { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaDetails.media_url, advancedWarnings };
       } catch (error) {
         errors.push(`Instagram: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
       }

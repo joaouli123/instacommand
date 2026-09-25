@@ -45,3 +45,57 @@ test('attaches the selected audio and volume mix only to Instagram Reels', async
   });
   assert.equal(Object.hasOwn(writes[0].params, 'audio_configuration'), false);
 });
+
+test('sends image alt text and positioned person tags with the Instagram photo container', async () => {
+  await createMediaContainer('ig-user', 'token', 'IMAGE', ['https://media.example.test/image.jpg'], 'Legenda', {
+    settings: {
+      altTexts: ['Uma pessoa apresenta um projeto.'],
+      collaborators: [],
+      firstComment: '',
+      disableComments: false,
+      userTags: [{ username: 'parceiro', x: 0.32, y: 0.68, mediaIndex: 0 }],
+    },
+  });
+
+  assert.equal(writes[0].params.alt_text, 'Uma pessoa apresenta um projeto.');
+  assert.deepEqual(writes[0].params.user_tags, [{ username: 'parceiro', x: 0.32, y: 0.68 }]);
+});
+
+test('sends alt text and people tags on their own carousel photo containers', async () => {
+  await createMediaContainer('ig-user', 'token', 'CAROUSEL', [
+    'https://media.example.test/first.jpg',
+    'https://media.example.test/second.jpg',
+  ], 'Legenda', {
+    isAiGenerated: true,
+    settings: {
+      altTexts: ['Primeira foto.', 'Segunda foto.'],
+      collaborators: [],
+      firstComment: '',
+      disableComments: false,
+      userTags: [{ username: 'parceiro', x: 0.7, y: 0.25, mediaIndex: 1 }],
+    },
+  });
+
+  assert.equal(writes[0].params.alt_text, 'Primeira foto.');
+  assert.equal(Object.hasOwn(writes[0].params, 'user_tags'), false);
+  assert.equal(writes[1].params.alt_text, 'Segunda foto.');
+  assert.deepEqual(writes[1].params.user_tags, [{ username: 'parceiro', x: 0.7, y: 0.25 }]);
+  assert.equal(writes[2].params.is_ai_generated, true);
+  assert.equal(writes[2].params.children, 'container-1,container-1');
+});
+
+test('sends collaborators with feed photos, carousels, and Reels', async () => {
+  const settings = { altTexts: [], collaborators: ['parceiro'], firstComment: '', disableComments: false, userTags: [] };
+  await createMediaContainer('ig-user', 'token', 'IMAGE', ['https://media.example.test/image.jpg'], 'Legenda', { settings });
+  assert.deepEqual(writes[0].params.collaborators, ['parceiro']);
+
+  writes.length = 0;
+  await createMediaContainer('ig-user', 'token', 'CAROUSEL', [
+    'https://media.example.test/first.jpg', 'https://media.example.test/second.jpg',
+  ], 'Legenda', { settings });
+  assert.deepEqual(writes[2].params.collaborators, ['parceiro']);
+
+  writes.length = 0;
+  await createMediaContainer('ig-user', 'token', 'REEL', ['https://media.example.test/reel.mp4'], 'Legenda', { settings });
+  assert.deepEqual(writes[0].params.collaborators, ['parceiro']);
+});

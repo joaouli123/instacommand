@@ -16,6 +16,19 @@ test('Facebook Page publishing permission error names the required permission an
   assert.match(message, /outras redes/i);
 });
 
+test('comment permission failure makes clear that Instagram was not published', () => {
+  const message = publicMetaMessage('Instagram: A Meta ainda não liberou o controle de comentários. Nenhum post foi enviado ao Instagram.');
+  assert.match(message, /nenhum post foi enviado/i);
+  assert.match(message, /pedir aprovação/i);
+});
+
+test('comment-operation warning distinguishes an already-published post', () => {
+  const message = publicMetaMessage('O post foi publicado, mas o primeiro comentário não foi adicionado: Instagram API Error: insufficient permission');
+  assert.match(message, /o post foi publicado/i);
+  assert.match(message, /ajuste de comentários não foi concluído/i);
+  assert.match(message, /manualmente no Instagram/i);
+});
+
 test('unrecognized Meta failures remain unchanged', () => {
   assert.equal(publicMetaMessage('Something else failed'), 'Something else failed');
 });

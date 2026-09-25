@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type MouseEvent } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -106,7 +106,10 @@ type AiPlanItem = { day: string; format: string; topic: string; hook: string; ct
 type HashtagMedia = { id: string; caption?: string }
 type HashtagLookup = { igHashtagId: string; topMediaCount: number; recentMediaCount: number; topMedia: HashtagMedia[]; recentMedia: HashtagMedia[] }
 type InstagramAudioTrack = { id: string; title: string; audioType?: string; durationInMs?: number | null; artist?: string | null; creatorUsername?: string | null; coverUrl?: string | null; previewUrl?: string | null; previewLink?: string | null }
-type PublishOutcome = { succeeded: string[]; failed: Array<{ platform: string; message: string }> }
+type InstagramUserTag = { username: string; x: number; y: number; mediaIndex: number }
+type InstagramAdvancedSettings = { altTexts: string[]; collaborators: string[]; firstComment: string; disableComments: boolean; userTags: InstagramUserTag[] }
+type PublishOutcome = { succeeded: string[]; failed: Array<{ platform: string; message: string }>; warnings: Array<{ platform: string; message: string }> }
+const emptyInstagramAdvancedSettings = (): InstagramAdvancedSettings => ({ altTexts: [], collaborators: [], firstComment: "", disableComments: false, userTags: [] })
 
 const normalizeHashtag = (value: string) => value.replace(/^#+/, "").trim()
 const isVideoFile = (file: Pick<File, "type" | "name">) => file.type.toLowerCase().startsWith("video/") || /\.(mp4|m4v|mov|webm|ogv|ogg)$/i.test(file.name)
@@ -480,6 +483,9 @@ export default function ComposerPage() {
   const [previewPlatform, setPreviewPlatform] = useState("INSTAGRAM")
   const [creationMode, setCreationMode] = useState<"manual" | "ai" | null>("manual")
   const [isAiGenerated, setIsAiGenerated] = useState(false)
+  const [advancedSettings, setAdvancedSettings] = useState<InstagramAdvancedSettings>(emptyInstagramAdvancedSettings)
+  const [collaboratorInput, setCollaboratorInput] = useState("")
+  const [personTagInput, setPersonTagInput] = useState("")
   const [audioType, setAudioType] = useState<"music" | "original_sound">("music")
   const [audioSearchQuery, setAudioSearchQuery] = useState("")
   const [audioTracks, setAudioTracks] = useState<InstagramAudioTrack[]>([])
@@ -515,6 +521,14 @@ export default function ComposerPage() {
           setThreadsAccountId(draft.threadsAccountId || ''); setPostType(draft.mediaType === 'IMAGE' ? 'FEED' : draft.mediaType)
           setEditorialBrief(draft.editorialBrief || null)
           setIsAiGenerated(draft.isAiGenerated === true)
+          const savedAdvanced = draft.advancedSettings as Partial<InstagramAdvancedSettings> | null
+          if (savedAdvanced) setAdvancedSettings({
+            ...emptyInstagramAdvancedSettings(),
+            ...savedAdvanced,
+            altTexts: Array.isArray(savedAdvanced.altTexts) ? savedAdvanced.altTexts : [],
+            collaborators: Array.isArray(savedAdvanced.collaborators) ? savedAdvanced.collaborators : [],
+            userTags: Array.isArray(savedAdvanced.userTags) ? savedAdvanced.userTags : [],
+          })
           if (draft.instagramAudioId) {
             setSelectedAudioTrack({ id: draft.instagramAudioId, title: draft.instagramAudioTitle || 'Áudio selecionado', artist: draft.instagramAudioArtist || null })
             setAudioVolume(Number.isInteger(draft.instagramAudioVolume) ? draft.instagramAudioVolume : 80)
@@ -621,6 +635,7 @@ export default function ComposerPage() {
         }
 
         setMediaItems(current => [...current, ...itemsToAdd])
+        setAdvancedSettings(current => ({ ...current, altTexts: [...current.altTexts.slice(0, mediaItems.length), ...itemsToAdd.map(() => "")] }))
         toast.success(`${itemsToAdd.length} ${itemsToAdd.length === 1 ? "mídia adicionada" : "mídias adicionadas"} ao carrossel`)
         return
       }
@@ -632,6 +647,7 @@ export default function ComposerPage() {
       })
       setMediaItems([nextItem])
       setActiveMediaIndex(0)
+      setAdvancedSettings(current => ({ ...current, altTexts: [""] , userTags: [] }))
       toast.success(`Mídia carregada: ${nextItem.name}`)
     },
   })
@@ -674,6 +690,15 @@ export default function ComposerPage() {
     const destinationsChanged = nextPlatforms.length !== platforms.length || nextPlatforms.some((platform, index) => platform !== platforms[index])
     if (destinationsChanged) setPlatforms(nextPlatforms)
     setPostType(nextType)
+    if (!['FEED', 'CAROUSEL', 'REEL'].includes(nextType)) {
+      setAdvancedSettings(current => ({ ...current, collaborators: [], firstComment: "", disableComments: false, userTags: [], altTexts: [] }))
+    } else if (nextType === 'REEL') {
+      setAdvancedSettings(current => ({ ...current, userTags: [], altTexts: [] }))
+    } else if (nextType === 'CAROUSEL') {
+      setAdvancedSettings(current => ({ ...current, altTexts: [], userTags: [] }))
+    } else if (nextType === 'FEED') {
+      setAdvancedSettings(current => ({ ...current, altTexts: [], userTags: [] }))
+    }
     if (nextType !== "REEL") {
       setSelectedAudioTrack(null)
       setAudioTracks([])
@@ -709,6 +734,12 @@ export default function ComposerPage() {
 
     const nextItems = mediaItems.filter(item => item.id !== id)
     setMediaItems(nextItems)
+    const removedIndex = mediaItems.findIndex(item => item.id === id)
+    setAdvancedSettings(current => ({
+      ...current,
+      altTexts: current.altTexts.filter((_, index) => index !== removedIndex),
+      userTags: current.userTags.flatMap(tag => tag.mediaIndex === removedIndex ? [] : [{ ...tag, mediaIndex: tag.mediaIndex > removedIndex ? tag.mediaIndex - 1 : tag.mediaIndex }]),
+    }))
     setActiveMediaIndex(current => Math.min(current, Math.max(0, nextItems.length - 1)))
   }
 
@@ -719,6 +750,14 @@ export default function ComposerPage() {
     const nextItems = [...mediaItems]
     ;[nextItems[activeMediaIndex], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[activeMediaIndex]]
     setMediaItems(nextItems)
+    setAdvancedSettings(current => {
+      const altTexts = [...current.altTexts]
+      ;[altTexts[activeMediaIndex], altTexts[targetIndex]] = [altTexts[targetIndex], altTexts[activeMediaIndex]]
+      const userTags = current.userTags.map(tag => tag.mediaIndex === activeMediaIndex
+        ? { ...tag, mediaIndex: targetIndex }
+        : tag.mediaIndex === targetIndex ? { ...tag, mediaIndex: activeMediaIndex } : tag)
+      return { ...current, altTexts, userTags }
+    })
     setActiveMediaIndex(targetIndex)
   }
 
@@ -819,6 +858,7 @@ export default function ComposerPage() {
     }
     if (!nextPlatforms.includes("INSTAGRAM")) {
       setIsAiGenerated(false)
+      setAdvancedSettings(emptyInstagramAdvancedSettings())
       setSelectedAudioTrack(null)
       setAudioTracks([])
       setPreviewingAudioId(null)
@@ -869,6 +909,44 @@ export default function ComposerPage() {
       toast.error("Não foi possível reproduzir a prévia dessa faixa.")
     }
   }
+
+  const addCollaborator = () => {
+    const username = collaboratorInput.trim().replace(/^@+/, "").toLowerCase()
+    if (!/^[a-z0-9._]{1,30}$/i.test(username)) { toast.error("Digite um @usuário válido do Instagram."); return }
+    if (advancedSettings.collaborators.includes(username)) { setCollaboratorInput(""); return }
+    if (advancedSettings.collaborators.length >= 3) { toast.error("A Meta permite até 3 colaboradores nesta publicação."); return }
+    setAdvancedSettings(current => ({ ...current, collaborators: [...current.collaborators, username] }))
+    setCollaboratorInput("")
+  }
+
+  const addPersonTagAtPosition = (event: MouseEvent<HTMLSpanElement>) => {
+    const username = personTagInput.trim().replace(/^@+/, "").toLowerCase()
+    if (!/^[a-z0-9._]{1,30}$/i.test(username)) { toast.error("Digite um @usuário válido antes de clicar na foto."); return }
+    if (advancedSettings.userTags.length >= 20) { toast.error("A Meta permite até 20 marcações nesta publicação."); return }
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const x = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width))
+    const y = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height))
+    if (advancedSettings.userTags.some(tag => tag.username === username && tag.mediaIndex === activeMediaIndex)) {
+      toast("Esse perfil já está marcado neste item.")
+      return
+    }
+    setAdvancedSettings(current => ({ ...current, userTags: [...current.userTags, { username, x, y, mediaIndex: activeMediaIndex }] }))
+    setPersonTagInput("")
+  }
+
+  const addPersonTagAtCenter = () => {
+    const username = personTagInput.trim().replace(/^@+/, "").toLowerCase()
+    if (!/^[a-z0-9._]{1,30}$/i.test(username)) { toast.error("Digite um @usuário válido antes de marcar."); return }
+    if (advancedSettings.userTags.length >= 20) { toast.error("A Meta permite até 20 marcações nesta publicação."); return }
+    if (advancedSettings.userTags.some(tag => tag.username === username && tag.mediaIndex === activeMediaIndex)) { toast("Esse perfil já está marcado neste item."); return }
+    setAdvancedSettings(current => ({ ...current, userTags: [...current.userTags, { username, x: 0.5, y: 0.5, mediaIndex: activeMediaIndex }] }))
+    setPersonTagInput("")
+  }
+
+  const removePersonTag = (tagIndex: number) => setAdvancedSettings(current => ({
+    ...current,
+    userTags: current.userTags.filter((_, index) => index !== tagIndex),
+  }))
 
   const generateWithAi = async (mode: "caption" | "plan") => {
     if (!aiTopic.trim()) {
@@ -992,17 +1070,18 @@ export default function ComposerPage() {
         instagramAudioArtist: selectedAudioTrack?.artist ?? null,
         instagramAudioVolume: audioVolume,
         instagramVideoVolume: videoVolume,
+        advancedSettings,
         scheduledFor: scheduledFor.toISOString(),
         status: mode === "schedule" ? "SCHEDULED" : "DRAFT",
       }
       const created = (draftId ? await api.updatePost(draftId, payload) : await api.createPost(payload)) as { id: string }
 
-      let publishSummary: { succeeded?: string[]; failed?: { platform: string; message: string }[] } | undefined
+      let publishSummary: { succeeded?: string[]; failed?: { platform: string; message: string }[]; warnings?: { platform: string; message: string }[] } | undefined
       if (mode === "publish") {
         publishWasRequested = true
         const result = await api.publishPost(created.id) as { publishSummary?: typeof publishSummary }
         publishSummary = result.publishSummary
-        setPublishOutcome({ succeeded: publishSummary?.succeeded || [], failed: publishSummary?.failed || [] })
+        setPublishOutcome({ succeeded: publishSummary?.succeeded || [], failed: publishSummary?.failed || [], warnings: publishSummary?.warnings || [] })
       }
       if (mode === "schedule") {
         toast.success("Publicação agendada com sucesso.")
@@ -1026,7 +1105,7 @@ export default function ComposerPage() {
           const separator = entry.indexOf(":")
           return separator > 0 ? { platform: entry.slice(0, separator).trim().toUpperCase(), message: entry.slice(separator + 1).trim() } : null
         }).filter((entry): entry is { platform: string; message: string } => Boolean(entry))
-        setPublishOutcome({ succeeded: [], failed: platforms.map(platform => ({ platform, message: platformErrors.find(item => item.platform === platform)?.message || message })) })
+        setPublishOutcome({ succeeded: [], failed: platforms.map(platform => ({ platform, message: platformErrors.find(item => item.platform === platform)?.message || message })), warnings: [] })
       }
       toast.error(message)
     } finally {
@@ -1054,7 +1133,8 @@ export default function ComposerPage() {
         instagramAudioTitle: selectedAudioTrack?.title ?? null,
         instagramAudioArtist: selectedAudioTrack?.artist ?? null,
         instagramAudioVolume: audioVolume,
-        instagramVideoVolume: videoVolume }
+        instagramVideoVolume: videoVolume,
+        advancedSettings }
       const saved = draftId ? await api.updatePost(draftId, data) : await api.createPost({ ...data, accountId, scheduledFor: new Date(selectedDate || Date.now()).toISOString() })
       setDraftId(saved.id)
       window.history.replaceState(null, '', `/composer?draft=${encodeURIComponent(saved.id)}`)
@@ -1073,7 +1153,7 @@ export default function ComposerPage() {
     const startAnother = () => {
       mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
       setPublishOutcome(null); setStep(1); setCaption(""); setHashtags([]); setTagInput(""); setMediaItems([]); setActiveMediaIndex(0); setDraftId(""); setEditorialBrief(null)
-      setIsAiGenerated(false); setSelectedAudioTrack(null); setAudioTracks([]); setAudioSearchQuery(""); setPreviewingAudioId(null); audioPreviewRef.current?.pause()
+      setIsAiGenerated(false); setAdvancedSettings(emptyInstagramAdvancedSettings()); setCollaboratorInput(""); setPersonTagInput(""); setSelectedAudioTrack(null); setAudioTracks([]); setAudioSearchQuery(""); setPreviewingAudioId(null); audioPreviewRef.current?.pause()
     }
     return <main className="mx-auto flex min-h-[65vh] w-full max-w-2xl items-center justify-center px-3 py-8">
       <Card className="w-full overflow-hidden rounded-3xl border-slate-200 shadow-sm">
@@ -1089,6 +1169,7 @@ export default function ComposerPage() {
           <div className="mt-7 space-y-2 text-left">
             {publishOutcome.succeeded.map(platform => <div key={platform} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3"><CheckCircle2 size={18} className="shrink-0 text-emerald-600" /><div><p className="text-sm font-semibold text-slate-800">{platformNames[platform] || platform} · Publicado</p><p className="text-xs text-slate-600">A plataforma confirmou o envio.</p></div></div>)}
             {publishOutcome.failed.map(({ platform, message }, index) => <div key={`${platform}-${index}`} className="flex items-start gap-3 rounded-xl border border-rose-100 bg-rose-50/70 px-4 py-3"><XCircle size={18} className="mt-0.5 shrink-0 text-rose-600" /><div><p className="text-sm font-semibold text-slate-800">{platformNames[platform] || platform} · Falhou</p><p className="mt-0.5 break-words text-xs leading-5 text-rose-700">{message}</p></div></div>)}
+            {publishOutcome.warnings.map(({ platform, message }, index) => <div key={`${platform}-${index}`} className="flex items-start gap-3 rounded-xl border border-amber-100 bg-amber-50/80 px-4 py-3"><span className="mt-0.5 shrink-0 text-amber-600">!</span><div><p className="text-sm font-semibold text-slate-800">{platformNames[platform] || platform} · Ajuste pendente</p><p className="mt-0.5 break-words text-xs leading-5 text-amber-800">{message}</p></div></div>)}
           </div>
 
           <div className="mt-7 flex flex-col-reverse justify-center gap-2 sm:flex-row">
@@ -1436,6 +1517,7 @@ export default function ComposerPage() {
               return { id: crypto.randomUUID(), file, src, name: file.name, kind: "image" as const, isObjectUrl: true, ...dimensions }
             }))
             setMediaItems(artworkItems)
+            setAdvancedSettings(current => ({ ...current, altTexts: artworkItems.map(() => ""), userTags: [] }))
             setPostType(files.length > 1 ? 'CAROUSEL' : 'FEED'); setActiveMediaIndex(0)
             toast.success('Artes anexadas. Revise a prévia e salve o rascunho; nada foi publicado.')
           }} />
@@ -1504,10 +1586,42 @@ export default function ComposerPage() {
               <ChevronDown size={16} className="shrink-0 text-slate-500 transition group-open:rotate-180" />
             </summary>
             <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
-              {platforms.includes("INSTAGRAM") ? <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
-                <input type="checkbox" checked={isAiGenerated} onChange={(event) => setIsAiGenerated(event.target.checked)} className="mt-0.5 h-4 w-4 accent-indigo-600" />
-                <span className="min-w-0"><span className="block text-sm font-semibold text-slate-800">Conteúdo gerado ou alterado por IA</span><span className="mt-1 block text-xs leading-5 text-slate-500">Ative para informar ao Instagram que a imagem ou o vídeo foi criado ou alterado com inteligência artificial. Usar IA apenas para escrever a legenda não exige esta marcação.</span></span>
-              </label> : <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600">A identificação de conteúdo gerado por IA está disponível quando o Instagram está selecionado.</p>}
+              {platforms.includes("INSTAGRAM") ? <>
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                  <input type="checkbox" checked={isAiGenerated} onChange={(event) => setIsAiGenerated(event.target.checked)} className="mt-0.5 h-4 w-4 accent-indigo-600" />
+                  <span className="min-w-0"><span className="block text-sm font-semibold text-slate-800">Conteúdo gerado ou alterado por IA</span><span className="mt-1 block text-xs leading-5 text-slate-500">Marca a publicação do Instagram com o aviso de IA. Usar IA apenas para escrever a legenda não exige esta marcação.</span></span>
+                </label>
+
+                {(postType === "FEED" || postType === "CAROUSEL" || postType === "REEL") && <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="instagram-collaborators-heading">
+                  <div><h3 id="instagram-collaborators-heading" className="text-sm font-semibold text-slate-800">Colaboradores</h3><p className="mt-1 text-xs leading-5 text-slate-500">Convide até 3 perfis para aparecerem como coautores. A Meta pode exigir que cada perfil aceite o convite.</p></div>
+                  <div className="flex flex-col gap-2 sm:flex-row"><Input aria-label="Usuário do Instagram para convidar como colaborador" value={collaboratorInput} maxLength={32} onChange={(event) => setCollaboratorInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCollaborator() } }} placeholder="Ex.: @parceiro" className="h-10 min-w-0 rounded-lg text-sm" /><Button type="button" variant="outline" onClick={addCollaborator} disabled={!collaboratorInput.trim() || advancedSettings.collaborators.length >= 3} className="h-10 shrink-0 border-indigo-200 text-indigo-700">Adicionar</Button></div>
+                  {advancedSettings.collaborators.length > 0 && <ul className="flex flex-wrap gap-2" aria-label="Colaboradores escolhidos">{advancedSettings.collaborators.map(username => <li key={username} className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-800">@{username}<button type="button" onClick={() => setAdvancedSettings(current => ({ ...current, collaborators: current.collaborators.filter(item => item !== username) }))} aria-label={`Remover @${username}`} className="rounded-full px-1 text-indigo-500 hover:bg-indigo-100">×</button></li>)}</ul>}
+                </section>}
+
+                {(postType === "FEED" || postType === "CAROUSEL") && mediaItems.some(item => item.kind === "image") && <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="instagram-alt-text-heading">
+                  <div><h3 id="instagram-alt-text-heading" className="text-sm font-semibold text-slate-800">Descrição das fotos (acessibilidade)</h3><p className="mt-1 text-xs leading-5 text-slate-500">Descreva o que aparece em cada imagem para pessoas que usam leitor de tela. Até 1.000 caracteres por foto.</p></div>
+                  <div className="space-y-3">{mediaItems.map((item, index) => item.kind === "image" && <label key={item.id} className="block text-xs font-medium text-slate-700">{postType === "CAROUSEL" ? `Foto ${index + 1}` : "Foto"}<textarea maxLength={1000} value={advancedSettings.altTexts[index] || ""} onChange={(event) => setAdvancedSettings(current => { const altTexts = [...current.altTexts]; altTexts[index] = event.target.value; return { ...current, altTexts } })} placeholder="Ex.: João apresenta o projeto em uma sala iluminada." className="mt-1.5 min-h-20 w-full resize-y rounded-lg border border-slate-200 bg-white p-3 text-sm font-normal leading-5 text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" /><span className="mt-1 block text-right text-[10px] text-slate-400">{(advancedSettings.altTexts[index] || "").length}/1.000</span></label>)}</div>
+                </section>}
+
+                {(postType === "FEED" || postType === "CAROUSEL") && mediaItems.some(item => item.kind === "image") && <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="instagram-user-tags-heading">
+                  <div><h3 id="instagram-user-tags-heading" className="text-sm font-semibold text-slate-800">Marcar pessoas nas fotos</h3><p className="mt-1 text-xs leading-5 text-slate-500">Digite o @perfil e clique no lugar da foto onde a marcação deve aparecer. Em carrosséis, selecione primeiro a miniatura que quer marcar.</p></div>
+                  <Input aria-label="Perfil do Instagram para marcar na foto" value={personTagInput} maxLength={32} onChange={(event) => setPersonTagInput(event.target.value)} placeholder="Ex.: @pessoa" className="h-10 rounded-lg text-sm" />
+                  {activeMedia?.kind === "image" ? <div className="flex justify-center overflow-hidden rounded-lg bg-slate-100 p-2"><span role="button" tabIndex={0} aria-label={`Clique na foto ${activeMediaIndex + 1} para posicionar a marcação`} onClick={addPersonTagAtPosition} onKeyDown={(event) => { if (event.key === "Enter") addPersonTagAtCenter() }} className="relative inline-block max-w-full cursor-crosshair focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"><img src={activeMedia.src} alt="Foto para posicionar as marcações de pessoas" className="block max-h-72 max-w-full object-contain" />{advancedSettings.userTags.filter(tag => tag.mediaIndex === activeMediaIndex).map((tag, index) => <span key={`${tag.username}-${index}`} className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-indigo-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow" style={{ left: `${tag.x * 100}%`, top: `${tag.y * 100}%` }}>@{tag.username}</span>)}</span></div> : <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">Selecione uma foto para posicionar a marcação. Vídeos e Stories não aceitam esta marcação neste compositor.</p>}
+                  {advancedSettings.userTags.length > 0 && <ul className="flex flex-wrap gap-2" aria-label="Pessoas marcadas">{advancedSettings.userTags.map((tag, index) => <li key={`${tag.username}-${tag.mediaIndex}-${index}`} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">@{tag.username} · foto {tag.mediaIndex + 1}<button type="button" onClick={() => removePersonTag(index)} aria-label={`Remover marcação de @${tag.username}`} className="rounded-full px-1 text-slate-500 hover:bg-slate-200">×</button></li>)}</ul>}
+                </section>}
+
+                {(postType === "FEED" || postType === "CAROUSEL" || postType === "REEL") && <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="instagram-comments-heading">
+                  <div><h3 id="instagram-comments-heading" className="text-sm font-semibold text-slate-800">Comentários da publicação</h3><p className="mt-1 text-xs leading-5 text-slate-500">O primeiro comentário é enviado depois do post. Esse recurso depende de uma liberação da Meta; se ela ainda não estiver ativa, o sistema avisa e não envia o post para o Instagram.</p></div>
+                  <label htmlFor="instagram-first-comment" className="block text-xs font-medium text-slate-700">Primeiro comentário <span className="font-normal text-slate-400">· opcional</span></label><textarea id="instagram-first-comment" maxLength={2200} value={advancedSettings.firstComment} onChange={(event) => setAdvancedSettings(current => ({ ...current, firstComment: event.target.value }))} placeholder="Escreva o comentário que será enviado após a publicação." className="min-h-20 w-full resize-y rounded-lg border border-slate-200 p-3 text-sm leading-5 text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-slate-50 p-3"><input type="checkbox" checked={advancedSettings.disableComments} onChange={(event) => setAdvancedSettings(current => ({ ...current, disableComments: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-indigo-600" /><span><span className="block text-xs font-semibold text-slate-800">Desativar comentários depois de publicar</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">O primeiro comentário, se preenchido, será enviado antes de fechar os comentários.</span></span></label>
+                </section>}
+
+                <section className="grid gap-2 sm:grid-cols-3" aria-label="Recursos avançados que ainda não estão liberados">
+                  <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-3"><p className="text-xs font-semibold text-slate-700">Parceria paga</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Ainda não disponível nesta conexão Meta. O post não será marcado como parceria sem essa liberação.</p></div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-3"><p className="text-xs font-semibold text-slate-700">Produtos da loja</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Ainda não há um seletor ligado ao catálogo nesta tela; nenhum produto será marcado.</p></div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-3"><p className="text-xs font-semibold text-slate-700">Localização</p><p className="mt-1 text-[11px] leading-4 text-slate-500">A busca de locais ainda não está ligada à conta; o post sai sem localização.</p></div>
+                </section>
+              </> : <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600">Selecione Instagram para configurar os recursos avançados desta publicação.</p>}
 
               {postType === "REEL" && platforms.includes("INSTAGRAM") ? <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="instagram-audio-heading">
                 <div><h3 id="instagram-audio-heading" className="flex items-center gap-2 text-sm font-semibold text-slate-800"><RiMusic2Line size={17} className="text-indigo-600" />Música ou áudio do Instagram</h3><p className="mt-1 text-xs leading-5 text-slate-500">Escolha uma faixa autorizada para anexar ao Reel. A faixa será aplicada na publicação do Instagram; Facebook e Threads continuarão usando o áudio do vídeo original.</p></div>

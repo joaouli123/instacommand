@@ -14,6 +14,7 @@ import { publicMediaBase, normalizeMediaUrl } from '../utils/public-media';
 import { publicMetaMessage } from '../utils/public-meta-message';
 import { graphGet } from '../utils/instagram-api';
 import { getDecryptedToken } from '../services/instagram/auth.service';
+import { validateInstagramAdvancedSettings } from '../services/instagram/advanced-settings';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -45,7 +46,7 @@ router.post('/', async (req: any, res, next) => {
   try {
     const { accountId, threadsAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
-      instagramAudioVolume, instagramVideoVolume } = req.body;
+      instagramAudioVolume, instagramVideoVolume, advancedSettings } = req.body;
     if (status !== undefined && !['DRAFT', 'SCHEDULED'].includes(status)) return res.status(400).json({ error: 'Status de criação inválido.' });
     const normalizedPlatforms = Array.isArray(platforms) && platforms.length ? platforms : ['INSTAGRAM'];
     const textOnlyThreads = normalizedPlatforms.length === 1 && normalizedPlatforms[0] === 'THREADS';
@@ -102,6 +103,13 @@ router.post('/', async (req: any, res, next) => {
     if (mediaType === 'CAROUSEL' && (mediaUrls.length < 2 || mediaUrls.length > 10)) {
       return res.status(400).json({ error: 'Um carrossel precisa ter entre 2 e 10 mídias.' });
     }
+    const normalizedAdvancedSettings = validateInstagramAdvancedSettings(advancedSettings, mediaType, mediaUrls.length);
+    const hasInstagramAdvancedSettings = normalizedAdvancedSettings.firstComment || normalizedAdvancedSettings.disableComments
+      || normalizedAdvancedSettings.collaborators.length || normalizedAdvancedSettings.userTags.length
+      || normalizedAdvancedSettings.altTexts.some(Boolean);
+    if (hasInstagramAdvancedSettings && !normalizedPlatforms.includes('INSTAGRAM')) {
+      return res.status(400).json({ error: 'As configurações avançadas selecionadas valem para publicações no Instagram.' });
+    }
     const targetDate = new Date(scheduledFor);
     if (Number.isNaN(targetDate.getTime())) return res.status(400).json({ error: 'Data de publicação inválida.' });
     if (status === 'SCHEDULED') {
@@ -125,6 +133,7 @@ router.post('/', async (req: any, res, next) => {
         instagramAudioArtist: normalizedAudioId ? instagramAudioArtist || null : null,
         instagramAudioVolume: normalizedAudioId ? instagramAudioVolume ?? 80 : null,
         instagramVideoVolume: normalizedAudioId ? instagramVideoVolume ?? 60 : null,
+        advancedSettings: normalizedAdvancedSettings as any,
         scheduledFor: targetDate,
         status: status || PostStatus.DRAFT,
       }
@@ -226,7 +235,7 @@ router.patch('/:id', async (req: any, res, next) => {
   try {
     const { caption, scheduledFor, status, platforms, threadsAccountId, mediaUrls, mediaType, hashtags,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
-      instagramAudioVolume, instagramVideoVolume } = req.body;
+      instagramAudioVolume, instagramVideoVolume, advancedSettings } = req.body;
     const post = await prisma.scheduledPost.findFirst({
       where: { id: req.params.id, userId: req.user.id }
     });
@@ -260,6 +269,16 @@ router.patch('/:id', async (req: any, res, next) => {
     const nextMediaType = mediaType || post.mediaType;
     const nextMediaUrls = mediaUrls ?? post.mediaUrls;
     const nextCaption = caption ?? post.caption;
+    const nextAdvancedSettings = advancedSettings === undefined ? undefined
+      : validateInstagramAdvancedSettings(advancedSettings, nextMediaType, nextMediaUrls.length);
+    if (nextAdvancedSettings) {
+      const hasInstagramAdvancedSettings = nextAdvancedSettings.firstComment || nextAdvancedSettings.disableComments
+        || nextAdvancedSettings.collaborators.length || nextAdvancedSettings.userTags.length
+        || nextAdvancedSettings.altTexts.some(Boolean);
+      if (hasInstagramAdvancedSettings && !nextPlatforms.includes('INSTAGRAM')) {
+        return res.status(400).json({ error: 'As configurações avançadas selecionadas valem para publicações no Instagram.' });
+      }
+    }
     const nextIsAiGenerated = isAiGenerated === undefined ? post.isAiGenerated : isAiGenerated;
     if (nextIsAiGenerated && !nextPlatforms.includes('INSTAGRAM')) return res.status(400).json({ error: 'A identificação de conteúdo gerado por IA está disponível para publicações no Instagram.' });
     const nextAudioId = instagramAudioId === undefined ? post.instagramAudioId : instagramAudioId === null || instagramAudioId === '' ? null
@@ -308,6 +327,7 @@ router.patch('/:id', async (req: any, res, next) => {
         instagramAudioArtist: nextAudioId ? (instagramAudioArtist === undefined ? undefined : instagramAudioArtist) : null,
         instagramAudioVolume: nextAudioId ? nextAudioVolume ?? 80 : null,
         instagramVideoVolume: nextAudioId ? nextVideoVolume ?? 60 : null,
+        advancedSettings: nextAdvancedSettings as any,
         scheduledFor: scheduledFor ? nextDate : undefined,
         status,
         platforms: Array.isArray(platforms) && platforms.length ? nextPlatforms : undefined,
@@ -420,6 +440,12 @@ router.post('/:id/publish', async (req: any, res, next) => {
     });
     const publishResults = (published?.publishResults || {}) as Record<string, unknown>;
     const succeeded = Object.keys(publishResults);
+    const warnings = Object.entries(publishResults).flatMap(([platform, value]) => {
+      if (!value || typeof value !== 'object' || !Array.isArray((value as any).advancedWarnings)) return [];
+      return (value as any).advancedWarnings
+        .filter((message: unknown): message is string => typeof message === 'string')
+        .map((message: string) => ({ platform, message: publicMetaMessage(message) }));
+    });
     const failures = (latestState?.errorMessage || '')
       .split(' | ')
       .map((entry) => {
@@ -438,6 +464,7 @@ router.post('/:id/publish', async (req: any, res, next) => {
           platform,
           message: publicMetaMessage(failures.find((failure) => failure.platform.toUpperCase() === platform)?.message || 'Não foi possível publicar nesta rede.'),
         })),
+        warnings,
       },
     });
   } catch (error) {

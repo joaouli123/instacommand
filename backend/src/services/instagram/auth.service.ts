@@ -554,6 +554,20 @@ export const getDecryptedToken = async (accountId: string) => {
   return decrypt(account.pageAccessToken);
 };
 
+export const getInstagramGrantedPermissions = async (accountId: string): Promise<string[]> => {
+  const account = await prisma.instagramAccount.findUnique({
+    where: { id: accountId },
+    select: { userId: true, pageAccessToken: true },
+  });
+  if (!account) throw new Error('Account not found');
+  const credentials = await getMetaCredentials(account.userId);
+  if (!credentials.appId || !credentials.appSecret) throw new Error('A configuração do aplicativo Meta não permite verificar as permissões desta conta.');
+  const token = decrypt(account.pageAccessToken);
+  const appAccessToken = `${credentials.appId}|${credentials.appSecret}`;
+  const debug = await graphGet('/debug_token', appAccessToken, { input_token: token });
+  return Array.isArray(debug.data?.scopes) ? debug.data.scopes.filter((scope: unknown): scope is string => typeof scope === 'string') : [];
+};
+
 export const getThreadsOAuthUrl = async (userId: string, state?: string) => {
   const credentials = await getThreadsCredentials(userId);
   if (!credentials.appId || !credentials.appSecret) {
