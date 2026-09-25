@@ -25,6 +25,15 @@ const encodeValue = (value: unknown) => {
   return JSON.stringify(value);
 };
 
+const safeMetaDiagnostic = (value: unknown) => {
+  if (typeof value !== 'string') return undefined;
+  return value
+    .replace(/\b(access_token|appsecret_proof|client_secret)\s*[:=]\s*[^\s&,}]+/gi, (_match, key: string) => `${key}=[REDACTED]`)
+    .replace(/\b(?:EA[A-Za-z0-9_-]{20,}|IG[A-Z0-9_-]{20,}|[A-Za-z0-9_-]{48,})\b/g, '[REDACTED]')
+    .replace(/\b\d{9,}\b/g, '[ID]')
+    .slice(0, 300);
+};
+
 const requestGraph = async (
   method: 'GET' | 'POST' | 'DELETE',
   path: string,
@@ -64,6 +73,12 @@ const requestGraph = async (
         endpoint: normalizedPath.replace(/^\/\d+(?=\/|$)/, '/:id'),
         status: response.status,
         ...details,
+        // This endpoint's generic code 3 is otherwise ambiguous. Keep the
+        // provider's short reason in private server logs, with tokens and
+        // long account identifiers stripped, so we can diagnose access gates.
+        ...(normalizedPath.endsWith('/subscribed_apps')
+          ? { metaMessage: safeMetaDiagnostic(metaError.message) }
+          : {}),
       });
       throw new InstagramApiError(
         'Meta Graph API request was rejected.',

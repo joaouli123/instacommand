@@ -64,3 +64,32 @@ test('Graph API errors preserve safe Meta diagnostics without logging or returni
   assert.match(responseBody.message, /A-safe-support-reference/);
   assert.doesNotMatch(responseBody.message, new RegExp(accessToken));
 });
+
+test('subscription diagnostics retain Meta reason while redacting credentials and numeric IDs', async () => {
+  const secretFromProvider = 'EAAbcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMN';
+  const longOpaqueValue = 'A'.repeat(64);
+  console.warn = (...values) => warnings.push(values);
+  global.fetch = async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({
+      error: {
+        message: `(#3) Application does not have the capability for 17841400000000000; access_token=${secretFromProvider} proof=${longOpaqueValue}`,
+        type: 'OAuthException',
+        code: 3,
+      },
+    }),
+  });
+
+  await assert.rejects(
+    graphPost('/17841400000000000/subscribed_apps', 'another-sensitive-access-token', { subscribed_fields: 'comments,messages' }),
+    (error) => error instanceof InstagramApiError && error.metaCode === 3,
+  );
+
+  const log = JSON.stringify(warnings);
+  assert.match(log, /Application does not have the capability/);
+  assert.doesNotMatch(log, /17841400000000000/);
+  assert.doesNotMatch(log, new RegExp(secretFromProvider));
+  assert.doesNotMatch(log, new RegExp(longOpaqueValue));
+  assert.doesNotMatch(log, /another-sensitive-access-token/);
+});
