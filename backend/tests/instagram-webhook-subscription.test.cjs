@@ -40,6 +40,20 @@ test('message-only access installs the Page without subscribing to Facebook Mess
   assert.equal(writes[0].params.subscribed_fields, 'feed');
 });
 
+test('explicit messaging consent subscribes Page messages while keeping the feed', async () => {
+  scopes.push('pages_messaging');
+  await subscribeInstagramAccountToWebhooks('owner', 'account');
+  assert.deepEqual(writes, [{ path: '/page-123/subscribed_apps', token: 'test-page-token', params: { subscribed_fields: 'feed,messages' } }]);
+  await subscribeInstagramAccountToWebhooks('owner', 'account');
+  assert.equal(writes[1].params.subscribed_fields, 'feed,messages');
+});
+
+test('Page messaging scope alone does not enable Instagram messaging subscriptions', async () => {
+  scopes = ['instagram_manage_comments', 'pages_manage_metadata', 'pages_messaging'];
+  await subscribeInstagramAccountToWebhooks('owner', 'account');
+  assert.equal(writes[0].params.subscribed_fields, 'feed');
+});
+
 test('no Instagram automation permission stops before subscription', async () => {
   scopes = ['pages_manage_metadata'];
   await assert.rejects(subscribeInstagramAccountToWebhooks('owner', 'account'), /permissões/);

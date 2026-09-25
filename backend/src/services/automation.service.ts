@@ -306,9 +306,14 @@ export const subscribeInstagramAccountToWebhooks = async (userId: string, accoun
   if (!status.grantedPermissions.includes('pages_manage_metadata')) throw new ValidationError('Reconecte a conta e permita receber eventos da Página vinculada para ativar as automações.');
   const token = await getDecryptedToken(account.id);
   // Facebook Login subscribes the linked Page; the IG-user edge belongs to Instagram Login.
-  // Instagram fields (comments/messages) are selected on the app's Instagram webhook.
-  // Page installation requires any PAGE field, not the Instagram field names.
-  // https://developers.facebook.com/docs/graph-api/webhooks/getting-started/webhooks-for-instagram
+  // Keep the feed installation used by comment webhooks. The Page's messages
+  // field additionally requires pages_messaging; only request it after consent.
+  // App-level Instagram comments/messages subscriptions are still required.
+  // https://developers.facebook.com/documentation/business-messaging/messenger-platform/webhooks
   const page = await verifyFacebookPageLink(account.pageId, account.igUserId, token);
-  return graphPost(`/${page.id}/subscribed_apps`, token, { subscribed_fields: 'feed' });
+  const subscribedFields = ['feed'];
+  if (status.canAutomateMessages && status.grantedPermissions.includes('pages_messaging')) {
+    subscribedFields.push('messages');
+  }
+  return graphPost(`/${page.id}/subscribed_apps`, token, { subscribed_fields: subscribedFields.join(',') });
 };
