@@ -6,6 +6,7 @@ require.cache[require.resolve('../dist/config/env')] = { exports: { env: {
 } } };
 require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: class {
   instagramAccount = { findFirst: async ({ where }) => account && account.userId === where.userId ? account : null };
+  automationExecution = { findFirst: async () => null };
 } } };
 require.cache[require.resolve('../dist/services/ai.service')] = { exports: {} };
 require.cache[require.resolve('../dist/services/instagram/auth.service')] = { exports: {

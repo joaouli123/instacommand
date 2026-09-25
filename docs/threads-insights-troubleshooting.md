@@ -1,48 +1,49 @@
-# Threads Insights: investigação e plano de correção
+# Threads Insights: diagnóstico e correção
 
-Atualizado em 2026-09-22. Este documento separa fatos reproduzidos, configuração necessária e hipóteses para o HTTP 500 da API de Insights do Threads. Não afirma que o problema externo foi resolvido.
+Atualizado em 2026-09-25. Evidências de produção abaixo são observações dessa data; não representam aprovação da Meta nem funcionamento completo da integração.
 
-## Sintoma reproduzido
+## Causa confirmada da recusa de Insights
 
-- Em produção, a autenticação Threads e a leitura do perfil/publicações funcionam; o relatório lista 21 publicações.
-- `GET /me/threads_insights` retorna HTTP 500 com erro Meta código 1; trocar para a rota versionada `/v1.0` não resolveu.
-- A consulta de métricas agrupadas, alinhada ao formato da coleção oficial da Meta, também falhou. Logo, apenas reduzir a quantidade de chamadas ou separar as métricas não é correção comprovada.
-- O token não foi inspecionado via debugger durante esta investigação. Portanto ainda não sabemos se contém `threads_manage_insights`, se expirou, nem o nível de acesso efetivo.
+- O token armazenado é válido e permite ler perfil/publicações. O debugger retornou apenas `threads_basic` e `threads_content_publish`: falta `threads_manage_insights`.
+- `/me/threads_insights?metric=views` retornou HTTP 500/código 1. Com o mesmo token e o ID explícito da conta, `/{threads-user-id}/threads_insights?metric=views` retornou HTTP 500/código 10: aplicação sem permissão para essa ação.
+- Portanto, neste caso, HTTP 500 não basta para classificar o problema como indisponibilidade da Meta. O código de erro também precisa ser considerado.
+- O debugger identificou o nome do aplicativo, mas não retornou `app_id`; não foi possível afirmar correspondência de ID por essa resposta.
+- A configuração efetiva de OAuth Threads não tinha um par completo de credenciais no servidor nem no workspace. O token já salvo continuava permitindo leituras básicas, mas uma nova autorização não podia ser iniciada.
 
-## Fatos sobre autorização e app
+## Correções no código
 
-1. A coleção oficial Threads da Meta documenta `GET /{threads-user-id}/threads_insights` (também `/me/threads_insights`), exige métrica(s) e mostra métricas de conta em uma lista separada por vírgulas. O exemplo usa `views,likes,replies,reposts,quotes,followers_count,follower_demographics`.
-2. A própria orientação de autorização da coleção manda verificar no Access Token Debugger a presença de `threads_basic` e `threads_manage_insights`, além da validade do token.
-3. O aplicativo Threads tem credenciais próprias. O catálogo oficial de onboarding da Meta diz para criar app Meta com o caso de uso Threads e usar o Client ID do app Threads. O ID da aplicação Facebook/Instagram não deve ser usado como fallback para Threads.
-4. O backend antes permitia esse fallback. A correção local remove o fallback e escolhe o par de credenciais Threads (`THREADS_APP_ID` + `THREADS_APP_SECRET`) ou o par Threads explicitamente salvo pelo usuário. Testes asseguram que o ID genérico/Facebook nunca vira client ID Threads.
-5. Na configuração Coolify examinada anteriormente não constava `THREADS_APP_ID`; sem esse par de ambiente, novos clientes SaaS sem credenciais próprias não conseguem iniciar OAuth Threads. Isso é uma pendência de configuração de produção, não prova da causa do HTTP 500 na conta já conectada.
+1. Insights usa o ID explícito da conta. Erros de autorização, expiração e limite de chamadas não geram tentativas individuais repetidas por métrica.
+2. Visualizações, curtidas, respostas, repostagens e citações recebem `since` e `until` correspondentes ao período selecionado. Sem esses parâmetros, a documentação define um intervalo padrão curto, não os 7/30/90 dias mostrados no relatório.
+3. `followers_count` é consultado separadamente, sem período: representa a contagem atual, não seguidores ganhos no intervalo.
+4. Valores em `total_value.value` são aceitos para o período somente quando a requisição foi limitada ao mesmo intervalo. Zero real permanece zero; dado ausente continua indisponível.
+5. Falhas parciais preservam as métricas obtidas e as publicações acessíveis. Tokens nunca são incluídos no relatório.
+6. OAuth usa somente o par de credenciais do Threads. Não há fallback para o ID/segredo Facebook nem combinação de credenciais de fontes distintas.
 
-## Relatos técnicos (não são especificação)
+## Pendências externas
 
-- Uma issue de implementação relata HTTP 500/code 1 quando o cliente envia a métrica não suportada `clicks` em insights de post; a correção reportada foi remover essa métrica. É um alerta para testar métricas individualmente, mas refere-se a outro endpoint/caso, não demonstra a causa do nosso erro em insights de conta: https://github.com/mikusnuz/meta-mcp/issues/7
-- Um relato independente de sondagem de API observou HTTP 500/code 10 em insights sem a permissão e HTTP 500/code 1 para combinações que o autor considerou inválidas. Isso reforça que 500 não identifica sozinho a causa e que é necessário verificar scopes e reduzir a consulta a uma métrica conhecida. É evidência anedótica, não documentação oficial: https://www.picklog.cc/blog/threads-api-rate-limit
-- Também há relatos recentes de endpoints Threads que respondem 500/code 1 a campos/métricas incompatíveis. Não se deve concluir “falta de permissão” somente pelo status 500.
+- Configurar o par `THREADS_APP_ID`/`THREADS_APP_SECRET` do aplicativo Threads correto no serviço API, sem registrar o segredo em código/logs.
+- Confirmar o redirect URI e o nível de acesso a `threads_manage_insights`. Reconectar a conta concedendo essa permissão; incluir o escopo no código não altera um token antigo.
+- Repetir a consulta real usando o token renovado. Só considerar resolvido quando a Meta devolver a métrica solicitada.
+- A aprovação para clientes externos é distinta dos testes com contas/pessoas que têm papel autorizado no app. Não ampliar escopos ou papéis por tentativa.
 
-## Procedimento seguro para fechar o diagnóstico
+## Instagram: diagnóstico separado
 
-1. No Meta Access Token Debugger, inspecionar o token Threads sem copiar seu valor para tickets/logs. Registrar apenas `is_valid`, expiração, `app_id`, identidade de usuário e lista de scopes. Confirmar `threads_basic` e `threads_manage_insights`.
-2. Se `threads_manage_insights` estiver ausente: o backend precisa solicitar consentimento Threads atualizado; o usuário deve reconectar e conceder a permissão. Se o app ainda não tem acesso adequado a essa permissão, um administrador da Meta precisa concluir a configuração/revisão do produto. Não pedir `instagram_manage_insights` para resolver Insights do Threads: são APIs e permissões diferentes.
-3. Confirmar que `app_id` do token é exatamente o app Threads configurado e que o Redirect URI cadastrado na Meta coincide caractere por caractere com o callback usado pelo servidor.
-4. Com autorização válida, testar sem mutações: `GET /me?fields=id,username`, depois `/me/threads_insights?metric=views` isoladamente; se falhar, testar uma métrica documentada por chamada (`likes`, `replies`, `reposts`, `quotes`, `followers_count`). Incluir `breakdown` apenas ao pedir `follower_demographics`. Manter request-id/trace e corpo de erro redigido; nunca registrar token.
-5. Se a métrica única continuar em 500/code 1 com token válido e scope confirmado, salvar horário UTC, versão/host, endpoint e request-id; abrir caso no Meta Developer Support. Evitar loops de reconexão/retry, que não alteram scopes e podem gerar rate limiting.
-6. Configurar no serviço API do Coolify o par secreto `THREADS_APP_ID`/`THREADS_APP_SECRET` vindo do app Threads correto, redeployar e testar OAuth com um perfil de teste autorizado. Não reutilizar nem colar secrets em código, issues ou logs.
+A falta de Insights do Threads não explica a ausência de DMs do Instagram.
 
-## Estado das correções locais
+- O fluxo atual do Instagram é Facebook Login com token de Página. Respostas a DMs usam `/{page-id}/messages`; respostas privadas a comentários usam o endpoint distinto `/{ig-user-id}/messages`.
+- Antes de enviar uma DM, o backend confere a relação exata entre Página e Instagram. Duplicatas, janela vencida e autorização inválida bloqueiam o envio.
+- O callback mantém a validação de assinatura e registra somente contagens após validação. O painel distingue permissões de eventos processados e de envios aceitos pela Meta.
+- Nos testes reais anteriores à implantação dessas correções, não havia POST de mensagem identificado nem execução criada. Um teste sintético ou uma inscrição aceita não comprova entrega de evento real.
+- Não foi estabelecido que outra integração instalada causava o bloqueio. Nenhuma integração de terceiros foi removida.
 
-- Corrigido: seleção de credenciais de OAuth Threads não faz fallback ao app Facebook/Meta genérico; callback agora devolve razões legíveis e não expõe erros OAuth detalhados.
-- Testado: testes unitários garantem seleção do par de credenciais correto e cobertura da ausência de credenciais Threads.
-- Ainda pendente: validar os scopes reais do token atualmente conectado; provisionar o par Threads no Coolify; obter aprovação/nível de acesso Meta conforme necessário; repetir a consulta real de Insights depois da reautorização. Não enviar nova permissão para revisão nem ampliar acesso sem confirmação específica.
-- HTTP 500 continua sem causa única comprovada até concluir os passos 1–4. Nenhuma mudança no painel da Meta foi feita nesta investigação.
+## Validação local
 
-## Fontes
+Build do backend, build de produção/TypeScript do frontend e 165 testes automatizados passaram. Incluem rotas, assinatura, ausência de conteúdo privado nos logs, bloqueios de envio, destinos distintos de DM/comentário, períodos e classificação de erros. Mocks locais não substituem o teste real Meta → servidor → resposta.
 
-- Meta, coleção oficial Threads — Account Insights: https://www.postman.com/meta/threads/request/4pbwq2u/get-account-insights
-- Meta, coleção oficial Threads — Authorization e validação de token/scopes: https://www.postman.com/meta/threads/folder/34203612-e0373e84-de6b-46f1-b90d-3fea76ba6782
-- Meta, coleção oficial Threads — documentação e onboarding: https://www.postman.com/meta/threads/documentation/dht3nzz/threads-api
-- Issue comunitária sobre 500 causado por métricas/campos não suportados: https://github.com/mikusnuz/meta-mcp/issues/7
-- Sondagem comunitária dos códigos 500 e scopes: https://www.picklog.cc/blog/threads-api-rate-limit
+## Fontes oficiais
+
+- [Threads — Insights](https://developers.facebook.com/documentation/threads/insights)
+- [Meta, coleção oficial Threads — Account Insights](https://www.postman.com/meta/threads/request/4pbwq2u/get-account-insights)
+- [Instagram — Send API](https://developers.facebook.com/documentation/business-messaging/instagram-messaging/features/send-message)
+- [Instagram — Private Replies](https://developers.facebook.com/documentation/instagram-platform/private-replies)
+- [Instagram — Webhooks](https://developers.facebook.com/documentation/business-messaging/instagram-messaging/webhooks)

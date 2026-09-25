@@ -20,7 +20,11 @@ type Execution = { id: string; eventType: Trigger; status: string; senderUsernam
 type Agent = { id?: string; updatedAt?: string; enabled: boolean; autoSend: boolean; tone: string; instructions: string; knowledgeBase: string; fallback: string }
 type Workspace = {
   automations: AutomationRule[]; templates: Template[]; agent: Agent | null; executions: Execution[]
-  status: { webhookConfigured: boolean; callbackUrl: string; grantedPermissions: string[]; permissionCheckError?: string | null; canAutomateComments: boolean; canAutomateMessages: boolean }
+  status: {
+    webhookConfigured: boolean; callbackUrl: string; grantedPermissions: string[]; permissionCheckError?: string | null
+    canAutomateComments: boolean; canAutomateMessages: boolean
+    activity?: { lastEventProcessedAt: string | null; lastReplyAcceptedAt: string | null }
+  }
 }
 
 const blankRule = { name: "", trigger: "COMMENT_KEYWORD" as Trigger, keywords: "", replyMode: "TEMPLATE" as ReplyMode, publicCommentReply: "", privateCommentReply: "", directMessageReply: "" }
@@ -126,7 +130,7 @@ function AutomationWorkspace({ accountId, username }: { accountId: string; usern
     setSendingExecutionId(execution.id)
     try {
       await api.sendReviewedAutomationReply(accountId, execution.id, message)
-      toast.success("Resposta enviada pela Meta.")
+      toast.success("Envio aceito pela Meta.")
       await refresh()
     } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível enviar a resposta.") }
     finally { setSendingExecutionId(null) }
@@ -139,15 +143,22 @@ function AutomationWorkspace({ accountId, username }: { accountId: string; usern
 
   const commentReady = workspace.status.webhookConfigured && workspace.status.canAutomateComments
   const messageReady = workspace.status.webhookConfigured && workspace.status.canAutomateMessages
+  const lastEvent = workspace.status.activity?.lastEventProcessedAt
+  const lastReply = workspace.status.activity?.lastReplyAcceptedAt
+  const hasActivity = Boolean((commentReady || messageReady) && lastEvent)
 
   return <div className="mx-auto max-w-6xl space-y-5 pb-8">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-600">Relacionamento com a audiência</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Automações do Instagram</h2><p className="mt-1 text-sm text-slate-500">Conta ativa: <span className="font-semibold text-slate-700">@{username}</span> · {activeRules} {activeRules === 1 ? "regra ativa" : "regras ativas"}</p></div><Button variant="outline" onClick={() => void workspaceQuery.refetch()} disabled={workspaceQuery.isFetching} className="gap-2"><RefreshCw size={15} className={workspaceQuery.isFetching ? "animate-spin" : ""}/>Atualizar</Button></div>
 
-    <Card className={`p-4 sm:p-5 ${commentReady || messageReady ? "border-emerald-200 bg-emerald-50/50" : "border-amber-200 bg-amber-50/70"}`}>
-      <div className="flex items-start gap-3"><div className={`mt-0.5 rounded-xl p-2 ${commentReady || messageReady ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{commentReady || messageReady ? <CheckCircle2 size={18}/> : <AlertTriangle size={18}/>}</div><div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-slate-900">{commentReady || messageReady ? "Conexão com a Meta parcialmente pronta" : "A Meta ainda precisa habilitar esta integração"}</h3><p className="mt-1 text-sm leading-6 text-slate-600">Webhook do servidor: {workspace.status.webhookConfigured ? "configurado" : "aguardando configuração"}. Comentários: {workspace.status.canAutomateComments ? "permissão concedida" : "permissão não detectada"}. Mensagens: {workspace.status.canAutomateMessages ? "permissão concedida" : "permissão não detectada"}.</p>
+    <Card className={`p-4 sm:p-5 ${hasActivity ? "border-emerald-200 bg-emerald-50/50" : "border-amber-200 bg-amber-50/70"}`}>
+      <div className="flex items-start gap-3"><div className={`mt-0.5 rounded-xl p-2 ${hasActivity ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{hasActivity ? <CheckCircle2 size={18}/> : <AlertTriangle size={18}/>}</div><div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-slate-900">{hasActivity ? "Há eventos processados nesta conta" : commentReady || messageReady ? "Permissões detectadas; recebimento ainda não confirmado" : "A integração precisa de configuração ou autorização"}</h3><p className="mt-1 text-sm leading-6 text-slate-600">Recebimento no servidor: {workspace.status.webhookConfigured ? "configurado" : "aguardando configuração"}. Comentários: {workspace.status.canAutomateComments ? "permissão concedida" : "permissão não detectada"}. Mensagens: {workspace.status.canAutomateMessages ? "permissão concedida" : "permissão não detectada"}.</p>
       {workspace.status.permissionCheckError && <p className="mt-1 text-xs text-amber-800">{workspace.status.permissionCheckError}</p>}
       {!workspace.status.webhookConfigured && <p className="mt-2 break-all rounded-lg bg-white/80 p-2 font-mono text-[11px] text-slate-600">Callback para configurar no Meta for Developers: {workspace.status.callbackUrl}</p>}
-      <p className="mt-2 text-xs leading-5 text-slate-500">É necessário configurar os eventos <code>comments</code> e <code>messages</code> no app da Meta e solicitar as permissões aprovadas para sua conta. Enquanto isso, eventos ficarão bloqueados e registrados — nenhum envio é simulado. Curtidas e novos seguidores não são gatilhos disponíveis nesta integração.</p>
+      <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+        <div className="rounded-lg bg-white/80 p-3"><dt className="font-semibold text-slate-700">Último evento processado</dt><dd className="mt-1 text-slate-500">{lastEvent ? new Date(lastEvent).toLocaleString("pt-BR") : "Nenhum evento processado ainda"}</dd></div>
+        <div className="rounded-lg bg-white/80 p-3"><dt className="font-semibold text-slate-700">Último envio aceito pela Meta</dt><dd className="mt-1 text-slate-500">{lastReply ? new Date(lastReply).toLocaleString("pt-BR") : "Nenhum envio confirmado ainda"}</dd></div>
+      </dl>
+      <p className="mt-2 text-xs leading-5 text-slate-500">Permissão concedida não confirma que comentários e mensagens estão chegando. O histórico só aparece após o processamento de um evento recebido. Antes da aprovação pública pela Meta, os testes são restritos às contas autorizadas para testar o app. Um envio aceito não confirma entrega ou leitura. Curtidas e novos seguidores não são gatilhos disponíveis.</p>
       {workspace.status.webhookConfigured && (workspace.status.canAutomateComments || workspace.status.canAutomateMessages) && <Button size="sm" onClick={() => void subscribe()} disabled={saving} className="mt-3 gap-2"><Zap size={14}/>Conectar eventos desta conta</Button>}
       </div></div>
     </Card>

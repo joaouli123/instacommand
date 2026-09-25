@@ -4,7 +4,7 @@ import { getDecryptedThreadsToken } from './instagram/auth.service';
 const prisma = new PrismaClient();
 type Metric = { value: number | null; daily: Array<{ date: string; value: number }>; available: boolean };
 
-export function parseThreadsMetric(item: any, cumulative = false, since?: number, until?: number): Metric {
+export function parseThreadsMetric(item: any, cumulative = false, since?: number, until?: number, totalMatchesPeriod = false): Metric {
   const numeric = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
   const values = Array.isArray(item?.values) ? item.values : [];
   const inPeriod = (v: any) => {
@@ -17,7 +17,9 @@ export function parseThreadsMetric(item: any, cumulative = false, since?: number
     .map((v: any) => ({ date: v.end_time, value: v.value }));
   const scalars = periodValues.map((v: any) => v.value).filter(numeric) as number[];
   const hasPeriod = since !== undefined && until !== undefined;
-  const value = !hasPeriod && numeric(item?.total_value?.value) ? item.total_value.value
+  // Trust a scalar total for a selected period only when the API request used
+  // that exact interval. Never relabel an unbounded lifetime total.
+  const value = (!hasPeriod || totalMatchesPeriod) && numeric(item?.total_value?.value) ? item.total_value.value
     : scalars.length ? (cumulative ? scalars[scalars.length - 1] : scalars.reduce((a, b) => a + b, 0)) : null;
   return { value, daily, available: value !== null };
 }
@@ -47,8 +49,9 @@ async function request(path: string, token: string, params: Record<string, strin
       .replace(/access_token=([^&\s]+)/gi, 'access_token=[redigido]')
       .replace(/[A-Za-z0-9_-]{48,}/g, '[redigido]').slice(0, 500) || undefined;
     throw new ThreadsReportError(code === 190 ? 'expired'
-      : [10, 200].includes(code) || response.status === 403 ? 'permission'
-        : response.status === 429 || [4, 17, 32, 613].includes(code) ? 'rate_limit' : 'unavailable',
+      : [10, 200].includes(code) ? 'permission'
+        : response.status === 429 || [4, 17, 32, 613].includes(code) ? 'rate_limit'
+          : response.status === 403 ? 'permission' : 'unavailable',
       response.status, Number.isFinite(code) ? code : undefined, Number.isFinite(subcode) ? subcode : undefined, providerMessage);
   }
   return data;
@@ -73,22 +76,22 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
     }
   }
   const metrics = ['views', 'likes', 'replies', 'reposts', 'quotes'];
-  // Meta documents account insights as a comma-separated `metric` list. A
-  // single request both follows that contract and avoids six identical API
-  // calls every time the report is opened/refreshed.
-  const [accountInsights, content] = await Promise.all([
+  // An explicit user ID preserves Meta's permission error; /me can mask it
+  // as HTTP 500/code 1. Followers do not accept since/until and stay separate.
+  const insightsPath = `/${encodeURIComponent(account.threadsUserId)}/threads_insights`;
+  const periodParams = { since: String(since), until: String(until) };
+  const [accountInsights, followerInsights, content] = await Promise.all([
     optional('account_insights', async () => {
-      const requestedMetrics = [...metrics, 'followers_count'];
       try {
-        return await request('/me/threads_insights', token, { metric: requestedMetrics.join(',') });
+        return await request(insightsPath, token, { metric: metrics.join(','), ...periodParams });
       } catch (combinedError) {
-        // A provider-side error for one metric can fail the whole Graph
-        // response. Retry each documented metric once, sequentially, so the
-        // report can retain partial results without creating a request burst.
+        // Authorization, expiry and rate limits affect the whole request.
+        // Retrying every metric would not fix them and wastes the quota.
+        if (combinedError instanceof ThreadsReportError && combinedError.kind !== 'unavailable') throw combinedError;
         const data: any[] = [];
-        for (const metric of requestedMetrics) {
+        for (const metric of metrics) {
           try {
-            const result = await request('/me/threads_insights', token, { metric });
+            const result = await request(insightsPath, token, { metric, ...periodParams });
             data.push(...(Array.isArray(result.data) ? result.data : []));
           } catch (error) {
             const issue = error instanceof ThreadsReportError ? error : combinedError;
@@ -96,11 +99,14 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
               reason: issue instanceof ThreadsReportError ? issue.kind : 'unavailable',
               ...(issue instanceof ThreadsReportError ? { status: issue.status, code: issue.code,
                 subcode: issue.subcode, ...(issue.providerMessage ? { message: issue.providerMessage } : {}) } : {}) });
+            // Keep metrics already returned, but stop on account-wide failures.
+            if (issue instanceof ThreadsReportError && issue.kind !== 'unavailable') break;
           }
         }
         return { data };
       }
     }),
+    optional('followers_count', () => request(insightsPath, token, { metric: 'followers_count' })),
     optional('content', async () => {
       const posts: any[] = [];
       let after = '';
@@ -132,9 +138,10 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
   const insightItems = Array.isArray(accountInsights?.data) ? accountInsights.data : [];
   const data: Record<string, Metric> = {};
   for (const metric of metrics) {
-    data[metric] = parseThreadsMetric(insightItems.find((item: any) => item.name === metric), false, since, until);
+    data[metric] = parseThreadsMetric(insightItems.find((item: any) => item.name === metric), false, since, until, true);
   }
-  data.followers_count = parseThreadsMetric(insightItems.find((item: any) => item.name === 'followers_count'), true);
+  const followerItems = Array.isArray(followerInsights?.data) ? followerInsights.data : [];
+  data.followers_count = parseThreadsMetric(followerItems.find((item: any) => item.name === 'followers_count'), true);
   return {
     network: 'THREADS', account: { id: account.id, username: account.username, name: account.name },
     period: { days, since: new Date(since * 1000).toISOString(), until: new Date(until * 1000).toISOString() },

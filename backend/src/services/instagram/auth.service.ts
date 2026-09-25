@@ -565,6 +565,7 @@ export const getInstagramGrantedPermissions = async (accountId: string): Promise
   const token = decrypt(account.pageAccessToken);
   const appAccessToken = `${credentials.appId}|${credentials.appSecret}`;
   const debug = await graphGet('/debug_token', appAccessToken, { input_token: token });
+  if (debug.data?.is_valid !== true) throw new Error('A autorização da conta não é mais válida. Reconecte a conta para continuar.');
   return Array.isArray(debug.data?.scopes) ? debug.data.scopes.filter((scope: unknown): scope is string => typeof scope === 'string') : [];
 };
 

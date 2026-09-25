@@ -40,6 +40,13 @@ export const getAutomationStatus = async (userId: string, accountId: string, ref
   }
   const { grantedPermissions, permissionCheckError } = permissionResult;
   const configured = Boolean(env.WEBHOOK_VERIFY_TOKEN && env.FB_APP_SECRET);
+  const [lastEvent, lastReply] = await Promise.all([
+    prisma.automationExecution.findFirst({ where: { accountId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+    prisma.automationExecution.findFirst({
+      where: { accountId, OR: [{ publicReplySent: true }, { privateReplySent: true }] },
+      orderBy: { updatedAt: 'desc' }, select: { updatedAt: true },
+    }),
+  ]);
   return {
     webhookConfigured: configured,
     callbackUrl: `${env.BACKEND_URL.replace(/\/$/, '')}/api/webhooks/instagram`,
@@ -47,6 +54,7 @@ export const getAutomationStatus = async (userId: string, accountId: string, ref
     permissionCheckError,
     canAutomateComments: COMMENT_PERMISSION_NAMES.some((scope) => grantedPermissions.includes(scope)),
     canAutomateMessages: MESSAGE_PERMISSION_NAMES.some((scope) => grantedPermissions.includes(scope)),
+    activity: { lastEventProcessedAt: lastEvent?.createdAt ?? null, lastReplyAcceptedAt: lastReply?.updatedAt ?? null },
   };
 };
 
@@ -138,9 +146,12 @@ const sendPrivateCommentReply = async (accountId: string, igUserId: string, comm
   }
 };
 
-const sendDirectMessage = async (accountId: string, igUserId: string, senderId: string, text: string) => {
-  const token = await getDecryptedToken(accountId);
-  return graphPost(`/${igUserId}/messages`, token, { recipient: { id: senderId }, message: { text }, messaging_type: 'RESPONSE' });
+const sendDirectMessage = async (account: { id: string; pageId: string; igUserId: string }, senderId: string, text: string) => {
+  const token = await getDecryptedToken(account.id);
+  // Facebook Login sends DMs through the linked Page. Private comment replies
+  // deliberately use the IG-user endpoint above; the two contracts differ.
+  const page = await verifyFacebookPageLink(account.pageId, account.igUserId, token);
+  return graphPost(`/${page.id}/messages`, token, { recipient: { id: senderId }, message: { text }, messaging_type: 'RESPONSE' });
 };
 
 export const processInstagramAutomationEvent = async (event: InstagramAutomationEvent) => {
@@ -238,7 +249,7 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
       privateReplySent = true;
     }
     if (!isComment && event.senderId) {
-      await sendDirectMessage(account.id, account.igUserId, event.senderId, response);
+      await sendDirectMessage(account, event.senderId, response);
       privateReplySent = true;
     }
     await prisma.automationExecution.update({ where: { id: execution.id }, data: {
@@ -276,7 +287,7 @@ export const sendReviewedAutomationReply = async (userId: string, accountId: str
   if (claim.count !== 1) throw new ConflictError('Esta resposta já foi iniciada ou enviada. Atualize o histórico antes de tentar novamente.');
   try {
     if (isComment) await sendPublicCommentReply(accountId, execution.commentId!, text);
-    else await sendDirectMessage(accountId, execution.account.igUserId, execution.senderId!, text);
+    else await sendDirectMessage(execution.account, execution.senderId!, text);
     await prisma.automationExecution.update({ where: { id: executionId }, data: {
       status: 'SENT', responseText: text, publicReplySent: isComment, privateReplySent: !isComment, error: null,
     } });

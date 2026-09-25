@@ -35,6 +35,13 @@ router.post('/instagram', async (req: RawRequest, res) => {
       attempts: 5, backoff: { type: 'exponential', delay: 2_000 },
       removeOnComplete: { count: 2_000 }, removeOnFail: { count: 5_000 },
     })));
+    // Only counts from signature-verified requests; never log message content,
+    // participant identifiers, access tokens, or the verification secret.
+    console.info('Instagram webhook accepted', {
+      instagramObject: req.body?.object === 'instagram',
+      entries: Array.isArray(req.body?.entry) ? req.body.entry.length : 0,
+      queuedEvents: events.length,
+    });
     return res.sendStatus(200);
   } catch (error) {
     console.error('Could not queue Instagram webhook:', error);
