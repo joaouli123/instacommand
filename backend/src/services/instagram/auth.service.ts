@@ -578,7 +578,9 @@ export const getThreadsOAuthUrl = async (userId: string, state?: string) => {
   const params = new URLSearchParams({
     client_id: credentials.appId,
     redirect_uri: env.THREADS_REDIRECT_URI,
-    scope: 'threads_basic,threads_content_publish,threads_delete,threads_manage_insights',
+    // Keep the normal connection limited to profile, publishing and analytics.
+    // Deleting remote posts is not part of this consent/review flow.
+    scope: 'threads_basic,threads_content_publish,threads_manage_insights',
     response_type: 'code',
     ...(state ? { state } : {}),
   });

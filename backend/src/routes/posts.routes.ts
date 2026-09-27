@@ -381,7 +381,7 @@ router.delete('/:id', async (req: any, res, next) => {
           await deleteThreadsPost(post.publishedPost.threadsPostId, post.threadsAccountId);
         } catch (error) {
           console.error(`Could not delete Threads post ${post.publishedPost.threadsPostId}:`, error);
-          warnings.push('O post do Threads pode continuar no perfil; reconecte a conta autorizando a permissão threads_delete e tente novamente.');
+          warnings.push('O post do Threads pode continuar no perfil; a plataforma não autorizou a exclusão. Confira o post e remova-o diretamente no Threads se necessário.');
         }
       }
     }
