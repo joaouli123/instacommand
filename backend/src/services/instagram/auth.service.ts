@@ -103,7 +103,7 @@ export const saveAiCredentials = async (userId: string, values: { apiKey?: strin
   return getAiCredentialStatus(userId);
 };
 
-const getThreadsCredentials = async (userId?: string): Promise<MetaCredentials> => {
+export const getThreadsCredentials = async (userId?: string): Promise<MetaCredentials> => {
   const user = userId
     ? await prisma.user.findUnique({
         where: { id: userId },
@@ -569,7 +569,7 @@ export const getInstagramGrantedPermissions = async (accountId: string): Promise
   return Array.isArray(debug.data?.scopes) ? debug.data.scopes.filter((scope: unknown): scope is string => typeof scope === 'string') : [];
 };
 
-export const getThreadsOAuthUrl = async (userId: string, state?: string) => {
+export const getThreadsOAuthUrl = async (userId: string, state?: string, includeReplies = false) => {
   const credentials = await getThreadsCredentials(userId);
   if (!credentials.appId || !credentials.appSecret) {
     throw new AppError('THREADS_OAUTH_NOT_CONFIGURED', 503);
@@ -580,7 +580,7 @@ export const getThreadsOAuthUrl = async (userId: string, state?: string) => {
     redirect_uri: env.THREADS_REDIRECT_URI,
     // Keep the normal connection limited to profile, publishing and analytics.
     // Deleting remote posts is not part of this consent/review flow.
-    scope: 'threads_basic,threads_content_publish,threads_manage_insights',
+    scope: ['threads_basic', 'threads_content_publish', 'threads_manage_insights', ...(includeReplies ? ['threads_read_replies'] : [])].join(','),
     response_type: 'code',
     ...(state ? { state } : {}),
   });

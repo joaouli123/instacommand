@@ -16,7 +16,7 @@ function setup(responses, blockedStorage = false) {
     fetch: async (url, options) => { requests.push({ url, options }); if (requests.length > responses.length) throw Error('unexpected retry'); const value = responses[requests.length - 1]; if (value instanceof Error) throw value; return value; },
   };
   vm.runInNewContext(code, context);
-  return { fetchApi: context.exports.fetchApi, requests, redirects, removed };
+  return { fetchApi: context.exports.fetchApi, api: context.exports.api, requests, redirects, removed };
 }
 test('GET retries 304 exactly once, removes validators and retains authentication policy', async () => {
   const s = setup([new Response(null, { status: 304 }), Response.json({ ok: true })]);
@@ -50,4 +50,27 @@ test('multipart request preserves automatic boundary and 204 does not parse empt
   const s = setup([new Response(null, { status: 204 })]);
   assert.equal(await s.fetchApi('/ai/analyze-images', { method: 'POST', body: new FormData() }), null);
   assert.equal(s.requests[0].options.headers.has('Content-Type'), false);
+});
+
+test('conversation reads retain channel isolation and request cancellation', async () => {
+  const s = setup([Response.json({})]); const controller = new AbortController();
+  await s.api.getAutomationConversation('account', 'conversation', 'FACEBOOK', controller.signal);
+  assert.match(s.requests[0].url, /accountId=account&platform=FACEBOOK$/);
+  assert.equal(s.requests[0].options.signal, controller.signal);
+});
+
+test('stop/resume and memory reset never drop account or platform scope', async () => {
+  const s = setup([Response.json({}), Response.json({})]);
+  await s.api.setAutomationConversationState('account', 'conversation', 'INSTAGRAM', 'BOT');
+  await s.api.forgetAutomationConversation('account', 'conversation', 'INSTAGRAM');
+  assert.deepEqual(JSON.parse(s.requests[0].options.body), { accountId: 'account', platform: 'INSTAGRAM', state: 'BOT', consentConfirmed: false });
+  assert.deepEqual(JSON.parse(s.requests[1].options.body), { accountId: 'account', platform: 'INSTAGRAM' });
+});
+
+test('reviewed public Threads send and collector explicitly carry the Threads channel', async () => {
+  const s = setup([Response.json({}), Response.json({})]);
+  await s.api.sendReviewedAutomationReply('thread-account', 'event', 'Texto público revisado', 'THREADS');
+  await s.api.syncThreadsAutomation('thread-account');
+  assert.deepEqual(JSON.parse(s.requests[0].options.body), { accountId: 'thread-account', message: 'Texto público revisado', platform: 'THREADS' });
+  assert.deepEqual(JSON.parse(s.requests[1].options.body), { accountId: 'thread-account', platform: 'THREADS' });
 });

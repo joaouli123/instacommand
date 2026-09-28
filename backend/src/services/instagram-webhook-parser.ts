@@ -8,6 +8,7 @@ const parseTimestamp = (value: unknown) => {
 
 export const parseInstagramWebhookEvents = (payload: any): InstagramAutomationEvent[] => {
   const events: InstagramAutomationEvent[] = [];
+  if (payload?.object && payload.object !== 'instagram') return events;
   for (const entry of Array.isArray(payload?.entry) ? payload.entry : []) {
     const accountIgId = String(entry.id || '');
     if (!accountIgId) continue;
@@ -26,12 +27,31 @@ export const parseInstagramWebhookEvents = (payload: any): InstagramAutomationEv
     for (const item of Array.isArray(entry.messaging) ? entry.messaging : []) {
       const message = item?.message;
       const messageText = typeof message?.text === 'string' ? message.text : Array.isArray(message?.attachments) ? '[Mensagem com mídia]' : undefined;
-      if (!item?.sender?.id || !message?.mid || messageText === undefined || message.is_echo) continue;
+      if (!item?.sender?.id || String(item.sender.id) === accountIgId || !message?.mid || messageText === undefined || message.is_echo || message.is_deleted || message.is_unsupported) continue;
+      if (item.recipient?.id && String(item.recipient.id) !== accountIgId) continue;
       events.push({
         accountIgId, eventKey: `${accountIgId}:message:${String(message.mid)}`, type: 'MESSAGE_ANY',
         senderId: String(item.sender.id), text: messageText,
         sourceMessageId: String(message.mid), timestamp: parseTimestamp(item.timestamp),
       });
+    }
+  }
+  return events;
+};
+
+export const parseFacebookWebhookEvents = (payload: any): InstagramAutomationEvent[] => {
+  if (payload?.object !== 'page') return [];
+  const events: InstagramAutomationEvent[] = [];
+  for (const entry of Array.isArray(payload.entry) ? payload.entry : []) {
+    const pageId = String(entry.id || '');
+    if (!pageId) continue;
+    for (const item of Array.isArray(entry.messaging) ? entry.messaging : []) {
+      const message = item?.message;
+      if (!message?.mid || message.is_echo || message.is_deleted || message.is_unsupported || !item.sender?.id || String(item.sender.id) === pageId || String(item.recipient?.id) !== pageId) continue;
+      const text = typeof message.text === 'string' ? message.text : Array.isArray(message.attachments) ? '[Mensagem com mídia]' : undefined;
+      if (text === undefined) continue;
+      events.push({ platform: 'FACEBOOK', accountIgId: pageId, eventKey: `facebook:${pageId}:message:${String(message.mid)}`,
+        type: 'MESSAGE_ANY', senderId: String(item.sender.id), sourceMessageId: String(message.mid), text, timestamp: parseTimestamp(item.timestamp) });
     }
   }
   return events;

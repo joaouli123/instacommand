@@ -2,7 +2,8 @@ const { test, before, beforeEach, after } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-let server, base, agentWrites, ruleWrites;
+let server, base, agentWrites, ruleWrites, conversationWrites;
+require.cache[require.resolve('../dist/services/threads-automation.service')] = { exports: { syncThreadsAutomation: async () => ({ processed: 0 }) } };
 require.cache[require.resolve('../dist/middleware/auth')] = { exports: {
   authenticate: (req, res, next) => {
     if (!req.headers['x-test-auth']) return res.sendStatus(401);
@@ -11,6 +12,7 @@ require.cache[require.resolve('../dist/middleware/auth')] = { exports: {
   },
 } };
 require.cache[require.resolve('../dist/services/automation.service')] = { exports: {
+  setConversationState: async (...args) => { conversationWrites.push(args); return { state: args[3] }; },
   saveAgentSettings: async (userId, data) => {
     agentWrites.push({ userId, data });
     return { id: 'fixture-agent', ...data };
@@ -38,7 +40,7 @@ before(async () => {
   });
   base = `http://127.0.0.1:${server.address().port}/automations`;
 });
-beforeEach(() => { agentWrites = []; ruleWrites = []; });
+beforeEach(() => { agentWrites = []; ruleWrites = []; conversationWrites = []; });
 after(async () => { await new Promise(resolve => server.close(resolve)); });
 
 const put = (path, body, authenticated = true) => fetch(`${base}${path}`, {
@@ -73,6 +75,20 @@ test('both ready-made and AI rules retain the regular update route', async () =>
     assert.equal(ruleWrites.at(-1).userId, 'fixture-owner');
     assert.equal(ruleWrites.at(-1).id, '22222222-2222-4222-8222-222222222222');
     assert.deepEqual(ruleWrites.at(-1).data, rule);
+  }
+  assert.equal(agentWrites.length, 0);
+});
+
+test('conversation routes bind ownership and the selected network, not supplied user IDs', async () => {
+  const result = await put('/conversations/conversation-test/state', { accountId, platform: 'FACEBOOK', state: 'HUMAN', userId: 'untrusted-owner' });
+  assert.equal(result.status, 200);
+  assert.deepEqual(conversationWrites[0], ['fixture-owner', accountId, 'conversation-test', 'HUMAN', 'FACEBOOK', false]);
+  assert.equal((await put('/conversations/conversation-test/state', { accountId, state: 'BOT' }, false)).status, 401);
+});
+
+test('unknown networks and excessive memory/rate settings are rejected at the route', async () => {
+  for (const values of [{ platform: 'UNKNOWN' }, { memoryDays: 31 }, { memoryDays: -1 }, { maxRepliesPerHour: 0 }, { maxRepliesPerHour: 31 }]) {
+    assert.equal((await put('/agent', { ...agent, ...values })).status, 400);
   }
   assert.equal(agentWrites.length, 0);
 });

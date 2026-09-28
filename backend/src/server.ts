@@ -30,6 +30,7 @@ import { setupPublishPostWorker } from './jobs/publishPost.job';
 import { setupCollectInsightsWorker } from './jobs/collectInsights.job';
 import { setupCollectCompetitorsWorker } from './jobs/collectCompetitors.job';
 import { setupInstagramAutomationWorker } from './jobs/instagramAutomation.job';
+import { setupThreadsAutomationWorker } from './jobs/threadsAutomation.job';
 import { setupRecurringJobs } from './services/scheduler.service';
 
 const app = express();
@@ -64,7 +65,7 @@ app.use(compression());
 app.use(cookieParser());
 app.use(express.json({ verify: (req, _res, buffer) => {
   const request = req as express.Request & { rawBody?: Buffer };
-  if (request.originalUrl.startsWith('/api/webhooks/instagram')) request.rawBody = Buffer.from(buffer);
+  if (request.originalUrl.startsWith('/api/webhooks/')) request.rawBody = Buffer.from(buffer);
 } }));
 app.use(express.urlencoded({ extended: true }));
 // Meta's signed webhooks have their own HMAC verification; keep provider
@@ -119,6 +120,7 @@ const startServer = async () => {
     setupCollectInsightsWorker();
     setupCollectCompetitorsWorker();
     setupInstagramAutomationWorker();
+    await setupThreadsAutomationWorker();
     
     // Setup cron jobs
     await setupRecurringJobs();
