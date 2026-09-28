@@ -67,10 +67,10 @@ const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 45_0
 
 const requestGemini = async (prompt: string, credentials: AiCredentials, images: AiImage[] = []) => {
   const model = encodeURIComponent(credentials.model);
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${credentials.apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const response = await fetchWithTimeout(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': credentials.apiKey },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: 'user', parts: [{ text: prompt }, ...images.flatMap((image, index) => [
