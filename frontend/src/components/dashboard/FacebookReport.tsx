@@ -6,7 +6,7 @@ import { Download, RefreshCw } from 'lucide-react'
 import { api, fetchApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { getObservedInteractions, rankFacebookPosts } from '@/lib/facebook-report'
+import { facebookHistoryRows, getObservedInteractions, rankFacebookPosts, type FacebookAudienceHistory } from '@/lib/facebook-report'
 import { ChartRow, downloadReport, reportDay, reportFormat } from '@/lib/report-chart'
 import { MetricCard } from './MetricCard'
 import { ReportChart } from './ReportChart'
@@ -17,7 +17,7 @@ type Post = { id: string; text: string; createdAt: string; permalink: string | n
 type Total = { value: number; availablePosts: number; complete: boolean }
 type Report = { page: { id: string; name: string | null }; account: { instagram: string }; collectedAt: string;
   followers: number | null; pageLikes: number | null; posts: Post[]; contentAvailable: boolean; complete: boolean;
-  totals: Record<string, Total>; insights: { mediaViews: number | null; mediaViewsAvailable: boolean; daily?: Array<{ date: string; value: number }> };
+  totals: Record<string, Total>; insights: { mediaViews: number | null; mediaViewsAvailable: boolean; daily?: Array<{ date: string; value: number }>; mediaViewsPartial?: boolean; history?: FacebookAudienceHistory; period?: { days: number; limited: boolean; since: string; until: string } };
   issues: string[]; measurement: string; period: { since: string; until: string } }
 const periods = [{ days: 7, label: 'Últimos 7 dias' }, { days: 30, label: 'Últimos 30 dias' }, { days: 90, label: 'Últimos 90 dias' }, { days: 365, label: 'Último ano' }, { days: 730, label: 'Últimos 2 anos' }]
 const interactionSeries = [{ key: 'reactions', label: 'Reações', color: '#4f46e5' }, { key: 'comments', label: 'Comentários', color: '#0284c7' }, { key: 'shares', label: 'Compartilhamentos', color: '#0d9488' }]
@@ -31,6 +31,8 @@ export function FacebookReport() {
   const query = useQuery<Report>({ queryKey: ['facebook-report', accountId, days], enabled: !!accountId,
     queryFn: ({ signal }) => fetchApi(`/analytics/networks/facebook/${encodeURIComponent(accountId)}?days=${days}`, { signal }), staleTime: 60_000, retry: false })
   const report = query.data
+  const audienceHistory = useMemo(() => facebookHistoryRows(report?.insights.history), [report])
+  const insightWindow = `Últimos ${report?.insights.period?.days ?? Math.min(days, 90)} dias`
   const daily = useMemo(() => {
     const map = new Map<string, ChartRow>()
     for (const post of report?.posts || []) {
@@ -61,13 +63,19 @@ export function FacebookReport() {
     {query.isError && <Card className="border-rose-200 p-4 text-sm text-rose-700" role="alert">{query.error.message} Use Atualizar para tentar novamente.</Card>}
     {report && <>
       <p className="text-xs leading-relaxed text-slate-500">{report.page.name} · Atualizado em {new Date(report.collectedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
+      {report.insights.period?.limited && <p className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 text-xs leading-relaxed text-slate-600">Visualizações e séries de audiência: últimos {report.insights.period.days} dias, limite desta consulta do Facebook. A lista de publicações mantém o período selecionado de {days} dias.</p>}
       {report.issues.length > 0 && <details className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600"><summary className="cursor-pointer font-semibold">Disponibilidade dos dados · {report.issues.length} aviso(s)</summary><div className="mt-2 space-y-2">{report.issues.map(issue => <p key={issue}>{issue}</p>)}</div></details>}
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4"><MetricCard label="Seguidores" value={report.followers} detail="Total atual" accent/><MetricCard label="Curtidas da Página" value={report.pageLikes} detail="Total atual"/><MetricCard label="Publicações" value={report.contentAvailable ? report.posts.length : null} detail={report.complete ? 'No período selecionado' : 'Consulta parcial ou indisponível'}/><MetricCard label="Visualizações" value={report.insights.mediaViews} detail={report.insights.mediaViewsAvailable ? 'Soma diária no período' : 'Não fornecidas pela rede'}/></div>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4"><MetricCard label="Seguidores" value={report.followers} detail="Total atual" accent/><MetricCard label="Curtidas da Página" value={report.pageLikes} detail="Total atual"/><MetricCard label="Publicações" value={report.contentAvailable ? report.posts.length : null} detail={report.complete ? 'No período selecionado' : 'Consulta parcial ou indisponível'}/><MetricCard label="Visualizações" value={report.insights.mediaViews} detail={report.insights.mediaViewsAvailable ? `${insightWindow} · soma diária${report.insights.mediaViewsPartial ? ' parcial' : ''}` : 'Não fornecidas pela rede'}/></div>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">{interactionSeries.map(({ key, label }) => { const total = report.totals[key]; return <MetricCard key={key} label={label} value={total.complete || total.availablePosts ? total.value : null} detail={total.complete ? 'Contadores dos posts do período' : `${total.availablePosts} de ${report.posts.length} posts com dados`}/> })}</div>
       <div className="grid min-w-0 gap-4 2xl:grid-cols-2">
-        <ReportChart key={`views-${accountId}-${days}`} title="Visualizações ao longo do tempo" description="Visualizações diárias da Página fornecidas pelo Facebook." rows={(report.insights.daily || []).map(p => ({ date: p.date, views: p.value }))} series={[{ key: 'views', label: 'Visualizações', color: '#2563eb' }]} filename="facebook-visualizacoes"/>
+        <ReportChart key={`views-${accountId}-${days}`} title="Visualizações ao longo do tempo" description={`${insightWindow} · visualizações diárias da Página fornecidas pelo Facebook.`} rows={(report.insights.daily || []).map(p => ({ date: p.date, views: p.value }))} series={[{ key: 'views', label: 'Visualizações', color: '#2563eb' }]} filename="facebook-visualizacoes"/>
         <ReportChart key={`posts-${accountId}-${days}`} title="Atividade de publicação" description="Quantidade de posts recuperados por data de publicação. Uma consulta parcial pode omitir posts." rows={daily} series={[{ key: 'posts', label: 'Publicações', color: '#4f46e5' }]} kind="bar" filename="facebook-publicacoes"/>
       </div>
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-2">
+        <ReportChart key={`viewers-${accountId}-${days}`} title="Pessoas que visualizaram o conteúdo" description={`${insightWindow} · contas únicas em cada dia. Semanal e mensal exibem o último dia disponível, não a soma de pessoas.`} rows={audienceHistory} series={[{ key: 'viewers', label: 'Pessoas por dia', color: '#0284c7', aggregation: 'last' }]} filename="facebook-audiencia"/>
+        <ReportChart key={`followers-${accountId}-${days}`} title="Evolução de seguidores" description={`${insightWindow} · total de seguidores ao fim de cada dia. Lacunas não são preenchidas.`} rows={audienceHistory} series={[{ key: 'followers', label: 'Seguidores', color: '#4f46e5', aggregation: 'last' }]} filename="facebook-seguidores"/>
+      </div>
+      <ReportChart key={`follows-${accountId}-${days}`} title="Novos seguidores e saídas por dia" description={`${insightWindow} · contagens únicas diárias estimadas pelo Facebook. Semanal e mensal mostram o último dia disponível, não o total da semana ou mês.`} rows={audienceHistory} series={[{ key: 'gained', label: 'Novos seguidores', color: '#0284c7', aggregation: 'last' }, { key: 'lost', label: 'Deixaram de seguir', color: '#e11d48', aggregation: 'last' }]} kind="bar" filename="facebook-entradas-saidas"/>
       <ReportChart key={`interactions-${accountId}-${days}`} title="Interações por data de publicação" description={report.measurement} rows={daily} series={interactionSeries} kind="bar" filename="facebook-interacoes"/>
       {!!ranked.length && <Card className="p-4 sm:p-5"><h3 className="font-bold">Destaques por interações</h3><p className="mt-1 text-xs text-slate-500">Soma dos contadores disponíveis, acumulados até a consulta.</p><ol className="mt-3 grid gap-3 lg:grid-cols-3">{ranked.map(({ post, interactions }, index) => <li key={post.id} className="min-w-0 rounded-xl bg-slate-50 p-3"><div className="flex items-center justify-between text-sm"><strong className="text-indigo-700">#{index + 1}</strong><strong>{reportFormat(interactions.value)}</strong></div><p className="mt-2 line-clamp-3 break-words text-sm text-slate-700">{post.text || 'Sem texto'}</p><p className="mt-2 text-[11px] text-slate-500">{interactions.complete ? 'Todos os contadores disponíveis' : 'Soma parcial'}</p></li>)}</ol></Card>}
       <ReportPublications key={`${accountId}-${days}`} network="Facebook" available={report.contentAvailable} complete={report.complete} posts={report.posts.map(p => ({ id: p.id, text: p.text, date: p.createdAt, url: p.permalink, score: getObservedInteractions(p).value, metrics: interactionSeries.map(s => ({ label: s.label, value: p[s.key as 'reactions' | 'comments' | 'shares'] })) }))}/>

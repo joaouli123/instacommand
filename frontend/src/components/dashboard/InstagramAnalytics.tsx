@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
+  Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
 import {
-  AlertCircle, ArrowDownRight, ArrowUpRight, Bookmark, Eye, Heart,
+  AlertCircle, Bookmark, Heart,
   MessageCircle, RefreshCw, Share2, TrendingUp, Users,
 } from "lucide-react"
 import { MetricCard } from "./MetricCard"
@@ -14,6 +14,7 @@ import { ReportChart } from "./ReportChart"
 import { ReportAccessNotice } from "./ReportAccessNotice"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { api, fetchApi } from "@/lib/api"
+import { instagramFollowerCards, instagramProfileWindow, type InstagramProfileReport } from "@/lib/instagram-report"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -83,6 +84,7 @@ export function InstagramAnalytics() {
   const [postsTotal, setPostsTotal] = useState(0)
   const [postsTotalPages, setPostsTotalPages] = useState(1)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
+  const [profileReport, setProfileReport] = useState<InstagramProfileReport | null>(null)
   const [growth, setGrowth] = useState<FollowerSnapshot[]>([])
   const [engagement, setEngagement] = useState<TimelineItem[]>([])
   const [posts, setPosts] = useState<AnalyticsPost[]>([])
@@ -146,6 +148,7 @@ export function InstagramAnalytics() {
     setLoading(true)
     setError("")
     setDashboard(null)
+    setProfileReport(null)
     setGrowth([])
     setEngagement([])
     setPosts([])
@@ -157,7 +160,7 @@ export function InstagramAnalytics() {
     setRankings({ STORY: [], REEL: [], FEED: [] })
     try {
       const postFallback = { data: [], total: 0, page, totalPages: 1 }
-      const [nextDashboard, nextGrowth, nextEngagement, nextPosts, nextAudience, nextBestTimes, nextContentTypes, nextRecommendations, topStories, topReels, topFeed] = await Promise.all([
+      const [nextDashboard, nextGrowth, nextEngagement, nextPosts, nextAudience, nextBestTimes, nextContentTypes, nextRecommendations, topStories, topReels, topFeed, nextProfileReport] = await Promise.all([
         get(`dashboard?days=${days}`), get(`growth?days=${days}`), get(`engagement?days=${days}`), get(`posts?page=${page}&limit=20&days=${days}`),
         Promise.resolve(emptyAudience),
         optional(get(`best-times?days=${days}`), []),
@@ -166,9 +169,11 @@ export function InstagramAnalytics() {
         optional(get(`top-posts?days=${days}&mediaType=STORY&sortBy=views`), { data: [] }),
         optional(get(`top-posts?days=${days}&mediaType=REEL&sortBy=views`), { data: [] }),
         optional(get(`top-posts?days=${days}&mediaType=FEED&sortBy=interactions`), { data: [] }),
+        optional(get(`profile-report?days=${days}`), null),
       ])
       if (requestId !== latestRequest.current) return
       setDashboard(nextDashboard as Dashboard)
+      setProfileReport(nextProfileReport as InstagramProfileReport | null)
       setGrowth(nextGrowth as FollowerSnapshot[])
       setEngagement(nextEngagement as TimelineItem[])
       const postPayload = nextPosts as { data?: AnalyticsPost[]; total?: number; page?: number; totalPages?: number }
@@ -242,9 +247,20 @@ export function InstagramAnalytics() {
     date: item.date, interacoes: item.interactions, posts: item.posts, likes: item.likes, comments: item.comments, saves: item.saves, shares: item.shares,
   })), [engagement])
   const periodNetGrowth = growth.length > 1 ? growth[growth.length - 1].followers - growth[0].followers : null
-  const followerGrowthRate = growth.length > 1 && growth[0].followers > 0 ? periodNetGrowth! / growth[0].followers * 100 : null
   const followerLatestDate = growth.length ? growth[growth.length - 1].date : null
   const currentAccount = accounts.find((account) => account.id === accountId)
+  const profileWindow = instagramProfileWindow(profileReport, Number(period))
+  const profileMetrics = profileReport?.metrics
+  const profileNotice = <div className="space-y-1 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 text-xs leading-relaxed text-slate-600">
+    <p className="font-semibold text-slate-800">Resumo do perfil · {profileWindow.label.toLowerCase()}</p>
+    {Number(period) > 30 && <p>{profileWindow.notice}</p>}
+    {!profileReport?.available && <p role="status" className="font-medium text-amber-800">{profileReport?.message || "Não foi possível consultar os totais do perfil. Os dados das publicações continuam disponíveis; tente atualizar mais tarde."}</p>}
+    <details><summary className="cursor-pointer">Sobre esses números</summary><div className="mt-2 space-y-1">
+      {Number(period) <= 30 && <p>{profileWindow.notice}</p>}
+      {profileReport && <p>Consulta de {new Date(profileReport.collectedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} · {formatDate(profileReport.period.since)} a {formatDate(profileReport.period.until)} · dia atual pode estar incompleto.</p>}
+      <p>“—” significa dado não fornecido. Zero só aparece quando confirmado pela rede.</p>
+    </div></details>
+  </div>
   const onPeriodChange = (value: string) => { setPeriod(value); setPostsPage(1); if (accountId) void loadAnalytics(accountId, Number(value), 1) }
   const onAccountChange = (value: string) => setActiveAccount(value)
 
@@ -290,18 +306,25 @@ export function InstagramAnalytics() {
       </TabsList></div>
 
       <TabsContent value="visao" className="space-y-5">
+        {profileNotice}
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
           <Stat label="Seguidores atuais" value={formatNumber(dashboard?.followers)} detail={followerLatestDate ? `Coleta de ${formatDate(followerLatestDate)}` : "Total retornado pela Meta"} icon={Users} />
-          <Stat label="Variação de seguidores" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail={followerGrowthRate == null ? "Precisa de ao menos duas coletas" : `${formatPercent(followerGrowthRate)} sobre o início do período`} icon={periodNetGrowth != null && periodNetGrowth < 0 ? ArrowDownRight : ArrowUpRight} />
-          <Stat label="Alcance recente" value={formatNumber(dashboard?.reach)} detail="Não é a soma do período" icon={Eye} />
-          <Stat label="Visualizações recentes" value={formatNumber(dashboard?.views)} detail={dashboard?.reach && dashboard.views != null ? `Frequência: ${(dashboard.views / dashboard.reach).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} por conta alcançada` : "Frequência indisponível sem alcance e visualizações"} icon={TrendingUp} />
-          <Stat label="Interações nos posts" value={formatNumber(dashboard?.interactions)} detail={dashboard?.interactionsPartial ? "Soma parcial: a Meta omitiu alguns contadores" : "Contadores acumulados até a última coleta"} icon={Heart} />
-          <Stat label="Taxa média por publicação" value={formatPercent(dashboard?.engagementRate)} detail="Média das taxas disponíveis; não é uma taxa ponderada do perfil" icon={TrendingUp} />
-          <Stat label="Contas engajadas" value={formatNumber(dashboard?.accountsEngaged)} detail="Valor da coleta mais recente" icon={Users} />
-          <Stat label="Toques em links do perfil" value={formatNumber(dashboard?.profileLinkTaps)} detail="Valor da coleta mais recente, quando disponível" icon={ArrowUpRight} />
+          <MetricCard label="Alcance" value={profileMetrics?.reach} detail={`${profileWindow.label} · contas únicas estimadas`} accent/>
+          <MetricCard label="Visualizações" value={profileMetrics?.views} detail={profileWindow.label} accent/>
+          <MetricCard label="Interações no perfil" value={profileMetrics?.interactions} detail={`${profileWindow.label} · total informado pelo Instagram`}/>
+          <MetricCard label="Contas engajadas" value={profileMetrics?.accountsEngaged} detail={`${profileWindow.label} · pessoas que interagiram`}/>
+          <MetricCard label="Taxa de engajamento" value={formatPercent(profileReport?.engagementRate)} detail="Contas engajadas ÷ contas alcançadas, na mesma janela"/>
+          <MetricCard label="Frequência" value={profileReport?.frequency == null ? null : profileReport.frequency.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} detail="Visualizações ÷ contas alcançadas, na mesma janela"/>
+          <MetricCard label="Toques em links do perfil" value={profileMetrics?.profileLinkTaps} detail={profileWindow.label}/>
+          {([
+            ["likes", "Curtidas"], ["comments", "Comentários"], ["shares", "Compartilhamentos"],
+            ["saves", "Salvos"], ["replies", "Respostas"], ["reposts", "Republicações"],
+          ] as const).map(([key, label]) => <MetricCard key={key} label={label} value={profileMetrics?.[key]} detail={profileWindow.label}/>)}
         </div>
+        <div className="grid gap-3 sm:grid-cols-2"><MetricCard label="Interações nos posts selecionados" value={dashboard?.interactions} detail={`Posts publicados nos últimos ${period} dias · contadores acumulados até a coleta${dashboard?.interactionsPartial ? " · soma parcial" : ""}`}/><MetricCard label="Taxa média por publicação" value={formatPercent(dashboard?.engagementRate)} detail="Média das taxas disponíveis dos posts selecionados. Não é a taxa do perfil acima."/></div>
+        <ReportChart key={`reach-${accountId}-${period}`} title="Alcance diário" description={`${profileWindow.label} · contas únicas estimadas por dia, consultadas no Instagram. Semanal e mensal mostram o último dia disponível; o total único do período está no card de alcance.`} rows={(profileReport?.dailyReach || []).map(point => ({ date: point.date, reach: point.value }))} series={[{ key: "reach", label: "Contas alcançadas por dia", color: "#4f46e5", aggregation: "last" }]} filename="instagram-alcance-diario"/>
         <div className="grid gap-5 xl:grid-cols-2">
-          <ReportChart key={`profile-${accountId}-${period}`} title="Alcance e visualizações do perfil" description="Última coleta disponível em cada dia. Semanal e mensal mostram a última observação, não a soma de pessoas alcançadas." rows={profileHistory} series={[{ key: "alcance", label: "Alcance", color: "#4f46e5", aggregation: "last" }, { key: "visualizacoes", label: "Visualizações", color: "#0284c7", aggregation: "last" }]} filename="instagram-perfil"/>
+          <ReportChart key={`profile-${accountId}-${period}`} title="Histórico de coletas do perfil" description="Valores recentes registrados em cada sincronização, não os totais do período. Semanal e mensal mostram a última observação disponível." rows={profileHistory} series={[{ key: "alcance", label: "Alcance recente", color: "#4f46e5", aggregation: "last" }, { key: "visualizacoes", label: "Visualizações recentes", color: "#0284c7", aggregation: "last" }]} filename="instagram-perfil"/>
           <ReportChart key={`interactions-${accountId}-${period}`} title="Interações por data de publicação" description="Contadores dos posts publicados em cada data, acumulados até a coleta. A soma pode ser parcial." rows={engagementData} series={[{ key: "interacoes", label: "Interações", color: "#4f46e5" }, { key: "likes", label: "Curtidas", color: "#e11d48" }, { key: "comments", label: "Comentários", color: "#0284c7" }, { key: "saves", label: "Salvos", color: "#d97706" }, { key: "shares", label: "Compartilhamentos", color: "#0d9488" }]} defaultKeys={["interacoes"]} kind="bar" filename="instagram-interacoes"/>
         </div>
         <Card className="p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-2"><ChartHeading title="Formatos publicados" subtitle="Totais acumulados por formato; o alcance pode incluir as mesmas pessoas em posts diferentes."/><Badge variant="secondary">{formatNumber(contentTypes.reduce((sum, item) => sum + item.posts, 0))} posts</Badge></div>{contentTypes.length ? <ResponsiveContainer width="100%" height={290}><BarChart accessibilityLayer data={contentTypes} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false}/><XAxis dataKey="type" tickFormatter={formatType}/><YAxis/><Tooltip labelFormatter={value => formatType(String(value))} formatter={(value: number, name: string) => [formatNumber(value), name]}/><Legend/><Bar dataKey="interactions" name="Interações" isAnimationActive={false} fill="#4f46e5" radius={[5, 5, 0, 0]}/><Bar dataKey="views" name="Visualizações" isAnimationActive={false} fill="#0ea5e9" radius={[5, 5, 0, 0]}/></BarChart></ResponsiveContainer> : <Empty text="Sem dados suficientes para comparar os formatos." />}</Card>
@@ -309,6 +332,8 @@ export function InstagramAnalytics() {
       </TabsContent>
 
       <TabsContent value="seguidores" className="space-y-5">
+        {profileNotice}
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">{instagramFollowerCards(profileReport).map(card => <MetricCard key={card.label} {...card} detail={`${profileWindow.label} · informado pelo Instagram`} accent/>)}</div>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3"><Stat label="Seguidores no início" value={formatNumber(growth[0]?.followers)} detail={growth[0] ? formatDate(growth[0].date) : "Sem coleta no início"} icon={Users}/><Stat label="Seguidores atuais" value={formatNumber(growth.at(-1)?.followers ?? dashboard?.followers)} detail={growth.at(-1) ? formatDate(growth.at(-1)!.date) : "Total mais recente"} icon={Users}/><Stat label="Variação líquida" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail="Diferença entre as coletas observadas" icon={TrendingUp}/></div>
         <ReportChart key={`followers-${accountId}-${period}`} title="Evolução de seguidores" description="Última observação de cada dia, semana ou mês. Datas sem coleta permanecem sem valor." rows={followerChart} series={[{ key: "followers", label: "Seguidores", color: "#4f46e5", aggregation: "last" }]} filename="instagram-seguidores"/>
         <ReportChart key={`growth-${accountId}-${period}`} title="Variação líquida entre coletas" description="Diferença no total de seguidores entre observações; não separa novos seguidores de pessoas que deixaram de seguir." rows={followerChart} series={[{ key: "netChange", label: "Variação líquida", color: "#0d9488" }]} kind="bar" filename="instagram-crescimento"/>
@@ -316,14 +341,15 @@ export function InstagramAnalytics() {
 
       <TabsContent value="demografia" className="space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-900">Quem acompanha seu perfil</h3><p className="text-sm text-slate-500">Dados demográficos de seguidores ou de pessoas que interagiram, conforme a disponibilidade da Meta.</p></div><div className="flex gap-2"><Button variant={audienceType === "followers" ? "default" : "outline"} onClick={() => accountId && void loadAudience(accountId, "followers")} disabled={loadingAudience}>Seguidores</Button><Button variant={audienceType === "engaged" ? "default" : "outline"} onClick={() => accountId && void loadAudience(accountId, "engaged")} disabled={loadingAudience}>Público engajado</Button></div></div>
-        {!audience.available && <div role="status" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><AlertCircle size={18} className="mt-0.5 shrink-0"/><div><strong>Demografia não disponível</strong><p className="mt-1">{audience.message || "A Meta não retornou esses dados para esta conta. Isso pode depender da permissão do app ou da elegibilidade do público."}</p></div></div>}
-        {audience.available && <div className="grid gap-5 xl:grid-cols-2">
+        {loadingAudience && <p role="status" className="flex items-center gap-2 text-sm text-slate-500"><RefreshCw size={16} className="animate-spin"/>Consultando este público…</p>}
+        {!loadingAudience && !audience.available && <div role="status" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><AlertCircle size={18} className="mt-0.5 shrink-0"/><div><strong>Demografia não disponível</strong><p className="mt-1">{audience.message || "A Meta não retornou esses dados para esta conta. Isso pode depender da permissão do app ou da elegibilidade do público."}</p></div></div>}
+        {!loadingAudience && audience.available && <div className="grid gap-5 xl:grid-cols-2">
           <Card className="p-5"><ChartHeading title="Por gênero" subtitle="Distribuição do público retornado pela Meta."/>{genderRows.length ? <><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={genderRows.map(row => ({ ...row, name: genderLabel(row.label), label: genderLabel(row.label) }))} dataKey="value" nameKey="label" innerRadius={65} outerRadius={95} paddingAngle={3} isAnimationActive={false}>{genderRows.map((row, index) => <Cell key={`${row.label}-${index}`} fill={colors[index % colors.length]}/>)}</Pie><Tooltip formatter={(value: number) => [formatNumber(value), "Pessoas"]}/></PieChart></ResponsiveContainer><div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-slate-600">{genderRows.map((row, index) => <span key={row.label} className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors[index % colors.length] }}/>{genderLabel(row.label)} · {formatNumber(row.value)} ({formatPercent(100 * row.value / Math.max(1, genderRows.reduce((sum, item) => sum + item.value, 0)))})</span>)}</div></> : <Empty text="A Meta não retornou a divisão por gênero."/>}</Card>
           <DemographicBars title="Por faixa etária" data={ageRows} empty="A Meta não retornou faixas etárias." />
           <DemographicBars title="Por país" data={countryRows} empty="A Meta não retornou países." />
           <DemographicBars title="Por cidade" data={cityRows} empty="A Meta não retornou cidades." />
         </div>}
-        {audience.available && <p className="text-xs text-slate-500">Janela demográfica: últimos 30 dias. A Meta pode omitir dimensões que não estejam disponíveis para a conta.</p>}
+        {!loadingAudience && audience.available && <p className="text-xs leading-relaxed text-slate-500">Janela demográfica: últimos 30 dias. Percentuais por gênero usam apenas as pessoas retornadas nessa divisão, não o total de seguidores. País e cidade mostram os 8 principais resultados disponíveis; a cobertura pode variar por dimensão.</p>}
       </TabsContent>
 
       <TabsContent value="stories"><TopContent title="Top 20 Stories" group="STORY" posts={rankings.STORY} metric={rankMetrics.STORY} loading={rankingLoading.STORY} onMetricChange={changeRankMetric} period={period} /></TabsContent>

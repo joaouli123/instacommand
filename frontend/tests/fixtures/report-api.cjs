@@ -11,6 +11,12 @@ const dashboard = { followers: 5328, followerGrowth: 2.8, hasFollowerHistory: tr
 const period = { days: 30, since: '2026-08-29T00:00:00Z', until: now };
 const facebook = { account: { instagram: account.igUsername }, page: { id: account.pageId, name: account.pageName }, collectedAt: now, period, followers: 3210, pageLikes: 2541, posts: posts.map(p => ({ id: p.id, text: p.caption, createdAt: p.publishedAt, permalink: null, reactions: p.metrics.likes, comments: p.metrics.comments, shares: p.metrics.shares })), contentAvailable: true, complete: true, totals: { reactions: { value: 786, availablePosts: 24, complete: false }, comments: { value: 24, availablePosts: 25, complete: true }, shares: { value: 36, availablePosts: 25, complete: true } }, insights: { mediaViews: 5367, mediaViewsAvailable: true, daily: growth.map(row => ({ date: row.date, value: row.views })) }, issues: ['Um post fictício não tem contagem de reações.'], measurement: 'Contadores acumulados dos posts, agrupados pela data da publicação. Não representam interações recebidas em cada dia.' };
 const threads = { account: { id: 'threads-fixture', username: 'threads_ficticio', name: 'Threads fictício' }, collectedAt: now, period, metrics: Object.fromEntries(['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'].map((key, i) => [key, { value: [4548, 46, 37, 1, 0, 377][i], available: true, daily: key === 'followers_count' ? [] : growth.map((row, index) => ({ date: `${date(index + 2)}T00:00:00Z`, value: i === 0 ? row.views : index % (i + 1) })) }])), posts: posts.map(p => ({ id: p.id, text: p.caption, timestamp: p.publishedAt, permalink: null, mediaType: 'TEXT_POST' })), contentAvailable: true, truncated: false, issues: [] };
+facebook.insights.history = {
+  viewers: growth.map(row => ({ date: row.date, value: row.reach })),
+  followers: growth.map(row => ({ date: row.date, value: row.followers })),
+  gained: growth.map((row, i) => ({ date: row.date, value: i % 4 })),
+  lost: growth.map((row, i) => ({ date: row.date, value: i % 3 })),
+};
 http.createServer(async (req, res) => {
   const origin = req.headers.origin;
   if (['http://127.0.0.1:4310', 'http://localhost:4310'].includes(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
@@ -32,10 +38,15 @@ http.createServer(async (req, res) => {
   else if (path.endsWith('/saved')) data = [];
   else if (path === '/api/community/comments') data = [];
   else if (path === '/api/accounts/pending') data = [];
-  else if (path.includes('/networks/facebook/')) data = facebook;
+  else if (path.includes('/networks/facebook/')) { const requestedDays = Number(url.searchParams.get('days') || 30), days = Math.min(requestedDays, 90); data = { ...facebook, insights: { ...facebook.insights, period: { days, limited: days !== requestedDays, since: '2026-08-29', until: '2026-09-28' } } }; }
   else if (path.includes('/networks/threads/')) data = threads;
   else if (path.startsWith('/api/analytics/')) {
     if (endpoint === 'dashboard') data = dashboard;
+    else if (endpoint === 'profile-report') {
+      const requestedDays = Number(url.searchParams.get('days') || 30), days = Math.min(30, requestedDays);
+      data = { period: { days, requestedDays, limited: days !== requestedDays, since: new Date(Date.parse(now) - days * 86400000).toISOString(), until: now }, collectedAt: now, available: true,
+        metrics: { views: days === 7 ? 2000 : 20994, reach: days === 7 ? 1000 : 7699, accountsEngaged: 191, interactions: 580, likes: 402, comments: 21, shares: 41, saves: 9, replies: null, reposts: 1, profileLinkTaps: 0 }, followers: { gained: 42, lost: 48, net: -6 }, dailyReach: growth.slice(-days).map(row => ({ date: row.date, value: row.reach })), frequency: 2.73, engagementRate: 2.48 };
+    }
     else if (endpoint === 'access') data = { verified: true, instagramInsights: true, facebookInsights: true, facebookCounters: true };
     else if (endpoint === 'growth') data = growth;
     else if (endpoint === 'engagement') data = engagement;

@@ -8,7 +8,7 @@ import {
   getPostPerformanceTable, 
   getRecommendations 
 } from '../services/analytics.service';
-import { getAudienceDemographics, getBestTimeToPost, getContentTypeAnalysis } from '../services/instagram/insights.service';
+import { getAudienceDemographics, getBestTimeToPost, getContentTypeAnalysis, getInstagramProfileReport } from '../services/instagram/insights.service';
 import { getDecryptedToken, getInstagramGrantedPermissions } from '../services/instagram/auth.service';
 import { PrismaClient } from '@prisma/client';
 import { MediaType } from '@prisma/client';
@@ -71,6 +71,14 @@ router.get('/:accountId/access', async (req: any, res) => {
   }
 });
 
+router.get('/:accountId/profile-report', async (req: any, res, next) => {
+  try {
+    const report = await getInstagramProfileReport(req.account, analyticsDays(req.query.days ?? 30));
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.json(report);
+  } catch (error) { next(error); }
+});
+
 router.get('/:accountId/growth', async (req, res, next) => {
   try {
     const days = analyticsDays(req.query.days ?? 30);
@@ -118,7 +126,7 @@ router.get('/:accountId/audience', async (req: any, res, next) => {
     res.json({
       available: data.length > 0,
       audience,
-      timeframe: 'last_30_days',
+      timeframe: audience === 'engaged' ? 'this_month' : 'last_30_days',
       data,
       message: data.length ? undefined : 'A Meta não retornou dados demográficos para este público e período. Verifique as permissões e a elegibilidade da conta.',
     });

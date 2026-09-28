@@ -9,7 +9,7 @@ const source = fs.readFileSync(path.join(__dirname, '../src/lib/facebook-report.
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const context = { exports: {} };
 vm.runInNewContext(compiled, context);
-const { getObservedInteractions, rankFacebookPosts } = context.exports;
+const { getObservedInteractions, rankFacebookPosts, facebookHistoryRows } = context.exports;
 const post = (id, metrics, createdAt = '2026-09-01T12:00:00.000Z') => ({ id, text: id, createdAt, permalink: null, ...metrics });
 
 test('Facebook observed interactions preserve missing counters instead of treating them as zero', () => {
@@ -28,4 +28,17 @@ test('Facebook highlights sort known totals, keep ties stable by date and omit w
   assert.deepEqual(ranked.map(item => item.post.id), ['new-tie', 'old-tie', 'low']);
   assert.equal(ranked[0].interactions.value, 5);
   assert.equal(ranked[0].interactions.complete, true);
+});
+
+test('Facebook history aligns series by date without leaking values into missing measurements', () => {
+  const rows = JSON.parse(JSON.stringify(facebookHistoryRows({ viewers: [{ date: '2026-09-20', value: 146 }], followers: [{ date: '2026-09-19', value: 18 }], gained: [{ date: '2026-09-20', value: 0 }] })));
+  assert.deepEqual(rows, [
+    { date: '2026-09-19', viewers: null, followers: 18, gained: null, lost: null },
+    { date: '2026-09-20', viewers: 146, followers: null, gained: 0, lost: null },
+  ]);
+});
+test('Facebook unique audience and follower history cannot be summed as weekly distinct counts', () => {
+  const component = fs.readFileSync(path.join(__dirname, '../src/components/dashboard/FacebookReport.tsx'), 'utf8');
+  for (const key of ['viewers', 'followers', 'gained', 'lost']) assert.match(component, new RegExp(`key: '${key}'[^}]+aggregation: 'last'`));
+  assert.match(component, /insights\.period\?\.limited/);
 });

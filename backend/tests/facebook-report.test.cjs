@@ -8,7 +8,7 @@ require.cache[require.resolve('../dist/services/instagram/auth.service')] = { ex
 require.cache[require.resolve('../dist/services/instagram/facebook-link.service')] = { exports: { verifyFacebookPageLink: async () => { if (!verified) throw new Error('Wrong Page'); return { id: 'page1', name: 'Page' }; } } };
 require.cache[require.resolve('../dist/utils/instagram-api')] = { exports: { graphGet: async (path, token, params) => {
   calls.push({ path, token, params });
-  const result = path === '/page1' ? profile : path === '/page1/insights' ? pageInsights : pages.shift();
+  const result = path === '/page1' ? profile : path === '/page1/insights' ? (typeof pageInsights === 'function' ? pageInsights(params) : pageInsights) : pages.shift();
   if (result instanceof Error) throw result;
   return result;
 } } };
@@ -56,10 +56,10 @@ test('failed profile fields do not discard publications', async () => {
 test('bounded pagination identifies incomplete coverage', async () => {
   pages = Array.from({ length: 4 }, (_, i) => ({ data: [post(String(i))], paging: { next: 'next', cursors: { after: `cursor${i}` } } }));
   const report = await getFacebookReport('current', 'account1', 730);
-  assert.equal(report.posts.length, 4); assert.equal(report.complete, false); assert.equal(calls.length, 6);
+  assert.equal(report.posts.length, 4); assert.equal(report.complete, false); assert.equal(calls.length, 7);
 });
 test('sums actual Page media views for the selected period', async () => {
-  pageInsights = { data: [{ name: 'page_media_view', values: [{ value: 12 }, { value: 8 }, { value: null }, { value: -1 }] }] };
+  pageInsights = { data: [{ name: 'page_media_view', values: [{ value: 12, end_time: new Date(Date.now() - 86400000).toISOString() }, { value: 8, end_time: new Date(Date.now() - 2 * 86400000).toISOString() }, { value: null }, { value: -1 }] }] };
   const report = await getFacebookReport('current', 'account1', 30);
   assert.equal(report.insights.mediaViews, 20); assert.equal(report.insights.mediaViewsAvailable, true);
   const request = calls.find(call => call.path === '/page1/insights');
@@ -105,13 +105,58 @@ test('expired tokens and rate limits never trigger the optional-field retry', as
 });
 
 test('daily view series retains real zeros and ignores missing dates and invalid values', async () => {
+  const endA = new Date(Date.now() - 3 * 86400000).toISOString();
+  const endB = new Date(Date.now() - 2 * 86400000).toISOString();
   pageInsights = { data: [{ name: 'page_media_view', values: [
-    { value: 0, end_time: '2026-09-20T07:00:00+0000' },
-    { value: 12, end_time: '2026-09-21T07:00:00+0000' },
-    { value: null, end_time: '2026-09-22T07:00:00+0000' },
+    { value: 0, end_time: endA },
+    { value: 12, end_time: endB },
+    { value: null, end_time: new Date(Date.now() - 86400000).toISOString() },
     { value: 3 },
   ] }] };
   const report = await getFacebookReport('current', 'account1', 30);
-  assert.deepEqual(report.insights.daily, [{ date: '2026-09-19', value: 0 }, { date: '2026-09-20', value: 12 }]);
-  assert.equal(report.insights.mediaViews, 15);
+  assert.deepEqual(report.insights.daily, [{ date: new Date(Date.parse(endA) - 86400000).toISOString().slice(0, 10), value: 0 }, { date: new Date(Date.parse(endB) - 86400000).toISOString().slice(0, 10), value: 12 }]);
+  assert.equal(report.insights.mediaViews, 12);
+  assert.equal(report.insights.mediaViewsPartial, true);
+});
+
+test('audience history uses supported fields and never totals unique viewers or follower snapshots', async () => {
+  const end_time = new Date(Date.now() - 86400000).toISOString();
+  pageInsights = { data: [
+    { name: 'page_total_media_view_unique', values: [{ value: 146, end_time }] },
+    { name: 'page_follows', values: [{ value: 18, end_time }] },
+    { name: 'page_daily_follows_unique', values: [{ value: 0, end_time }] },
+    { name: 'page_daily_unfollows_unique', values: [{ value: null, end_time }] },
+  ] };
+  const report = await getFacebookReport('current', 'account1', 30);
+  assert.equal(report.insights.history.viewers[0].value, 146);
+  assert.equal(report.insights.history.followers[0].value, 18);
+  assert.equal(report.insights.history.gained[0].value, 0);
+  assert.deepEqual(report.insights.history.lost, []);
+  assert.equal(report.insights.reach, undefined);
+  assert.equal(report.insights.period.limited, false);
+});
+test('long Page publication ranges have an explicit bounded Insights window', async () => {
+  const report = await getFacebookReport('current', 'account1', 730);
+  assert.equal(report.period.days, 730);
+  assert.equal(report.insights.period.days, 90);
+  assert.equal(report.insights.period.limited, true);
+  assert.ok(calls.filter(call => call.path.endsWith('/insights')).every(call => Date.parse(call.params.until) - Date.parse(call.params.since) <= 90 * 86400000));
+});
+test('daily points reject out-of-window values and deduplicate dates before calculating totals', async () => {
+  const end_time = new Date(Date.now() - 86400000).toISOString();
+  pageInsights = { data: [{ name: 'page_media_view', values: [{ value: 8, end_time }, { value: 8, end_time }, { value: 100, end_time: '2020-01-01T07:00:00Z' }, { value: 50 }, { value: 50, end_time: '2099-01-01T07:00:00Z' }] }] };
+  const report = await getFacebookReport('current', 'account1', 30);
+  assert.equal(report.insights.mediaViews, 8);
+  assert.equal(report.insights.daily.length, 1);
+});
+test('unsupported audience metric is isolated, while rate failures stop further field reads', async () => {
+  pageInsights = params => {
+    if (params.metric === 'page_media_view') return { data: [] };
+    if (params.metric.includes(',')) throw Object.assign(new Error('Unsupported field'), { metaCode: 100 });
+    if (params.metric === 'page_total_media_view_unique') return { data: [{ name: params.metric, values: [{ value: 12, end_time: new Date(Date.now() - 86400000).toISOString() }] }] };
+    throw Object.assign(new Error('Rate limit'), { metaCode: 4 });
+  };
+  const report = await getFacebookReport('current', 'account1', 30);
+  assert.equal(report.insights.history.viewers[0].value, 12);
+  assert.ok(!calls.some(call => call.params.metric === 'page_daily_follows_unique'));
 });

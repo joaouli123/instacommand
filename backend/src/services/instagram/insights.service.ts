@@ -3,15 +3,15 @@ import { graphGet, graphGetAllWithStatus } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
 import { MediaType } from '@prisma/client';
 import { maybeNotifyEngagement } from '../notifications.service';
-import { publicationPeriod } from '../analytics-period';
+import { analyticsDays, publicationPeriod } from '../analytics-period';
 import { receivedMetrics, aggregateMetrics } from '../metric-availability';
 
 const prisma = new PrismaClient();
 
 type InsightItem = {
   name?: string;
-  values?: Array<{ value?: unknown }>;
-  total_value?: { value?: unknown; breakdowns?: Array<{ results?: Array<{ dimension_values?: unknown[]; value?: unknown }> }> };
+  values?: Array<{ value?: unknown; end_time?: string }>;
+  total_value?: { value?: unknown; breakdowns?: Array<{ dimension_keys?: string[]; results?: Array<{ dimension_values?: unknown[]; value?: unknown }> }> };
 };
 
 const readInsightValue = (item: InsightItem) => {
@@ -71,12 +71,93 @@ export const getProfileInsights = async (igUserId: string, token: string, period
     [
       'views,reach,accounts_engaged,total_interactions',
       'likes,comments,shares,saves,replies,reposts',
-      'follows_and_unfollows',
       'profile_links_taps',
     ],
     { period, metric_type: 'total_value' },
   );
 };
+
+const profileFields = {
+  views: 'views', reach: 'reach', accounts_engaged: 'accountsEngaged', total_interactions: 'interactions',
+  likes: 'likes', comments: 'comments', shares: 'shares', saves: 'saves', replies: 'replies',
+  reposts: 'reposts', profile_links_taps: 'profileLinkTaps',
+} as const;
+const insightCount = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+
+// Profile totals are unique over the requested interval. Never add overlapping
+// reach/engaged-account buckets to fabricate a total for a longer interval.
+export async function getProfilePeriodInsights(igUserId: string, token: string, requestedDays = 30, now = new Date()) {
+  analyticsDays(requestedDays);
+  const days = Math.min(requestedDays, 30);
+  const until = Math.floor(now.getTime() / 1000);
+  const since = until - days * 86400;
+  const params = { period: 'day', metric_type: 'total_value', since, until };
+  const [items, follows, reachSeries] = await Promise.all([
+    bestEffortInsights(igUserId, token, [
+      'views,reach,accounts_engaged,total_interactions',
+      'likes,comments,shares,saves,replies,reposts', 'profile_links_taps',
+    ], params),
+    bestEffortInsights(igUserId, token, ['follows_and_unfollows'], { ...params, breakdown: 'follow_type' }),
+    bestEffortInsights(igUserId, token, ['reach'], { ...params, metric_type: 'time_series' }),
+  ]);
+  const metrics = Object.fromEntries(Object.entries(profileFields).map(([field, key]) => {
+    const item = items.find(entry => entry.name === field);
+    // A missing aggregate is not a zero or the first daily observation.
+    return [key, insightCount(item?.total_value?.value)];
+  })) as Record<typeof profileFields[keyof typeof profileFields], number | null>;
+  const followGroups = follows.find(item => item.name === 'follows_and_unfollows')?.total_value?.breakdowns || [];
+  const followValue = (type: string): number | null => {
+    for (const group of followGroups) {
+      const index = group.dimension_keys?.indexOf('follow_type') ?? -1;
+      if (index < 0) continue;
+      const result = group.results?.find(row => row.dimension_values?.[index] === type);
+      const count = insightCount(result?.value);
+      if (count !== null) return count;
+    }
+    return null;
+  };
+  const gained = followValue('FOLLOWER');
+  const lost = followValue('NON_FOLLOWER');
+  const reachDays = new Map<string, number>();
+  for (const point of reachSeries.find(item => item.name === 'reach')?.values || []) {
+    const value = insightCount(point.value), end = Date.parse(point.end_time || '');
+    if (value === null || !Number.isFinite(end)) continue;
+    const date = new Date(end - 86400000).toISOString().slice(0, 10);
+    if (date >= new Date(since * 1000).toISOString().slice(0, 10) && date < new Date(until * 1000).toISOString().slice(0, 10)) reachDays.set(date, value);
+  }
+  const available = Object.values(metrics).some(value => value !== null) || gained !== null || lost !== null;
+  return {
+    period: { days, requestedDays, limited: days !== requestedDays, since: new Date(since * 1000).toISOString(), until: new Date(until * 1000).toISOString() },
+    collectedAt: now.toISOString(), available, metrics,
+    dailyReach: [...reachDays].sort(([a], [b]) => a.localeCompare(b)).map(([date, value]) => ({ date, value })),
+    followers: { gained, lost, net: gained !== null && lost !== null ? gained - lost : null },
+    frequency: metrics.reach !== null && metrics.reach > 0 && metrics.views !== null ? metrics.views / metrics.reach : null,
+    engagementRate: metrics.reach !== null && metrics.reach > 0 && metrics.accountsEngaged !== null ? metrics.accountsEngaged / metrics.reach * 100 : null,
+    message: available ? undefined : 'A Meta não retornou os totais do perfil. Confira a conexão e tente atualizar mais tarde.',
+  };
+}
+
+type ProfileReport = Awaited<ReturnType<typeof getProfilePeriodInsights>>;
+const profileReports = new Map<string, { expires: number; promise: Promise<ProfileReport> }>();
+
+// Ownership is checked by the route before this cache can be consulted. OAuth
+// or a completed sync changes the revision and invalidates the old result.
+export function getInstagramProfileReport(account: { id: string; igUserId: string; updatedAt?: Date; lastSyncAt?: Date | null }, days: number) {
+  analyticsDays(days);
+  const key = JSON.stringify([account.id, account.igUserId, account.updatedAt, account.lastSyncAt, days]);
+  const cached = profileReports.get(key);
+  if (cached && cached.expires > Date.now()) return cached.promise;
+  for (const [entryKey, entry] of profileReports) if (entry.expires <= Date.now()) profileReports.delete(entryKey);
+  if (profileReports.size >= 200) profileReports.delete(profileReports.keys().next().value!);
+  const entry = { expires: Date.now() + 300_000, promise: Promise.resolve(null as unknown as ProfileReport) };
+  entry.promise = getDecryptedToken(account.id)
+    .then(token => getProfilePeriodInsights(account.igUserId, token, days))
+    .then(report => { if (!report.available) entry.expires = Date.now() + 30_000; return report; })
+    .catch(error => { if (profileReports.get(key) === entry) profileReports.delete(key); throw error; });
+  profileReports.set(key, entry);
+  return entry.promise;
+}
 
 export const getPostInsights = async (igMediaId: string, token: string) => {
   return bestEffortInsights(
@@ -103,7 +184,8 @@ export const getAudienceDemographics = async (igUserId: string, token: string, a
         metric,
         period: 'lifetime',
         metric_type: 'total_value',
-        timeframe: 'last_30_days',
+        // v20+ engaged audience uses this_month for the rolling 30-day window.
+        timeframe: audience === 'engaged' ? 'this_month' : 'last_30_days',
         breakdown,
       });
       const item = Array.isArray(response.data) ? response.data.find((entry: InsightItem) => entry.name === metric) : null;

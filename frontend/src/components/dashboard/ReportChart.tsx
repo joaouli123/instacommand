@@ -24,8 +24,8 @@ export function ReportChart({ title, description, rows, series, defaultKeys, kin
   // Keep axes, tooltips and the zoom brush directly discoverable by the chart's child parser.
   const axes = [
     <CartesianGrid key="grid" strokeDasharray="3 4" stroke="#e2e8f0" vertical={false}/>,
-    <XAxis key="x" dataKey="date" tickFormatter={reportDate} minTickGap={24} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false}/>,
-    <YAxis key="y" width={54} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} tickFormatter={v => new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v)}/>,
+    <XAxis key="x" dataKey="date" interval="preserveStartEnd" tickFormatter={reportDate} minTickGap={24} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false}/>,
+    <YAxis key="y" allowDecimals={false} width={54} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} tickFormatter={v => new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v)}/>,
     <Tooltip key="tooltip" labelFormatter={value => reportDate(String(value))} formatter={(value: number, name: string) => [reportFormat(value), name]} contentStyle={{ borderRadius: 12, fontSize: 12, borderColor: '#e2e8f0', maxWidth: 270 }} />,
     data.length > 14 && <Brush key="zoom" ariaLabel={`Limite do trecho de ${title}; use as setas para ajustar`} dataKey="date" height={22} stroke="#c7d2fe" fill="#f8fafc" travellerWidth={9} tickFormatter={reportDate}/>,
   ]
