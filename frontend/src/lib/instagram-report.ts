@@ -27,3 +27,8 @@ export function instagramFollowerCards(report: InstagramProfileReport | null) {
     { label: "Saldo de seguidores", value: report?.followers.net ?? null },
   ]
 }
+
+const countryNames = new Intl.DisplayNames(['pt-BR'], { type: 'region' })
+export function instagramCountryLabel(value: string) {
+  return /^[A-Z]{2}$/.test(value) ? countryNames.of(value) || value : value
+}

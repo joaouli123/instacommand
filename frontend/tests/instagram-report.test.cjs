@@ -7,7 +7,7 @@ const ts = require('typescript');
 const source = fs.readFileSync(path.join(__dirname, '../src/lib/instagram-report.ts'), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const context = { exports: {} }; vm.runInNewContext(compiled, context);
-const { instagramProfileWindow, instagramFollowerCards } = context.exports;
+const { instagramProfileWindow, instagramFollowerCards, instagramCountryLabel } = context.exports;
 const plain = value => JSON.parse(JSON.stringify(value));
 test('long publication periods cannot be labeled as matching profile totals', () => {
   const result = instagramProfileWindow({ period: { days: 30 } }, 90);
@@ -29,4 +29,9 @@ test('profile report participates in account/period cancellation and is cleared 
   assert.match(component, /setProfileReport\(null\)/);
   assert.match(component, /get\(`profile-report\?days=\$\{days\}`\)/);
   assert.ok(component.indexOf('if (requestId !== latestRequest.current) return') < component.indexOf('setProfileReport(nextProfileReport'));
+});
+test('demographics uses readable country names and preserves unknown provider labels', () => {
+  assert.equal(instagramCountryLabel('BR'), 'Brasil');
+  assert.equal(instagramCountryLabel('US'), 'Estados Unidos');
+  assert.equal(instagramCountryLabel('Não informado'), 'Não informado');
 });

@@ -14,7 +14,7 @@ import { ReportChart } from "./ReportChart"
 import { ReportAccessNotice } from "./ReportAccessNotice"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { api, fetchApi } from "@/lib/api"
-import { instagramFollowerCards, instagramProfileWindow, type InstagramProfileReport } from "@/lib/instagram-report"
+import { instagramCountryLabel, instagramFollowerCards, instagramProfileWindow, type InstagramProfileReport } from "@/lib/instagram-report"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -234,7 +234,7 @@ export function InstagramAnalytics() {
   const audienceRows = useMemo(() => getAudienceRows(audience), [audience])
   const genderRows = useMemo(() => rowsFor(audienceRows, "gender"), [audienceRows])
   const ageRows = useMemo(() => rowsFor(audienceRows, "age"), [audienceRows])
-  const countryRows = useMemo(() => rowsFor(audienceRows, "country"), [audienceRows])
+  const countryRows = useMemo(() => rowsFor(audienceRows, "country").map(row => ({ ...row, label: instagramCountryLabel(row.label) })), [audienceRows])
   const cityRows = useMemo(() => rowsFor(audienceRows, "city"), [audienceRows])
   const followerChart = useMemo(() => growth.map((item, index) => ({
     date: item.date, followers: item.followers,
