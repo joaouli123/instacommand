@@ -51,6 +51,12 @@ router.post('/', async (req: AuthRequest, res, next) => {
   catch (error) { next(error); }
 });
 
+// Keep named endpoints before /:id so "agent" is not parsed as a rule ID.
+router.put('/agent', async (req: AuthRequest, res, next) => {
+  try { res.json(await saveAgentSettings(req.user!.id, agentSchema.parse(req.body))); }
+  catch (error) { next(error); }
+});
+
 router.put('/:id', async (req: AuthRequest, res, next) => {
   try { res.json(await updateAutomation(req.user!.id, req.params.id, ruleSchema.parse(req.body))); }
   catch (error) { next(error); }
@@ -77,11 +83,6 @@ router.delete('/templates/:id', async (req: AuthRequest, res, next) => {
     await deleteAutomationTemplate(req.user!.id, accountId, req.params.id);
     res.sendStatus(204);
   } catch (error) { next(error); }
-});
-
-router.put('/agent', async (req: AuthRequest, res, next) => {
-  try { res.json(await saveAgentSettings(req.user!.id, agentSchema.parse(req.body))); }
-  catch (error) { next(error); }
 });
 
 router.post('/subscribe', async (req: AuthRequest, res, next) => {

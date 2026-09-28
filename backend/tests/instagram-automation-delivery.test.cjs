@@ -1,6 +1,7 @@
 const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 let account, scopes, linkedIgId, rules, writes, executions, review, claimCount, statusQueries, permissionError;
+let agent, aiCalls, aiResult, aiError;
 require.cache[require.resolve('../dist/config/env')] = { exports: { env: {
   WEBHOOK_VERIFY_TOKEN: 'test-verification', FB_APP_SECRET: 'test-secret', BACKEND_URL: 'https://api.example.test',
 } } };
@@ -10,7 +11,7 @@ require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: cl
     findUnique: async ({ where }) => account && where.igUserId === account.igUserId ? account : null,
   };
   socialAutomation = { findMany: async () => rules };
-  instagramAgentSettings = { findUnique: async () => null };
+  instagramAgentSettings = { findUnique: async () => agent };
   privateReplyClaim = { create: async () => ({}), update: async () => ({}) };
   automationExecution = {
     create: async ({ data }) => {
@@ -28,10 +29,17 @@ require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: cl
     },
   };
 } } };
-require.cache[require.resolve('../dist/services/ai.service')] = { exports: {} };
+require.cache[require.resolve('../dist/services/ai.service')] = { exports: {
+  generateAiContent: async (input, credentials) => {
+    aiCalls.push({ input, credentials });
+    if (aiError) throw aiError;
+    return aiResult;
+  },
+} };
 require.cache[require.resolve('../dist/services/instagram/auth.service')] = { exports: {
   getDecryptedToken: async () => 'test-page-token',
   getInstagramGrantedPermissions: async () => { if (permissionError) throw permissionError; return scopes; },
+  getAiCredentials: async userId => { assert.equal(userId, 'owner'); return { apiKey: 'fixture-ai-key', model: 'fixture-model', source: 'workspace' }; },
 } };
 require.cache[require.resolve('../dist/utils/instagram-api')] = { exports: {
   graphGet: async path => ({ id: path.slice(1), instagram_business_account: { id: linkedIgId } }),
@@ -46,6 +54,8 @@ beforeEach(() => {
   linkedIgId = 'ig-456';
   rules = [{ id: 'rule', trigger: 'MESSAGE_ANY', keywords: [], replyMode: 'TEMPLATE', directMessageReply: 'Resposta de teste' }];
   writes = []; executions = []; review = null; claimCount = 1; statusQueries = []; permissionError = null;
+  agent = null; aiCalls = []; aiError = null;
+  aiResult = { response: 'Resposta fictícia gerada pela IA.', shouldEscalate: false, reason: '' };
 });
 
 test('automatic DMs use the verified Facebook Page and Instagram-scoped recipient', async () => {
@@ -55,6 +65,71 @@ test('automatic DMs use the verified Facebook Page and Instagram-scoped recipien
   } }]);
   assert.equal(executions[0].status, 'SENT');
   assert.equal(executions[0].privateReplySent, true);
+  assert.equal(aiCalls.length, 0);
+});
+
+const enableAi = (autoSend = true) => {
+  rules = [{ id: 'ai-rule', trigger: 'MESSAGE_ANY', keywords: [], replyMode: 'AI' }];
+  agent = {
+    enabled: true, autoSend, tone: 'Claro', instructions: 'Responda usando a base.',
+    knowledgeBase: 'Conteúdo fictício de teste.', fallback: 'Uma pessoa vai revisar sua solicitação.',
+  };
+};
+
+test('AI replies use the configured agent and owner credentials before sending', async () => {
+  enableAi();
+  await processInstagramAutomationEvent(dm());
+  assert.equal(aiCalls.length, 1);
+  assert.equal(aiCalls[0].input.mode, 'automation-reply');
+  assert.equal(aiCalls[0].input.context.knowledgeBase, agent.knowledgeBase);
+  assert.equal(aiCalls[0].credentials.source, 'workspace');
+  assert.equal(writes[0].params.message.text, aiResult.response);
+  assert.equal(writes[0].path, '/page-123/messages');
+  assert.equal(executions[0].status, 'SENT');
+});
+
+test('a ready-made keyword rule takes priority over a catch-all AI rule without calling AI', async () => {
+  enableAi();
+  rules.push({ id: 'fixed-rule', trigger: 'MESSAGE_KEYWORD', keywords: ['horário'], replyMode: 'TEMPLATE', directMessageReply: 'Texto de horário previamente configurado.' });
+  await processInstagramAutomationEvent({ ...dm(), text: 'Qual o horário?' });
+  assert.equal(executions[0].automationId, 'fixed-rule');
+  assert.equal(writes[0].params.message.text, 'Texto de horário previamente configurado.');
+  assert.equal(aiCalls.length, 0);
+});
+
+test('AI suggestions await review when automatic sending is off', async () => {
+  enableAi(false);
+  await processInstagramAutomationEvent(dm());
+  assert.equal(executions[0].status, 'NEEDS_REVIEW');
+  assert.equal(executions[0].responseText, aiResult.response);
+  assert.equal(writes.length, 0);
+});
+
+test('AI escalations and provider failures never automatically send a generated answer', async () => {
+  enableAi();
+  aiResult = { response: 'Não envie automaticamente.', shouldEscalate: true, reason: 'Precisa de avaliação humana.' };
+  await processInstagramAutomationEvent(dm());
+  aiError = new Error('Fixture provider unavailable');
+  await processInstagramAutomationEvent({ ...dm(), eventKey: 'dm-2' });
+  assert.ok(executions.every(item => item.status === 'NEEDS_REVIEW' && item.responseText === agent.fallback));
+  assert.equal(writes.length, 0);
+
+  rules = [{ id: 'fixed-rule', trigger: 'MESSAGE_ANY', keywords: [], replyMode: 'TEMPLATE', directMessageReply: 'Resposta pronta continua funcionando.' }];
+  await processInstagramAutomationEvent({ ...dm(), eventKey: 'dm-3' });
+  assert.equal(executions[2].status, 'SENT');
+  assert.equal(writes[0].params.message.text, 'Resposta pronta continua funcionando.');
+  assert.equal(aiCalls.length, 2);
+});
+
+test('disabled agents and expired message windows block AI calls and sends', async () => {
+  enableAi();
+  agent.enabled = false;
+  await processInstagramAutomationEvent(dm());
+  agent.enabled = true;
+  await processInstagramAutomationEvent({ ...dm(), eventKey: 'dm-2', timestamp: Date.now() - 25 * 3600_000 });
+  assert.ok(executions.every(item => item.status === 'BLOCKED'));
+  assert.equal(aiCalls.length, 0);
+  assert.equal(writes.length, 0);
 });
 
 test('reviewed DMs use the same verified Page endpoint', async () => {
