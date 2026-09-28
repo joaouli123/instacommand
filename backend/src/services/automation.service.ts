@@ -6,7 +6,7 @@ import { verifyFacebookPageLink } from './instagram/facebook-link.service';
 import { graphPost } from '../utils/instagram-api';
 import { ConflictError, NotFoundError, ValidationError } from '../utils/errors';
 import { buildConversationHistory, conversationIntent, hasKeywordMatch, matchesEvent, validMessageWindow } from './automation-logic';
-import { accountScope, automationDb as prisma, automationPermissions, ownedAutomationAccount, permissionCapabilities, sendAutomationResponse, type Platform } from './automation-platform';
+import { accountScope, automationDb as prisma, automationPermissions, ownedAutomationAccount, permissionCapabilities, sendAutomationResponse, ThreadsAutomationError, type Platform } from './automation-platform';
 import { conversationKey, withConversationLock } from './automation-lock';
 
 export type InstagramAutomationEvent = {
@@ -18,7 +18,7 @@ const permissionsCache = new Map<string, { expiresAt: number; grantedPermissions
 const agentKey = (accountId: string, platform: Platform) => platform === 'THREADS'
   ? { threadsAccountId_platform: { threadsAccountId: accountId, platform } }
   : { accountId_platform: { accountId, platform } };
-const diagnostic = (error: unknown) => error instanceof ValidationError || error instanceof NotFoundError || error instanceof ConflictError
+const diagnostic = (error: unknown) => error instanceof ValidationError || error instanceof NotFoundError || error instanceof ConflictError || error instanceof ThreadsAutomationError
   ? error.message.slice(0, 500) : 'Não foi possível concluir a operação com o provedor. Confira a conexão; não repetimos envios de resultado incerto.';
 
 export const getAutomationStatus = async (userId: string, accountId: string, refreshPermissions = false, platform: Platform = 'INSTAGRAM') => {
@@ -265,7 +265,18 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
       if (!isComment && !validMessageWindow(event.timestamp)) throw new ValidationError('A janela de resposta expirou durante o processamento.');
       let providerMessageId: string | undefined;
       if (isComment && event.commentId && (rule.replyMode === 'AI' || rule.publicCommentReply)) {
-        providerMessageId = await sendAutomationResponse(account, { commentId: event.commentId }, response); publicReplySent = true;
+        providerMessageId = await sendAutomationResponse(account, { commentId: event.commentId }, response, async () => {
+          await assertLease();
+          await ownedAutomationAccount(account.userId, account.id, platform);
+          const [currentRule, currentConversation, currentAgent] = await Promise.all([
+            prisma.socialAutomation.findFirst({ where: { id: rule.id, ...scope, enabled: true } }),
+            prisma.automationConversation.findUniqueOrThrow({ where: { id: conversation.id } }),
+            rule.replyMode === 'AI' ? prisma.instagramAgentSettings.findUnique({ where: agentKey(account.id, platform) }) : null,
+          ]);
+          if (!currentRule || currentConversation.state !== 'BOT' || (rule.replyMode === 'AI' && (!currentAgent?.enabled || !currentAgent.autoSend))) {
+            throw new ValidationError('O atendimento foi pausado antes da publicação da resposta.');
+          }
+        }); publicReplySent = true;
         await update({ publicReplySent, responseText: response, providerMessageId });
       }
       if (isComment && event.commentId && rule.replyMode === 'TEMPLATE' && rule.privateCommentReply) {
@@ -312,7 +323,14 @@ export const sendReviewedAutomationReply = async (userId: string, accountId: str
     const claim = await prisma.automationExecution.updateMany({ where: { id: executionId, ...scope, status: 'NEEDS_REVIEW' }, data: { status: 'PROCESSING' } });
     if (claim.count !== 1) throw new ConflictError('Esta resposta já foi iniciada ou enviada. Atualize a conversa.');
     try {
-      const providerMessageId = await sendAutomationResponse(account, isComment ? { commentId: execution.commentId } : { senderId: execution.senderId }, text);
+      const providerMessageId = await sendAutomationResponse(account, isComment ? { commentId: execution.commentId } : { senderId: execution.senderId }, text, async () => {
+        await assertLease();
+        await ownedAutomationAccount(userId, accountId, platform);
+        if (execution.conversationId) {
+          const current = await prisma.automationConversation.findUniqueOrThrow({ where: { id: execution.conversationId } });
+          if (current.state === 'STOPPED' || current.lastInboundAt > execution.eventAt) throw new ValidationError('A conversa mudou antes da publicação. Revise o atendimento.');
+        }
+      });
       await prisma.automationExecution.update({ where: { id: executionId }, data: { status: 'SENT', responseText: text, publicReplySent: isComment, privateReplySent: !isComment, providerMessageId, humanReply: true, error: null } });
     } catch (error) {
       await prisma.automationExecution.update({ where: { id: executionId }, data: { status: 'FAILED', error: diagnostic(error) } });

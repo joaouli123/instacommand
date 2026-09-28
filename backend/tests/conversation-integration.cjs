@@ -44,7 +44,7 @@ beforeEach(async () => {
   aiResult = { response: 'A empresa abre às 9h.', shouldEscalate: false, reason: '' };
   global.fetch = async (url, init) => {
     const path = new URL(url).pathname;
-    return { ok: true, status: 200, json: async () => path === '/oauth/access_token' ? { access_token: 'fixture-app-token' } : path === '/debug_token' ? { data: { is_valid: true, scopes: ['threads_read_replies', 'threads_content_publish'] } } : path.endsWith('/threads_publish') ? { id: 'published-fixture' } : { id: 'container-fixture' } };
+    return { ok: true, status: 200, json: async () => path === '/oauth/access_token' ? { access_token: 'fixture-app-token' } : path === '/debug_token' ? { data: { is_valid: true, scopes: ['threads_read_replies', 'threads_manage_replies', 'threads_content_publish'] } } : path.endsWith('/threads_publish') ? { id: 'published-fixture' } : path === '/container-fixture' ? { status: 'FINISHED' } : { id: 'container-fixture' } };
   };
 });
 after(async () => { await prisma.$disconnect(); await automationDb.$disconnect(); await redisConnection.quit(); });

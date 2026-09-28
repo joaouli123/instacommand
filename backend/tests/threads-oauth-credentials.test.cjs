@@ -74,3 +74,13 @@ test('a partial server configuration is reported and never mixed with workspace 
   assert.equal(status.credentialSource, 'missing');
   assert.equal(status.appIdConfigured, false);
 });
+
+test('public reply consent requests both reading and managing replies, without deletion or unrelated access', async () => {
+  process.env.THREADS_APP_ID = 'threads-app-id';
+  process.env.THREADS_APP_SECRET = 'threads-app-secret';
+  const url = new URL(await getThreadsOAuthUrl('user', 'safe-state', true));
+  assert.deepEqual(new Set(url.searchParams.get('scope').split(',')), new Set([
+    'threads_basic', 'threads_content_publish', 'threads_manage_insights', 'threads_read_replies', 'threads_manage_replies',
+  ]));
+  assert.equal(url.searchParams.get('state'), 'safe-state');
+});

@@ -580,7 +580,7 @@ export const getThreadsOAuthUrl = async (userId: string, state?: string, include
     redirect_uri: env.THREADS_REDIRECT_URI,
     // Keep the normal connection limited to profile, publishing and analytics.
     // Deleting remote posts is not part of this consent/review flow.
-    scope: ['threads_basic', 'threads_content_publish', 'threads_manage_insights', ...(includeReplies ? ['threads_read_replies'] : [])].join(','),
+    scope: ['threads_basic', 'threads_content_publish', 'threads_manage_insights', ...(includeReplies ? ['threads_read_replies', 'threads_manage_replies'] : [])].join(','),
     response_type: 'code',
     ...(state ? { state } : {}),
   });

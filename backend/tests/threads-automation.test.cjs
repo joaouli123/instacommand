@@ -9,13 +9,13 @@ require.cache[require.resolve('../dist/services/automation-platform')] = { expor
   accountScope: (id, platform) => ({ threadsAccountId: id, platform }),
   ownedAutomationAccount: async () => ({ id: 'fixture', externalId: 'threads-user', username: 'OurAccount' }),
   automationPermissions: async () => scopes,
-  permissionCapabilities: (_, granted) => ({ canAutomateComments: ['threads_read_replies', 'threads_content_publish'].every(scope => granted.includes(scope)) }),
+  permissionCapabilities: (_, granted) => ({ canAutomateComments: ['threads_read_replies', 'threads_manage_replies', 'threads_content_publish'].every(scope => granted.includes(scope)) }),
   threadsAutomationRequest: async (path, token, params) => { calls.push({ path, params }); return pages.shift(); },
 } };
 const { syncThreadsAutomation, threadsReplyEvents } = require('../dist/services/threads-automation.service');
 const reply = (id, time = Date.now() - 1000) => ({ id, text: 'teste', username: 'AnotherPerson', is_reply: true, is_reply_owned_by_me: false, root_post: { id: 'root' }, timestamp: new Date(time).toISOString() });
 beforeEach(() => {
-  rules = [{ enabledAt: new Date(Date.now() - 60000) }]; scopes = ['threads_read_replies', 'threads_content_publish'];
+  rules = [{ enabledAt: new Date(Date.now() - 60000) }]; scopes = ['threads_read_replies', 'threads_manage_replies', 'threads_content_publish'];
   calls = []; events = []; updates = []; pages = [];
 });
 test('only verified replies to the owned root after activation become events', () => {
@@ -43,6 +43,12 @@ test('pagination uses trusted paths and cursor values, deduplicates and orders r
   assert.deepEqual(events.map(item => item.commentId), ['older', 'newer']);
   assert.equal(calls[2].path, '/root/conversation'); assert.equal(calls[2].params.after, 'safe-cursor');
   assert.equal(updates[0].automationSyncError, null);
+});
+
+test('reading and publishing without reply management cannot collect automation events', async () => {
+  scopes = ['threads_read_replies', 'threads_content_publish'];
+  await assert.rejects(syncThreadsAutomation('owner', 'fixture'), /Reconecte/);
+  assert.equal(calls.length, 0); assert.equal(events.length, 0);
 });
 test('cursor loops produce an honest partial-result warning', async () => {
   pages = [{ data: [{ id: 'root', username: 'OurAccount' }] },
