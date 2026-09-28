@@ -9,6 +9,9 @@ import {
   AlertCircle, ArrowDownRight, ArrowUpRight, Bookmark, Eye, Heart,
   MessageCircle, RefreshCw, Share2, TrendingUp, Users,
 } from "lucide-react"
+import { MetricCard } from "./MetricCard"
+import { ReportChart } from "./ReportChart"
+import { ReportAccessNotice } from "./ReportAccessNotice"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { api, fetchApi } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
@@ -95,32 +98,51 @@ export function InstagramAnalytics() {
   const [loadingAudience, setLoadingAudience] = useState(false)
   const [error, setError] = useState("")
   const latestRequest = useRef(0)
+  const controller = useRef<AbortController | null>(null)
+  const rankRequests = useRef({ STORY: 0, REEL: 0, FEED: 0 })
+  const [syncing, setSyncing] = useState(false)
   const { accounts: activeAccounts, accountId: activeAccountId, isLoading: accountsLoading, setActiveAccount } = useActiveAccount()
 
   const loadRanking = useCallback(async (id: string, days: number, type: TopGroup, metric: RankMetric) => {
+    const version = latestRequest.current
+    const rankingId = ++rankRequests.current[type]
+    const current = () => version === latestRequest.current && rankingId === rankRequests.current[type]
     setRankingLoading((state) => ({ ...state, [type]: true }))
     try {
       const result = await fetchApi(`/analytics/${encodeURIComponent(id)}/top-posts?days=${days}&mediaType=${type}&sortBy=${metric}`) as { data?: AnalyticsPost[] }
+      if (!current()) return
       setRankings((state) => ({ ...state, [type]: result.data || [] }))
       setRankMetrics((state) => ({ ...state, [type]: metric }))
     } catch {
+      if (!current()) return
       setRankings((state) => ({ ...state, [type]: [] }))
-    } finally { setRankingLoading((state) => ({ ...state, [type]: false })) }
+    } finally { if (current()) setRankingLoading((state) => ({ ...state, [type]: false })) }
   }, [])
 
   const loadAudience = useCallback(async (id: string, type: "followers" | "engaged") => {
+    const version = latestRequest.current
     setLoadingAudience(true)
     try {
       const result = await fetchApi(`/analytics/${encodeURIComponent(id)}/audience?audience=${type}`) as AudiencePayload
+      if (version !== latestRequest.current) return
       setAudience(result)
       setAudienceType(type)
     } catch (loadError) {
+      if (version !== latestRequest.current) return
       setAudience({ available: false, data: [], message: loadError instanceof Error ? loadError.message : "Não foi possível consultar a audiência." })
-    } finally { setLoadingAudience(false) }
+    } finally { if (version === latestRequest.current) setLoadingAudience(false) }
   }, [])
 
   const loadAnalytics = useCallback(async (id: string, days: number, page = 1) => {
     const requestId = ++latestRequest.current
+    controller.current?.abort()
+    const request = new AbortController()
+    controller.current = request
+    const get = (path: string) => fetchApi(`/analytics/${encodeURIComponent(id)}/${path}`, { signal: request.signal })
+    setRankingLoading({ STORY: false, REEL: false, FEED: false })
+    setRankMetrics({ STORY: "views", REEL: "views", FEED: "interactions" })
+    setLoadingAudience(false)
+    setLoadingPosts(false)
     setLoading(true)
     setError("")
     setDashboard(null)
@@ -136,14 +158,14 @@ export function InstagramAnalytics() {
     try {
       const postFallback = { data: [], total: 0, page, totalPages: 1 }
       const [nextDashboard, nextGrowth, nextEngagement, nextPosts, nextAudience, nextBestTimes, nextContentTypes, nextRecommendations, topStories, topReels, topFeed] = await Promise.all([
-        api.getDashboard(id, days), api.getGrowth(id, days), api.getEngagement(id, days), api.getAnalyticsPosts(id, page, 20, days),
-        optional(fetchApi(`/analytics/${id}/audience?audience=${audienceType}`), emptyAudience),
-        optional(fetchApi(`/analytics/${id}/best-times?days=${days}`), []),
-        optional(fetchApi(`/analytics/${id}/content-types?days=${days}`), []),
-        optional(fetchApi(`/analytics/${id}/recommendations?days=${days}`), []),
-        optional(fetchApi(`/analytics/${id}/top-posts?days=${days}&mediaType=STORY&sortBy=views`), { data: [] }),
-        optional(fetchApi(`/analytics/${id}/top-posts?days=${days}&mediaType=REEL&sortBy=views`), { data: [] }),
-        optional(fetchApi(`/analytics/${id}/top-posts?days=${days}&mediaType=FEED&sortBy=interactions`), { data: [] }),
+        get(`dashboard?days=${days}`), get(`growth?days=${days}`), get(`engagement?days=${days}`), get(`posts?page=${page}&limit=20&days=${days}`),
+        Promise.resolve(emptyAudience),
+        optional(get(`best-times?days=${days}`), []),
+        optional(get(`content-types?days=${days}`), []),
+        optional(get(`recommendations?days=${days}`), []),
+        optional(get(`top-posts?days=${days}&mediaType=STORY&sortBy=views`), { data: [] }),
+        optional(get(`top-posts?days=${days}&mediaType=REEL&sortBy=views`), { data: [] }),
+        optional(get(`top-posts?days=${days}&mediaType=FEED&sortBy=interactions`), { data: [] }),
       ])
       if (requestId !== latestRequest.current) return
       setDashboard(nextDashboard as Dashboard)
@@ -168,7 +190,7 @@ export function InstagramAnalytics() {
       if (requestId !== latestRequest.current) return
       setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os dados reais da conta.")
     } finally { if (requestId === latestRequest.current) setLoading(false) }
-  }, [audienceType])
+  }, [])
 
   useEffect(() => {
     const nextAccounts = (activeAccounts || []) as Account[]
@@ -179,10 +201,30 @@ export function InstagramAnalytics() {
     }
     setAccountId(activeAccountId)
     void loadAnalytics(activeAccountId, Number(period), 1)
-    return () => { latestRequest.current += 1 }
+    return () => { latestRequest.current += 1; controller.current?.abort() }
   // The active-account hook is the single source of truth for the global selector.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAccountId, activeAccounts, accountsLoading])
+
+  useEffect(() => {
+    if (section === "demografia" && accountId && !loading) void loadAudience(accountId, audienceType)
+  // Audience is loaded only when its panel is opened, not before the overview.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, accountId, loading, loadAudience])
+
+  const syncNow = async () => {
+    if (!accountId || syncing) return
+    const version = latestRequest.current
+    setSyncing(true); setError("")
+    try {
+      await api.syncAccount(accountId)
+      const refreshed = await api.getAccounts() as Account[]
+      if (version !== latestRequest.current) return
+      setAccounts(refreshed)
+      await loadAnalytics(accountId, Number(period), 1)
+    } catch (error) { if (version === latestRequest.current) setError(error instanceof Error ? error.message : "Não foi possível sincronizar agora.") }
+    finally { setSyncing(false) }
+  }
 
   const audienceRows = useMemo(() => getAudienceRows(audience), [audience])
   const genderRows = useMemo(() => rowsFor(audienceRows, "gender"), [audienceRows])
@@ -190,14 +232,14 @@ export function InstagramAnalytics() {
   const countryRows = useMemo(() => rowsFor(audienceRows, "country"), [audienceRows])
   const cityRows = useMemo(() => rowsFor(audienceRows, "city"), [audienceRows])
   const followerChart = useMemo(() => growth.map((item, index) => ({
-    date: formatDate(item.date), followers: item.followers,
+    date: item.date, followers: item.followers,
     netChange: index ? item.followers - growth[index - 1].followers : null,
   })), [growth])
-  const profileHistory = useMemo(() => growth.filter((item) => item.reach !== null || item.views !== null).map((item) => ({
-    date: formatDate(item.date), alcance: item.reach, visualizacoes: item.views,
+  const profileHistory = useMemo(() => growth.map((item) => ({
+    date: item.date, alcance: item.reach, visualizacoes: item.views,
   })), [growth])
-  const engagementData = useMemo(() => engagement.filter((item) => item.interactions != null).map((item) => ({
-    date: formatDate(item.date), interacoes: item.interactions, posts: item.posts,
+  const engagementData = useMemo(() => engagement.map((item) => ({
+    date: item.date, interacoes: item.interactions, posts: item.posts, likes: item.likes, comments: item.comments, saves: item.saves, shares: item.shares,
   })), [engagement])
   const periodNetGrowth = growth.length > 1 ? growth[growth.length - 1].followers - growth[0].followers : null
   const followerGrowthRate = growth.length > 1 && growth[0].followers > 0 ? periodNetGrowth! / growth[0].followers * 100 : null
@@ -208,15 +250,17 @@ export function InstagramAnalytics() {
 
   const onPostsPageChange = async (nextPage: number) => {
     if (nextPage < 1 || nextPage > postsTotalPages || nextPage === postsPage || !accountId) return
+    const version = latestRequest.current
     setLoadingPosts(true)
     try {
       const result = await api.getAnalyticsPosts(accountId, nextPage, 20, Number(period)) as { data?: AnalyticsPost[]; total?: number; page?: number; totalPages?: number }
+      if (version !== latestRequest.current) return
       setPosts(result.data || [])
       setPostsPage(result.page || nextPage)
       setPostsTotal(result.total || 0)
       setPostsTotalPages(Math.max(1, result.totalPages || 1))
-    } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar essa página.") }
-    finally { setLoadingPosts(false) }
+    } catch (loadError) { if (version === latestRequest.current) setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar essa página.") }
+    finally { if (version === latestRequest.current) setLoadingPosts(false) }
   }
 
   if ((accountsLoading || loading) && !dashboard) return <div className="flex min-h-[420px] items-center justify-center text-sm text-slate-500"><RefreshCw size={18} className="mr-2 animate-spin" />Carregando dados reais da Meta...</div>
@@ -227,52 +271,54 @@ export function InstagramAnalytics() {
     if (accountId) void loadRanking(accountId, Number(period), type, metric)
   }
 
-  return <div className="space-y-6 animate-fade-in">
+  return <div className="min-w-0 space-y-4 sm:space-y-5 animate-fade-in">
     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-      <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Performance real</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Análise de desempenho</h2><p className="mt-1 text-sm text-slate-500">Métricas e histórico retornados pela sua conta do Instagram.</p></div>
-      <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
-        <Select value={accountId} onValueChange={onAccountChange}><SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Conta" /></SelectTrigger><SelectContent>{accounts.map((account) => <SelectItem key={account.id} value={account.id}>@{account.igUsername}</SelectItem>)}</SelectContent></Select>
-        <Select value={period} onValueChange={onPeriodChange}><SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Período" /></SelectTrigger><SelectContent><SelectItem value="7">Últimos 7 dias</SelectItem><SelectItem value="30">Últimos 30 dias</SelectItem><SelectItem value="90">Últimos 90 dias</SelectItem><SelectItem value="365">Últimos 12 meses</SelectItem><SelectItem value="730">Últimos 24 meses</SelectItem></SelectContent></Select>
+      <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Instagram</p><h2 className="report-title">Desempenho do perfil</h2><p className="mt-1 text-sm text-slate-500">Explore sua audiência e os resultados dos conteúdos.</p></div>
+      <div className="grid w-full grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:flex sm:w-auto">
+        <Select value={accountId} onValueChange={onAccountChange}><SelectTrigger aria-label="Conta do Instagram" className="w-full min-w-0 [&>span]:truncate sm:w-56"><SelectValue placeholder="Conta" /></SelectTrigger><SelectContent>{accounts.map((account) => <SelectItem key={account.id} value={account.id}>@{account.igUsername}</SelectItem>)}</SelectContent></Select>
+        <Select value={period} onValueChange={onPeriodChange}><SelectTrigger aria-label="Período do Instagram" className="w-full min-w-0 [&>span]:truncate sm:w-44"><SelectValue placeholder="Período" /></SelectTrigger><SelectContent><SelectItem value="7">Últimos 7 dias</SelectItem><SelectItem value="30">Últimos 30 dias</SelectItem><SelectItem value="90">Últimos 90 dias</SelectItem><SelectItem value="365">Últimos 12 meses</SelectItem><SelectItem value="730">Últimos 24 meses</SelectItem></SelectContent></Select>
       </div>
     </div>
+    <div className="flex flex-wrap items-center gap-2"><Button variant="outline" onClick={syncNow} disabled={syncing || loading}><RefreshCw size={15} className={`mr-2 ${syncing ? "animate-spin" : ""}`}/>{syncing ? "Sincronizando…" : "Sincronizar dados"}</Button><span className="text-xs text-slate-500">Atualiza publicações e métricas disponíveis.</span></div>
+    <ReportAccessNotice accountId={accountId} network="Instagram"/>
     {error && <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><AlertCircle size={17} className="mt-0.5 shrink-0" />{error}</div>}
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600"><span>Conta <strong className="text-slate-900">@{currentAccount?.igUsername}</strong> · {formatNumber(postsTotal)} publicações no período de {period} dias</span><span>Última sincronização: {currentAccount?.lastSyncAt ? new Date(currentAccount.lastSyncAt).toLocaleString("pt-BR") : "não registrada"}</span></div>
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs leading-relaxed text-slate-500"><span>Conta <strong className="text-slate-900">@{currentAccount?.igUsername}</strong> · {formatNumber(postsTotal)} publicações no período de {period} dias</span><span>Última sincronização: {currentAccount?.lastSyncAt ? new Date(currentAccount.lastSyncAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "não registrada"}</span></div>
 
     <Tabs value={section} onValueChange={setSection}>
-      <div className="overflow-x-auto pb-1"><TabsList className="grid h-auto min-w-[760px] w-full grid-cols-7 gap-1">
+      <div><TabsList aria-label="Seções do Instagram" className="flex h-auto w-full flex-wrap justify-start gap-1">
         <TabsTrigger value="visao" className="px-2 text-xs sm:text-sm">Visão geral</TabsTrigger><TabsTrigger value="seguidores" className="px-2 text-xs sm:text-sm">Seguidores</TabsTrigger><TabsTrigger value="demografia" className="px-2 text-xs sm:text-sm">Demografia</TabsTrigger><TabsTrigger value="stories" className="px-2 text-xs sm:text-sm">Top 20 Stories</TabsTrigger><TabsTrigger value="reels" className="px-2 text-xs sm:text-sm">Top 20 Reels</TabsTrigger><TabsTrigger value="posts" className="px-2 text-xs sm:text-sm">Top posts</TabsTrigger><TabsTrigger value="horarios" className="px-2 text-xs sm:text-sm">Melhores horários</TabsTrigger>
       </TabsList></div>
 
       <TabsContent value="visao" className="space-y-5">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
           <Stat label="Seguidores atuais" value={formatNumber(dashboard?.followers)} detail={followerLatestDate ? `Coleta de ${formatDate(followerLatestDate)}` : "Total retornado pela Meta"} icon={Users} />
-          <Stat label="Variação líquida no período" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail={followerGrowthRate == null ? "Precisa de ao menos duas coletas" : `${formatPercent(followerGrowthRate)} sobre o início do período`} icon={periodNetGrowth != null && periodNetGrowth < 0 ? ArrowDownRight : ArrowUpRight} />
-          <Stat label="Alcance da coleta mais recente" value={formatNumber(dashboard?.reach)} detail="Não é a soma do período" icon={Eye} />
-          <Stat label="Visualizações da coleta mais recente" value={formatNumber(dashboard?.views)} detail={dashboard?.reach && dashboard.views != null ? `Frequência: ${(dashboard.views / dashboard.reach).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} por conta alcançada` : "Frequência indisponível sem alcance e visualizações"} icon={TrendingUp} />
-          <Stat label="Interações nos posts do período" value={formatNumber(dashboard?.interactions)} detail={dashboard?.interactionsPartial ? "Soma parcial: a Meta omitiu alguns contadores" : "Contadores acumulados até a última coleta"} icon={Heart} />
+          <Stat label="Variação de seguidores" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail={followerGrowthRate == null ? "Precisa de ao menos duas coletas" : `${formatPercent(followerGrowthRate)} sobre o início do período`} icon={periodNetGrowth != null && periodNetGrowth < 0 ? ArrowDownRight : ArrowUpRight} />
+          <Stat label="Alcance recente" value={formatNumber(dashboard?.reach)} detail="Não é a soma do período" icon={Eye} />
+          <Stat label="Visualizações recentes" value={formatNumber(dashboard?.views)} detail={dashboard?.reach && dashboard.views != null ? `Frequência: ${(dashboard.views / dashboard.reach).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} por conta alcançada` : "Frequência indisponível sem alcance e visualizações"} icon={TrendingUp} />
+          <Stat label="Interações nos posts" value={formatNumber(dashboard?.interactions)} detail={dashboard?.interactionsPartial ? "Soma parcial: a Meta omitiu alguns contadores" : "Contadores acumulados até a última coleta"} icon={Heart} />
           <Stat label="Taxa média por publicação" value={formatPercent(dashboard?.engagementRate)} detail="Média das taxas disponíveis; não é uma taxa ponderada do perfil" icon={TrendingUp} />
           <Stat label="Contas engajadas" value={formatNumber(dashboard?.accountsEngaged)} detail="Valor da coleta mais recente" icon={Users} />
           <Stat label="Toques em links do perfil" value={formatNumber(dashboard?.profileLinkTaps)} detail="Valor da coleta mais recente, quando disponível" icon={ArrowUpRight} />
         </div>
         <div className="grid gap-5 xl:grid-cols-2">
-          <Card className="p-5"><ChartHeading title="Alcance e visualizações do perfil" subtitle="Última coleta disponível em cada dia; pontos ausentes não são tratados como zero." />{profileHistory.length ? <ResponsiveContainer width="100%" height={300}><AreaChart data={profileHistory} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}><defs><linearGradient id="analyticsReachFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.18}/><stop offset="95%" stopColor="#4f46e5" stopOpacity={0.01}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false}/><XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false}/><YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false}/><Tooltip/><Legend/><Area connectNulls={false} type="monotone" dataKey="alcance" name="Alcance" stroke="#4f46e5" fill="url(#analyticsReachFill)"/><Area connectNulls={false} type="monotone" dataKey="visualizacoes" name="Visualizações" stroke="#0284c7" fill="none"/></AreaChart></ResponsiveContainer> : <Empty text="Ainda não há histórico de alcance ou visualizações. Sincronizações futuras vão formar essa série." />}</Card>
-          <Card className="p-5"><ChartHeading title="Interações por data de publicação" subtitle="Soma dos contadores conhecidos dos posts publicados em cada dia, acumulados até a coleta." />{engagementData.length ? <ResponsiveContainer width="100%" height={300}><BarChart data={engagementData} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false}/><XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false}/><YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false}/><Tooltip/><Bar dataKey="interacoes" name="Interações disponíveis" fill="#4f46e5" radius={[5, 5, 0, 0]}/></BarChart></ResponsiveContainer> : <Empty text="Não há posts com contadores disponíveis no período selecionado." />}</Card>
+          <ReportChart key={`profile-${accountId}-${period}`} title="Alcance e visualizações do perfil" description="Última coleta disponível em cada dia. Semanal e mensal mostram a última observação, não a soma de pessoas alcançadas." rows={profileHistory} series={[{ key: "alcance", label: "Alcance", color: "#4f46e5", aggregation: "last" }, { key: "visualizacoes", label: "Visualizações", color: "#0284c7", aggregation: "last" }]} filename="instagram-perfil"/>
+          <ReportChart key={`interactions-${accountId}-${period}`} title="Interações por data de publicação" description="Contadores dos posts publicados em cada data, acumulados até a coleta. A soma pode ser parcial." rows={engagementData} series={[{ key: "interacoes", label: "Interações", color: "#4f46e5" }, { key: "likes", label: "Curtidas", color: "#e11d48" }, { key: "comments", label: "Comentários", color: "#0284c7" }, { key: "saves", label: "Salvos", color: "#d97706" }, { key: "shares", label: "Compartilhamentos", color: "#0d9488" }]} defaultKeys={["interacoes"]} kind="bar" filename="instagram-interacoes"/>
         </div>
-        <Card className="p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-2"><ChartHeading title="Formatos publicados" subtitle="Totais acumulados por formato; o alcance pode incluir as mesmas pessoas em posts diferentes."/><Badge variant="secondary">{formatNumber(contentTypes.reduce((sum, item) => sum + item.posts, 0))} posts</Badge></div>{contentTypes.length ? <ResponsiveContainer width="100%" height={290}><BarChart data={contentTypes} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false}/><XAxis dataKey="type" tickFormatter={formatType}/><YAxis/><Tooltip/><Legend/><Bar dataKey="interactions" name="Interações" fill="#4f46e5" radius={[5, 5, 0, 0]}/><Bar dataKey="views" name="Visualizações" fill="#0ea5e9" radius={[5, 5, 0, 0]}/></BarChart></ResponsiveContainer> : <Empty text="Sem dados suficientes para comparar os formatos." />}</Card>
-        <Card className="p-5"><ChartHeading title="Recomendações do histórico" />{recommendations.length ? <div className="mt-4 grid gap-3 md:grid-cols-2">{recommendations.map((item, index) => <div key={`${item.type}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><Badge variant="default">{item.type}</Badge><p className="mt-2 text-sm text-slate-700">{item.message}</p><p className="mt-2 text-xs text-slate-400">Baseado em {item.basedOn || postsTotal} publicação(ões)</p></div>)}</div> : <Empty text="Ainda não há histórico suficiente para recomendações." />}</Card>
+        <Card className="p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-2"><ChartHeading title="Formatos publicados" subtitle="Totais acumulados por formato; o alcance pode incluir as mesmas pessoas em posts diferentes."/><Badge variant="secondary">{formatNumber(contentTypes.reduce((sum, item) => sum + item.posts, 0))} posts</Badge></div>{contentTypes.length ? <ResponsiveContainer width="100%" height={290}><BarChart accessibilityLayer data={contentTypes} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false}/><XAxis dataKey="type" tickFormatter={formatType}/><YAxis/><Tooltip labelFormatter={value => formatType(String(value))} formatter={(value: number, name: string) => [formatNumber(value), name]}/><Legend/><Bar dataKey="interactions" name="Interações" isAnimationActive={false} fill="#4f46e5" radius={[5, 5, 0, 0]}/><Bar dataKey="views" name="Visualizações" isAnimationActive={false} fill="#0ea5e9" radius={[5, 5, 0, 0]}/></BarChart></ResponsiveContainer> : <Empty text="Sem dados suficientes para comparar os formatos." />}</Card>
+        <Card className="p-5"><ChartHeading title="Recomendações do histórico" />{recommendations.length ? <div className="mt-4 grid gap-3 md:grid-cols-2">{recommendations.map((item, index) => <div key={`${item.type}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><Badge variant="default">{{ DATA: "Dados disponíveis", FORMAT: "Formato", TIMING: "Horário" }[item.type] || "Observação"}</Badge><p className="mt-2 text-sm text-slate-700">{item.message}</p><p className="mt-2 text-xs text-slate-400">Baseado em {item.basedOn || postsTotal} publicação(ões)</p></div>)}</div> : <Empty text="Ainda não há histórico suficiente para recomendações." />}</Card>
       </TabsContent>
 
       <TabsContent value="seguidores" className="space-y-5">
-        <div className="grid gap-3 sm:grid-cols-3"><Stat label="Seguidores no início" value={formatNumber(growth[0]?.followers)} detail={growth[0] ? formatDate(growth[0].date) : "Sem coleta no início"} icon={Users}/><Stat label="Seguidores atuais" value={formatNumber(growth.at(-1)?.followers ?? dashboard?.followers)} detail={growth.at(-1) ? formatDate(growth.at(-1)!.date) : "Total mais recente"} icon={Users}/><Stat label="Variação líquida" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail="Diferença entre as coletas observadas" icon={TrendingUp}/></div>
-        <Card className="p-5"><ChartHeading title="Evolução de seguidores" subtitle="Uma observação por dia (a última coleta daquele dia). Datas sem coleta não são interpoladas." />{followerChart.length ? <ResponsiveContainer width="100%" height={360}><AreaChart data={followerChart} margin={{ top: 12, right: 16, left: 4, bottom: 0 }}><defs><linearGradient id="followersFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4f46e5" stopOpacity={0.22}/><stop offset="95%" stopColor="#4f46e5" stopOpacity={0.01}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false}/><XAxis dataKey="date" tick={{ fontSize: 12 }} tickLine={false}/><YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} domain={["auto", "auto"]}/><Tooltip formatter={(value: number) => [formatNumber(value), "Seguidores"]}/><Area type="monotone" dataKey="followers" name="Seguidores" stroke="#4f46e5" strokeWidth={2.5} fill="url(#followersFill)"/></AreaChart></ResponsiveContainer> : <Empty text="O histórico começa a aparecer depois de duas sincronizações em dias diferentes." />}</Card>
-        <Card className="p-5"><ChartHeading title="Variação líquida entre coletas" subtitle="Diferença no total de seguidores; não separa quem começou a seguir de quem deixou de seguir." />{followerChart.filter((item) => item.netChange !== null).length ? <ResponsiveContainer width="100%" height={260}><BarChart data={followerChart.filter((item) => item.netChange !== null)} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false}/><XAxis dataKey="date" tick={{ fontSize: 11 }}/><YAxis/><Tooltip formatter={(value: number) => [`${value > 0 ? "+" : ""}${formatNumber(value)}`, "Variação líquida"]}/><Bar dataKey="netChange" name="Variação líquida" radius={[5, 5, 0, 0]}>{followerChart.filter((item) => item.netChange !== null).map((item, index) => <Cell key={index} fill={(item.netChange || 0) >= 0 ? "#16a34a" : "#ef4444"}/>)}</Bar></BarChart></ResponsiveContainer> : <Empty text="É preciso haver pelo menos duas coletas para calcular uma variação." />}</Card>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3"><Stat label="Seguidores no início" value={formatNumber(growth[0]?.followers)} detail={growth[0] ? formatDate(growth[0].date) : "Sem coleta no início"} icon={Users}/><Stat label="Seguidores atuais" value={formatNumber(growth.at(-1)?.followers ?? dashboard?.followers)} detail={growth.at(-1) ? formatDate(growth.at(-1)!.date) : "Total mais recente"} icon={Users}/><Stat label="Variação líquida" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail="Diferença entre as coletas observadas" icon={TrendingUp}/></div>
+        <ReportChart key={`followers-${accountId}-${period}`} title="Evolução de seguidores" description="Última observação de cada dia, semana ou mês. Datas sem coleta permanecem sem valor." rows={followerChart} series={[{ key: "followers", label: "Seguidores", color: "#4f46e5", aggregation: "last" }]} filename="instagram-seguidores"/>
+        <ReportChart key={`growth-${accountId}-${period}`} title="Variação líquida entre coletas" description="Diferença no total de seguidores entre observações; não separa novos seguidores de pessoas que deixaram de seguir." rows={followerChart} series={[{ key: "netChange", label: "Variação líquida", color: "#0d9488" }]} kind="bar" filename="instagram-crescimento"/>
       </TabsContent>
 
       <TabsContent value="demografia" className="space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-900">Quem acompanha seu perfil</h3><p className="text-sm text-slate-500">Dados demográficos de seguidores ou de pessoas que interagiram, conforme a disponibilidade da Meta.</p></div><div className="flex gap-2"><Button variant={audienceType === "followers" ? "default" : "outline"} onClick={() => accountId && void loadAudience(accountId, "followers")} disabled={loadingAudience}>Seguidores</Button><Button variant={audienceType === "engaged" ? "default" : "outline"} onClick={() => accountId && void loadAudience(accountId, "engaged")} disabled={loadingAudience}>Público engajado</Button></div></div>
         {!audience.available && <div role="status" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><AlertCircle size={18} className="mt-0.5 shrink-0"/><div><strong>Demografia não disponível</strong><p className="mt-1">{audience.message || "A Meta não retornou esses dados para esta conta. Isso pode depender da permissão do app ou da elegibilidade do público."}</p></div></div>}
         {audience.available && <div className="grid gap-5 xl:grid-cols-2">
-          <Card className="p-5"><ChartHeading title="Por gênero" subtitle="Distribuição do público retornado pela Meta."/>{genderRows.length ? <><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={genderRows} dataKey="value" nameKey="label" innerRadius={65} outerRadius={95} paddingAngle={3} label={({ name, percent }) => `${genderLabel(String(name))} ${(Number(percent) * 100).toFixed(0)}%`}>{genderRows.map((row, index) => <Cell key={`${row.label}-${index}`} fill={colors[index % colors.length]}/>)}</Pie><Tooltip formatter={(value: number) => [formatNumber(value), "Pessoas"]}/></PieChart></ResponsiveContainer><div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-slate-600">{genderRows.map((row, index) => <span key={row.label} className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors[index % colors.length] }}/>{genderLabel(row.label)} · {formatNumber(row.value)}</span>)}</div></> : <Empty text="A Meta não retornou a divisão por gênero."/>}</Card>
+          <Card className="p-5"><ChartHeading title="Por gênero" subtitle="Distribuição do público retornado pela Meta."/>{genderRows.length ? <><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={genderRows.map(row => ({ ...row, name: genderLabel(row.label), label: genderLabel(row.label) }))} dataKey="value" nameKey="label" innerRadius={65} outerRadius={95} paddingAngle={3} isAnimationActive={false}>{genderRows.map((row, index) => <Cell key={`${row.label}-${index}`} fill={colors[index % colors.length]}/>)}</Pie><Tooltip formatter={(value: number) => [formatNumber(value), "Pessoas"]}/></PieChart></ResponsiveContainer><div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-slate-600">{genderRows.map((row, index) => <span key={row.label} className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors[index % colors.length] }}/>{genderLabel(row.label)} · {formatNumber(row.value)} ({formatPercent(100 * row.value / Math.max(1, genderRows.reduce((sum, item) => sum + item.value, 0)))})</span>)}</div></> : <Empty text="A Meta não retornou a divisão por gênero."/>}</Card>
           <DemographicBars title="Por faixa etária" data={ageRows} empty="A Meta não retornou faixas etárias." />
           <DemographicBars title="Por país" data={countryRows} empty="A Meta não retornou países." />
           <DemographicBars title="Por cidade" data={cityRows} empty="A Meta não retornou cidades." />
@@ -289,7 +335,7 @@ export function InstagramAnalytics() {
 }
 
 function Stat({ label, value, detail, icon: Icon }: { label: string; value: string; detail: string; icon: typeof Users }) {
-  return <Card className="p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium text-slate-500">{label}</p><Icon size={16} className="shrink-0 text-slate-400"/></div><p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{value}</p><p className="mt-1 text-xs leading-5 text-slate-500">{detail}</p></Card>
+  return <MetricCard label={label} value={value} detail={detail}/>
 }
 
 function ChartHeading({ title, subtitle }: { title: string; subtitle?: string }) {
@@ -306,7 +352,7 @@ function genderLabel(value: string) {
 
 function DemographicBars({ title, data, empty }: { title: string; data: AudienceRow[]; empty: string }) {
   if (!data.length) return <Card className="p-5"><ChartHeading title={title}/><Empty text={empty}/></Card>
-  return <Card className="p-5"><ChartHeading title={title} subtitle="Contagem retornada pela Meta."/><ResponsiveContainer width="100%" height={280}><BarChart data={data} layout="vertical" margin={{ top: 5, right: 28, left: 12, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false}/><XAxis type="number" tick={{ fontSize: 11 }}/><YAxis type="category" dataKey="label" width={110} tick={{ fontSize: 11 }}/><Tooltip formatter={(value: number) => [formatNumber(value), "Pessoas"]}/><Bar dataKey="value" name="Pessoas" fill="#4f46e5" radius={[0, 5, 5, 0]} /></BarChart></ResponsiveContainer></Card>
+  return <Card className="p-5"><ChartHeading title={title} subtitle="Contagem retornada pela Meta."/><ResponsiveContainer width="100%" height={280}><BarChart accessibilityLayer data={data} layout="vertical" margin={{ top: 5, right: 28, left: 12, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false}/><XAxis type="number" tick={{ fontSize: 11 }}/><YAxis type="category" dataKey="label" width={110} tick={{ fontSize: 11 }}/><Tooltip formatter={(value: number) => [formatNumber(value), "Pessoas"]}/><Bar dataKey="value" name="Pessoas" fill="#4f46e5" radius={[0, 5, 5, 0]} isAnimationActive={false} /></BarChart></ResponsiveContainer><details className="mt-3 text-xs text-slate-600"><summary className="cursor-pointer font-semibold">Ver valores</summary><dl className="mt-2 space-y-2">{data.map(row => <div key={row.label} className="flex justify-between gap-3"><dt className="break-words">{row.label}</dt><dd className="shrink-0 font-semibold tabular-nums">{formatNumber(row.value)}</dd></div>)}</dl></details></Card>
 }
 
 function TopContent({ title, group, posts, metric, loading, onMetricChange, period }: { title: string; group: TopGroup; posts: AnalyticsPost[]; metric: RankMetric; loading: boolean; onMetricChange: (group: TopGroup, metric: RankMetric) => void; period: string }) {
@@ -327,5 +373,16 @@ function TopContent({ title, group, posts, metric, loading, onMetricChange, peri
 }
 
 function PostTable({ posts, total, page, pages, loading, onPageChange }: { posts: AnalyticsPost[]; total: number; page: number; pages: number; loading: boolean; onPageChange: (page: number) => void }) {
-  return <Card className="p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-lg font-bold text-slate-900">Todas as publicações do período</h3><p className="text-sm text-slate-500">Contadores acumulados até a última coleta. “—” indica que a Meta não devolveu a métrica.</p></div><Badge variant="secondary">{formatNumber(total)} posts</Badge></div><div className="overflow-x-auto"><table className="w-full min-w-[950px] text-sm"><thead><tr className="border-b border-slate-200 text-slate-500"><th className="px-2 py-3 text-left">Publicação</th><th className="px-2 py-3 text-left">Tipo</th><th className="px-2 py-3 text-left">Data</th><th className="px-2 py-3 text-right">Visualizações</th><th className="px-2 py-3 text-right"><Heart size={14} className="inline"/> Curtidas</th><th className="px-2 py-3 text-right"><MessageCircle size={14} className="inline"/> Coment.</th><th className="px-2 py-3 text-right"><Bookmark size={14} className="inline"/> Salvos</th><th className="px-2 py-3 text-right"><Share2 size={14} className="inline"/> Compart.</th><th className="px-2 py-3 text-right">Alcance</th><th className="px-2 py-3 text-right">Engaj.</th></tr></thead><tbody>{posts.map((post) => { const insight = post.insights?.[0] || {}; return <tr key={post.id} className="border-b border-slate-100 hover:bg-slate-50"><td className="px-2 py-3"><a href={post.igPermalink || "#"} target={post.igPermalink ? "_blank" : undefined} rel="noreferrer" className="flex max-w-[240px] items-center gap-3 text-slate-700 hover:text-indigo-600">{post.igMediaUrl ? <img src={post.igMediaUrl} alt="" className="h-10 w-10 rounded object-cover"/> : <div className="h-10 w-10 rounded bg-slate-100"/>}<span className="truncate">{post.caption || "Sem legenda"}</span></a></td><td className="px-2 py-3"><Badge variant={post.mediaType === "REEL" ? "default" : post.mediaType === "CAROUSEL" ? "secondary" : "outline"}>{formatType(post.mediaType)}</Badge></td><td className="px-2 py-3 text-slate-500">{formatDate(post.publishedAt)}</td><td className="px-2 py-3 text-right">{formatNumber(insight.views)}</td><td className="px-2 py-3 text-right">{formatNumber(insight.likes)}</td><td className="px-2 py-3 text-right">{formatNumber(insight.comments)}</td><td className="px-2 py-3 text-right">{formatNumber(insight.saves)}</td><td className="px-2 py-3 text-right">{formatNumber(insight.shares)}</td><td className="px-2 py-3 text-right">{formatNumber(insight.reach)}</td><td className="px-2 py-3 text-right">{formatPercent(insight.engagement)}</td></tr> })}</tbody></table>{!posts.length && <Empty text="Nenhuma publicação importada no período escolhido."/>}</div><div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4"><p className="text-xs text-slate-500">Página {page} de {pages}</p><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => onPageChange(page - 1)} disabled={page <= 1 || loading}>Anterior</Button><Button variant="outline" size="sm" onClick={() => onPageChange(page + 1)} disabled={page >= pages || loading}>Próxima</Button></div></div></Card>
+  const columns: Array<{ key: keyof PostMetrics; label: string }> = [
+    { key: "views", label: "Visualizações" }, { key: "likes", label: "Curtidas" }, { key: "comments", label: "Comentários" },
+    { key: "saves", label: "Salvos" }, { key: "shares", label: "Compartilhamentos" }, { key: "reach", label: "Alcance" },
+  ]
+  const publication = (post: AnalyticsPost) => <div className="flex min-w-0 items-start gap-3">{post.igMediaUrl && <img src={post.igMediaUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover"/>}<div className="min-w-0"><p className="line-clamp-3 break-words text-sm font-medium">{post.caption || "Sem legenda"}</p><p className="mt-1 text-xs text-slate-500">{formatType(post.mediaType)} · {formatDate(post.publishedAt)}</p>{post.igPermalink && <a href={post.igPermalink} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-semibold text-indigo-600 underline">Abrir no Instagram</a>}</div></div>
+  return <Card className="min-w-0 p-4 sm:p-5">
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-lg font-bold text-slate-900">Todas as publicações do período</h3><p className="mt-1 text-xs text-slate-500">Contadores acumulados até a última coleta. “—” indica dado não fornecido.</p></div><Badge variant="secondary">{formatNumber(total)} posts</Badge></div>
+    <div className="space-y-3 lg:hidden">{posts.map(post => { const metrics = getMetrics(post); return <article key={post.id} className="rounded-xl border border-slate-200 p-3">{publication(post)}<dl className="mt-3 grid grid-cols-2 gap-2 min-[400px]:grid-cols-3">{columns.map(column => <div key={column.key} className="rounded-lg bg-slate-50 p-2"><dt className="break-words text-[11px] text-slate-500">{column.label}</dt><dd className="mt-1 text-sm font-bold tabular-nums">{formatNumber(metrics[column.key] as number | null)}</dd></div>)}</dl><p className="mt-2 text-xs text-slate-500">Taxa de engajamento: {formatPercent(metrics.engagement)}</p></article> })}</div>
+    <div className="hidden overflow-x-auto lg:block" tabIndex={0} aria-label="Tabela de publicações do Instagram"><table className="w-full min-w-[900px] text-sm"><caption className="sr-only">Publicações e métricas acumuladas</caption><thead><tr className="border-b border-slate-200 text-xs text-slate-500"><th className="p-3 text-left">Publicação</th>{columns.map(column => <th key={column.key} className="p-3 text-right">{column.label}</th>)}<th className="p-3 text-right">Engajamento</th></tr></thead><tbody>{posts.map(post => { const metrics = getMetrics(post); return <tr key={post.id} className="border-b border-slate-100 hover:bg-slate-50"><td className="w-72 min-w-60 p-3">{publication(post)}</td>{columns.map(column => <td key={column.key} className="p-3 text-right tabular-nums">{formatNumber(metrics[column.key] as number | null)}</td>)}<td className="p-3 text-right">{formatPercent(metrics.engagement)}</td></tr> })}</tbody></table></div>
+    {!posts.length && <Empty text="Nenhuma publicação importada no período escolhido."/>}
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4"><p className="text-xs text-slate-500" role="status">Página {page} de {pages}{loading ? " · Carregando…" : ""}</p><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => onPageChange(page - 1)} disabled={page <= 1 || loading}>Anterior</Button><Button variant="outline" size="sm" onClick={() => onPageChange(page + 1)} disabled={page >= pages || loading}>Próxima</Button></div></div>
+  </Card>
 }

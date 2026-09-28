@@ -37,6 +37,19 @@ const bestEffortInsights = async (
       const response = await graphGet(`/${objectId}/insights`, token, { ...params, metric: metrics });
       return Array.isArray(response.data) ? response.data as InsightItem[] : [];
     } catch (error) {
+      if ((error as { metaCode?: number }).metaCode === 100 && metrics.includes(',')) {
+        const individual: InsightItem[] = [];
+        for (const metric of metrics.split(',')) {
+          try {
+            const result = await graphGet(`/${objectId}/insights`, token, { ...params, metric });
+            if (Array.isArray(result.data)) individual.push(...result.data);
+          } catch (metricError) {
+            // Unsupported fields are independent; stop on account-wide failures.
+            if ((metricError as { metaCode?: number }).metaCode !== 100) break;
+          }
+        }
+        return individual;
+      }
       // A missing permission/metric is expected for some Meta apps. Keep the
       // other groups useful and avoid turning a partial sync into a failure.
       console.warn(`Insights unavailable for ${objectId} (${metrics}):`, error instanceof Error ? error.message : error);

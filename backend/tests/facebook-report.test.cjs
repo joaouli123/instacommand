@@ -79,3 +79,39 @@ test('an empty Page insight response explains why views remain unavailable', asy
   assert.match(report.issues.join(' '), /page_media_view/);
   assert.match(report.issues.join(' '), /read_insights/);
 });
+
+test('optional user-content counters cannot hide the Page own posts', async () => {
+  const denied = Object.assign(new Error('Permission'), { metaCode: 10 });
+  pages = [denied, { data: [post('1', { reactions: undefined, comments: undefined })], paging: { next: 'next', cursors: { after: 'cursor' } } }, { data: [post('2', { reactions: undefined, comments: undefined, shares: { count: 0 } })] }];
+  const report = await getFacebookReport('current', 'account1', 30);
+  assert.equal(report.posts.length, 2); assert.equal(report.complete, true);
+  assert.equal(report.countersRestricted, true); assert.equal(report.posts[0].comments, null);
+  assert.equal(report.posts[1].shares, 0);
+  const requests = calls.filter(call => call.path.endsWith('/posts'));
+  assert.equal(requests.length, 3);
+  assert.match(requests[0].params.fields, /comments/);
+  assert.doesNotMatch(requests[1].params.fields, /comments|reactions/);
+  assert.equal(requests[1].params.fields, requests[2].params.fields);
+  assert.equal(requests[2].params.after, 'cursor');
+});
+
+test('expired tokens and rate limits never trigger the optional-field retry', async () => {
+  for (const metaCode of [190, 4, 613]) {
+    calls = []; pages = [Object.assign(new Error('Account failure'), { metaCode })];
+    const report = await getFacebookReport('current', 'account1', 30);
+    assert.equal(report.contentAvailable, false);
+    assert.equal(calls.filter(call => call.path.endsWith('/posts')).length, 1);
+  }
+});
+
+test('daily view series retains real zeros and ignores missing dates and invalid values', async () => {
+  pageInsights = { data: [{ name: 'page_media_view', values: [
+    { value: 0, end_time: '2026-09-20T07:00:00+0000' },
+    { value: 12, end_time: '2026-09-21T07:00:00+0000' },
+    { value: null, end_time: '2026-09-22T07:00:00+0000' },
+    { value: 3 },
+  ] }] };
+  const report = await getFacebookReport('current', 'account1', 30);
+  assert.deepEqual(report.insights.daily, [{ date: '2026-09-19', value: 0 }, { date: '2026-09-20', value: 12 }]);
+  assert.equal(report.insights.mediaViews, 15);
+});

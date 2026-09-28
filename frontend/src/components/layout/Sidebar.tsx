@@ -45,7 +45,7 @@ export function Sidebar() {
     <>
     <aside className={cn(
       "flex flex-col border-r border-slate-200/80 bg-white transition-all duration-300 shadow-sm select-none",
-      collapsed ? "hidden w-20 md:flex" : "hidden w-64 md:flex"
+      collapsed ? "hidden w-20 shrink-0 lg:flex" : "hidden w-64 shrink-0 lg:flex"
     )}>
       {/* Brand Header */}
       <div className="flex h-16 items-center justify-between px-4 border-b border-slate-100">
@@ -129,7 +129,7 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
-    <nav aria-label="Navegação principal" className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200/90 bg-white/95 px-1 pt-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl md:hidden">
+    <nav aria-label="Navegação principal" className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200/90 bg-white/95 px-1 pt-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden">
       <div className="grid grid-cols-5">
         {[
           { name: 'Início', href: '/', icon: LayoutDashboard },

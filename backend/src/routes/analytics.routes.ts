@@ -9,7 +9,7 @@ import {
   getRecommendations 
 } from '../services/analytics.service';
 import { getAudienceDemographics, getBestTimeToPost, getContentTypeAnalysis } from '../services/instagram/insights.service';
-import { getDecryptedToken } from '../services/instagram/auth.service';
+import { getDecryptedToken, getInstagramGrantedPermissions } from '../services/instagram/auth.service';
 import { PrismaClient } from '@prisma/client';
 import { MediaType } from '@prisma/client';
 import { InstagramApiError } from '../utils/errors';
@@ -58,6 +58,17 @@ router.get('/:accountId/dashboard', async (req: any, res, next) => {
     const stats = await getDashboardStats(req.params.accountId, analyticsDays(req.query.days ?? 30));
     res.json(stats);
   } catch (error) { next(error); }
+});
+
+router.get('/:accountId/access', async (req: any, res) => {
+  try {
+    const scopes = await getInstagramGrantedPermissions(req.params.accountId);
+    res.json({ verified: true, instagramInsights: scopes.includes('instagram_manage_insights'),
+      facebookInsights: scopes.includes('read_insights'), facebookCounters: scopes.includes('pages_read_user_content') });
+  } catch {
+    // A failed check is unknown, not proof that a permission is missing.
+    res.json({ verified: false, instagramInsights: null, facebookInsights: null, facebookCounters: null });
+  }
 });
 
 router.get('/:accountId/growth', async (req, res, next) => {

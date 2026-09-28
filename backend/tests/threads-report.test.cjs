@@ -162,3 +162,18 @@ test('bounded pagination reports partial coverage', async () => {
   assert.equal(page, 4);
   assert.equal(report.truncated, true);
 });
+
+test('a later Threads page failure preserves already recovered publications', async () => {
+  responder = url => url.pathname.endsWith('threads_insights') ? { data: [] }
+    : url.searchParams.has('after') ? { status: 429, error: { code: 4 } }
+      : { data: [{ id: 'post', text: 'Test', timestamp: new Date().toISOString() }], paging: { next: 'next', cursors: { after: 'cursor' } } };
+  const report = await getThreadsReport('owner', 'account', 30);
+  assert.equal(report.posts.length, 1); assert.equal(report.contentAvailable, true); assert.equal(report.truncated, true);
+  assert.ok(report.issues.some(issue => issue.reason === 'rate_limit'));
+});
+
+test('a failed first content page is not presented as an empty successful report', async () => {
+  responder = url => url.pathname.endsWith('threads_insights') ? { data: [] } : { error: { code: 190 } };
+  const report = await getThreadsReport('owner', 'account', 30);
+  assert.equal(report.contentAvailable, false); assert.deepEqual(report.posts, []);
+});

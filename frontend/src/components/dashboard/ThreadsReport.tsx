@@ -1,12 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, fetchApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { AlertCircle, Download, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { MetricCard } from './MetricCard'
+import { ReportChart } from './ReportChart'
+import { ReportPublications } from './ReportPublications'
+import { ChartRow, downloadReport, reportDay } from '@/lib/report-chart'
 
 type Metric = { value: number | null; available: boolean; daily: Array<{ date: string; value: number }> }
 type Report = {
@@ -22,7 +26,6 @@ const number = (value: number) => value.toLocaleString('pt-BR')
 export function ThreadsReport() {
   const [selectedId, setSelectedId] = useState('')
   const [days, setDays] = useState(30)
-  const [page, setPage] = useState(1)
   const [connecting, setConnecting] = useState(false)
   const accountsQuery = useQuery({ queryKey: ['threads-accounts'], queryFn: api.getThreadsAccounts })
   const accounts = (accountsQuery.data || []) as Array<{ id: string; username: string }>
@@ -33,23 +36,43 @@ export function ThreadsReport() {
     staleTime: 60_000, retry: false,
   })
   const report = reportQuery.data
-  useEffect(() => { setPage(1) }, [accountId, days])
+  const daily = useMemo(() => {
+    const rows = new Map<string, ChartRow>()
+    for (const key of Object.keys(labels).filter(k => k !== 'followers_count')) {
+      for (const point of report?.metrics[key]?.daily || []) {
+        // end_time marks the end of the provider's daily bucket.
+        const end = Date.parse(point.date)
+        if (!Number.isFinite(end)) continue
+        const date = new Date(end - 86400000).toISOString().slice(0, 10)
+        const row = rows.get(date) || { date }
+        row[key] = point.value; rows.set(date, row)
+      }
+    }
+    return Array.from(rows.values()).sort((a, b) => a.date.localeCompare(b.date))
+  }, [report])
+  const publicationDays = useMemo(() => {
+    const rows = new Map<string, ChartRow>()
+    for (const post of report?.posts || []) { const date = reportDay(post.timestamp); const row = rows.get(date) || { date, posts: 0 }; row.posts = Number(row.posts) + 1; rows.set(date, row) }
+    return Array.from(rows.values()).sort((a, b) => a.date.localeCompare(b.date))
+  }, [report])
   const connect = async () => {
+    const authWindow = window.open('about:blank', '_blank')
+    if (!authWindow) { toast.error('Permita pop-ups para conectar sem sair desta página.'); return }
+    authWindow.opener = null
+    authWindow.document.body.textContent = 'Abrindo autorização segura…'
     setConnecting(true)
     try {
       const result = await fetchApi('/auth/threads/url') as { url: string }
-      window.location.assign(result.url)
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível abrir a autorização'); setConnecting(false) }
+      authWindow.location.replace(result.url)
+    } catch (error) { authWindow.close(); toast.error(error instanceof Error ? error.message : 'Não foi possível abrir a autorização') }
+    finally { setConnecting(false) }
   }
   const exportReport = () => {
     if (!report) return
-    const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
     const rows = [['Rede', 'Perfil', 'Início', 'Fim', 'Métrica', 'Valor', 'Disponível'],
       ...Object.entries(labels).map(([key, label]) => ['Threads', report.account.username, report.period.since, report.period.until, label,
         report.metrics[key]?.value ?? '', report.metrics[key]?.available ? 'Sim' : 'Não'])]
-    const url = URL.createObjectURL(new Blob(['\uFEFF' + rows.map(row => row.map(cell).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }))
-    const link = document.createElement('a'); link.href = url; link.download = `threads-${report.account.username}-${days}dias.csv`; link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    downloadReport(rows, `threads-${report.account.username}-${days}dias.csv`)
   }
   if (accountsQuery.isPending) return <p role="status">Carregando contas do Threads...</p>
   if (accountsQuery.isError) return <Card className="p-6"><p role="alert">Não foi possível carregar suas contas do Threads.</p><Button onClick={() => accountsQuery.refetch()}>Tentar novamente</Button></Card>
@@ -57,11 +80,10 @@ export function ThreadsReport() {
   const reasons = new Set(report?.issues.map(issue => issue.reason))
   const requiresReconnect = reasons.has('permission') || reasons.has('expired')
   const metaInternalError = report?.issues.some(issue => issue.status === 500 && issue.code === 1)
-  const pages = Math.max(1, Math.ceil((report?.posts.length || 0) / 20))
-  return <section className="space-y-5" aria-label="Relatório do Threads">
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div><h2 className="text-2xl font-bold text-slate-900">Desempenho no Threads</h2><p className="mt-1 text-sm text-slate-500">Dados exclusivos do Threads, separados do Instagram e Facebook.</p></div>
-      <div className="flex flex-wrap gap-3">
+  return <section className="min-w-0 space-y-4 sm:space-y-5" aria-label="Relatório do Threads">
+    <div className="report-header">
+      <div><p className="report-eyebrow">Threads</p><h2 className="report-title">Desempenho do perfil</h2><p className="report-description">Explore visualizações, conversas e publicações.</p></div>
+      <div className="report-filters">
         <label className="text-xs font-semibold text-slate-600">Perfil<select className="mt-1 block rounded-lg border bg-white p-2 text-sm" value={accountId} onChange={e => setSelectedId(e.target.value)}>{accounts.map(a => <option key={a.id} value={a.id}>@{a.username}</option>)}</select></label>
         <label className="text-xs font-semibold text-slate-600">Período<select className="mt-1 block rounded-lg border bg-white p-2 text-sm" value={days} onChange={e => setDays(Number(e.target.value))}>{[7, 30, 90].map(d => <option key={d} value={d}>Últimos {d} dias</option>)}</select></label>
       </div>
@@ -72,12 +94,10 @@ export function ThreadsReport() {
     {report && <>
       <p className="text-xs text-slate-500">@{report.account.username} · Consulta em {new Date(report.collectedAt).toLocaleString('pt-BR')} · Métricas do período selecionado; seguidores representam o total atual.</p>
       {report.issues.length > 0 && <Card className="border-amber-200 bg-amber-50 p-5"><div className="flex gap-3"><AlertCircle className="shrink-0 text-amber-700" size={20}/><div><h3 className="font-semibold">Alguns dados ainda não estão disponíveis</h3><p className="mt-1 text-sm text-slate-700">{reasons.has('expired') ? 'A autorização expirou. Reconecte sua conta.' : reasons.has('permission') ? 'A conexão não tem acesso às métricas solicitadas. Reconecte e autorize Insights. O aplicativo também precisa dessa permissão habilitada na Meta.' : reasons.has('rate_limit') ? 'O Threads limitou temporariamente as consultas. Aguarde antes de atualizar.' : metaInternalError ? 'Sua conta está conectada e as publicações foram carregadas, mas a Meta retornou um erro interno ao consultar os insights. Isso não significa que o perfil foi desconectado. Evite reconectar repetidamente; verifique a permissão de insights e tente novamente mais tarde.' : 'O Threads não respondeu a parte das consultas. Seus dados não foram substituídos por zeros.'}</p><details className="mt-3 text-xs text-slate-600"><summary className="cursor-pointer font-medium">Detalhes técnicos da consulta</summary><p className="mt-2">{report.issues.map(issue => `${issue.section} (HTTP ${issue.status ?? '—'}${issue.code !== undefined ? `, código ${issue.code}` : ''}${issue.subcode !== undefined ? `, subcódigo ${issue.subcode}` : ''})`).join(' · ')}</p>{report.issues.filter(issue => issue.message).map(issue => <p key={issue.section} className="mt-1 break-words">{issue.section}: {issue.message}</p>)}</details>{requiresReconnect && <Button className="mt-3" onClick={connect} disabled={connecting}>Reconectar e autorizar métricas</Button>}</div></div></Card>}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Object.entries(labels).map(([key, label]) => <Card key={key} className="p-5"><h3 className="text-sm text-slate-500">{label}</h3><p className="mt-2 text-2xl font-bold">{report.metrics[key]?.available && report.metrics[key].value !== null ? number(report.metrics[key].value) : 'Indisponível'}</p></Card>)}</div>
-      <Card className="p-5"><h3 className="font-bold">Publicações do período</h3><p className="mt-1 text-sm text-slate-500">{report.contentAvailable ? `${report.posts.length} publicações recuperadas${report.truncated ? ' — resultado parcial (limite de consulta atingido)' : ''}.` : 'A lista de publicações não pôde ser consultada.'}</p>
-        <div className="mt-4 divide-y">{report.posts.slice((page - 1) * 20, page * 20).map(post => <article className="py-4" key={post.id}><p className="text-xs text-slate-500">{new Date(post.timestamp).toLocaleString('pt-BR')} · {post.mediaType}</p><p className="my-2 whitespace-pre-wrap break-words text-sm">{post.text || 'Publicação sem texto'}</p>{post.permalink && /^https:\/\/(www\.)?threads\.(net|com)\//.test(post.permalink) && <a className="text-sm font-semibold text-indigo-600 underline" href={post.permalink} target="_blank" rel="noreferrer">Abrir no Threads</a>}</article>)}</div>
-        {report.contentAvailable && !report.posts.length && <p className="py-6 text-sm text-slate-500">Nenhuma publicação retornada nesse período.</p>}
-        {pages > 1 && <div className="mt-4 flex items-center justify-between gap-2"><Button variant="outline" onClick={() => setPage(p => p - 1)} disabled={page <= 1}>Anterior</Button><span className="text-sm">Página {page} de {pages}</span><Button variant="outline" onClick={() => setPage(p => p + 1)} disabled={page >= pages}>Próxima</Button></div>}
-      </Card>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-3">{Object.entries(labels).map(([key, label]) => <MetricCard key={key} label={label} value={report.metrics[key]?.available ? report.metrics[key].value : null} detail={key === 'followers_count' ? 'Total atual do perfil' : 'No período selecionado'} accent={key === 'views'}/>)}</div>
+      <ReportChart key={`metrics-${accountId}-${days}`} title="Evolução do desempenho" description="Contadores diários retornados pelo Threads. Se a rede fornecer apenas um total, ele não será distribuído artificialmente entre os dias." rows={daily} series={Object.entries(labels).filter(([key]) => key !== 'followers_count').map(([key, label], index) => ({ key, label, color: ['#4f46e5', '#e11d48', '#0284c7', '#0d9488', '#a855f7'][index] }))} defaultKeys={['views']} filename="threads-desempenho"/>
+      <ReportChart key={`posts-${accountId}-${days}`} title="Atividade de publicação" description="Quantidade de publicações recuperadas em cada data. Não representa o total de interações dos posts." rows={publicationDays} series={[{ key: 'posts', label: 'Publicações', color: '#4f46e5' }]} kind="bar" filename="threads-publicacoes"/>
+      <ReportPublications key={`${accountId}-${days}`} network="Threads" available={report.contentAvailable} complete={!report.truncated} posts={report.posts.map(p => ({ id: p.id, text: p.text, date: p.timestamp, url: p.permalink, type: p.mediaType }))}/>
     </>}
   </section>
 }

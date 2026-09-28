@@ -33,6 +33,9 @@ export default function CalendarPage() {
   const [monthDate, setMonthDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [posts, setPosts] = useState<CalendarPost[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [refresh, setRefresh] = useState(0)
+  const [view, setView] = useState<'month' | 'list'>('month')
   const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const currentMonth = monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^./, (letter) => letter.toUpperCase())
@@ -49,19 +52,21 @@ export default function CalendarPage() {
       return () => { active = false }
     }
     setLoading(true)
+    setError("")
+    setSelectedPost(null)
     api.getPosts(`accountId=${encodeURIComponent(accountId)}`).then((data) => {
       if (active) setPosts(data as CalendarPost[])
     }).catch(() => {
-      if (active) setPosts([])
+      if (active) { setPosts([]); setError("Não foi possível carregar o calendário. Tente novamente.") }
     }).finally(() => {
       if (active) setLoading(false)
     })
     return () => { active = false }
-  }, [accountId])
+  }, [accountId, refresh])
 
   const eventsByDay = useMemo(() => {
     const result: Record<number, Array<{ title: string; time: string; type: string; status: 'published' | 'scheduled' | 'draft' | 'failed'; post: CalendarPost }>> = {}
-    posts.forEach((post) => {
+    Array.from(posts).sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor)).forEach((post) => {
       const date = new Date(post.scheduledFor)
       if (date.getFullYear() !== monthDate.getFullYear() || date.getMonth() !== monthDate.getMonth()) return
       const status = post.status === 'PUBLISHED' ? 'published' : post.status === 'SCHEDULED' ? 'scheduled' : post.status === 'FAILED' ? 'failed' : 'draft'
@@ -95,6 +100,9 @@ export default function CalendarPage() {
       await api.updatePost(selectedPost.id, { status: "DRAFT" })
       setPosts((current) => current.map((post) => post.id === selectedPost.id ? { ...post, status: "DRAFT" } : post))
       setSelectedPost((current) => current ? { ...current, status: "DRAFT" } : current)
+      toast.success("Agendamento cancelado. O conteúdo foi mantido como rascunho.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível cancelar o agendamento.")
     } finally {
       setActionLoading(false)
     }
@@ -111,10 +119,10 @@ export default function CalendarPage() {
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h2 className="text-base font-bold text-slate-900 sm:text-xl">{currentMonth}</h2>
             <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-slate-50">
-              <Button aria-label="Mês anterior" variant="ghost" size="icon" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))} className="h-7 w-7 rounded-md text-slate-600 hover:text-slate-900">
+              <Button aria-label="Mês anterior" variant="ghost" size="icon" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))} className="h-10 w-10 rounded-md text-slate-600 hover:text-slate-900">
                 <ChevronLeft size={16} />
               </Button>
-              <Button aria-label="Próximo mês" variant="ghost" size="icon" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))} className="h-7 w-7 rounded-md text-slate-600 hover:text-slate-900">
+              <Button aria-label="Próximo mês" variant="ghost" size="icon" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))} className="h-10 w-10 rounded-md text-slate-600 hover:text-slate-900">
                 <ChevronRight size={16} />
               </Button>
             </div>
@@ -141,17 +149,15 @@ export default function CalendarPage() {
             <span className="text-slate-600">Falhou</span>
           </div>
 
-          <Link href="/composer" className="ml-auto">
-            <Button size="sm" className="h-8 gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700">
+            <Button asChild size="sm" className="ml-auto h-10 gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"><Link href="/composer">
               <Plus size={14} />
               Agendar Post
-            </Button>
-          </Link>
+            </Link></Button>
         </div>
       </div>
 
       <Dialog open={!!selectedPost} onOpenChange={(open) => !open && setSelectedPost(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" aria-label="Detalhes da publicação">
           {selectedPost && <div className="space-y-4">
              <div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Detalhes da publicação</p><h3 className="mt-1 text-xl font-bold text-slate-900">{selectedPost.caption?.split("\n")[0] || "Publicação sem legenda"}</h3></div>
              <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Formato</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.mediaType === "CAROUSEL" ? "Carrossel" : selectedPost.mediaType === "REEL" ? "Reel" : selectedPost.mediaType === "STORY" ? "Story" : "Feed"}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Status</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.status === "SCHEDULED" ? "Agendado" : selectedPost.status === "PUBLISHED" ? "Publicado" : selectedPost.status === "FAILED" ? "Falhou" : "Rascunho"}</p></div></div>
@@ -166,8 +172,11 @@ export default function CalendarPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Main Calendar Grid */}
-      <Card className="flex-1 overflow-hidden flex flex-col border border-slate-200/80 bg-white rounded-2xl shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2"><div className="inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Visualização do calendário"><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'month'} onClick={() => setView('month')}>Mês</button><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'list'} onClick={() => setView('list')}>Lista</button></div><Button variant="outline" size="sm" onClick={() => setMonthDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Mês atual</Button></div>
+      {error && <Card className="border-rose-200 p-4 text-sm text-rose-700"><p role="alert">{error}</p><Button className="mt-2" variant="outline" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</Button></Card>}
+      {!accountsLoading && !accountId && <p className="text-sm text-slate-600">Conecte uma conta para acompanhar suas publicações.</p>}
+      {view === 'list' && <Card className="divide-y divide-slate-100 overflow-hidden">{loading ? <p className="p-5 text-sm" role="status">Carregando publicações…</p> : !error && Object.keys(eventsByDay).length === 0 ? <p className="p-5 text-sm text-slate-600">Nenhuma publicação neste mês.</p> : Object.entries(eventsByDay).map(([day, events]) => <section key={day} className="p-3 sm:p-4"><h3 className="mb-2 text-xs font-bold uppercase text-slate-500">{day} de {monthDate.toLocaleDateString('pt-BR', { month: 'long' })}</h3><div className="space-y-2">{events.map(event => <button key={event.post.id} onClick={() => setSelectedPost(event.post)} className="flex w-full min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50"><span className="shrink-0 text-sm font-bold text-indigo-700">{event.time}</span><span className="min-w-0 flex-1"><span className="block line-clamp-2 break-words text-sm font-semibold">{event.title}</span><span className="mt-1 block text-xs text-slate-500">{event.type} · {{ published: 'Publicado', scheduled: 'Agendado', draft: 'Rascunho', failed: 'Falhou' }[event.status]}</span></span></button>)}</div></section>)}</Card>}
+      {view === 'month' && <Card className="flex-1 overflow-hidden flex flex-col border border-slate-200/80 bg-white rounded-2xl shadow-xs">
         {/* Day Name Headers */}
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
           {days.map((day, idx) => (
@@ -208,7 +217,7 @@ export default function CalendarPage() {
                   </span>
 
                   {isCurrentMonth && (
-                    <Link href="/composer" className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-indigo-600">
+                    <Link href="/composer" aria-label="Criar publicação" className="hidden opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-indigo-600 sm:block">
                       <Plus size={14} />
                     </Link>
                   )}
@@ -222,7 +231,7 @@ export default function CalendarPage() {
                       onClick={() => setSelectedPost(event.post)}
                       role="button"
                       tabIndex={0}
-                      onKeyDown={(keyboardEvent) => { if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") setSelectedPost(event.post) }}
+                      onKeyDown={(keyboardEvent) => { if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") { keyboardEvent.preventDefault(); setSelectedPost(event.post) } }}
                       aria-label={`${event.type}, ${event.time}: ${event.title}`}
                       title={`${event.type} · ${event.time} · ${event.title}`}
                       className={`mx-auto flex min-h-8 min-w-8 w-fit cursor-pointer items-center justify-center rounded-lg border p-1 text-[11px] font-semibold transition-all sm:mx-0 sm:w-full sm:p-1.5 ${
@@ -252,7 +261,7 @@ export default function CalendarPage() {
           })}
         </div>
         {loading && <div className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">Carregando publicações reais...</div>}
-      </Card>
+      </Card>}
     </div>
   )
 }

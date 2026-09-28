@@ -1230,7 +1230,7 @@ export default function ComposerPage() {
 
           {/* Publication targets */}
           {step === 1 && <div className="animate-fade-in rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-700">Onde publicar</p>
                 <p className="mt-1 text-xs text-slate-500">Escolha uma ou várias redes para este conteúdo.</p>
@@ -1251,15 +1251,15 @@ export default function ComposerPage() {
                     type="button"
                     onClick={() => !unavailable && togglePlatform(target.id)}
                     aria-disabled={unavailable}
-                    className={`flex min-h-[78px] w-full items-center gap-4 rounded-xl border px-4 py-3 text-left transition-all ${selected ? "border-indigo-600 bg-indigo-50/50 shadow-[0_0_0_1px_rgba(99,102,241,.16)]" : "border-slate-200 bg-white hover:border-slate-300"} ${unavailable ? "cursor-not-allowed opacity-60" : ""}`}
+                    className={`relative grid min-h-[76px] w-full grid-cols-[36px_minmax(0,1fr)_24px] items-center gap-x-3 gap-y-1 rounded-xl border px-3 py-3 text-left transition-all sm:grid-cols-[48px_minmax(0,1fr)_auto_28px] sm:gap-4 sm:px-4 ${selected ? "border-indigo-600 bg-indigo-50/50 shadow-[0_0_0_1px_rgba(99,102,241,.16)]" : "border-slate-200 bg-white hover:border-slate-300"} ${unavailable ? "cursor-not-allowed opacity-60" : ""}`}
                     aria-pressed={selected}
                   >
-                    <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${target.color === "instagram" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : target.color === "facebook" ? "bg-[#1877F2]" : "bg-[#101113]"}`}>
-                      <target.Icon size={34} color="#fff" title={`${target.label} logo`} />
+                    <span className={`row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:row-span-1 sm:h-12 sm:w-12 ${target.color === "instagram" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : target.color === "facebook" ? "bg-[#1877F2]" : "bg-[#101113]"}`}>
+                      <target.Icon size={25} color="#fff" title={`${target.label} logo`} />
                     </span>
                     <span className="min-w-0 flex-1"><span className="block text-[13px] font-semibold leading-4 text-slate-800">{target.label}</span><span className="mt-0.5 block truncate text-[10px] text-slate-500">{target.handle}</span></span>
-                    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${!unavailable ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-400"}`}><span className={`h-2 w-2 rounded-full ${!unavailable ? "bg-emerald-500" : "bg-slate-300"}`} />{target.help}</span>
-                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${selected ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 bg-white"}`}>{selected && <Check size={16} strokeWidth={3} />}</span>
+                    <span className={`col-start-2 row-start-2 inline-flex w-fit items-center gap-1 text-[10px] font-medium sm:col-start-auto sm:row-start-auto sm:rounded-full sm:px-2 sm:py-1 sm:text-xs ${!unavailable ? "text-emerald-700 sm:bg-emerald-50" : "text-slate-500 sm:bg-slate-100"}`}><span className={`h-1.5 w-1.5 rounded-full ${!unavailable ? "bg-emerald-500" : "bg-slate-300"}`} />{target.help}</span>
+                    <span className={`col-start-3 row-span-2 row-start-1 flex h-6 w-6 items-center justify-center rounded-full border sm:col-start-4 sm:row-span-1 sm:h-7 sm:w-7 ${selected ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 bg-white"}`}>{selected && <Check size={14} strokeWidth={3} />}</span>
                   </button>
                 )
               })}

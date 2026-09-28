@@ -29,3 +29,18 @@ test('composer keeps manual hashtag addition and removes Instagram suggestions',
   assert.match(source, /Digite uma hashtag e clique em Adicionar ou pressione Enter\./);
   assert.doesNotMatch(source, /Sugestões do Instagram|lookupHashtag|relatedHashtagSuggestions|api\.searchHashtag/);
 });
+
+test('format comparisons remain renderable when imported metrics are absent', () => {
+  const source = read('trends/page.tsx');
+  assert.match(source, /reportFormat\(item\.likes\)/);
+  assert.match(source, /reportFormat\(item\.comments\)/);
+  assert.match(source, /item\.engagement == null \? "Taxa indisponível"/);
+  assert.doesNotMatch(source, /item\.(likes|comments|engagement)\.toLocaleString/);
+  assert.match(source, /formatsQuery\.isError/);
+});
+
+test('dashboard follower growth requires both history and an available value', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/components/dashboard/StatsCards.tsx'), 'utf8');
+  assert.match(source, /stats\?\.hasFollowerHistory && stats\.followerGrowth != null/);
+  assert.doesNotMatch(source, /followerGrowth!/);
+});

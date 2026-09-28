@@ -22,6 +22,7 @@ export async function getFacebookReport(userId: string, accountId: string, days:
   catch { issues.push('Não foi possível consultar os totais atuais da Página.'); }
 
   let mediaViews: number | null = null;
+  let mediaViewsDaily: Array<{ date: string; value: number }> = [];
   try {
     const insight = await graphGet(`/${page.id}/insights`, token, {
       metric: 'page_media_view', period: 'day',
@@ -34,6 +35,13 @@ export async function getFacebookReport(userId: string, accountId: string, days:
       typeof value === 'number' && Number.isFinite(value) && value >= 0);
     if (numericValues.length) {
       mediaViews = numericValues.reduce((sum: number, value: number) => sum + value, 0);
+      mediaViewsDaily = values.flatMap((item: any) => {
+        const value = count(item.value);
+        const end = Date.parse(item.end_time);
+        // Meta labels daily buckets by their exclusive end time.
+        return value !== null && Number.isFinite(end)
+          ? [{ date: new Date(end - 86400000).toISOString().slice(0, 10), value }] : [];
+      });
     } else {
       issues.push('A Meta não retornou visualizações da Página (page_media_view). Confira se read_insights está autorizado no app e para esta Página; a disponibilidade também depende da elegibilidade da Página e do período.');
     }
@@ -50,12 +58,27 @@ export async function getFacebookReport(userId: string, accountId: string, days:
   let after = '';
   let complete = false;
   let contentAvailable = false;
+  let countersRestricted = false;
+  const baseFields = 'id,message,created_time,permalink_url,shares';
   for (let index = 0; index < 4; index++) {
     try {
-      const result = await graphGet(`/${page.id}/posts`, token, {
-        fields: 'id,message,created_time,permalink_url,reactions.limit(0).summary(true),comments.limit(0).summary(true),shares',
+      const params = {
         limit: 100, since, until, ...(after ? { after } : {}),
-      });
+      };
+      let result;
+      try {
+        result = await graphGet(`/${page.id}/posts`, token, {
+          ...params, fields: countersRestricted ? baseFields : `${baseFields},reactions.limit(0).summary(true),comments.limit(0).summary(true)`,
+        });
+      } catch (error) {
+        const code = (error as { metaCode?: number }).metaCode;
+        if (countersRestricted || ![10, 200].includes(code ?? 0)) throw error;
+        // User-content counters need broader access than the Page's own posts.
+        // Retry this read once without those optional fields, never on auth/rate errors.
+        countersRestricted = true;
+        result = await graphGet(`/${page.id}/posts`, token, { ...params, fields: baseFields });
+        issues.push('As publicações estão disponíveis, mas curtidas e comentários precisam de uma autorização adicional na conexão da Página.');
+      }
       if (!Array.isArray(result.data)) throw new Error('Invalid content response');
       contentAvailable = true;
       for (const item of result.data) {
@@ -84,7 +107,7 @@ export async function getFacebookReport(userId: string, accountId: string, days:
   return { network: 'FACEBOOK', account: { id: account.id, instagram: account.igUsername }, page,
     period: { days, since: new Date(since * 1000).toISOString(), until: new Date(until * 1000).toISOString() },
     collectedAt: new Date().toISOString(), followers: count(profile.followers_count), pageLikes: count(profile.fan_count),
-    posts, totals, insights: { mediaViews, mediaViewsAvailable: mediaViews !== null }, contentAvailable, complete, issues,
+    posts, totals, insights: { mediaViews, mediaViewsAvailable: mediaViews !== null, daily: mediaViewsDaily }, contentAvailable, complete, countersRestricted, issues,
     measurement: 'Interações acumuladas até a consulta nas publicações criadas no período. Não são interações ocorridas exclusivamente dentro do período.',
   };
 }

@@ -32,13 +32,13 @@ export function Header() {
     '/': { title: 'Dashboard Executivo', subtitle: 'Visão unificada das suas contas e métricas principais' },
     '/composer': { title: 'Compositor de Conteúdo', subtitle: 'Crie, visualize e agende para Instagram, Facebook e Threads' },
     '/calendar': { title: 'Calendário Editorial', subtitle: 'Cronograma visual de postagens programadas' },
-    '/analytics': { title: 'Analytics Avançado', subtitle: 'Métricas de alcance, engajamento e demografia' },
+    '/analytics': { title: 'Relatórios', subtitle: 'Instagram, Facebook e Threads · métricas, público e conteúdo' },
     '/competitors': { title: 'Monitor de Concorrentes', subtitle: 'Benchmarking e acompanhamento de mercado' },
     '/trends': { title: 'Tendências e Insights', subtitle: 'Hashtags em alta e formatos de alta performance' },
     '/community': { title: 'Comunidade', subtitle: 'Leia e responda comentários reais do Instagram' },
     '/automations': { title: 'Automações', subtitle: 'Regras de comentários e mensagens, respostas prontas e agente de IA' },
     '/settings': { title: 'Configurações da Plataforma', subtitle: 'Preferências, conexões e automações' },
-    '/accounts': { title: 'Contas do Instagram', subtitle: 'Gerencie perfis profissionais conectados' }
+    '/accounts': { title: 'Contas conectadas', subtitle: 'Gerencie seus perfis do Instagram, Facebook e Threads' }
   }
 
   const current = titles[pathname] || { title: 'InstaCommand', subtitle: 'Plataforma de Gestão do Instagram' }
@@ -78,9 +78,9 @@ export function Header() {
     <header className="sticky top-0 z-20 flex h-14 min-w-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/95 px-3 shadow-sm backdrop-blur-md sm:h-16 sm:px-6 md:h-[72px] md:px-8">
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight text-slate-900 sm:text-lg md:text-xl">
-          {current.title}
+          <span className="sm:hidden">{{ '/': 'Visão geral', '/composer': 'Criar', '/calendar': 'Calendário', '/accounts': 'Contas', '/settings': 'Ajustes', '/competitors': 'Concorrentes', '/trends': 'Tendências' }[pathname] || current.title}</span><span className="hidden sm:inline">{current.title}</span>
         </h1>
-        <p className="text-xs text-slate-500 hidden sm:block">
+        <p className="hidden truncate text-xs text-slate-500 xl:block">
           {current.subtitle}
         </p>
       </div>
@@ -89,7 +89,7 @@ export function Header() {
         {/* Account Switcher Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button aria-label={activeAccount ? `Conta ativa @${activeAccount.igUsername}` : 'Selecionar conta'} className="flex h-9 min-w-0 max-w-[36vw] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-2 text-sm font-medium text-slate-800 shadow-xs transition-all hover:bg-slate-100/80 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:h-auto sm:max-w-none sm:gap-2.5 sm:px-3 sm:py-1.5">
+            <button aria-label={activeAccount ? `Conta ativa @${activeAccount.igUsername}` : 'Selecionar conta'} className="flex h-10 min-w-0 max-w-[36vw] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-2 text-sm font-medium text-slate-800 shadow-xs transition-all hover:bg-slate-100/80 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:max-w-48 sm:gap-2.5 sm:px-3 xl:max-w-64">
               <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shrink-0 overflow-hidden">
                 {activeAccount?.igProfilePicUrl ? <img src={activeAccount.igProfilePicUrl} alt="" className="h-full w-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-indigo-700">{activeAccount?.igUsername?.substring(0, 1).toUpperCase() || "?"}</div>}
               </div>
@@ -132,7 +132,7 @@ export function Header() {
         <DropdownMenu onOpenChange={(open) => { if (open) notificationsQuery.refetch() }}>
           <DropdownMenuTrigger asChild>
             <button
-              className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 p-2 text-slate-500 shadow-xs transition-colors hover:bg-slate-100 hover:text-slate-800"
+              className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 p-2 text-slate-500 shadow-xs transition-colors hover:bg-slate-100 hover:text-slate-800"
               title="Notificações"
               aria-label="Notificações"
             >
@@ -158,12 +158,12 @@ export function Header() {
         </DropdownMenu>
 
         {/* Quick Post Action */}
-        <Link href="/composer" aria-label="Nova publicação">
-          <Button size="sm" className="h-9 gap-1.5 rounded-xl bg-indigo-600 px-2.5 font-semibold text-white shadow-xs shadow-indigo-200 hover:bg-indigo-700 sm:px-3.5">
+        <Button asChild size="sm" className="h-10 gap-1.5 rounded-xl bg-indigo-600 px-2.5 font-semibold text-white shadow-xs shadow-indigo-200 hover:bg-indigo-700 sm:px-3.5">
+          <Link href="/composer" aria-label="Nova publicação">
             <Plus size={16} />
             <span className="hidden sm:inline">Nova Publicação</span>
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
     </header>
   )

@@ -114,10 +114,15 @@ export async function getThreadsReport(userId: string, accountId: string, days: 
       const cursors = new Set<string>();
       let truncated = false;
       for (let page = 0; page < 4; page++) {
-        const result = await request('/me/threads', token, {
+        const result = await optional('content_page', () => request('/me/threads', token, {
           fields: 'id,text,timestamp,permalink,media_type', limit: '100',
           since: String(since), until: String(until), ...(after ? { after } : {}),
-        });
+        }));
+        if (!result || !Array.isArray(result.data)) {
+          if (page === 0) return null;
+          truncated = true;
+          break;
+        }
         for (const post of Array.isArray(result.data) ? result.data : []) {
           const timestamp = Math.floor(Date.parse(post.timestamp) / 1000);
           if (typeof post.id !== 'string' || seen.has(post.id) || !(timestamp >= since && timestamp <= until)) continue;
