@@ -46,12 +46,12 @@ beforeEach(() => {
 });
 after(() => { global.fetch = originalFetch; console.info = originalInfo; });
 
-test('new professional profile becomes pending in the authorizing workspace', async () => {
+test('a profile chosen in the Meta dialog is active immediately in the authorizing workspace', async () => {
   const accounts = await handleOAuthCallback('test-code', 'current');
   assert.equal(accounts.length, 1);
   assert.equal(accounts[0].userId, 'current');
-  assert.equal(accounts[0].selectionPending, true);
-  assert.equal(accounts[0].isActive, false);
+  assert.equal(accounts[0].selectionPending, false);
+  assert.equal(accounts[0].isActive, true);
   assert.notEqual(accounts[0].pageAccessToken, 'test-page-token');
 });
 test('reconnection keeps an active account active and uses upsert', async () => {
@@ -60,6 +60,16 @@ test('reconnection keeps an active account active and uses upsert', async () => 
   assert.equal(writes.length, 1);
   assert.equal(accounts[0].isActive, true);
   assert.equal(accounts[0].selectionPending, false);
+});
+test('reconnecting a disconnected or still-pending account reactivates it without a second selection', async () => {
+  for (const state of [{ isActive: false, selectionPending: false }, { isActive: false, selectionPending: true }]) {
+    owners.ig1 = { userId: 'current', ...state };
+    writes = [];
+    const accounts = await handleOAuthCallback('test-code', 'current');
+    assert.equal(writes[0].update.isActive, true);
+    assert.equal(writes[0].update.selectionPending, false);
+    assert.equal(accounts[0].isActive, true);
+  }
 });
 test('another workspace produces a conflict, never a false missing-profile result', async () => {
   owners.ig1 = { userId: 'other', isActive: true, selectionPending: false };
@@ -91,7 +101,7 @@ test('portfolio-only Instagram is discoverable without an invented Facebook Page
   assert.equal(accounts.length, 1);
   assert.equal(accounts[0].igUserId, 'ig2');
   assert.equal(accounts[0].pageId, '');
-  assert.equal(accounts[0].selectionPending, true);
+  assert.equal(accounts[0].selectionPending, false);
 });
 
 test('matching Page names never establish a portfolio account relationship', async () => {

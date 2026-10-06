@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getConnectedAccounts, getPendingConnectedAccounts, selectConnectedAccounts, disconnectAccount, getConnectedThreadsAccounts, disconnectThreadsAccount } from '../services/instagram/auth.service';
-import { saveProfileSnapshot } from '../services/instagram/insights.service';
+import { isAccountSyncRunning, syncAccountOnce } from '../services/account-sync.service';
 import { authenticate } from '../middleware/auth';
 import { PrismaClient } from '@prisma/client';
 
@@ -12,7 +12,8 @@ router.use(authenticate);
 router.get('/', async (req: any, res, next) => {
   try {
     const accounts = await getConnectedAccounts(req.user.id);
-    res.json(accounts);
+    // `syncing` lets open tabs show progress and refresh when the first import ends.
+    res.json(accounts.map((account) => ({ ...account, syncing: isAccountSyncRunning(account.id) })));
   } catch (error) {
     next(error);
   }
@@ -101,7 +102,7 @@ router.post('/:id/sync', async (req: any, res, next) => {
     });
     if (!account) return res.status(404).json({ error: 'Account not found' });
 
-    const sync = await saveProfileSnapshot(account.id);
+    const sync = await syncAccountOnce(account.id);
     res.json({ message: 'Account synced', sync });
   } catch (error) {
     next(error);

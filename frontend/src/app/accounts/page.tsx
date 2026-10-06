@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -9,6 +9,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Plus, RefreshCw, Trash2, CheckCircle2, Users, Activity, Instagram, AtSign, Sparkles, ArrowRight } from "lucide-react"
 import toast from "react-hot-toast"
 import { fetchApi, api } from "@/lib/api"
+import { announceAccountsConnected, notifySameTabAccountsConnected, subscribeAccountsConnected } from "@/lib/oauth-broadcast"
 import { ScreenshotAnalysis } from "@/components/dashboard/ScreenshotAnalysis"
 import { ProfileAudit, type AiAudit } from "@/components/dashboard/ProfileAudit"
 
@@ -20,6 +21,8 @@ type ConnectedAccount = {
   igFollowersCount: number
   lastSyncAt?: string | null
   isActive: boolean
+  // True while the server imports posts and metrics (first sync after connecting).
+  syncing?: boolean
 }
 type ConnectedThreadsAccount = { id: string; username: string; name?: string | null; profilePicUrl?: string | null; isActive: boolean }
 type ThreadsOAuthStatus = { appIdConfigured: boolean; appSecretConfigured: boolean; platformConfigured: boolean; credentialSource: 'platform' | 'workspace' | 'missing' }
@@ -42,6 +45,8 @@ export default function AccountsPage() {
   const [auditAudience, setAuditAudience] = useState("")
   const [connectDialogOpen, setConnectDialogOpen] = useState(false)
   const [disconnectingThreadId, setDisconnectingThreadId] = useState<string | null>(null)
+  // Set in the tab opened only for the authorization, once the original tab took over.
+  const [handedOff, setHandedOff] = useState(false)
 
   const startOAuth = async (path: string) => {
     // Open synchronously from the click handler so browser popup blockers do
@@ -97,88 +102,96 @@ export default function AccountsPage() {
     queryClient.setQueryData(["accounts"], data)
   }, [queryClient])
 
+  // The OAuth return (session handoff, toasts, cross-tab announcement) must run
+  // exactly once. React may run this effect twice in development, and the URL
+  // is cleaned on the first pass; a ref survives that and shares the result.
+  const connectionReturn = useRef<Promise<{ handedOff: boolean }> | null>(null)
+
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const connected = params.get("connected")
-    const reason = params.get("reason")
-    const threadsConnected = params.get("threads_connected")
-
     let active = true
-    const loadAccounts = async () => {
-      try {
-        const oauthSession = params.get("oauth_session")
-        if (oauthSession) {
-          const session = await fetchApi("/auth/oauth-session", {
-            method: "POST",
-            body: JSON.stringify({ token: oauthSession }),
-          }) as { token?: string; user?: unknown }
+    const processConnectionReturn = async () => {
+      const params = new URLSearchParams(window.location.search)
+      const connected = params.get("connected")
+      const reason = params.get("reason")
+      const threadsConnected = params.get("threads_connected")
+      const oauthSession = params.get("oauth_session")
+      if (oauthSession) {
+        const session = await fetchApi("/auth/oauth-session", {
+          method: "POST",
+          body: JSON.stringify({ token: oauthSession }),
+        }) as { token?: string; user?: unknown }
 
-          if (session.token) window.localStorage.setItem("instacommand_token", session.token)
-          if (session.user) window.localStorage.setItem("instacommand_user", JSON.stringify(session.user))
-          params.delete("oauth_session")
-          const nextQuery = params.toString()
-          window.history.replaceState({}, "", `/accounts${nextQuery ? `?${nextQuery}` : ""}`)
-        }
-
-        if (connected === "1") toast.success("Conta do Instagram conectada com sucesso")
-        if (connected === "pending") toast.success("A Meta encontrou contas profissionais. Escolha quais deseja vincular.")
-        if (connected === "0") toast.error(reason === "no_professional_instagram"
-          ? "Nenhuma conta Instagram elegível foi importada. Verifique na Meta o vínculo com a Página e o acesso concedido ao aplicativo."
-          : reason === "account_workspace_conflict"
-            ? "A conta autorizada já está vinculada a outro cadastro do InstaCommand. Entre nesse cadastro ou solicite a transferência dos vínculos. Não é necessário converter o Instagram."
-            : reason === "meta_denied"
-            ? "A Meta cancelou ou bloqueou esta conexão. Nenhum token foi salvo."
-            : "A Meta recusou a conexão. Revise a Página, o portfólio e as permissões do aplicativo.")
-        if (threadsConnected === "1") toast.success("Conta do Threads conectada com sucesso")
-        if (threadsConnected === "0") toast.error(reason === "threads_denied"
-          ? "Você cancelou ou a Meta recusou a autorização do Threads. Nenhuma conta foi vinculada."
-          : reason === "threads_callback_missing_code"
-            ? "A Meta não retornou o código de autorização. Confira o endereço de retorno configurado no app Threads."
-            : reason === "threads_account_conflict"
-              ? "Essa conta Threads já está vinculada a outro usuário do InstaCommand. Entre no cadastro que a conectou primeiro."
-              : "A conexão Threads falhou. Verifique a configuração do app Threads, as permissões autorizadas e tente novamente.")
-        if ((connected || threadsConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
-
-        await refreshAccounts()
-        if (!active) return
-        if (connected === "1" || connected === "pending" || threadsConnected === "1") {
-          if (typeof BroadcastChannel !== "undefined") {
-            const channel = new BroadcastChannel("instacommand-oauth")
-            channel.postMessage({ type: "accounts-connected" })
-            channel.close()
-          } else {
-            localStorage.setItem("instacommand-oauth-completed", Date.now().toString())
-          }
-        }
-      } catch (error) {
-        if (active) toast.error(error instanceof Error ? error.message : "Entre na plataforma para carregar suas contas")
-      } finally {
-        if (active) setLoading(false)
+        if (session.token) window.localStorage.setItem("instacommand_token", session.token)
+        if (session.user) window.localStorage.setItem("instacommand_user", JSON.stringify(session.user))
+        params.delete("oauth_session")
+        const nextQuery = params.toString()
+        window.history.replaceState({}, "", `/accounts${nextQuery ? `?${nextQuery}` : ""}`)
       }
+
+      if (connected === "1") toast.success("Conta conectada. Importando publicações e métricas…")
+      if (connected === "pending") toast.success("A Meta encontrou contas profissionais. Escolha quais deseja vincular.")
+      if (connected === "0") toast.error(reason === "no_professional_instagram"
+        ? "Nenhuma conta Instagram elegível foi importada. Verifique na Meta o vínculo com a Página e o acesso concedido ao aplicativo."
+        : reason === "account_workspace_conflict"
+          ? "A conta autorizada já está vinculada a outro cadastro do InstaCommand. Entre nesse cadastro ou solicite a transferência dos vínculos. Não é necessário converter o Instagram."
+          : reason === "meta_denied"
+          ? "A Meta cancelou ou bloqueou esta conexão. Nenhum token foi salvo."
+          : "A Meta recusou a conexão. Revise a Página, o portfólio e as permissões do aplicativo.")
+      if (threadsConnected === "1") toast.success("Conta do Threads conectada com sucesso")
+      if (threadsConnected === "0") toast.error(reason === "threads_denied"
+        ? "Você cancelou ou a Meta recusou a autorização do Threads. Nenhuma conta foi vinculada."
+        : reason === "threads_callback_missing_code"
+          ? "A Meta não retornou o código de autorização. Confira o endereço de retorno configurado no app Threads."
+          : reason === "threads_account_conflict"
+            ? "Essa conta Threads já está vinculada a outro usuário do InstaCommand. Entre no cadastro que a conectou primeiro."
+            : "A conexão Threads falhou. Verifique a configuração do app Threads, as permissões autorizadas e tente novamente.")
+      if ((connected || threadsConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
+
+      await refreshAccounts()
+      if (connected === "1" || connected === "pending" || threadsConnected === "1") {
+        // Refresh every screen of this tab and follow the first sync...
+        notifySameTabAccountsConnected()
+        // ...and tell the tab that started the connection. If it answers,
+        // this tab existed only for the authorization and can close itself.
+        return { handedOff: await announceAccountsConnected() }
+      }
+      return { handedOff: false }
     }
 
-    void loadAccounts()
+    connectionReturn.current ??= processConnectionReturn()
+    connectionReturn.current
+      .then(({ handedOff: tookOver }) => {
+        if (!active || !tookOver) return
+        setHandedOff(true)
+        window.setTimeout(() => window.close(), 1200)
+      })
+      .catch((error) => {
+        if (active) toast.error(error instanceof Error ? error.message : "Entre na plataforma para carregar suas contas")
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
 
-    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("instacommand-oauth") : null
-    const refreshFromOtherTab = (event: MessageEvent) => {
-      if (event.data?.type !== "accounts-connected") return
-      void refreshAccounts().then(() => toast.success("Conexão atualizada com sucesso")).catch(() => {
+    const unsubscribe = subscribeAccountsConnected(() => {
+      void refreshAccounts().then(() => toast.success("Conta conectada. Importando publicações e métricas…")).catch(() => {
         toast.error("A conexão foi concluída, mas não foi possível atualizar a lista. Recarregue a página.")
       })
-    }
-    channel?.addEventListener("message", refreshFromOtherTab)
-    const refreshFromStorage = (event: StorageEvent) => {
-      if (event.key === "instacommand-oauth-completed") void refreshAccounts().catch(() => undefined)
-    }
-    window.addEventListener("storage", refreshFromStorage)
+    })
 
     return () => {
       active = false
-      channel?.removeEventListener("message", refreshFromOtherTab)
-      channel?.close()
-      window.removeEventListener("storage", refreshFromStorage)
+      unsubscribe()
     }
   }, [refreshAccounts])
+
+  // While the server runs the first import, keep the cards current; the last
+  // poll shows the final follower count and sync time.
+  const anySyncing = accounts.some((account) => account.syncing)
+  useEffect(() => {
+    if (!anySyncing) return
+    const timer = window.setTimeout(() => { void refreshAccounts().catch(() => undefined) }, 3000)
+    return () => window.clearTimeout(timer)
+  }, [accounts, anySyncing, refreshAccounts])
 
   const totalFollowers = useMemo(() => accounts.reduce((total, account) => total + (account.igFollowersCount || 0), 0), [accounts])
 
@@ -186,10 +199,8 @@ export default function AccountsPage() {
     setSyncingId(id)
     try {
       const result = await fetchApi(`/accounts/${id}/sync`, { method: "POST" }) as { sync?: { importedMedia?: number; removedMedia?: number; mediaSnapshotComplete?: boolean; profileInsightsAvailable?: boolean } }
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["accounts"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-      ])
+      // Refresh the cards and every cached report, not just the dashboard.
+      await Promise.all([refreshAccounts(), queryClient.invalidateQueries()])
       const importedMedia = result.sync?.importedMedia ?? 0
       const removedMedia = result.sync?.removedMedia ?? 0
       const mediaMessage = removedMedia
@@ -269,6 +280,11 @@ export default function AccountsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Conexões</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Contas conectadas</h2><p className="mt-1 text-sm text-slate-500">Gerencie suas contas do Instagram, Facebook e Threads.</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />Adicionar conta</Button></div>
 
+      {handedOff && <Card className="flex items-start gap-3 border-emerald-200 bg-emerald-50/70 p-4">
+        <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-600" />
+        <div><p className="font-semibold text-emerald-900">Conexão concluída</p><p className="mt-0.5 text-sm text-emerald-800">A aba original do InstaCommand já foi atualizada com a nova conta. Você pode fechar esta aba.</p></div>
+      </Card>}
+
       <ScreenshotAnalysis />
       <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
         <DialogContent aria-label="Conectar uma conta" className="max-w-xl">
@@ -307,7 +323,7 @@ export default function AccountsPage() {
       <details className="space-y-3 rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-semibold">Personalizar análise de perfil com IA</summary><p className="text-sm text-slate-600">Informe seu objetivo e público, depois clique em Analisar com IA na conta desejada. A análise usa a bio, dados disponíveis e até oito legendas recentes dessa conta, enviados ao provedor de IA configurado; pode consumir sua cota.</p><div className="grid gap-3 md:grid-cols-2"><label className="text-sm font-semibold">Objetivo (opcional)<input value={auditObjective} onChange={event => setAuditObjective(event.target.value)} maxLength={200} placeholder="Ex.: atrair clientes para meu serviço" className="mt-2 w-full rounded-xl border p-3 font-normal" /></label><label className="text-sm font-semibold">Público que deseja atrair (opcional)<input value={auditAudience} onChange={event => setAuditAudience(event.target.value)} maxLength={300} placeholder="Ex.: pequenos negócios da minha região" className="mt-2 w-full rounded-xl border p-3 font-normal" /></label></div></details>
       {audit && <ProfileAudit key={auditVersion} audit={audit} username={auditAccount} />}
 
-      {loading ? <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Carregando contas conectadas...</div> : accounts.length === 0 ? <Card className="flex flex-col items-center justify-center gap-4 p-12 text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600"><Instagram size={25} /></div><div><h3 className="font-bold text-slate-900">Nenhuma conta conectada</h3><p className="mt-1 max-w-md text-sm text-slate-500">Clique em Adicionar conta para entrar com a Meta e selecionar suas contas Instagram Business ou Creator.</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={16} />Adicionar conta</Button></Card> : <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">{accounts.map((account) => (<Card key={account.id} className="flex flex-col gap-5 p-5 transition-shadow hover:shadow-lg"><div className="flex flex-wrap items-start justify-between gap-2"><div className="flex min-w-0 flex-1 items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 text-sm font-bold text-white">{account.igProfilePicUrl ? <img src={account.igProfilePicUrl} alt={`Avatar de ${account.igUsername}`} className="h-full w-full object-cover" /> : account.igUsername[0].toUpperCase()}</div><div className="min-w-0"><h3 className="break-words text-sm font-bold text-slate-900">@{account.igUsername}</h3><p className="text-sm text-slate-500">{account.igFollowersCount.toLocaleString("pt-BR")} seguidores</p></div></div><Badge variant="success" className="gap-1"><CheckCircle2 size={12} />Ativo</Badge></div><div className="rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-500">Última sincronização <span className="font-semibold text-slate-700">{account.lastSyncAt ? new Date(account.lastSyncAt).toLocaleString("pt-BR") : "Ainda não sincronizada"}</span></div><div className="mt-auto flex flex-wrap gap-2"><Button variant="secondary" onClick={() => syncAccount(account.id)} disabled={syncingId === account.id} className="flex-1 gap-2"><RefreshCw size={15} className={syncingId === account.id ? "animate-spin" : ""} />{syncingId === account.id ? "Sincronizando" : "Sincronizar"}</Button><Button variant="outline" onClick={() => analyzeAccount(account)} disabled={Boolean(auditLoadingId)} className="gap-2 text-indigo-700"><Sparkles size={15} />{auditLoadingId === account.id ? "Analisando" : "Analisar com IA"}</Button><Button variant="outline" size="icon" title={`Desconectar @${account.igUsername}`} onClick={() => disconnectAccount(account)} className="text-rose-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={16} /></Button></div></Card>))}</div>}
+      {loading ? <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Carregando contas conectadas...</div> : accounts.length === 0 ? <Card className="flex flex-col items-center justify-center gap-4 p-12 text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600"><Instagram size={25} /></div><div><h3 className="font-bold text-slate-900">Nenhuma conta conectada</h3><p className="mt-1 max-w-md text-sm text-slate-500">Clique em Adicionar conta para entrar com a Meta e selecionar suas contas Instagram Business ou Creator.</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={16} />Adicionar conta</Button></Card> : <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">{accounts.map((account) => (<Card key={account.id} className="flex flex-col gap-5 p-5 transition-shadow hover:shadow-lg"><div className="flex flex-wrap items-start justify-between gap-2"><div className="flex min-w-0 flex-1 items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 text-sm font-bold text-white">{account.igProfilePicUrl ? <img src={account.igProfilePicUrl} alt={`Avatar de ${account.igUsername}`} className="h-full w-full object-cover" /> : account.igUsername[0].toUpperCase()}</div><div className="min-w-0"><h3 className="break-words text-sm font-bold text-slate-900">@{account.igUsername}</h3><p className="text-sm text-slate-500">{account.igFollowersCount.toLocaleString("pt-BR")} seguidores</p></div></div><Badge variant="success" className="gap-1"><CheckCircle2 size={12} />Ativo</Badge></div><div className="rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-500">{account.syncing ? <span className="inline-flex items-center gap-1.5 font-semibold text-indigo-700"><RefreshCw size={12} className="animate-spin" />Importando publicações e métricas…</span> : <>Última sincronização <span className="font-semibold text-slate-700">{account.lastSyncAt ? new Date(account.lastSyncAt).toLocaleString("pt-BR") : "Ainda não sincronizada"}</span></>}</div><div className="mt-auto flex flex-wrap gap-2"><Button variant="secondary" onClick={() => syncAccount(account.id)} disabled={syncingId === account.id || account.syncing} className="flex-1 gap-2"><RefreshCw size={15} className={syncingId === account.id || account.syncing ? "animate-spin" : ""} />{syncingId === account.id || account.syncing ? "Sincronizando" : "Sincronizar"}</Button><Button variant="outline" onClick={() => analyzeAccount(account)} disabled={Boolean(auditLoadingId)} className="gap-2 text-indigo-700"><Sparkles size={15} />{auditLoadingId === account.id ? "Analisando" : "Analisar com IA"}</Button><Button variant="outline" size="icon" title={`Desconectar @${account.igUsername}`} onClick={() => disconnectAccount(account)} className="text-rose-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={16} /></Button></div></Card>))}</div>}
 
       <Card className="border-slate-200/80 bg-white p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

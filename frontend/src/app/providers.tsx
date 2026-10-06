@@ -1,8 +1,13 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Toaster } from 'react-hot-toast'
+import toast, { Toaster } from 'react-hot-toast'
 import { useEffect, useState } from 'react'
+import { api } from '@/lib/api'
+import { SAME_TAB_EVENT, subscribeAccountsConnected } from '@/lib/oauth-broadcast'
+
+const SYNC_POLL_MS = 3000
+const SYNC_WATCH_LIMIT_MS = 3 * 60_000
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -15,23 +20,40 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }))
 
   useEffect(() => {
-    const refreshConnectedAccounts = () => {
-      void queryClient.invalidateQueries({ queryKey: ['accounts'] })
-      void queryClient.invalidateQueries({ queryKey: ['threads-accounts'] })
+    let watching = false
+    let disposed = false
+    // After a connection, every screen (dashboard, reports, calendar, header)
+    // must show the new account, and refresh again once the first import of
+    // posts and metrics started by the server finishes.
+    const followConnection = async () => {
+      await queryClient.invalidateQueries()
+      if (watching) return
+      watching = true
+      try {
+        const deadline = Date.now() + SYNC_WATCH_LIMIT_MS
+        let sawSync = false
+        while (!disposed && Date.now() < deadline) {
+          await new Promise((resolve) => window.setTimeout(resolve, SYNC_POLL_MS))
+          const accounts = await api.getAccounts().catch(() => null) as { syncing?: boolean }[] | null
+          if (!accounts) continue
+          queryClient.setQueryData(['accounts'], accounts)
+          if (accounts.some((account) => account.syncing)) { sawSync = true; continue }
+          break
+        }
+        if (disposed) return
+        await queryClient.invalidateQueries()
+        if (sawSync) toast.success('Publicações e métricas da conta sincronizadas.')
+      } finally {
+        watching = false
+      }
     }
-    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('instacommand-oauth') : null
-    const onMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'accounts-connected') refreshConnectedAccounts()
-    }
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === 'instacommand-oauth-completed') refreshConnectedAccounts()
-    }
-    channel?.addEventListener('message', onMessage)
-    window.addEventListener('storage', onStorage)
+    const onConnected = () => { void followConnection() }
+    const unsubscribe = subscribeAccountsConnected(onConnected)
+    window.addEventListener(SAME_TAB_EVENT, onConnected)
     return () => {
-      channel?.removeEventListener('message', onMessage)
-      channel?.close()
-      window.removeEventListener('storage', onStorage)
+      disposed = true
+      unsubscribe()
+      window.removeEventListener(SAME_TAB_EVENT, onConnected)
     }
   }, [queryClient])
 

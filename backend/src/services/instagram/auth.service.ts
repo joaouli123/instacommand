@@ -380,7 +380,7 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
 
     const existingAccount = await prisma.instagramAccount.findUnique({
       where: { igUserId: igId },
-      select: { userId: true, isActive: true, selectionPending: true },
+      select: { userId: true },
     });
     if (existingAccount && existingAccount.userId !== userId) {
       // One account owned by another customer must not block the rest of
@@ -389,8 +389,11 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
       return;
     }
 
-    const selectionPending = existingAccount ? existingAccount.selectionPending || !existingAccount.isActive : true;
-
+    // Meta's own authorization dialog is where the person picks which Pages
+    // and Instagram accounts to share. Everything returned here was chosen
+    // there, so it becomes active immediately (including a reconnection of an
+    // account that was disconnected) instead of waiting for a second choice
+    // inside InstaCommand.
     const account = await prisma.instagramAccount.upsert({
       where: { igUserId: igId },
       update: {
@@ -404,8 +407,8 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
         pageId: page?.id || '',
         pageName: page?.name || null,
         pageAccessToken: encryptedToken,
-        isActive: existingAccount?.isActive ?? false,
-        selectionPending,
+        isActive: true,
+        selectionPending: false,
         userId,
       },
       create: {
@@ -421,8 +424,8 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
         pageName: page?.name || null,
         pageAccessToken: encryptedToken,
         userId,
-        isActive: false,
-        selectionPending: true,
+        isActive: true,
+        selectionPending: false,
       },
     });
     connectedAccounts.push(account);
