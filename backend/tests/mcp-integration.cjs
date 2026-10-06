@@ -28,7 +28,7 @@ const queue = new Map();
 class FakeQueue {
   constructor(name) { this.name = name; }
   async add(name, data, opts = {}) { const id = opts.jobId || crypto.randomUUID(); queue.set(id, { id, name, data, delay: opts.delay ?? 0, queue: this.name }); return { id }; }
-  async getJob(id) { const job = queue.get(id); return job ? { ...job, remove: async () => { queue.delete(id); } } : null; }
+  async getJob(id) { const job = queue.get(id); return job ? { ...job, getState: async () => 'delayed', remove: async () => { queue.delete(id); } } : null; }
   async getDelayed() { return [...queue.values()].filter((job) => job.queue === this.name); }
   async getActiveCount() { return 0; } async getWaitingCount() { return 0; } async getDelayedCount() { return queue.size; } async getFailedCount() { return 0; }
 }

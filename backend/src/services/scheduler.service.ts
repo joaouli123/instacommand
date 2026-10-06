@@ -9,6 +9,15 @@ export const insightsQueue = new Queue('collect-insights', { connection: redisCo
 export const competitorsQueue = new Queue('collect-competitors', { connection: redisConnection });
 
 export const schedulePost = async (scheduledPostId: string, publishAt: Date) => {
+  // The post id is the job id. BullMQ keeps finished jobs and silently ignores
+  // add() while one with the same id exists, so re-scheduling a post whose
+  // earlier job failed or completed would never run. Clear it first.
+  const existing = await publishQueue.getJob(scheduledPostId);
+  if (existing) {
+    // An active job is being published right now; its claim decides the outcome.
+    if (await existing.getState() === 'active') return;
+    await existing.remove();
+  }
   const delay = publishAt.getTime() - Date.now();
   await publishQueue.add('publish', { scheduledPostId, scheduledFor: publishAt.toISOString() }, {
     jobId: scheduledPostId,
