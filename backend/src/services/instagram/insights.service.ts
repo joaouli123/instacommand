@@ -5,6 +5,7 @@ import { MediaType } from '@prisma/client';
 import { maybeNotifyEngagement } from '../notifications.service';
 import { analyticsDays, publicationPeriod } from '../analytics-period';
 import { receivedMetrics, aggregateMetrics } from '../metric-availability';
+import { mediaPreviewUrl } from '../../utils/meta-media';
 
 const prisma = new PrismaClient();
 
@@ -211,9 +212,10 @@ export const saveProfileSnapshot = async (accountId: string) => {
 
   const token = await getDecryptedToken(accountId);
   
-  // Basic profile data
+  // Basic profile data. The picture URL is a signed Meta CDN link that
+  // expires, so it is refreshed on every sync together with name and bio.
   const profileData = await graphGet(`/${account.igUserId}`, token, {
-    fields: 'followers_count,follows_count,media_count',
+    fields: 'username,name,biography,profile_picture_url,followers_count,follows_count,media_count',
   });
 
   // Insights require the advanced instagram_manage_insights permission. Keep
@@ -259,6 +261,11 @@ export const saveProfileSnapshot = async (accountId: string) => {
       igFollowersCount: profileData.followers_count,
       igFollowsCount: profileData.follows_count,
       igMediaCount: profileData.media_count,
+      // Only overwrite with values Meta actually returned.
+      ...(typeof profileData.profile_picture_url === 'string' && profileData.profile_picture_url ? { igProfilePicUrl: profileData.profile_picture_url } : {}),
+      ...(typeof profileData.username === 'string' && profileData.username ? { igUsername: profileData.username } : {}),
+      ...(typeof profileData.name === 'string' ? { igName: profileData.name } : {}),
+      ...(typeof profileData.biography === 'string' ? { igBio: profileData.biography } : {}),
       lastSyncAt: new Date(),
     },
   });
@@ -304,7 +311,7 @@ export const syncAccountMedia = async (accountId: string, options: { fetchInsigh
         instagramDeletedAt: null,
         mediaType,
         caption: item.caption || null,
-        igMediaUrl: item.media_url || item.thumbnail_url || null,
+        igMediaUrl: mediaPreviewUrl(item),
         igPermalink: item.permalink || null,
         publishedAt,
       },
@@ -313,7 +320,7 @@ export const syncAccountMedia = async (accountId: string, options: { fetchInsigh
         igMediaId: item.id,
         mediaType,
         caption: item.caption || null,
-        igMediaUrl: item.media_url || item.thumbnail_url || null,
+        igMediaUrl: mediaPreviewUrl(item),
         igPermalink: item.permalink || null,
         publishedAt,
       },
@@ -415,8 +422,8 @@ export const syncAccountStories = async (accountId: string, options: { fetchInsi
     const publishedAt = item.timestamp && !Number.isNaN(new Date(item.timestamp).getTime()) ? new Date(item.timestamp) : new Date();
     const post = await prisma.publishedPost.upsert({
       where: { igMediaId: item.id },
-      update: { accountId, mediaType: MediaType.STORY, caption: null, igMediaUrl: item.media_url || item.thumbnail_url || null, igPermalink: item.permalink || null, publishedAt },
-      create: { accountId, igMediaId: item.id, mediaType: MediaType.STORY, caption: null, igMediaUrl: item.media_url || item.thumbnail_url || null, igPermalink: item.permalink || null, publishedAt },
+      update: { accountId, mediaType: MediaType.STORY, caption: null, igMediaUrl: mediaPreviewUrl(item), igPermalink: item.permalink || null, publishedAt },
+      create: { accountId, igMediaId: item.id, mediaType: MediaType.STORY, caption: null, igMediaUrl: mediaPreviewUrl(item), igPermalink: item.permalink || null, publishedAt },
     });
 
     let insightItems: InsightItem[] = [];

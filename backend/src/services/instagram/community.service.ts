@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { graphGet, graphPost, graphDelete } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
 import { AppError, NotFoundError, ValidationError } from '../../utils/errors';
+import { mediaPreviewUrl } from '../../utils/meta-media';
 
 const prisma = new PrismaClient();
 
@@ -25,7 +26,7 @@ const normalizeComment = (comment: any, media: any): CommunityComment => ({
   like_count: typeof comment.like_count === 'number' && Number.isFinite(comment.like_count) ? comment.like_count : null,
   mediaId: String(media.id),
   mediaCaption: media.caption || null,
-  mediaUrl: media.media_url || media.thumbnail_url || null,
+  mediaUrl: mediaPreviewUrl(media),
   permalink: media.permalink || null,
 });
 
@@ -42,7 +43,7 @@ export const listRecentComments = async (accountId: string, userId: string, limi
   const account = await getOwnedAccount(accountId, userId);
   const token = await getDecryptedToken(account.id);
   const mediaResponse = await graphGet(`/${account.igUserId}/media`, token, {
-    fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp',
+    fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp',
     limit: Math.min(25, Math.max(1, Math.ceil(limit / 2))),
   });
   const media: any[] = Array.isArray(mediaResponse.data) ? mediaResponse.data : [];

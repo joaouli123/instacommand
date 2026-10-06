@@ -20,6 +20,8 @@ import { BACKEND_ORIGIN } from "@/lib/config"
 import { DailyContentPlan } from "@/components/dashboard/DailyContentPlan"
 import { ArtworkStudio } from "@/components/dashboard/ArtworkStudio"
 import { selectAccount } from "@/lib/active-account-store"
+import { isVideoUrl } from "@/lib/media"
+import { AvatarImage } from "@/components/ui/avatar-image"
 
 type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY" | "TEXT"
 
@@ -111,7 +113,6 @@ const emptyInstagramAdvancedSettings = (): InstagramAdvancedSettings => ({ altTe
 
 const normalizeHashtag = (value: string) => value.replace(/^#+/, "").trim()
 const isVideoFile = (file: Pick<File, "type" | "name">) => file.type.toLowerCase().startsWith("video/") || /\.(mp4|m4v|mov|webm|ogv|ogg)$/i.test(file.name)
-const isVideoUrl = (src: string) => /\.(mp4|m4v|mov|webm|ogv|ogg)(?:[?#].*)?$/i.test(src)
 type SocialPreviewProps = {
   postType: PostType
   previewPlatform: string
@@ -285,7 +286,7 @@ function PreviewMedia({ media, emptyMessage, className = "", backgroundClassName
 
 function PreviewAvatar({ src, name, ring = false, facebook = false, compact = false }: { src?: string | null; name: string; ring?: boolean; facebook?: boolean; compact?: boolean }) {
   return <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e9edf2] font-semibold text-[#43536a] ${compact ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm"} ${ring ? compact ? "ring ring-[#c13584] ring-offset-1 ring-offset-white" : "ring-2 ring-[#c13584] ring-offset-2 ring-offset-white" : ""} ${facebook ? "bg-[#1877f2] text-white" : ""}`} aria-label={`Foto de ${name}`}>
-    {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : (name.replace(/^@/, "")[0] || "?").toUpperCase()}
+    <AvatarImage src={src} fallback={(name.replace(/^@/, "")[0] || "?").toUpperCase()} />
   </span>
 }
 

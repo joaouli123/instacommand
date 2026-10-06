@@ -7,6 +7,7 @@ import { verifyFacebookPageLink } from './facebook-link.service';
 import { assertPostReady } from '../post-readiness';
 import { normalizeMediaUrl } from '../../utils/public-media';
 import { InstagramAdvancedSettings } from './advanced-settings';
+import { mediaPreviewUrl } from '../../utils/meta-media';
 
 const prisma = new PrismaClient();
 
@@ -293,8 +294,8 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         }
         // Enrichment must not turn a successful remote publication into a
         // retryable failure (which would send the same content again).
-        const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_url' }).catch(() => ({}));
-        results.INSTAGRAM = { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaDetails.media_url, advancedWarnings };
+        const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_type,media_url,thumbnail_url' }).catch(() => ({}));
+        results.INSTAGRAM = { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaPreviewUrl(mediaDetails), advancedWarnings };
       } catch (error) {
         errors.push(`Instagram: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
       }

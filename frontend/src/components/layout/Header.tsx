@@ -15,6 +15,7 @@ import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import type { User } from "@/types"
+import { AvatarImage } from "@/components/ui/avatar-image"
 
 type NotificationItem = {
   id: string
@@ -92,7 +93,7 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <button aria-label={activeAccount ? `Conta ativa @${activeAccount.igUsername}` : 'Selecionar conta'} className="flex h-10 min-w-0 max-w-[36vw] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-2 text-sm font-medium text-slate-800 shadow-xs transition-all hover:bg-slate-100/80 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:max-w-48 sm:gap-2.5 sm:px-3 xl:max-w-64">
               <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shrink-0 overflow-hidden">
-                {activeAccount?.igProfilePicUrl ? <img src={activeAccount.igProfilePicUrl} alt="" className="h-full w-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-indigo-700">{activeAccount?.igUsername?.substring(0, 1).toUpperCase() || "?"}</div>}
+                <AvatarImage src={activeAccount?.igProfilePicUrl} className="h-full w-full rounded-full object-cover" fallback={<div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-indigo-700">{activeAccount?.igUsername?.substring(0, 1).toUpperCase() || "?"}</div>} />
               </div>
               <span className="min-w-0 truncate text-[11px] font-semibold tracking-tight sm:text-xs">{isLoading ? "Carregando..." : activeAccount ? `@${activeAccount.igUsername}` : currentUser?.name || "Seu workspace"}</span>
               <ChevronDown size={14} className="shrink-0 text-slate-400" />

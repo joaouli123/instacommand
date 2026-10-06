@@ -59,7 +59,9 @@ test('vertical video format uses the platform name and ratio instead of calling 
 
 test('video files without a video MIME type and common draft-video URLs are still recognized', () => {
   assert.ok(source.includes('file.type.toLowerCase().startsWith("video/") || /\\.(mp4|m4v|mov|webm|ogv|ogg)$/i.test(file.name)'));
-  assert.ok(source.includes('const isVideoUrl = (src: string) => /\\.(mp4|m4v|mov|webm|ogv|ogg)(?:[?#].*)?$/i.test(src)'));
+  assert.ok(source.includes('import { isVideoUrl } from "@/lib/media"'));
+  const media = fs.readFileSync(path.join(__dirname, '../src/lib/media.ts'), 'utf8');
+  assert.ok(media.includes('export const isVideoUrl = (src: string) => /\\.(mp4|m4v|mov|webm|ogv|ogg)(?:[?#].*)?$/i.test(src)'));
   assert.ok(source.includes('const kind = isVideoFile(file) ? "video" : "image"'));
   assert.ok(source.includes("kind: isVideoUrl(src) ? 'video' : 'image'"));
 });
