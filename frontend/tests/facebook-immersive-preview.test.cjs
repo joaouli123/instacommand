@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '../src/app/composer/page.tsx'), 'utf8');
+// The native-style previews live in a component shared with the calendar.
+const source = fs.readFileSync(path.join(__dirname, '../src/app/composer/page.tsx'), 'utf8')
+  + fs.readFileSync(path.join(__dirname, '../src/components/preview/SocialPostPreview.tsx'), 'utf8');
 const instagramReelStart = source.indexOf('if (isInstagram && postType === "REEL")');
 const facebookReelStart = source.indexOf('if (isFacebook && postType === "REEL")');
 const threadsPreviewStart = source.indexOf('if (!isInstagram && !isFacebook)');

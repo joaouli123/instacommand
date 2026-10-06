@@ -12,6 +12,9 @@ import Link from "next/link"
 import { api } from "@/lib/api"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import toast from "react-hot-toast"
+import { useQuery } from "@tanstack/react-query"
+import { PostPreviewPanel } from "@/components/calendar/PostPreviewPanel"
+import { captionAsPublished } from "@/lib/caption"
 
 type CalendarPost = {
   id: string
@@ -22,6 +25,19 @@ type CalendarPost = {
   status: string
   errorMessage?: string | null
   platforms: string[]
+  mediaUrls?: string[]
+  hashtags?: string[]
+  threadsAccountId?: string | null
+  isAiGenerated?: boolean
+  instagramAudioTitle?: string | null
+  instagramAudioArtist?: string | null
+  advancedSettings?: {
+    altTexts?: string[]
+    collaborators?: string[]
+    firstComment?: string
+    disableComments?: boolean
+    userTags?: Array<{ username: string }>
+  } | null
   publishedPost?: {
     publishResults?: Record<string, { id?: string }> | null
     publishedAt?: string | null
@@ -30,6 +46,8 @@ type CalendarPost = {
 
 export default function CalendarPage() {
   const { accounts, accountId, activeAccount, isLoading: accountsLoading } = useActiveAccount()
+  const threadsQuery = useQuery({ queryKey: ["threads-accounts"], queryFn: api.getThreadsAccounts, staleTime: 5 * 60_000 })
+  const threadsAccounts = (threadsQuery.data || []) as Array<{ id: string; username: string }>
   const [monthDate, setMonthDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [posts, setPosts] = useState<CalendarPost[]>([])
   const [loading, setLoading] = useState(true)
@@ -157,17 +175,25 @@ export default function CalendarPage() {
       </div>
 
       <Dialog open={!!selectedPost} onOpenChange={(open) => !open && setSelectedPost(null)}>
-        <DialogContent className="max-w-md" aria-label="Detalhes da publicação">
-          {selectedPost && <div className="space-y-4">
-             <div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Detalhes da publicação</p><h3 className="mt-1 text-xl font-bold text-slate-900">{selectedPost.caption?.split("\n")[0] || "Publicação sem legenda"}</h3></div>
+        <DialogContent className="max-w-4xl" aria-label="Detalhes da publicação">
+          {selectedPost && <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6">
+           <PostPreviewPanel
+             post={selectedPost}
+             account={accounts.find((account) => account.id === selectedPost.accountId)}
+             threadsAccount={threadsAccounts.find((account) => account.id === selectedPost.threadsAccountId)}
+           />
+           <div className="min-w-0 space-y-4">
+             <div className="pr-8"><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Detalhes da publicação</p><h3 className="mt-1 break-words text-xl font-bold text-slate-900">{selectedPost.caption?.split("\n")[0] || "Publicação sem legenda"}</h3></div>
              <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Formato</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.mediaType === "CAROUSEL" ? "Carrossel" : selectedPost.mediaType === "REEL" ? "Reel" : selectedPost.mediaType === "STORY" ? "Story" : "Feed"}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Status</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.status === "SCHEDULED" ? "Agendado" : selectedPost.status === "PUBLISHED" ? "Publicado" : selectedPost.status === "FAILED" ? "Falhou" : "Rascunho"}</p></div></div>
              <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Redes selecionadas</p><div className="mt-2 flex flex-wrap gap-2">{(selectedPost.platforms || []).map((platform) => <Badge key={platform} variant="secondary">{platform === "INSTAGRAM" ? "Instagram" : platform === "FACEBOOK" ? "Facebook" : "Threads"}</Badge>)}</div></div>
              {selectedPost.publishedPost?.publishResults && <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Resultado real</p><div className="mt-2 space-y-1 text-xs text-slate-600">{Object.entries(selectedPost.publishedPost.publishResults).map(([platform, result]) => <p key={platform}><span className="font-semibold">{platform === "INSTAGRAM" ? "Instagram" : platform === "FACEBOOK" ? "Facebook" : "Threads"}:</span> publicado{result.id ? ` · ID ${result.id}` : ""}</p>)}</div></div>}
             <p className="text-sm text-slate-600">{new Date(selectedPost.scheduledFor).toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "short" })}</p>
+            <PostContentDetails post={selectedPost} />
             {selectedPost.errorMessage && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-700">{selectedPost.errorMessage}</p>}
             {selectedPost.status === "PUBLISHED" && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Excluir aqui remove o registro do InstaCommand. A API não consegue apagar do Instagram uma mídia que já foi publicada; remova-a diretamente no Instagram. No Facebook/Threads, o app tenta excluir também e avisa se a Meta recusar.</p>}
             {['DRAFT', 'FAILED'].includes(selectedPost.status) && <Link href={`/composer?draft=${encodeURIComponent(selectedPost.id)}`} className="inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Editar rascunho e adicionar mídias</Link>}
             <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setSelectedPost(null)}>Fechar</Button>{selectedPost.status === "SCHEDULED" && <Button variant="outline" onClick={cancelSchedule} disabled={actionLoading}>Cancelar agendamento</Button>}<Button variant="danger" onClick={deletePost} disabled={actionLoading}>{actionLoading ? "Excluindo…" : selectedPost.status === "PUBLISHED" ? "Excluir registro" : "Excluir"}</Button></div>
+           </div>
           </div>}
         </DialogContent>
       </Dialog>
@@ -264,4 +290,30 @@ export default function CalendarPage() {
       </Card>}
     </div>
   )
+}
+
+/** Full text and Instagram options exactly as they will be sent. */
+function PostContentDetails({ post }: { post: CalendarPost }) {
+  const caption = captionAsPublished(post.caption, post.hashtags)
+  const settings = post.advancedSettings || {}
+  const extras = [
+    settings.firstComment?.trim() ? { label: "Primeiro comentário", value: settings.firstComment.trim() } : null,
+    settings.collaborators?.length ? { label: "Colaboradores", value: settings.collaborators.map((user) => `@${user}`).join(", ") } : null,
+    settings.userTags?.length ? { label: "Pessoas marcadas", value: Array.from(new Set(settings.userTags.map((tag) => `@${tag.username}`))).join(", ") } : null,
+    settings.altTexts?.some((text) => text?.trim()) ? { label: "Texto alternativo", value: settings.altTexts.map((text, index) => text?.trim() ? `${index + 1}. ${text.trim()}` : null).filter(Boolean).join("\n") } : null,
+    settings.disableComments ? { label: "Comentários", value: "Desativados no Instagram" } : null,
+    post.instagramAudioTitle ? { label: "Música", value: [post.instagramAudioTitle, post.instagramAudioArtist].filter(Boolean).join(" — ") } : null,
+    post.isAiGenerated ? { label: "Rótulo", value: "Conteúdo gerado por IA" } : null,
+  ].filter((item): item is { label: string; value: string } => Boolean(item))
+
+  return <div className="space-y-3">
+    <div>
+      <div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Legenda que será publicada</p><span className="text-[11px] text-slate-400">{caption.length} caracteres</span></div>
+      <p className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700">{caption || <span className="text-slate-400">Sem legenda.</span>}</p>
+    </div>
+    <p className="text-xs text-slate-500">{post.mediaUrls?.length ? `${post.mediaUrls.length} mídia(s) anexada(s).` : post.mediaType === "TEXT" ? "Post só de texto." : "Nenhuma mídia anexada ainda."}</p>
+    {extras.length > 0 && <dl className="space-y-2 rounded-xl border border-slate-200 p-3">
+      {extras.map((item) => <div key={item.label}><dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{item.label}</dt><dd className="mt-0.5 whitespace-pre-wrap break-words text-sm text-slate-700">{item.value}</dd></div>)}
+    </dl>}
+  </div>
 }

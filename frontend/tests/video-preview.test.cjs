@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '../src/app/composer/page.tsx'), 'utf8');
+// The native-style previews live in a component shared with the calendar.
+const source = fs.readFileSync(path.join(__dirname, '../src/app/composer/page.tsx'), 'utf8')
+  + fs.readFileSync(path.join(__dirname, '../src/components/preview/SocialPostPreview.tsx'), 'utf8');
 
 test('Reel and Story video previews autoplay muted and expose manual playback and sound controls', () => {
   assert.match(source, /<video[\s\S]*?autoPlay[\s\S]*?muted=\{isMuted\}[\s\S]*?loop[\s\S]*?playsInline[\s\S]*?preload="auto"/);
