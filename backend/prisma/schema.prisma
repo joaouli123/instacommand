@@ -31,6 +31,80 @@ model User {
   automationTemplates AutomationTemplate[]
   instagramAgents InstagramAgentSettings[]
   conversations AutomationConversation[]
+  apiTokens       ApiToken[]
+  oauthCodes      OAuthAuthorizationCode[]
+}
+
+enum ApiTokenKind {
+  PERSONAL
+  OAUTH
+}
+
+// Credentials for MCP/CLI/AI clients. Only SHA-256 hashes of the secrets are
+// stored; the plaintext token is shown once when it is created.
+model ApiToken {
+  id               String       @id @default(uuid())
+  userId           String
+  kind             ApiTokenKind
+  name             String       @db.VarChar(100)
+  tokenPrefix      String       @db.VarChar(24)
+  tokenHash        String       @unique @db.VarChar(64)
+  scopes           String[]
+  // OAuth tokens are audience-bound to the MCP resource. Personal tokens are null.
+  resource         String?      @db.VarChar(500)
+  oauthClientId    String?
+  refreshTokenHash String?      @unique @db.VarChar(64)
+  refreshExpiresAt DateTime?
+  expiresAt        DateTime?
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthClient      OAuthClient? @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, revokedAt])
+}
+
+model OAuthClient {
+  id                      String   @id @default(uuid())
+  // Generated for dynamic registration, or the HTTPS URL of a Client ID Metadata Document.
+  clientId                String   @unique @db.VarChar(500)
+  clientSecretHash        String?  @db.VarChar(64)
+  clientName              String   @db.VarChar(200)
+  clientUri               String?  @db.VarChar(500)
+  redirectUris            String[]
+  tokenEndpointAuthMethod String   @default("none") @db.VarChar(40)
+  registrationType        String   @db.VarChar(10)
+  metadataFetchedAt       DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  tokens                  ApiToken[]
+  codes                   OAuthAuthorizationCode[]
+
+  @@index([registrationType, createdAt])
+}
+
+model OAuthAuthorizationCode {
+  id            String      @id @default(uuid())
+  codeHash      String      @unique @db.VarChar(64)
+  clientId      String
+  userId        String
+  redirectUri   String      @db.VarChar(1000)
+  codeChallenge String      @db.VarChar(128)
+  scopes        String[]
+  resource      String      @db.VarChar(500)
+  expiresAt     DateTime
+  usedAt        DateTime?
+  tokenId       String?
+  createdAt     DateTime    @default(now())
+
+  client        OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model UserPreference {
@@ -329,6 +403,8 @@ enum MediaType {
   CAROUSEL
   REEL
   STORY
+  // Threads-only text post; the API and composer already offer this format.
+  TEXT
 }
 
 enum PostStatus {

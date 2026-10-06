@@ -114,5 +114,11 @@ export const api = {
   getAutomationConversation: (accountId: string, id: string, platform: string, signal?: AbortSignal) => fetchApi(`/automations/conversations/${encodeURIComponent(id)}?accountId=${encodeURIComponent(accountId)}&platform=${platform}`, { signal }),
   setAutomationConversationState: (accountId: string, id: string, platform: string, state: string, consentConfirmed = false) => fetchApi(`/automations/conversations/${encodeURIComponent(id)}/state`, { method: 'PUT', body: JSON.stringify({ accountId, platform, state, consentConfirmed }) }),
   forgetAutomationConversation: (accountId: string, id: string, platform: string) => fetchApi(`/automations/conversations/${encodeURIComponent(id)}/forget`, { method: 'POST', body: JSON.stringify({ accountId, platform }) }),
+  getIntegrationsCatalog: () => fetchApi('/integrations/catalog'),
+  getApiTokens: () => fetchApi('/integrations/tokens'),
+  createApiToken: (data: { name: string; scopes: string[]; expiresInDays: number | null }) => fetchApi('/integrations/tokens', { method: 'POST', body: JSON.stringify(data) }),
+  revokeApiToken: (id: string) => fetchApi(`/integrations/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  describeOAuthRequest: (request: string) => fetchApi('/oauth/requests/describe', { method: 'POST', body: JSON.stringify({ request }) }),
+  decideOAuthConsent: (request: string, decision: 'approve' | 'deny', scopes?: string[]) => fetchApi('/oauth/consent', { method: 'POST', body: JSON.stringify({ request, decision, scopes }) }),
   syncThreadsAutomation: (accountId: string) => fetchApi('/automations/threads/sync', { method: 'POST', body: JSON.stringify({ accountId, platform: 'THREADS' }) }),
 };

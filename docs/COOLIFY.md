@@ -84,6 +84,15 @@ A inscrição da Página mantém `feed` e acrescenta `messages` somente quando `
 
 Depois do deploy, valide primeiro a API e então o frontend. Se o callback da Meta retornar erro, confira se o domínio, `FB_REDIRECT_URI` e as permissões do app são idênticos aos cadastrados no Meta Developers.
 
+## MCP e CLI (agentes de IA)
+
+O backend também serve o servidor MCP (`/mcp`), o servidor OAuth 2.1 (`/oauth/*` e `/.well-known/*`) e o download do CLI (`/downloads/instacommand.cjs`). Não há variáveis novas, mas `BACKEND_URL` precisa ser exatamente a URL pública HTTPS da API: ela define o endereço que ChatGPT e Claude usam e o issuer do OAuth. Depois do deploy, confira:
+
+- `https://<domínio-da-api>/.well-known/oauth-protected-resource/mcp` responde JSON com `resource` igual a `https://<domínio-da-api>/mcp`;
+- `POST https://<domínio-da-api>/mcp` sem token responde `401` com o cabeçalho `WWW-Authenticate`.
+
+Detalhes em [MCP_CLI.md](MCP_CLI.md).
+
 ## Configuração pelo painel
 
 Depois de entrar no InstaCommand, abra `Configurações > Conexão com a Meta`. O App ID, App Secret e Client Token podem ser salvos pela interface. O App Secret e o Client Token são criptografados no backend e nunca são devolvidos para o navegador em texto aberto; quando já estiverem configurados, deixe os campos secretos vazios para mantê-los.

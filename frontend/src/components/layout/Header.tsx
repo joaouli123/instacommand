@@ -37,6 +37,7 @@ export function Header() {
     '/trends': { title: 'Tendências e Insights', subtitle: 'Hashtags em alta e formatos de alta performance' },
     '/community': { title: 'Comunidade', subtitle: 'Leia e responda comentários reais do Instagram' },
     '/automations': { title: 'Automações', subtitle: 'Regras de comentários e mensagens, respostas prontas e agente de IA' },
+    '/integrations': { title: 'MCP e CLI', subtitle: 'Conecte Claude, ChatGPT e outros agentes de IA ao seu workspace' },
     '/settings': { title: 'Configurações da Plataforma', subtitle: 'Preferências, conexões e automações' },
     '/accounts': { title: 'Contas conectadas', subtitle: 'Gerencie seus perfis do Instagram, Facebook e Threads' }
   }

@@ -9,7 +9,8 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { env } from '../config/env';
 import { assertPostReady } from '../services/post-readiness';
-import { ConflictError } from '../utils/errors';
+import { AppError, ConflictError } from '../utils/errors';
+import { importMediaFromUrl, type ImportedMedia } from '../services/media-import.service';
 import { publicMediaBase, normalizeMediaUrl } from '../utils/public-media';
 import { publicMetaMessage } from '../utils/public-meta-message';
 import { graphGet } from '../utils/instagram-api';
@@ -222,7 +223,20 @@ router.get('/instagram-audio', async (req: any, res, next) => {
 router.get('/:id', async (req: any, res, next) => {
   try {
     const post = await prisma.scheduledPost.findFirst({
-      where: { id: req.params.id, userId: req.user.id }
+      where: { id: req.params.id, userId: req.user.id },
+      include: {
+        publishedPost: {
+          select: {
+            id: true,
+            igMediaId: true,
+            facebookPostId: true,
+            threadsPostId: true,
+            publishResults: true,
+            igPermalink: true,
+            publishedAt: true,
+          },
+        },
+      },
     });
     if (!post) return res.status(404).json({ error: 'Post not found' });
     res.json({ ...post, mediaUrls: post.mediaUrls.map(normalizeMediaUrl) });
@@ -467,6 +481,32 @@ router.post('/:id/publish', async (req: any, res, next) => {
         warnings,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Imports media that already lives on the web (an AI-generated image URL, a
+// CDN asset) into the public upload storage Meta and Threads download from.
+router.post('/import-url', async (req: any, res, next) => {
+  try {
+    const raw = Array.isArray(req.body?.urls) ? req.body.urls : req.body?.url !== undefined ? [req.body.url] : [];
+    if (!raw.length || raw.length > 10 || raw.some((url: unknown) => typeof url !== 'string')) {
+      return res.status(400).json({ error: 'Envie de 1 a 10 URLs de mídia.' });
+    }
+    const items: ImportedMedia[] = [];
+    const errors: { sourceUrl: string; message: string }[] = [];
+    // Sequential downloads keep memory, bandwidth and disk use bounded.
+    for (const sourceUrl of raw as string[]) {
+      try {
+        items.push(await importMediaFromUrl(sourceUrl));
+      } catch (error) {
+        if (!(error instanceof AppError)) console.error('Media import failed unexpectedly:', error);
+        errors.push({ sourceUrl, message: error instanceof AppError ? error.message : 'Não foi possível importar esta mídia.' });
+      }
+    }
+    if (!items.length) return res.status(400).json({ error: errors[0]?.message || 'Nenhuma mídia foi importada.', errors });
+    res.status(201).json({ urls: items.map((item) => item.url), items, errors });
   } catch (error) {
     next(error);
   }
