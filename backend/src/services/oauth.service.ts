@@ -168,6 +168,8 @@ export const isClientMetadataDocumentId = (clientId: string) => clientId.startsW
 export const cimdFetcher = {
   async fetch(url: string): Promise<unknown> {
     const { response, abort } = await safeGet(url, { allowHttp: false, maxRedirects: 0, timeoutMs: 5_000, headers: { Accept: 'application/json' } });
+    // `timeoutMs` is an idle timeout; a slow drip must not hold the request open.
+    const deadline = setTimeout(() => response.destroy(new OAuthError('invalid_client', 'O documento do cliente demorou demais para responder.')), 8_000);
     try {
       if (response.statusCode !== 200) {
         response.resume();
@@ -175,6 +177,7 @@ export const cimdFetcher = {
       }
       return JSON.parse((await readLimitedBody(response, CIMD_MAX_BYTES)).toString('utf8'));
     } finally {
+      clearTimeout(deadline);
       abort();
     }
   },
@@ -411,10 +414,10 @@ export async function authenticateTokenClient({ headers, body }: TokenRequest) {
   return client;
 }
 
-async function issueTokenPair(client: OAuthClient, userId: string, scopes: ApiScope[], resource: string, now: Date) {
+async function issueTokenPair(db: Pick<PrismaClient, 'apiToken'>, client: OAuthClient, userId: string, scopes: ApiScope[], resource: string, now: Date) {
   const accessToken = generateSecret('oauthAccess');
   const refreshToken = generateSecret('oauthRefresh');
-  const row = await prisma.apiToken.create({
+  const row = await db.apiToken.create({
     data: {
       userId,
       kind: 'OAUTH',
@@ -462,12 +465,15 @@ export async function exchangeAuthorizationCode(client: OAuthClient, body: Recor
   if (!verifyPkce(verifier, row.codeChallenge)) throw new OAuthError('invalid_grant', 'code_verifier inválido.');
   assertResourceParam(body.resource, row.resource);
 
-  const claimed = await prisma.oAuthAuthorizationCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
-  if (!claimed.count) throw new OAuthError('invalid_grant', 'Este código de autorização já foi usado.');
-
-  const { row: token, body: response } = await issueTokenPair(client, row.userId, normalizeScopes(row.scopes), row.resource, now);
-  await prisma.oAuthAuthorizationCode.update({ where: { id: row.id }, data: { tokenId: token.id } });
-  return response;
+  // Claim, issue and link in one transaction, so a concurrent replay can never
+  // observe a used code whose token is not yet recorded (and therefore revocable).
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.oAuthAuthorizationCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
+    if (!claimed.count) throw new OAuthError('invalid_grant', 'Este código de autorização já foi usado.');
+    const { row: token, body: response } = await issueTokenPair(tx, client, row.userId, normalizeScopes(row.scopes), row.resource, now);
+    await tx.oAuthAuthorizationCode.update({ where: { id: row.id }, data: { tokenId: token.id } });
+    return response;
+  });
 }
 
 export async function refreshAccessToken(client: OAuthClient, body: Record<string, unknown>, now = new Date()) {

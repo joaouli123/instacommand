@@ -73,15 +73,30 @@ const writeRules: Rule[] = [
 const adminReadPattern = /^\/api\/auth\/(facebook|threads)(\/url)?$/;
 const sessionOnlyPattern = /^\/api\/(integrations|oauth)(\/|$)/;
 
-/** Normalizes the request path the same way Express matches it (case-insensitive, no trailing slash). */
-export const normalizeApiPath = (originalUrl: string) => {
-  const pathname = originalUrl.split('?')[0].split('#')[0].toLowerCase().replace(/\/{2,}/g, '/');
+/**
+ * Normalizes the request path the same way Express matches it: case-insensitive,
+ * no trailing slash, and each segment percent-decoded (Express decodes
+ * `req.params`, so `%61bc` must classify exactly like `abc`). Returns null for
+ * segments that cannot be decoded or that decode to a slash.
+ */
+export const normalizeApiPath = (originalUrl: string): string | null => {
+  const raw = originalUrl.split('?')[0].split('#')[0].replace(/\/{2,}/g, '/');
+  const segments: string[] = [];
+  for (const segment of raw.split('/')) {
+    let decoded: string;
+    try { decoded = decodeURIComponent(segment); } catch { return null; }
+    if (decoded.includes('/') || decoded.includes('\\')) return null;
+    segments.push(decoded.toLowerCase());
+  }
+  const pathname = segments.join('/');
   return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
 };
 
 export function requiredScopeFor(method: string, originalUrl: string, body: unknown): ScopeRequirement {
   const verb = method.toUpperCase();
   const path = normalizeApiPath(originalUrl);
+  // An undecodable path is refused for every token except one that may do anything.
+  if (path === null) return { scope: 'admin' };
   if (sessionOnlyPattern.test(path)) return { scope: 'session' };
   if (['GET', 'HEAD', 'OPTIONS'].includes(verb)) return { scope: adminReadPattern.test(path) ? 'admin' : 'read' };
   for (const rule of writeRules) {
@@ -102,10 +117,13 @@ export function resolvePostRequirement(
   requirement: { method: 'PATCH' | 'DELETE'; requestedStatus?: unknown },
   post: { status: string; publishedPostId: string | null } | null,
 ): ApiScope {
+  // Fail closed: if the post cannot be found here, the route will answer 404
+  // anyway, and a narrower token must never win a lookup mismatch.
+  if (!post) return 'publish';
   if (requirement.method === 'PATCH') {
     // Returning to draft only removes a pending publication.
     if (requirement.requestedStatus === 'DRAFT') return 'write';
-    return requirement.requestedStatus === 'SCHEDULED' || post?.status === 'SCHEDULED' ? 'publish' : 'write';
+    return requirement.requestedStatus === 'SCHEDULED' || post.status === 'SCHEDULED' ? 'publish' : 'write';
   }
-  return post && (publicStates.has(post.status) || post.publishedPostId) ? 'publish' : 'write';
+  return publicStates.has(post.status) || post.publishedPostId ? 'publish' : 'write';
 }

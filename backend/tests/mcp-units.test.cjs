@@ -44,6 +44,22 @@ test('scope policy maps each kind of REST action and fails closed', () => {
   assert.deepEqual(scope('PATCH', '/api/posts/p1', { status: 'DRAFT' }), { postId: 'p1', method: 'PATCH', requestedStatus: 'DRAFT' });
 });
 
+test('percent-encoded paths classify exactly like the route Express executes', () => {
+  // Express decodes req.params: %61bc-123 runs the route for post "abc-123".
+  assert.deepEqual(scope('DELETE', '/api/posts/%61bc-123'), { postId: 'abc-123', method: 'DELETE' });
+  assert.deepEqual(scope('PATCH', '/api/posts/%41BC', { caption: 'x' }), { postId: 'abc', method: 'PATCH', requestedStatus: undefined });
+  assert.deepEqual(scope('POST', '/api/posts/x/%70ublish'), { scope: 'publish' });
+  assert.deepEqual(scope('GET', '/api/%69ntegrations/tokens'), { scope: 'session' });
+  // Undecodable or slash-smuggling segments fail closed.
+  assert.deepEqual(scope('DELETE', '/api/posts/%E0%A4%A'), { scope: 'admin' });
+  assert.deepEqual(scope('DELETE', '/api/posts/a%2Fpublish'), { scope: 'admin' });
+});
+
+test('a post that cannot be found never lowers the requirement', () => {
+  assert.equal(resolvePostRequirement({ method: 'DELETE' }, null), 'publish');
+  assert.equal(resolvePostRequirement({ method: 'PATCH', requestedStatus: undefined }, null), 'publish');
+});
+
 test('post-dependent requirements: editing or deleting something public needs publish', () => {
   const patch = (requestedStatus, status) => resolvePostRequirement({ method: 'PATCH', requestedStatus }, { status, publishedPostId: null });
   assert.equal(patch(undefined, 'DRAFT'), 'write');
@@ -54,7 +70,6 @@ test('post-dependent requirements: editing or deleting something public needs pu
   assert.equal(del('DRAFT'), 'write');
   assert.equal(del('FAILED', 'pp'), 'publish');
   assert.equal(del('PUBLISHED'), 'publish');
-  assert.equal(resolvePostRequirement({ method: 'DELETE' }, null), 'write');
   assert.deepEqual(normalizeScopes(['admin', 'read', 'bogus', 'read']), ['read', 'admin']);
 });
 

@@ -26,6 +26,14 @@ const clientAddress = (req: Request) => {
   return `ip:${forwardedFor || req.ip || req.socket.remoteAddress || 'unknown'}`;
 };
 
+// For public endpoints anyone can call (OAuth registration/authorization), the
+// caller controls the first X-Forwarded-For entries; the reverse proxy
+// (Traefik) appends the real client address last, so that one picks the bucket.
+const proxiedClientAddress = (req: Request) => {
+  const forwardedFor = req.get('x-forwarded-for')?.split(',').map((entry) => entry.trim()).filter(Boolean).pop();
+  return `ip:${forwardedFor || req.ip || req.socket.remoteAddress || 'unknown'}`;
+};
+
 const fingerprint = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 24);
 
 const getClientKey = (req: Request) => {
@@ -45,7 +53,7 @@ export const rateLimit = (options: RateLimitOptions = {}) => {
   const config = { ...defaultOptions, ...options };
 
   return (req: Request, res: Response, next: NextFunction) => {
-    const key = `${config.name}:${config.byAddressOnly ? clientAddress(req) : getClientKey(req)}`;
+    const key = `${config.name}:${config.byAddressOnly ? proxiedClientAddress(req) : getClientKey(req)}`;
     const now = Date.now();
     const record = store.get(key);
 

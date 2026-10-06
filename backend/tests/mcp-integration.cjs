@@ -143,6 +143,14 @@ test('API tokens cannot manage credentials, and scopes gate REST writes', async 
   assert.equal(denied.status, 403);
   assert.match((await denied.json()).message, /"write"/);
   assert.equal((await call('GET', '/api/auth/facebook/url', { token: readToken })).status, 403);
+  // Encoding part of the id must not dodge the post-state check (write-only token, published post).
+  const writeOnly = (await (await call('POST', '/api/integrations/tokens', { token: sessionJwt, body: { name: 'Só edição', scopes: ['read', 'write'] } })).json()).secret;
+  const live = await prisma.scheduledPost.create({ data: { userId: ids.owner, accountId: ids.account, mediaType: 'IMAGE', mediaUrls: ['https://x.test/a.jpg'], caption: 'no ar', hashtags: [], status: 'PUBLISHED', scheduledFor: new Date() } });
+  const encoded = `%${live.id.charCodeAt(0).toString(16)}${live.id.slice(1)}`;
+  const sneaky = await call('DELETE', `/api/posts/${encoded}`, { token: writeOnly });
+  assert.equal(sneaky.status, 403);
+  assert.ok(await prisma.scheduledPost.findUnique({ where: { id: live.id } }));
+  await prisma.scheduledPost.delete({ where: { id: live.id } });
   const bogus = `ic_pat_${'A'.repeat(43)}`;
   assert.equal((await call('GET', '/api/posts', { token: bogus })).status, 401);
 });
