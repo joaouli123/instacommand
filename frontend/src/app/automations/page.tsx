@@ -1,68 +1,69 @@
 "use client"
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
+import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Bot, Clock3, MessageCircle, RefreshCw, Send, Trash2, Zap } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock3, Hand, History, MessageSquareText, MessagesSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from "lucide-react"
 import toast from "react-hot-toast"
 import { api, fetchApi } from "@/lib/api"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { formatDate, NETWORKS, NetworkBadge, type Platform, type Workspace } from "@/components/automations/shared"
+import { RulesPanel } from "@/components/automations/RulesPanel"
+import { ConversationsPanel } from "@/components/automations/ConversationsPanel"
+import { AgentPanel, HistoryPanel, TemplatesPanel } from "@/components/automations/SupportPanels"
 
-type Platform = "INSTAGRAM" | "FACEBOOK" | "THREADS"
-type Trigger = "COMMENT_ANY" | "COMMENT_KEYWORD" | "MESSAGE_ANY" | "MESSAGE_KEYWORD"
-type Rule = { id: string; name: string; trigger: Trigger; keywords: string[]; replyMode: "TEMPLATE" | "AI"; enabled: boolean; continueConversation: boolean; publicCommentReply?: string | null; privateCommentReply?: string | null; directMessageReply?: string | null }
-type Template = { id: string; name: string; type: "PUBLIC_COMMENT" | "PRIVATE_COMMENT" | "DIRECT_MESSAGE"; content: string }
-type Agent = { id?: string; updatedAt?: string; enabled: boolean; autoSend: boolean; tone: string; instructions: string; knowledgeBase: string; fallback: string; memoryDays: number; maxRepliesPerHour: number }
-type Execution = { id: string; status: string; eventType: Trigger; eventText?: string | null; responseText?: string | null; error?: string | null; senderId?: string | null; senderUsername?: string | null; createdAt: string; eventAt: string; publicReplySent: boolean; privateReplySent: boolean; humanReply?: boolean }
-type Conversation = { id: string; senderId?: string | null; senderUsername?: string | null; kind: string; state: "BOT" | "HUMAN" | "STOPPED"; stateReason?: string | null; lastInboundAt: string; executions: Execution[] }
-type Workspace = { automations: Rule[]; templates: Template[]; agent: Agent | null; executions: Execution[]; conversations: Conversation[]; status: { webhookConfigured: boolean; canAutomateComments: boolean; canAutomateMessages: boolean; permissionCheckError?: string | null; collectionMode: string; syncError?: string | null; lastSyncAt?: string | null; activity: { lastEventProcessedAt: string | null; lastReplyAcceptedAt: string | null } } }
-
-const names: Record<Platform, string> = { INSTAGRAM: "Instagram", FACEBOOK: "Facebook · Messenger", THREADS: "Threads · Respostas públicas" }
-const triggers: Record<Trigger, string> = { COMMENT_ANY: "Todo comentário novo", COMMENT_KEYWORD: "Comentário com palavra-chave", MESSAGE_ANY: "Toda mensagem recebida", MESSAGE_KEYWORD: "Mensagem com palavra-chave" }
-const statuses: Record<string, string> = { RECEIVED: "Recebido", PROCESSING: "Processando", SENT: "Envio aceito", NEEDS_REVIEW: "Revisão humana", BLOCKED: "Bloqueado", SKIPPED: "Ignorado", FAILED: "Falhou" }
-const stateNames = { BOT: "Automação disponível", HUMAN: "Atendimento humano", STOPPED: "Não responder" }
-const blankAgent: Agent = { enabled: false, autoSend: false, tone: "Humano, cordial e direto", instructions: "", knowledgeBase: "", fallback: "Vou chamar alguém da equipe para continuar com você.", memoryDays: 7, maxRepliesPerHour: 10 }
-const blankRule = (platform: Platform) => ({ name: "", trigger: (platform === "THREADS" ? "COMMENT_KEYWORD" : "MESSAGE_KEYWORD") as Trigger, keywords: "", replyMode: "TEMPLATE" as "TEMPLATE" | "AI", publicCommentReply: "", privateCommentReply: "", directMessageReply: "", continueConversation: false })
-const input = "mt-1.5 w-full min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100"
-const date = (value?: string | null) => value ? new Date(value).toLocaleString("pt-BR") : "Ainda não confirmado"
-const contact = (value: { id: string; senderId?: string | null; senderUsername?: string | null }) => value.senderUsername ? `@${value.senderUsername}` : `Contato · ${(value.senderId || value.id).slice(-4)}`
-function Field({ title, children }: { title: string; children: ReactNode }) { return <label className="block text-xs font-semibold text-slate-600">{title}{children}</label> }
-function Note({ children }: { children: ReactNode }) { return <p className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-xs leading-5 text-indigo-900">{children}</p> }
+const PLATFORMS: Platform[] = ["INSTAGRAM", "FACEBOOK", "THREADS"]
 
 export default function AutomationsPage() {
   const { activeAccount, isLoading } = useActiveAccount()
   const [platform, setPlatform] = useState<Platform>("INSTAGRAM")
   const [threadId, setThreadId] = useState("")
-  const threads = useQuery({ queryKey: ["threads-accounts"], queryFn: () => api.getThreadsAccounts() as Promise<Array<{ id: string; username: string }>>, enabled: platform === "THREADS" })
-  const selectedThread = threads.data?.find(account => account.id === threadId) || threads.data?.[0]
+  const threads = useQuery({ queryKey: ["threads-accounts"], queryFn: () => api.getThreadsAccounts() as Promise<Array<{ id: string; username: string }>> })
+  const selectedThread = threads.data?.find((account) => account.id === threadId) || threads.data?.[0]
   const accountId = platform === "THREADS" ? selectedThread?.id : activeAccount?.id
   const username = platform === "THREADS" ? selectedThread?.username : platform === "FACEBOOK" ? activeAccount?.pageName || activeAccount?.igUsername : activeAccount?.igUsername
-  return <div className="mx-auto max-w-6xl space-y-4 pb-8">
-    <header><p className="text-xs font-bold uppercase tracking-widest text-indigo-600">Atendimento e relacionamento</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Automações e conversas</h1><p className="mt-1 text-sm text-slate-500">Respostas prontas, IA com contexto e atendimento humano no mesmo lugar.</p></header>
-    <div className="flex flex-wrap gap-2" aria-label="Rede da automação">{(Object.keys(names) as Platform[]).map(item => <button key={item} onClick={() => setPlatform(item)} aria-pressed={platform === item} className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold sm:text-sm ${platform === item ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600"}`}>{names[item]}</button>)}</div>
-    {platform === "THREADS" && <Field title="Conta do Threads"><select className={`${input} max-w-sm`} value={selectedThread?.id || ""} onChange={event => setThreadId(event.target.value)}>{!threads.data?.length && <option value="">Nenhuma conta conectada</option>}{threads.data?.map(account => <option key={account.id} value={account.id}>@{account.username}</option>)}</select></Field>}
-    {(isLoading || platform === "THREADS" && threads.isLoading) ? <Card className="p-6 text-sm text-slate-500">Carregando contas…</Card>
-      : accountId ? <AutomationWorkspace key={`${platform}:${accountId}`} accountId={accountId} username={username || "Conta conectada"} platform={platform}/>
-        : <Card className="p-6 text-center"><p className="text-sm text-slate-600">Conecte uma conta para configurar este canal.</p><a className="mt-3 inline-block text-sm font-semibold text-indigo-600" href="/accounts">Ir para contas conectadas</a></Card>}
+
+  return <div className="mx-auto max-w-6xl space-y-5 pb-8">
+    <header>
+      <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">Atendimento automático</p>
+      <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Automações</h1>
+      <p className="mt-1 text-sm text-slate-500">Responda comentários e mensagens automaticamente — com respostas prontas ou com um assistente de IA — e assuma a conversa quando quiser.</p>
+    </header>
+
+    <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Rede social">
+      {PLATFORMS.map((item) => {
+        const network = NETWORKS[item]
+        const selected = platform === item
+        return <button key={item} type="button" role="radio" aria-checked={selected} onClick={() => setPlatform(item)}
+          className={cn("relative flex flex-col items-center gap-2 rounded-2xl border bg-white p-3 text-center transition sm:flex-row sm:gap-3 sm:text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500", selected ? "border-indigo-500 shadow-sm ring-1 ring-indigo-500" : "border-slate-200 hover:border-slate-300")}>
+          <NetworkBadge platform={item} size={40} />
+          <span className="min-w-0"><span className="block text-sm font-semibold text-slate-900 sm:text-base">{network.label}</span><span className="hidden truncate text-xs text-slate-500 sm:block">{network.channel}</span></span>
+          {selected && <CheckCircle2 size={18} className="absolute right-2 top-2 shrink-0 text-indigo-600 sm:static sm:ml-auto" />}
+        </button>
+      })}
+    </div>
+
+    {platform === "THREADS" && (threads.data?.length || 0) > 1 && <label className="block max-w-sm text-xs font-semibold text-slate-600">Conta do Threads<select className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" value={selectedThread?.id || ""} onChange={(event) => setThreadId(event.target.value)}>{threads.data?.map((account) => <option key={account.id} value={account.id}>@{account.username}</option>)}</select></label>}
+
+    {(isLoading || (platform === "THREADS" && threads.isLoading)) ? <Card className="p-6 text-sm text-slate-500">Carregando contas…</Card>
+      : accountId ? <AutomationWorkspace key={`${platform}:${accountId}`} accountId={accountId} username={username || "Conta conectada"} platform={platform} />
+        : <Card className="flex flex-col items-center gap-3 p-8 text-center"><NetworkBadge platform={platform} size={48} /><p className="font-semibold text-slate-900">Conecte sua conta do {NETWORKS[platform].label}</p><p className="max-w-sm text-sm text-slate-500">Depois de conectar, você cria as respostas automáticas aqui.</p><Button asChild className="bg-indigo-600 text-white hover:bg-indigo-700"><Link href="/accounts">Ir para Contas</Link></Button></Card>}
   </div>
 }
 
+type Tab = "conversas" | "regras" | "respostas" | "assistente" | "historico"
+
 function AutomationWorkspace({ accountId, username, platform }: { accountId: string; username: string; platform: Platform }) {
   const client = useQueryClient()
-  const [tab, setTab] = useState("Conversas")
+  const [tab, setTab] = useState<Tab | null>(null)
   const [busy, setBusy] = useState(false)
-  const [rule, setRule] = useState(blankRule(platform))
-  const [editing, setEditing] = useState<string | null>(null)
-  const [agent, setAgent] = useState(blankAgent)
-  const [template, setTemplate] = useState({ name: "", type: (platform === "THREADS" ? "PUBLIC_COMMENT" : "DIRECT_MESSAGE") as Template["type"], content: "" })
-  const [conversationId, setConversationId] = useState<string | null>(null)
-  const [drafts, setDrafts] = useState<Record<string, string>>({})
   const queryKey = ["automation-workspace", platform, accountId]
   const query = useQuery({ queryKey, queryFn: () => api.getAutomationWorkspace(accountId, platform) as Promise<Workspace>, refetchInterval: 15_000 })
   const workspace = query.data
-  const detail = useQuery({ queryKey: ["automation-conversation", platform, accountId, conversationId], queryFn: ({ signal }) => api.getAutomationConversation(accountId, conversationId!, platform, signal) as Promise<Conversation>, enabled: Boolean(conversationId), refetchInterval: 10_000 })
-  useEffect(() => { if (workspace) setAgent(workspace.agent ? { ...blankAgent, ...workspace.agent } : blankAgent) }, [workspace?.agent?.id, workspace?.agent?.updatedAt])
+
   const refresh = async () => { await Promise.all([client.invalidateQueries({ queryKey }), client.invalidateQueries({ queryKey: ["automation-conversation", platform, accountId] })]) }
   const run = async (operation: () => Promise<unknown>, success: string) => {
     if (busy) return
@@ -79,58 +80,88 @@ function AutomationWorkspace({ accountId, username, platform }: { accountId: str
     try { const response = await fetchApi("/auth/threads/url?automations=1") as { url: string }; popup.location.replace(response.url) }
     catch (error) { popup.close(); toast.error(error instanceof Error ? error.message : "Não foi possível abrir a autorização.") }
   }
-  const maxLength = platform === "THREADS" ? 500 : 1000
-  const allowedTriggers = (Object.keys(triggers) as Trigger[]).filter(item => platform === "THREADS" ? item.startsWith("COMMENT_") : platform === "FACEBOOK" ? item.startsWith("MESSAGE_") : true)
-  const templateTypes = (platform === "THREADS" ? ["PUBLIC_COMMENT"] : platform === "FACEBOOK" ? ["DIRECT_MESSAGE"] : ["DIRECT_MESSAGE", "PUBLIC_COMMENT", "PRIVATE_COMMENT"]) as Template["type"][]
-  const typeNames = { PUBLIC_COMMENT: "Comentário público", PRIVATE_COMMENT: "Mensagem privada por comentário", DIRECT_MESSAGE: "Mensagem privada" }
-  const saveRule = (event: FormEvent) => {
-    event.preventDefault()
-    void run(async () => {
-      const payload = { ...rule, accountId, platform, keywords: rule.keywords.split(",").map(value => value.trim()).filter(Boolean),
-        enabled: editing ? workspace?.automations.find(item => item.id === editing)?.enabled || false : false }
-      if (editing) await api.updateAutomation(editing, payload); else await api.createAutomation(payload)
-      setRule(blankRule(platform)); setEditing(null)
-    }, "Regra salva. Novas regras começam pausadas.")
-  }
-  const toggle = (item: Rule) => {
-    if (!item.enabled && item.trigger.endsWith("_ANY") && !window.confirm("Esta regra poderá responder a qualquer nova interação deste tipo. Confirma a ativação?")) return
-    void run(() => api.updateAutomation(item.id, { ...item, accountId, platform, enabled: !item.enabled }), item.enabled ? "Regra pausada." : "Regra ativada.")
-  }
-  const sendReview = (item: Execution) => void run(() => api.sendReviewedAutomationReply(accountId, item.id, (drafts[item.id] ?? item.responseText ?? "").trim(), platform), "Envio aceito pela Meta.")
-  const reviewEditor = (item: Execution, disabled = false) => <div className="mt-3 space-y-2"><textarea aria-label="Resposta para revisão" className={input} rows={3} maxLength={maxLength} value={drafts[item.id] ?? item.responseText ?? ""} onChange={event => setDrafts({ ...drafts, [item.id]: event.target.value })}/><Button size="sm" disabled={busy || disabled || !(drafts[item.id] ?? item.responseText ?? "").trim()} onClick={() => sendReview(item)} className="gap-2"><Send size={14}/>Revisar e enviar</Button></div>
-  const picker = (type: Template["type"], field: "publicCommentReply" | "privateCommentReply" | "directMessageReply") => <Field title="Usar resposta salva"><select className={input} value="" onChange={event => { const chosen = workspace?.templates.find(item => item.id === event.target.value); if (chosen) setRule({ ...rule, [field]: chosen.content }) }}><option value="">Selecione um modelo…</option>{workspace?.templates.filter(item => item.type === type).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+
   if (query.isLoading) return <Card className="p-6 text-sm text-slate-500">Carregando automações…</Card>
   if (!workspace || query.isError) return <Card className="p-6"><p className="text-sm text-rose-700">Não foi possível carregar as automações.</p><Button variant="outline" className="mt-3" onClick={() => void query.refetch()}>Tentar novamente</Button></Card>
+
   const status = workspace.status
-  const conversation = detail.data
-  const statusAttention = Boolean(status.permissionCheckError || status.syncError || (platform === "THREADS" ? !status.canAutomateComments : !status.canAutomateMessages))
+  const activeRules = workspace.automations.filter((item) => item.enabled).length
+  const waitingHuman = workspace.conversations.filter((item) => item.state === "HUMAN").length
+  const toReview = workspace.executions.filter((item) => item.status === "NEEDS_REVIEW").length
+  const needsYou = waitingHuman + toReview
+  const currentTab: Tab = tab ?? (needsYou ? "conversas" : "regras")
+
+  const permissionOk = platform === "THREADS" ? status.canAutomateComments : platform === "FACEBOOK" ? status.canAutomateMessages : status.canAutomateMessages || status.canAutomateComments
+  const receivingOk = platform === "THREADS" || status.webhookConfigured
+  const problem = status.permissionCheckError || status.syncError
+  const ready = permissionOk && receivingOk && !problem
+
+  const tabs: Array<{ id: Tab; label: string; Icon: typeof Zap; count?: number }> = [
+    { id: "conversas", label: "Conversas", Icon: MessagesSquare, count: needsYou },
+    { id: "regras", label: "Regras", Icon: Zap, count: activeRules },
+    { id: "respostas", label: "Respostas prontas", Icon: MessageSquareText },
+    { id: "assistente", label: "Assistente de IA", Icon: Sparkles },
+    { id: "historico", label: "Histórico", Icon: History },
+  ]
 
   return <>
-    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-slate-600"><b>{username}</b> · {workspace.automations.filter(item => item.enabled).length} regras ativas</p><Button size="sm" variant="outline" disabled={query.isFetching} onClick={() => void refresh()} className="gap-2"><RefreshCw size={14} className={query.isFetching ? "animate-spin" : ""}/>Atualizar</Button></div>
-    <Card className="p-4"><details open={statusAttention}><summary className="cursor-pointer text-sm font-semibold text-slate-900"><Zap className="mr-2 inline text-indigo-600" size={16}/>Conexão e atividade <span className={`ml-1 text-xs font-normal ${statusAttention ? "text-amber-700" : "text-slate-500"}`}>· {statusAttention ? "Requer atenção" : "Ver detalhes"}</span></summary><div className="mt-3 min-w-0"><p className="text-xs leading-5 text-slate-600">{platform === "THREADS" ? `Respostas públicas: ${status.canAutomateComments ? "permissão detectada" : "autorização pendente"}. Consulta a cada 2 minutos, nas 100 publicações mais recentes dos últimos 30 dias. Apenas comentários posteriores à ativação da regra.` : `Recebimento: ${status.webhookConfigured ? "configurado no servidor" : "configuração pendente"}. Mensagens: ${status.canAutomateMessages ? "permissão detectada" : "autorização pendente"}.${platform === "INSTAGRAM" ? ` Comentários: ${status.canAutomateComments ? "permissão detectada" : "autorização pendente"}.` : ""}`}</p>
-      {(status.permissionCheckError || status.syncError) && <p className="mt-2 text-xs text-amber-800">{status.permissionCheckError || status.syncError}</p>}
-      <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><div className="rounded-lg bg-slate-50 p-3"><dt className="text-slate-500">Último evento processado</dt><dd className="mt-1 font-medium">{date(status.activity.lastEventProcessedAt)}</dd></div><div className="rounded-lg bg-slate-50 p-3"><dt className="text-slate-500">Último envio aceito pela Meta</dt><dd className="mt-1 font-medium">{date(status.activity.lastReplyAcceptedAt)}</dd></div></dl>
-      <div className="mt-3 flex flex-wrap gap-2">{platform === "THREADS" ? <><Button size="sm" variant="outline" onClick={() => void authorizeReplies()}>Autorizar respostas públicas</Button><Button size="sm" variant="outline" disabled={busy || !status.canAutomateComments} onClick={() => void run(() => api.syncThreadsAutomation(accountId), "Consulta concluída.")}>Consultar agora</Button></> : <Button size="sm" variant="outline" disabled={busy || !status.webhookConfigured || !status.canAutomateComments && !status.canAutomateMessages} onClick={() => void run(() => api.subscribeInstagramAutomation(accountId, platform), "Inscrição solicitada à Meta. Confira a chegada de um evento real.")}>Conectar eventos desta conta</Button>}</div>
-      <p className="mt-2 text-[11px] leading-5 text-slate-500">Permissão não comprova recebimento. Envio aceito não comprova entrega ou leitura. Contas de clientes dependem da aprovação da Meta. {platform === "THREADS" ? "Mensagens privadas do Threads não estão disponíveis nesta integração." : "Respostas privadas respeitam a janela de 24 horas após mensagem recebida."}</p></div></details></Card>
-    <nav aria-label="Seções das automações" className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">{["Conversas", "Regras", "Respostas prontas", "Agente de IA", "Histórico"].map(item => <button key={item} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)} className={`min-h-10 shrink-0 rounded-lg px-3 text-xs font-semibold sm:text-sm ${tab === item ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600"}`}>{item}{item === "Conversas" && workspace.conversations.some(item => item.state === "HUMAN") ? " •" : ""}</button>)}</nav>
+    <Card className={cn("overflow-hidden p-0", ready ? "border-emerald-200" : "border-amber-200")}>
+      <div className={cn("flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between", ready ? "bg-emerald-50/60" : "bg-amber-50/70")}>
+        <div className="flex items-start gap-3">
+          {ready ? <ShieldCheck size={22} className="mt-0.5 shrink-0 text-emerald-600" /> : <AlertTriangle size={22} className="mt-0.5 shrink-0 text-amber-600" />}
+          <div>
+            <p className={cn("font-semibold", ready ? "text-emerald-900" : "text-amber-900")}>{ready ? `Pronto para responder em ${username}` : "Falta um passo para as automações funcionarem"}</p>
+            <p className={cn("mt-0.5 text-xs leading-5", ready ? "text-emerald-800" : "text-amber-900")}>
+              {ready ? (activeRules ? `${activeRules} regra(s) ativa(s). Última atividade: ${formatDate(status.activity.lastEventProcessedAt)}.` : "Crie e ative uma regra para começar a responder.")
+                : problem ? problem
+                : !permissionOk ? (platform === "THREADS" ? "Autorize o InstaCommand a responder comentários no Threads." : "A Meta ainda não liberou as permissões de comentários/mensagens para esta conta. Reconecte a conta em Contas depois da liberação.")
+                : "Ative o recebimento de comentários e mensagens desta conta."}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {platform === "THREADS"
+            ? <>{!status.canAutomateComments && <Button size="sm" onClick={() => void authorizeReplies()} className="bg-indigo-600 text-white hover:bg-indigo-700">Autorizar respostas</Button>}<Button size="sm" variant="outline" disabled={busy || !status.canAutomateComments} onClick={() => void run(() => api.syncThreadsAutomation(accountId), "Comentários verificados agora.")} className="gap-1.5"><RefreshCw size={14} />Verificar agora</Button></>
+            : <Button size="sm" variant={ready ? "outline" : "default"} disabled={busy || !status.webhookConfigured || !permissionOk} onClick={() => void run(() => api.subscribeInstagramAutomation(accountId, platform), "Recebimento ativado. Faça um teste comentando ou mandando mensagem.")} className={ready ? "" : "bg-indigo-600 text-white hover:bg-indigo-700"}>{ready ? "Reativar recebimento" : "Ativar recebimento"}</Button>}
+          {!permissionOk && platform !== "THREADS" && <Button size="sm" variant="outline" asChild><Link href="/accounts">Ir para Contas</Link></Button>}
+        </div>
+      </div>
+      <details className="group border-t border-slate-100 px-4 py-2.5">
+        <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-semibold text-slate-500">Detalhes técnicos<ChevronDown size={14} className="transition group-open:rotate-180" /></summary>
+        <div className="mt-2 space-y-2 text-xs leading-5 text-slate-600">
+          <p>{platform === "THREADS" ? `Respostas públicas: ${status.canAutomateComments ? "permissão detectada" : "autorização pendente"}. Verificamos a cada 2 minutos as 100 publicações mais recentes dos últimos 30 dias, só comentários feitos depois da ativação da regra.` : `Recebimento no servidor: ${status.webhookConfigured ? "configurado" : "pendente"}. Mensagens: ${status.canAutomateMessages ? "permissão detectada" : "autorização pendente"}.${platform === "INSTAGRAM" ? ` Comentários: ${status.canAutomateComments ? "permissão detectada" : "autorização pendente"}.` : ""}`}</p>
+          <dl className="grid gap-2 sm:grid-cols-2"><div className="rounded-lg bg-slate-50 p-2.5"><dt className="text-slate-500">Último evento processado</dt><dd className="font-medium text-slate-800">{formatDate(status.activity.lastEventProcessedAt)}</dd></div><div className="rounded-lg bg-slate-50 p-2.5"><dt className="text-slate-500">Última resposta aceita pela Meta</dt><dd className="font-medium text-slate-800">{formatDate(status.activity.lastReplyAcceptedAt)}</dd></div></dl>
+          <p className="text-[11px] text-slate-500">Permissão não garante recebimento, e envio aceito não garante leitura. Contas de clientes dependem da aprovação da Meta. {platform === "THREADS" ? "Mensagens privadas do Threads não estão disponíveis." : "Respostas privadas só podem ser enviadas até 24 horas depois da mensagem recebida."}</p>
+        </div>
+      </details>
+    </Card>
 
-    {tab === "Conversas" && <div className="grid items-start gap-4 md:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)]"><Card className="overflow-hidden"><h2 className="border-b p-4 text-sm font-bold">Conversas recentes</h2><div className="max-h-[32vh] overflow-y-auto md:max-h-[65vh]">{workspace.conversations.map(item => <button key={item.id} onClick={() => setConversationId(item.id)} className={`w-full border-b p-3 text-left ${conversationId === item.id ? "bg-indigo-50" : "hover:bg-slate-50"}`}><span className="block text-sm font-semibold">{contact(item)} <span className="text-[10px] font-normal text-slate-500">{item.kind === "PUBLIC" ? "Público" : "Privado"}</span></span><span className={`mt-1 block text-xs ${item.state === "HUMAN" ? "text-amber-700" : "text-slate-500"}`}>{stateNames[item.state]}</span><span className="mt-1 block truncate text-xs text-slate-500">{item.executions[0]?.eventText || "Sem texto"}</span></button>)}{!workspace.conversations.length && <p className="p-6 text-sm leading-6 text-slate-500">As novas conversas aparecerão aqui quando chegarem eventos reais. O histórico anterior continua na aba Histórico.</p>}</div></Card>
-      <Card className="min-w-0 p-4">{!conversationId ? <div className="py-14 text-center text-slate-500"><MessageCircle size={26} className="mx-auto mb-3"/><p className="text-sm">Selecione uma conversa para acompanhar ou assumir.</p></div> : detail.isLoading ? <p className="text-sm">Carregando conversa…</p> : detail.isError || !conversation ? <p className="text-sm text-rose-600">Não foi possível abrir esta conversa.</p> : <>
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold">{contact(conversation)}</h2><p className="mt-1 text-xs text-slate-500">{stateNames[conversation.state]}</p></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy || conversation.state === "HUMAN" || conversation.state === "STOPPED"} onClick={() => void run(() => api.setAutomationConversationState(accountId, conversation.id, platform, "HUMAN"), "Atendimento humano assumido. IA pausada.")}>Assumir atendimento</Button><Button size="sm" variant="outline" disabled={busy || conversation.state === "BOT"} onClick={() => { const consent = conversation.state === "STOPPED" ? window.confirm("A pessoa autorizou receber novas respostas? Confirme somente se ela autorizou.") : false; if (conversation.state !== "STOPPED" || consent) void run(() => api.setAutomationConversationState(accountId, conversation.id, platform, "BOT", consent), "Automação disponível para as próximas mensagens.") }}>Retomar automação</Button></div></div>
-        {conversation.stateReason && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-900">{conversation.stateReason}</p>}
-        <div className="mt-4 max-h-[55vh] space-y-3 overflow-y-auto pr-1">{[...conversation.executions].reverse().map(item => <div key={item.id}><div className="mr-6 rounded-xl bg-slate-100 p-3"><p className="whitespace-pre-wrap break-words text-sm">{item.eventText || "Mensagem sem texto"}</p><p className="mt-1 text-[10px] text-slate-500">{date(item.eventAt)}</p></div>{item.responseText && (item.publicReplySent || item.privateReplySent) && <div className="ml-6 mt-2 rounded-xl bg-indigo-50 p-3"><p className="whitespace-pre-wrap break-words text-sm text-indigo-950">{item.responseText}</p><p className="mt-1 text-[10px] text-indigo-600">{item.humanReply ? "Resposta humana" : "Resposta automática"} · Envio aceito pela Meta</p></div>}{item.status === "NEEDS_REVIEW" && item.id === conversation.executions[0]?.id && reviewEditor(item, conversation.state === "STOPPED")}{item.error && <p className="mt-1 text-[11px] leading-5 text-slate-500">{item.error}</p>}</div>)}</div>
-        <div className="mt-4 flex flex-wrap gap-2 border-t pt-3"><Button size="sm" variant="ghost" disabled={busy} onClick={() => { if (window.confirm("A IA deixará de usar o contexto anterior. O registro da conversa será preservado. Continuar?")) void run(() => api.forgetAutomationConversation(accountId, conversation.id, platform), "Contexto anterior desconsiderado nas próximas respostas.") }}>Reiniciar memória</Button><Button size="sm" variant="ghost" disabled={busy || conversation.state === "STOPPED"} onClick={() => void run(() => api.setAutomationConversationState(accountId, conversation.id, platform, "STOPPED"), "Respostas interrompidas para este contato.")}>Não responder</Button></div>
-      </>}</Card></div>}
+    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      <Stat icon={<Zap size={16} />} label="Regras ativas" value={String(activeRules)} tone="text-indigo-600 bg-indigo-50" />
+      <Stat icon={<Hand size={16} />} label="Precisam de você" value={String(needsYou)} tone={needsYou ? "text-amber-700 bg-amber-50" : "text-slate-500 bg-slate-100"} />
+      <Stat icon={<Clock3 size={16} />} label="Última atividade" value={status.activity.lastEventProcessedAt ? new Date(status.activity.lastEventProcessedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "—"} tone="text-sky-700 bg-sky-50" />
+    </div>
 
-    {tab === "Regras" && <div className="grid items-start gap-4 lg:grid-cols-2"><Card className="p-4 sm:p-5"><h2 className="mb-4 font-bold">{editing ? "Editar regra" : "Criar regra"}</h2><form onSubmit={saveRule} className="space-y-3"><Field title="Nome da regra"><input required minLength={2} maxLength={100} className={input} value={rule.name} onChange={event => setRule({ ...rule, name: event.target.value })}/></Field><Field title="Quando acontecer"><select className={input} value={rule.trigger} onChange={event => setRule({ ...blankRule(platform), name: rule.name, trigger: event.target.value as Trigger })}>{allowedTriggers.map(value => <option key={value} value={value}>{triggers[value]}</option>)}</select></Field>{rule.trigger.endsWith("_KEYWORD") && <Field title="Palavras-chave separadas por vírgula"><input required className={input} value={rule.keywords} onChange={event => setRule({ ...rule, keywords: event.target.value })} placeholder="horário, orçamento"/></Field>}<Field title="Como responder"><select className={input} value={rule.replyMode} onChange={event => setRule({ ...rule, replyMode: event.target.value as Rule["replyMode"], continueConversation: false })}><option value="TEMPLATE">Resposta pronta, sem IA</option><option value="AI">Agente de IA</option></select></Field>
-      {rule.replyMode === "AI" ? <><Note>A IA usa a base da empresa e o histórico desta conversa. Casos incertos ou sensíveis são encaminhados para revisão humana.</Note>{rule.trigger.startsWith("MESSAGE_") && <label className="flex items-start gap-2 rounded-xl border p-3 text-sm"><input type="checkbox" className="mt-1 accent-indigo-600" checked={rule.continueConversation} onChange={event => setRule({ ...rule, continueConversation: event.target.checked })}/><span>Continuar a conversa após o primeiro gatilho<span className="mt-1 block text-xs leading-5 text-slate-500">A pessoa não precisará repetir a palavra-chave durante a conversa. Pedidos para parar ou falar com atendente pausam o robô.</span></span></label>}</> : rule.trigger.startsWith("COMMENT_") ? <>{picker("PUBLIC_COMMENT", "publicCommentReply")}<Field title="Resposta pública"><textarea rows={3} maxLength={maxLength} className={input} value={rule.publicCommentReply} onChange={event => setRule({ ...rule, publicCommentReply: event.target.value })}/></Field>{platform === "INSTAGRAM" && <>{picker("PRIVATE_COMMENT", "privateCommentReply")}<Field title="Mensagem privada opcional"><textarea rows={3} maxLength={1000} className={input} value={rule.privateCommentReply} onChange={event => setRule({ ...rule, privateCommentReply: event.target.value })}/></Field><p className="text-xs leading-5 text-slate-500">Uma mensagem privada por comentário, dentro do prazo permitido. A pessoa precisa responder para continuar.</p></>}</> : <>{picker("DIRECT_MESSAGE", "directMessageReply")}<Field title="Resposta pronta"><textarea required rows={4} maxLength={1000} className={input} value={rule.directMessageReply} onChange={event => setRule({ ...rule, directMessageReply: event.target.value })}/></Field></>}
-      <div className="flex flex-wrap gap-2"><Button disabled={busy}>Salvar regra</Button>{editing && <Button type="button" variant="outline" onClick={() => { setEditing(null); setRule(blankRule(platform)) }}>Cancelar</Button>}</div></form></Card><div className="space-y-3">{workspace.automations.map(item => <Card key={item.id} className="p-4"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="break-words font-semibold">{item.name}</h3><p className="mt-1 text-xs text-slate-500">{triggers[item.trigger]} · {item.replyMode === "AI" ? "IA" : "Resposta pronta"}</p><p className="mt-1 text-xs text-indigo-600">{item.enabled ? "Ativa" : "Pausada"}{item.continueConversation ? " · Conversa contínua" : ""}</p></div><Button size="icon" variant="ghost" aria-label={`Excluir ${item.name}`} disabled={busy} onClick={() => { if (window.confirm(`Excluir “${item.name}”?`)) void run(() => api.deleteAutomation(accountId, item.id, platform), "Regra excluída.") }}><Trash2 size={15}/></Button></div>{item.keywords.length > 0 && <p className="mt-2 break-words text-xs text-slate-500">{item.keywords.join(", ")}</p>}<div className="mt-3 flex gap-2"><Button size="sm" variant="outline" onClick={() => { setEditing(item.id); setRule({ ...blankRule(platform), ...item, keywords: item.keywords.join(", "), publicCommentReply: item.publicCommentReply || "", privateCommentReply: item.privateCommentReply || "", directMessageReply: item.directMessageReply || "" }) }}>Editar</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => toggle(item)}>{item.enabled ? "Pausar" : "Ativar"}</Button></div></Card>)}{!workspace.automations.length && <Card className="p-8 text-center text-sm text-slate-500">Nenhuma regra neste canal. As regras das outras redes são independentes.</Card>}<Note>Regras com palavras-chave têm prioridade. Uma resposta pronta não consome IA. Nenhuma regra nova é ativada ao salvar.</Note></div></div>}
+    <div className="flex items-center justify-between gap-2">
+      <nav aria-label="Seções das automações" className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-1">
+        {tabs.map((item) => <button key={item.id} type="button" aria-current={currentTab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}
+          className={cn("inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition sm:text-sm", currentTab === item.id ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
+          <item.Icon size={15} />{item.label}{item.count ? <span className={cn("rounded-full px-1.5 text-[10px] font-bold", item.id === "conversas" ? "bg-amber-500 text-white" : "bg-indigo-600 text-white")}>{item.count}</span> : null}
+        </button>)}
+      </nav>
+      <Button size="icon" variant="ghost" aria-label="Atualizar" disabled={query.isFetching} onClick={() => void refresh()}><RefreshCw size={15} className={query.isFetching ? "animate-spin" : ""} /></Button>
+    </div>
 
-    {tab === "Respostas prontas" && <div className="grid items-start gap-4 lg:grid-cols-2"><Card className="p-4 sm:p-5"><h2 className="mb-4 font-bold">Nova resposta pronta</h2><form className="space-y-3" onSubmit={event => { event.preventDefault(); void run(async () => { await api.createAutomationTemplate({ ...template, accountId, platform }); setTemplate({ ...template, name: "", content: "" }) }, "Resposta pronta salva.") }}><Field title="Nome"><input required minLength={2} maxLength={100} className={input} value={template.name} onChange={event => setTemplate({ ...template, name: event.target.value })}/></Field><Field title="Usar em"><select className={input} value={template.type} onChange={event => setTemplate({ ...template, type: event.target.value as Template["type"] })}>{templateTypes.map(value => <option key={value} value={value}>{typeNames[value]}</option>)}</select></Field><Field title="Texto da resposta"><textarea required rows={5} maxLength={maxLength} className={input} value={template.content} onChange={event => setTemplate({ ...template, content: event.target.value })}/></Field><Button disabled={busy}>Salvar resposta</Button></form><p className="mt-3 text-xs leading-5 text-slate-500">Selecione o modelo ao criar a regra. Salvar um modelo não envia mensagens.</p></Card><div className="space-y-3">{workspace.templates.map(item => <Card key={item.id} className="p-4"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="font-semibold">{item.name}</h3><p className="mt-1 text-xs text-indigo-600">{typeNames[item.type]}</p><p className="mt-3 whitespace-pre-wrap break-words text-sm text-slate-600">{item.content}</p></div><Button size="icon" variant="ghost" disabled={busy} aria-label={`Excluir modelo ${item.name}`} onClick={() => { if (window.confirm(`Excluir o modelo “${item.name}”?`)) void run(() => api.deleteAutomationTemplate(accountId, item.id, platform), "Modelo excluído.") }}><Trash2 size={15}/></Button></div></Card>)}</div></div>}
+    {currentTab === "conversas" && <ConversationsPanel platform={platform} accountId={accountId} workspace={workspace} busy={busy} run={run} />}
+    {currentTab === "regras" && <RulesPanel platform={platform} accountId={accountId} workspace={workspace} busy={busy} run={run} />}
+    {currentTab === "respostas" && <TemplatesPanel platform={platform} accountId={accountId} workspace={workspace} busy={busy} run={run} />}
+    {currentTab === "assistente" && <AgentPanel platform={platform} accountId={accountId} workspace={workspace} busy={busy} run={run} />}
+    {currentTab === "historico" && <HistoryPanel platform={platform} accountId={accountId} workspace={workspace} busy={busy} run={run} />}
 
-    {tab === "Agente de IA" && <Card className="mx-auto max-w-3xl p-4 sm:p-6"><div className="mb-4 flex items-center gap-2"><Bot className="text-indigo-600" size={22}/><h2 className="font-bold">Conhecimento e limites do agente</h2></div><form className="space-y-4" onSubmit={event => { event.preventDefault(); void run(() => api.saveInstagramAgent({ ...agent, accountId, platform }), "Agente salvo para este canal.") }}><Field title="Tom de voz"><input required minLength={2} maxLength={200} className={input} value={agent.tone} onChange={event => setAgent({ ...agent, tone: event.target.value })}/></Field><Field title="Instruções de atendimento"><textarea rows={4} maxLength={2000} className={input} value={agent.instructions} onChange={event => setAgent({ ...agent, instructions: event.target.value })}/></Field><Field title="Informações confiáveis da empresa"><textarea rows={7} maxLength={8000} className={input} value={agent.knowledgeBase} onChange={event => setAgent({ ...agent, knowledgeBase: event.target.value })} placeholder="Serviços, preços confirmados, horários e perguntas frequentes."/></Field><p className="text-xs leading-5 text-slate-500">Não inclua senhas ou dados sensíveis. Isso fornece contexto ao modelo; não treina um modelo proprietário. A IA não deve inventar informações que faltarem.</p><Field title="Resposta sugerida para encaminhamento humano"><textarea required rows={2} maxLength={maxLength} className={input} value={agent.fallback} onChange={event => setAgent({ ...agent, fallback: event.target.value })}/></Field><div className="grid gap-3 sm:grid-cols-2"><Field title="Usar contexto dos últimos dias (0 desliga)"><input type="number" min={0} max={30} required className={input} value={agent.memoryDays} onChange={event => setAgent({ ...agent, memoryDays: Number(event.target.value) })}/></Field><Field title="Máximo de respostas por conversa/hora"><input type="number" min={1} max={30} required className={input} value={agent.maxRepliesPerHour} onChange={event => setAgent({ ...agent, maxRepliesPerHour: Number(event.target.value) })}/></Field></div><Note>O contexto considera até 20 interações recentes desta conversa. Conversas privadas e públicas não compartilham memória. O prazo acima limita o contexto enviado à IA, não apaga o registro do atendimento.</Note><div className="space-y-3 rounded-xl border bg-slate-50 p-3"><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 accent-indigo-600" checked={agent.enabled} onChange={event => setAgent({ ...agent, enabled: event.target.checked, autoSend: event.target.checked ? agent.autoSend : false })}/>Ativar agente neste canal</label><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 accent-indigo-600" checked={agent.autoSend} disabled={!agent.enabled} onChange={event => setAgent({ ...agent, autoSend: event.target.checked })}/><span>Enviar automaticamente respostas consideradas seguras<span className="mt-1 block text-xs leading-5 text-slate-500">Casos sensíveis, pedidos de atendente e falhas pausam a conversa. A equipe revisa a resposta antes de enviar. Ainda é necessário ativar uma regra.</span></span></label></div><Button disabled={busy}>Salvar agente</Button></form></Card>}
-
-    {tab === "Histórico" && <div className="space-y-3">{workspace.executions.map(item => <Card key={item.id} className="p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">{contact(item)} · {statuses[item.status] || item.status}</p><span className="flex items-center gap-1 text-[11px] text-slate-500"><Clock3 size={12}/>{date(item.createdAt)}</span></div><p className="mt-2 whitespace-pre-wrap break-words text-sm">{item.eventText}</p>{item.responseText && item.status !== "NEEDS_REVIEW" && <p className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{item.responseText}</p>}{item.error && <p className="mt-2 text-xs leading-5 text-amber-800">{item.error}</p>}{item.status === "NEEDS_REVIEW" && reviewEditor(item)}</Card>)}{!workspace.executions.length && <Card className="p-8 text-center text-sm text-slate-500">Nenhum evento processado neste canal.</Card>}</div>}
-    <p className="flex items-start gap-2 text-xs leading-5 text-slate-500"><AlertTriangle size={14} className="mt-0.5 shrink-0"/>Respondemos somente a interações recebidas pelas integrações oficiais. Curtidas e novos seguidores não disparam mensagens. Não há disparos em massa.</p>
+    <p className="flex items-start gap-2 text-xs leading-5 text-slate-500"><AlertTriangle size={14} className="mt-0.5 shrink-0" />Respondemos apenas comentários e mensagens recebidos pelas integrações oficiais. Curtidas e novos seguidores não disparam mensagens, e não fazemos disparos em massa.</p>
   </>
+}
+
+function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string; tone: string }) {
+  return <Card className="flex min-w-0 flex-col items-start gap-2 p-3 sm:flex-row sm:items-center sm:gap-2.5"><span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", tone)}>{icon}</span><span className="min-w-0"><span className="block text-[11px] leading-tight text-slate-500 sm:text-xs">{label}</span><span className="block text-lg font-bold leading-tight text-slate-900">{value}</span></span></Card>
 }

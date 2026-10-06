@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { 
   ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, 
@@ -15,6 +14,7 @@ import toast from "react-hot-toast"
 import { useQuery } from "@tanstack/react-query"
 import { PostPreviewPanel } from "@/components/calendar/PostPreviewPanel"
 import { captionAsPublished } from "@/lib/caption"
+import { PlatformChip, PlatformIcons, platformLabel } from "@/components/ui/platform-icons"
 
 type CalendarPost = {
   id: string
@@ -88,7 +88,7 @@ export default function CalendarPage() {
       const date = new Date(post.scheduledFor)
       if (date.getFullYear() !== monthDate.getFullYear() || date.getMonth() !== monthDate.getMonth()) return
       const status = post.status === 'PUBLISHED' ? 'published' : post.status === 'SCHEDULED' ? 'scheduled' : post.status === 'FAILED' ? 'failed' : 'draft'
-      const type = post.mediaType === 'CAROUSEL' ? 'Carrossel' : post.mediaType === 'REEL' ? 'Reel' : post.mediaType === 'STORY' ? 'Story' : 'Feed'
+      const type = post.mediaType === 'CAROUSEL' ? 'Carrossel' : post.mediaType === 'REEL' ? 'Reel' : post.mediaType === 'STORY' ? 'Story' : post.mediaType === 'TEXT' ? 'Texto' : 'Feed'
       if (!result[date.getDate()]) result[date.getDate()] = []
       result[date.getDate()].push({ title: post.caption?.split('\n')[0] || 'Publicação sem legenda', time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), type, status, post })
     })
@@ -184,9 +184,9 @@ export default function CalendarPage() {
            />
            <div className="min-w-0 space-y-4">
              <div className="pr-8"><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Detalhes da publicação</p><h3 className="mt-1 break-words text-xl font-bold text-slate-900">{selectedPost.caption?.split("\n")[0] || "Publicação sem legenda"}</h3></div>
-             <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Formato</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.mediaType === "CAROUSEL" ? "Carrossel" : selectedPost.mediaType === "REEL" ? "Reel" : selectedPost.mediaType === "STORY" ? "Story" : "Feed"}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Status</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.status === "SCHEDULED" ? "Agendado" : selectedPost.status === "PUBLISHED" ? "Publicado" : selectedPost.status === "FAILED" ? "Falhou" : "Rascunho"}</p></div></div>
-             <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Redes selecionadas</p><div className="mt-2 flex flex-wrap gap-2">{(selectedPost.platforms || []).map((platform) => <Badge key={platform} variant="secondary">{platform === "INSTAGRAM" ? "Instagram" : platform === "FACEBOOK" ? "Facebook" : "Threads"}</Badge>)}</div></div>
-             {selectedPost.publishedPost?.publishResults && <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Resultado real</p><div className="mt-2 space-y-1 text-xs text-slate-600">{Object.entries(selectedPost.publishedPost.publishResults).map(([platform, result]) => <p key={platform}><span className="font-semibold">{platform === "INSTAGRAM" ? "Instagram" : platform === "FACEBOOK" ? "Facebook" : "Threads"}:</span> publicado{result.id ? ` · ID ${result.id}` : ""}</p>)}</div></div>}
+             <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Formato</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.mediaType === "CAROUSEL" ? "Carrossel" : selectedPost.mediaType === "REEL" ? "Reel" : selectedPost.mediaType === "STORY" ? "Story" : selectedPost.mediaType === "TEXT" ? "Texto" : "Feed"}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Status</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.status === "SCHEDULED" ? "Agendado" : selectedPost.status === "PUBLISHED" ? "Publicado" : selectedPost.status === "FAILED" ? "Falhou" : "Rascunho"}</p></div></div>
+             <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Redes selecionadas</p><div className="mt-2 flex flex-wrap gap-2">{(selectedPost.platforms || []).map((platform) => <PlatformChip key={platform} platform={platform} />)}</div></div>
+             {selectedPost.publishedPost?.publishResults && <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Resultado real</p><div className="mt-2 space-y-1 text-xs text-slate-600">{Object.entries(selectedPost.publishedPost.publishResults).map(([platform, result]) => <p key={platform} className="flex items-center gap-1.5"><PlatformIcons platforms={[platform]} size={12} /><span className="font-semibold">{platformLabel(platform)}:</span> publicado{result.id ? ` · ID ${result.id}` : ""}</p>)}</div></div>}
             <p className="text-sm text-slate-600">{new Date(selectedPost.scheduledFor).toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "short" })}</p>
             <PostContentDetails post={selectedPost} />
             {selectedPost.errorMessage && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-700">{selectedPost.errorMessage}</p>}
@@ -201,7 +201,7 @@ export default function CalendarPage() {
       <div className="flex flex-wrap items-center justify-between gap-2"><div className="inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Visualização do calendário"><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'month'} onClick={() => setView('month')}>Mês</button><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'list'} onClick={() => setView('list')}>Lista</button></div><Button variant="outline" size="sm" onClick={() => setMonthDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Mês atual</Button></div>
       {error && <Card className="border-rose-200 p-4 text-sm text-rose-700"><p role="alert">{error}</p><Button className="mt-2" variant="outline" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</Button></Card>}
       {!accountsLoading && !accountId && <p className="text-sm text-slate-600">Conecte uma conta para acompanhar suas publicações.</p>}
-      {view === 'list' && <Card className="divide-y divide-slate-100 overflow-hidden">{loading ? <p className="p-5 text-sm" role="status">Carregando publicações…</p> : !error && Object.keys(eventsByDay).length === 0 ? <p className="p-5 text-sm text-slate-600">Nenhuma publicação neste mês.</p> : Object.entries(eventsByDay).map(([day, events]) => <section key={day} className="p-3 sm:p-4"><h3 className="mb-2 text-xs font-bold uppercase text-slate-500">{day} de {monthDate.toLocaleDateString('pt-BR', { month: 'long' })}</h3><div className="space-y-2">{events.map(event => <button key={event.post.id} onClick={() => setSelectedPost(event.post)} className="flex w-full min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50"><span className="shrink-0 text-sm font-bold text-indigo-700">{event.time}</span><span className="min-w-0 flex-1"><span className="block line-clamp-2 break-words text-sm font-semibold">{event.title}</span><span className="mt-1 block text-xs text-slate-500">{event.type} · {{ published: 'Publicado', scheduled: 'Agendado', draft: 'Rascunho', failed: 'Falhou' }[event.status]}</span></span></button>)}</div></section>)}</Card>}
+      {view === 'list' && <Card className="divide-y divide-slate-100 overflow-hidden">{loading ? <p className="p-5 text-sm" role="status">Carregando publicações…</p> : !error && Object.keys(eventsByDay).length === 0 ? <p className="p-5 text-sm text-slate-600">Nenhuma publicação neste mês.</p> : Object.entries(eventsByDay).map(([day, events]) => <section key={day} className="p-3 sm:p-4"><h3 className="mb-2 text-xs font-bold uppercase text-slate-500">{day} de {monthDate.toLocaleDateString('pt-BR', { month: 'long' })}</h3><div className="space-y-2">{events.map(event => <button key={event.post.id} onClick={() => setSelectedPost(event.post)} className="flex w-full min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50"><span className="shrink-0 text-sm font-bold text-indigo-700">{event.time}</span><span className="min-w-0 flex-1"><span className="block line-clamp-2 break-words text-sm font-semibold">{event.title}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><PlatformIcons platforms={event.post.platforms} size={13} />{event.type} · {{ published: 'Publicado', scheduled: 'Agendado', draft: 'Rascunho', failed: 'Falhou' }[event.status]}</span></span></button>)}</div></section>)}</Card>}
       {view === 'month' && <Card className="flex-1 overflow-hidden flex flex-col border border-slate-200/80 bg-white rounded-2xl shadow-xs">
         {/* Day Name Headers */}
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
@@ -258,9 +258,9 @@ export default function CalendarPage() {
                       role="button"
                       tabIndex={0}
                       onKeyDown={(keyboardEvent) => { if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") { keyboardEvent.preventDefault(); setSelectedPost(event.post) } }}
-                      aria-label={`${event.type}, ${event.time}: ${event.title}`}
+                      aria-label={`${event.type} (${(event.post.platforms || []).map(platformLabel).join(", ")}), ${event.time}: ${event.title}`}
                       title={`${event.type} · ${event.time} · ${event.title}`}
-                      className={`mx-auto flex min-h-8 min-w-8 w-fit cursor-pointer items-center justify-center rounded-lg border p-1 text-[11px] font-semibold transition-all sm:mx-0 sm:w-full sm:p-1.5 ${
+                      className={`mx-auto flex min-h-8 min-w-8 w-fit cursor-pointer items-center justify-center rounded-lg border p-1 text-[11px] font-semibold transition-all sm:mx-0 sm:w-full sm:flex-col sm:items-stretch sm:gap-0.5 sm:p-1.5 ${
                         event.status === 'published'
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80 hover:bg-emerald-100/70'
                           : event.status === 'scheduled'
@@ -270,10 +270,10 @@ export default function CalendarPage() {
                           : 'bg-amber-50 text-amber-800 border-amber-200/80 hover:bg-amber-100/70'
                       }`}
                     >
-                      <span className="mx-auto block h-2 w-2 rounded-full bg-current sm:hidden" />
-                      <div className="hidden items-center justify-between gap-1 sm:flex">
-                        <span className="font-bold truncate">{event.type}</span>
-                        <span className="text-[9px] opacity-75">{event.time}</span>
+                      {event.post.platforms?.length ? <PlatformIcons platforms={event.post.platforms.slice(0, 1)} size={13} className="sm:hidden" /> : <span className="mx-auto block h-2 w-2 rounded-full bg-current sm:hidden" />}
+                      <div className="hidden min-w-0 items-center justify-between gap-1 sm:flex">
+                        <span className="flex min-w-0 items-center gap-1"><PlatformIcons platforms={event.post.platforms} size={11} /><span className="truncate font-bold">{event.type}</span></span>
+                        <span className="shrink-0 text-[9px] opacity-75">{event.time}</span>
                       </div>
                       <span className="hidden truncate font-normal text-[10px] sm:block">{event.title}</span>
                     </div>
