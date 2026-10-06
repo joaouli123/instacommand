@@ -113,7 +113,7 @@ export function TokenManager({ scopes, durations, onSecret }: { scopes: ScopeInf
         {secret && (
           <div className="border-t border-emerald-100 bg-emerald-50/70 p-5 sm:p-6">
             <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900"><ShieldCheck size={16} />Copie seu token agora</p>
-            <p className="mt-1 text-xs leading-5 text-emerald-800">Por segurança ele não será exibido de novo. Os exemplos da aba “Conectar” já foram preenchidos com ele.</p>
+            <p className="mt-1 text-xs leading-5 text-emerald-800">Por segurança ele não será exibido de novo. Os passos de conexão no topo da página já foram preenchidos com ele.</p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
               <code className="min-w-0 flex-1 break-all rounded-lg border border-emerald-200 bg-white px-3 py-2 font-mono text-xs text-slate-900">{secret}</code>
               <CopyButton text={secret} label="Copiar token" />

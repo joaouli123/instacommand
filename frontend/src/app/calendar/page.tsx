@@ -14,7 +14,10 @@ import toast from "react-hot-toast"
 import { useQuery } from "@tanstack/react-query"
 import { PostPreviewPanel } from "@/components/calendar/PostPreviewPanel"
 import { captionAsPublished } from "@/lib/caption"
-import { PlatformChip, PlatformIcons, platformLabel } from "@/components/ui/platform-icons"
+import { PlatformChip, PlatformIcons, platformBackground, platformLabel } from "@/components/ui/platform-icons"
+
+const STATUS_DOT = { published: "bg-emerald-400", scheduled: "bg-indigo-500", draft: "bg-amber-400", failed: "bg-rose-500" } as const
+const STATUS_LABEL = { published: "Publicado", scheduled: "Agendado", draft: "Rascunho", failed: "Falhou" } as const
 
 type CalendarPost = {
   id: string
@@ -149,13 +152,13 @@ export default function CalendarPage() {
         </div>
 
         {/* Status Legend & Quick Action */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] font-semibold sm:gap-4 sm:text-xs">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] font-semibold sm:gap-4 sm:text-xs" aria-label="Legenda: a cor do card é a rede social; a bolinha é o status">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
             <span className="text-slate-600">Publicado</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
             <span className="text-slate-600">Agendado</span>
           </div>
           <div className="flex items-center gap-2">
@@ -166,6 +169,7 @@ export default function CalendarPage() {
             <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
             <span className="text-slate-600">Falhou</span>
           </div>
+          <span className="hidden items-center gap-1.5 font-medium text-slate-400 lg:inline-flex">· cor do card = rede<span className="inline-flex gap-0.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: platformBackground(["INSTAGRAM"]) }} /><span className="h-2.5 w-2.5 rounded-sm" style={{ background: platformBackground(["FACEBOOK"]) }} /><span className="h-2.5 w-2.5 rounded-sm" style={{ background: platformBackground(["THREADS"]) }} /></span></span>
 
             <Button asChild size="sm" className="ml-auto h-10 gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"><Link href="/composer">
               <Plus size={14} />
@@ -201,7 +205,7 @@ export default function CalendarPage() {
       <div className="flex flex-wrap items-center justify-between gap-2"><div className="inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Visualização do calendário"><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'month'} onClick={() => setView('month')}>Mês</button><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'list'} onClick={() => setView('list')}>Lista</button></div><Button variant="outline" size="sm" onClick={() => setMonthDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Mês atual</Button></div>
       {error && <Card className="border-rose-200 p-4 text-sm text-rose-700"><p role="alert">{error}</p><Button className="mt-2" variant="outline" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</Button></Card>}
       {!accountsLoading && !accountId && <p className="text-sm text-slate-600">Conecte uma conta para acompanhar suas publicações.</p>}
-      {view === 'list' && <Card className="divide-y divide-slate-100 overflow-hidden">{loading ? <p className="p-5 text-sm" role="status">Carregando publicações…</p> : !error && Object.keys(eventsByDay).length === 0 ? <p className="p-5 text-sm text-slate-600">Nenhuma publicação neste mês.</p> : Object.entries(eventsByDay).map(([day, events]) => <section key={day} className="p-3 sm:p-4"><h3 className="mb-2 text-xs font-bold uppercase text-slate-500">{day} de {monthDate.toLocaleDateString('pt-BR', { month: 'long' })}</h3><div className="space-y-2">{events.map(event => <button key={event.post.id} onClick={() => setSelectedPost(event.post)} className="flex w-full min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50"><span className="shrink-0 text-sm font-bold text-indigo-700">{event.time}</span><span className="min-w-0 flex-1"><span className="block line-clamp-2 break-words text-sm font-semibold">{event.title}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><PlatformIcons platforms={event.post.platforms} size={13} />{event.type} · {{ published: 'Publicado', scheduled: 'Agendado', draft: 'Rascunho', failed: 'Falhou' }[event.status]}</span></span></button>)}</div></section>)}</Card>}
+      {view === 'list' && <Card className="divide-y divide-slate-100 overflow-hidden">{loading ? <p className="p-5 text-sm" role="status">Carregando publicações…</p> : !error && Object.keys(eventsByDay).length === 0 ? <p className="p-5 text-sm text-slate-600">Nenhuma publicação neste mês.</p> : Object.entries(eventsByDay).map(([day, events]) => <section key={day} className="p-3 sm:p-4"><h3 className="mb-2 text-xs font-bold uppercase text-slate-500">{day} de {monthDate.toLocaleDateString('pt-BR', { month: 'long' })}</h3><div className="space-y-2">{events.map(event => <button key={event.post.id} onClick={() => setSelectedPost(event.post)} className="flex w-full min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: platformBackground(event.post.platforms) }}><PlatformIcons platforms={event.post.platforms?.slice(0, 1)} size={16} color="white" /></span><span className="shrink-0 pt-2 text-sm font-bold text-indigo-700">{event.time}</span><span className="min-w-0 flex-1"><span className="block line-clamp-2 break-words text-sm font-semibold">{event.title}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><PlatformIcons platforms={event.post.platforms} size={13} />{event.type} · <span className={`h-2 w-2 rounded-full ${STATUS_DOT[event.status]}`} aria-hidden />{STATUS_LABEL[event.status]}</span></span></button>)}</div></section>)}</Card>}
       {view === 'month' && <Card className="flex-1 overflow-hidden flex flex-col border border-slate-200/80 bg-white rounded-2xl shadow-xs">
         {/* Day Name Headers */}
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
@@ -260,22 +264,16 @@ export default function CalendarPage() {
                       onKeyDown={(keyboardEvent) => { if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") { keyboardEvent.preventDefault(); setSelectedPost(event.post) } }}
                       aria-label={`${event.type} (${(event.post.platforms || []).map(platformLabel).join(", ")}), ${event.time}: ${event.title}`}
                       title={`${event.type} · ${event.time} · ${event.title}`}
-                      className={`mx-auto flex min-h-8 min-w-8 w-fit cursor-pointer items-center justify-center rounded-lg border p-1 text-[11px] font-semibold transition-all sm:mx-0 sm:w-full sm:flex-col sm:items-stretch sm:gap-0.5 sm:p-1.5 ${
-                        event.status === 'published'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80 hover:bg-emerald-100/70'
-                          : event.status === 'scheduled'
-                          ? 'bg-indigo-50 text-indigo-800 border-indigo-200/80 hover:bg-indigo-100/70'
-                          : event.status === 'failed'
-                          ? 'bg-rose-50 text-rose-800 border-rose-200/80 hover:bg-rose-100/70'
-                          : 'bg-amber-50 text-amber-800 border-amber-200/80 hover:bg-amber-100/70'
-                      }`}
+                      style={{ background: platformBackground(event.post.platforms) }}
+                      className={`relative mx-auto flex min-h-8 min-w-8 w-fit cursor-pointer items-center justify-center rounded-lg p-1 text-[11px] font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 sm:mx-0 sm:w-full sm:flex-col sm:items-stretch sm:gap-0.5 sm:p-1.5 ${event.status === 'draft' ? 'opacity-75' : ''} ${event.status === 'failed' ? 'ring-2 ring-rose-500 ring-offset-1' : ''}`}
                     >
-                      {event.post.platforms?.length ? <PlatformIcons platforms={event.post.platforms.slice(0, 1)} size={13} className="sm:hidden" /> : <span className="mx-auto block h-2 w-2 rounded-full bg-current sm:hidden" />}
+                      <span className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white sm:hidden ${STATUS_DOT[event.status]}`} aria-hidden />
+                      {event.post.platforms?.length ? <PlatformIcons platforms={event.post.platforms.slice(0, 1)} size={14} color="white" className="sm:hidden" /> : <span className="mx-auto block h-2 w-2 rounded-full bg-white sm:hidden" />}
                       <div className="hidden min-w-0 items-center justify-between gap-1 sm:flex">
-                        <span className="flex min-w-0 items-center gap-1"><PlatformIcons platforms={event.post.platforms} size={11} /><span className="truncate font-bold">{event.type}</span></span>
-                        <span className="shrink-0 text-[9px] opacity-75">{event.time}</span>
+                        <span className="flex min-w-0 items-center gap-1"><PlatformIcons platforms={event.post.platforms} size={11} color="white" /><span className="truncate font-bold">{event.type}</span></span>
+                        <span className="flex shrink-0 items-center gap-1 text-[9px] text-white/90">{event.time}<span className={`h-2 w-2 rounded-full ring-1 ring-white ${STATUS_DOT[event.status]}`} title={STATUS_LABEL[event.status]} aria-hidden /></span>
                       </div>
-                      <span className="hidden truncate font-normal text-[10px] sm:block">{event.title}</span>
+                      <span className="hidden truncate text-[10px] font-normal text-white/90 sm:block">{event.title}</span>
                     </div>
                   ))}
                 </div>

@@ -26,6 +26,18 @@ function decrypt(text: string): string {
   return decrypted;
 }
 
+/**
+ * Shows that a secret is saved without revealing it: the first characters of
+ * long values followed by asterisks. Only used for the user's own secrets,
+ * never for keys that belong to the platform.
+ */
+export const maskSecret = (value?: string | null): string | null => {
+  const secret = value?.trim();
+  if (!secret) return null;
+  const visible = secret.length >= 16 ? 4 : secret.length >= 10 ? 2 : 0;
+  return `${secret.slice(0, visible)}${'*'.repeat(12)}`;
+};
+
 type MetaCredentials = {
   appId: string;
   appSecret: string;
@@ -78,6 +90,7 @@ export const getAiCredentialStatus = async (userId: string) => {
   const credentials = await getAiCredentials(userId);
   return {
     apiKeyConfigured: Boolean(credentials.apiKey),
+    apiKeyPreview: credentials.source === 'workspace' ? maskSecret(credentials.apiKey) : null,
     model: credentials.model,
     source: credentials.source,
   };
@@ -140,11 +153,14 @@ const threadsApiRequest = async (path: string, options: RequestInit = {}) => {
 
 export const getMetaCredentialStatus = async (userId: string) => {
   const credentials = await getMetaCredentials(userId);
+  const workspaceOwned = !(env.FB_APP_ID || env.FB_APP_SECRET);
   return {
     appId: credentials.appId,
     appIdConfigured: Boolean(credentials.appId),
     appSecretConfigured: Boolean(credentials.appSecret),
     clientTokenConfigured: Boolean(credentials.clientToken),
+    appSecretPreview: workspaceOwned ? maskSecret(credentials.appSecret) : null,
+    clientTokenPreview: workspaceOwned ? maskSecret(credentials.clientToken) : null,
   };
 };
 
@@ -182,6 +198,7 @@ export const getThreadsCredentialStatus = async (userId: string) => {
     appId: credentials.appId,
     appIdConfigured: Boolean(credentials.appId),
     appSecretConfigured: Boolean(credentials.appSecret),
+    appSecretPreview: platformConfigured ? null : maskSecret(credentials.appSecret),
     platformConfigured,
     platformPartiallyConfigured,
     credentialSource: platformConfigured ? 'platform' : credentials.appId && credentials.appSecret ? 'workspace' : 'missing',

@@ -68,3 +68,41 @@ test('the calendar shows the official network icons on each post', () => {
   assert.equal(icons.PlatformIcons({ platforms: [] }), null);
   assert.equal(icons.PlatformIcons({ platforms: ['OTHER'] }), null);
 });
+
+test('calendar cards use the network colors with white icons', () => {
+  const icons = compile('components/ui/platform-icons.tsx', {
+    '@icons-pack/react-simple-icons': { SiInstagram: icon, SiFacebook: icon, SiThreads: icon },
+    '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+  });
+  assert.equal(icons.platformBackground(['FACEBOOK']), 'linear-gradient(120deg, #0866FF, #0866FF)');
+  assert.match(icons.platformBackground(['INSTAGRAM']), /#833AB4.*#E1306C.*#F56040/);
+  assert.equal(icons.platformBackground(['INSTAGRAM', 'THREADS']), 'linear-gradient(120deg, #E1306C, #000000)');
+  assert.equal(icons.platformBackground([]), '#4F46E5');
+  const calendar = read('app/calendar/page.tsx');
+  assert.match(calendar, /style=\{\{ background: platformBackground\(event\.post\.platforms\) \}\}/);
+  assert.match(calendar, /color="white"/);
+});
+
+test('the dashboard queue shows a thumbnail before the format and caption', () => {
+  const dashboard = read('app/page.tsx');
+  assert.match(dashboard, /function ScheduledItem/);
+  assert.match(dashboard, /post\.thumbnailUrl \|\| post\.mediaUrls\?\.\[0\]/);
+  assert.match(dashboard, /<PlatformIcons platforms=\{post\.platforms\}/);
+});
+
+test('settings are split in tabs and saved secrets show a masked preview', () => {
+  const settings = read('app/settings/page.tsx');
+  for (const tab of ['connections', 'ai', 'preferences']) assert.match(settings, new RegExp(`TabsTrigger value="${tab}"`));
+  assert.match(settings, /preview=\{aiStatus\?\.apiKeyPreview\}/);
+  assert.match(settings, /preview=\{metaStatus\?\.appSecretPreview\}/);
+  assert.doesNotMatch(settings, /^export function SecretField/m);
+});
+
+test('the MCP page leads with ChatGPT, Claude and other AIs', () => {
+  const page = read('app/integrations/page.tsx');
+  assert.match(page, /\{ id: "chatgpt", name: "ChatGPT"/);
+  assert.match(page, /\{ id: "claude", name: "Claude"/);
+  assert.match(page, /\{ id: "others", name: "Outras IAs"/);
+  assert.match(page, /<TokenManager/);
+  assert.match(page, /<ToolCatalog/);
+});
