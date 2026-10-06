@@ -52,26 +52,85 @@ export const getDashboardStats = async (accountId: string, days = 30) => {
   };
 };
 
-export const getGrowthData = async (accountId: string, days = 30) => {
-  const insights = await prisma.profileInsight.findMany({
-    where: { accountId, collectedAt: publicationPeriod(days) },
-    orderBy: { collectedAt: 'asc' },
-  });
+export type GrowthPoint = {
+  date: string;
+  followers: number | null;
+  // True when the total was reconstructed from Meta's daily follows/unfollows,
+  // not observed by a sync on that day.
+  followersEstimated: boolean;
+  followsGained: number | null;
+  followsLost: number | null;
+  reach: number | null;
+  views: number | null;
+  accountsEngaged: number | null;
+  interactions: number | null;
+};
+
+const saoPauloDay = (date: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(date);
+const previousDay = (day: string) => {
+  const [year, month, date] = day.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, date - 1)).toISOString().slice(0, 10);
+};
+
+export const getGrowthData = async (accountId: string, days = 30, now = new Date()): Promise<GrowthPoint[]> => {
+  const period = publicationPeriod(days, now);
+  const startDay = saoPauloDay(period.gte);
+  const today = saoPauloDay(now);
+  const [insights, dailyRows, account] = await Promise.all([
+    prisma.profileInsight.findMany({ where: { accountId, collectedAt: period }, orderBy: { collectedAt: 'asc' } }),
+    prisma.accountDailyInsight.findMany({ where: { accountId, date: { gte: startDay, lte: today } }, orderBy: { date: 'asc' } }),
+    prisma.instagramAccount.findUnique({ where: { id: accountId }, select: { igFollowersCount: true } }),
+  ]);
 
   // The worker may collect several snapshots in one day. Keep the latest
   // real snapshot per calendar day so the chart does not repeat dates.
-  const byDay = new Map<string, { date: string; followers: number; reach: number | null; views: number | null; interactions: number | null }>();
+  const observed = new Map<string, { followers: number; reach: number | null; views: number | null; interactions: number | null }>();
   for (const insight of insights) {
-    const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(insight.collectedAt);
-    byDay.set(day, {
-      date: day,
+    observed.set(saoPauloDay(insight.collectedAt), {
       followers: insight.followers,
       reach: metricValue(insight, 'reach'),
       views: metricValue(insight, 'views'),
       interactions: metricValue(insight, 'totalInteractions'),
     });
   }
-  return Array.from(byDay.values());
+  const daily = new Map(dailyRows.map((row) => [row.date, row]));
+
+  // Before the first observation, walk back day by day: the total at the end
+  // of the previous day is this day's total minus this day's net follows.
+  // Stops at the first day Meta did not report follows for (no guessing).
+  const estimated = new Map<string, number>();
+  const firstObserved = [...observed.keys()].sort()[0];
+  let anchorDay = firstObserved ?? today;
+  let followers = firstObserved ? observed.get(firstObserved)!.followers : account?.igFollowersCount ?? null;
+  if (followers !== null) {
+    while (anchorDay > startDay) {
+      const row = daily.get(anchorDay);
+      if (!row || row.followsGained === null || row.followsLost === null) break;
+      followers = Math.max(0, followers - (row.followsGained - row.followsLost));
+      anchorDay = previousDay(anchorDay);
+      if (!observed.has(anchorDay)) estimated.set(anchorDay, followers);
+    }
+  }
+
+  const dates = [...new Set([...observed.keys(), ...daily.keys(), ...estimated.keys()])]
+    .filter((date) => date >= startDay && date <= today)
+    .sort();
+  return dates.map((date) => {
+    const seen = observed.get(date);
+    const row = daily.get(date);
+    return {
+      date,
+      followers: seen?.followers ?? estimated.get(date) ?? null,
+      followersEstimated: !seen && estimated.has(date),
+      followsGained: row?.followsGained ?? null,
+      followsLost: row?.followsLost ?? null,
+      // Meta's value for the whole day wins over a sync's rolling 24-hour reading.
+      reach: row?.reach ?? seen?.reach ?? null,
+      views: row?.views ?? seen?.views ?? null,
+      accountsEngaged: row?.accountsEngaged ?? null,
+      interactions: row?.totalInteractions ?? seen?.interactions ?? null,
+    };
+  });
 };
 
 export const getEngagementTimeSeries = async (accountId: string, days = 30) => {

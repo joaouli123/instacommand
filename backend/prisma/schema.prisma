@@ -172,8 +172,30 @@ model InstagramAccount {
   automationExecutions AutomationExecution[]
   privateReplyClaims   PrivateReplyClaim[]
   conversations        AutomationConversation[]
+  dailyInsights        AccountDailyInsight[]
 
   @@index([userId])
+}
+
+// One row per day with the values Meta reports for that day. Meta only
+// answers about the last 30 days, so keeping each day here is what lets
+// reports cover longer periods and survive gaps between syncs.
+model AccountDailyInsight {
+  id                String           @id @default(uuid())
+  accountId         String
+  // Calendar day in America/Sao_Paulo, YYYY-MM-DD.
+  date              String           @db.VarChar(10)
+  reach             Int?
+  views             Int?
+  accountsEngaged   Int?
+  totalInteractions Int?
+  followsGained     Int?
+  followsLost       Int?
+  fetchedAt         DateTime         @default(now())
+
+  account           InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, date])
 }
 
 enum SocialAutomationTrigger {

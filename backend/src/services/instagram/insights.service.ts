@@ -86,6 +86,95 @@ const profileFields = {
 const insightCount = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 
+/** Accounts that followed (FOLLOWER) and unfollowed (NON_FOLLOWER) in a follows_and_unfollows answer. */
+export function followCounts(items: InsightItem[]) {
+  const groups = items.find(item => item.name === 'follows_and_unfollows')?.total_value?.breakdowns || [];
+  const value = (type: string): number | null => {
+    for (const group of groups) {
+      const index = group.dimension_keys?.indexOf('follow_type') ?? -1;
+      if (index < 0) continue;
+      const result = group.results?.find(row => row.dimension_values?.[index] === type);
+      const count = insightCount(result?.value);
+      if (count !== null) return count;
+    }
+    return null;
+  };
+  return { gained: value('FOLLOWER'), lost: value('NON_FOLLOWER') };
+}
+
+// ---------------------------------------------------------------- daily history
+
+export const DAILY_HISTORY_DAYS = 30;
+// Meta may still revise the last ~48 hours; those days are fetched again.
+const REVISABLE_DAYS = 3;
+const SAO_PAULO_OFFSET_HOURS = 3;
+
+export const saoPauloDay = (date: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(date);
+export const shiftDay = (day: string, delta: number) => {
+  const [year, month, date] = day.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, date + delta)).toISOString().slice(0, 10);
+};
+const dayWindow = (day: string) => {
+  const [year, month, date] = day.split('-').map(Number);
+  const since = Date.UTC(year, month - 1, date, SAO_PAULO_OFFSET_HOURS) / 1000;
+  return { since, until: since + 86_400 };
+};
+
+/**
+ * Stores, one row per day, what Meta reports for each of the last 30 days:
+ * reach, views, engaged accounts, interactions, follows and unfollows. Meta
+ * cannot be asked about older days, so the rows kept here are what make
+ * longer reports possible. Days already stored are not fetched again,
+ * except the most recent ones that Meta may still revise.
+ */
+export async function backfillDailyInsights(accountId: string, igUserId: string, token: string, now = new Date()) {
+  const today = saoPauloDay(now);
+  const days = Array.from({ length: DAILY_HISTORY_DAYS + 1 }, (_, index) => shiftDay(today, -index));
+  const stored = new Set((await prisma.accountDailyInsight.findMany({
+    where: { accountId, date: { in: days } }, select: { date: true },
+  })).map(row => row.date));
+  const revisableFrom = shiftDay(today, -REVISABLE_DAYS);
+  const pending = days.filter(day => !stored.has(day) || day >= revisableFrom);
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+
+  const fetchDay = async (day: string) => {
+    const window = dayWindow(day);
+    const until = Math.min(window.until, nowSeconds);
+    if (until <= window.since) return false;
+    const params = { period: 'day', metric_type: 'total_value', since: window.since, until };
+    const [items, follows] = await Promise.all([
+      bestEffortInsights(igUserId, token, ['views,reach,accounts_engaged,total_interactions'], params),
+      bestEffortInsights(igUserId, token, ['follows_and_unfollows'], { ...params, breakdown: 'follow_type' }),
+    ]);
+    const value = (name: string) => insightCount(items.find(item => item.name === name)?.total_value?.value);
+    const { gained, lost } = followCounts(follows);
+    const data = {
+      reach: value('reach'), views: value('views'), accountsEngaged: value('accounts_engaged'),
+      totalInteractions: value('total_interactions'), followsGained: gained, followsLost: lost,
+    };
+    // A day Meta said nothing about is not stored as zeros.
+    if (Object.values(data).every(entry => entry === null)) return false;
+    await prisma.accountDailyInsight.upsert({
+      where: { accountId_date: { accountId, date: day } },
+      update: { ...data, fetchedAt: now },
+      create: { accountId, date: day, ...data, fetchedAt: now },
+    });
+    return true;
+  };
+
+  let saved = 0;
+  // The first request doubles as a probe: when Meta answers nothing (no
+  // permission, invalid token), skip the other 60 calls.
+  if (pending.length && !(await fetchDay(pending[0]))) return { saved, requested: pending.length };
+  saved++;
+  const rest = pending.slice(1);
+  for (let index = 0; index < rest.length; index += 3) {
+    const results = await Promise.all(rest.slice(index, index + 3).map(fetchDay));
+    saved += results.filter(Boolean).length;
+  }
+  return { saved, requested: pending.length };
+}
+
 // Profile totals are unique over the requested interval. Never add overlapping
 // reach/engaged-account buckets to fabricate a total for a longer interval.
 export async function getProfilePeriodInsights(igUserId: string, token: string, requestedDays = 30, now = new Date()) {
@@ -107,19 +196,7 @@ export async function getProfilePeriodInsights(igUserId: string, token: string, 
     // A missing aggregate is not a zero or the first daily observation.
     return [key, insightCount(item?.total_value?.value)];
   })) as Record<typeof profileFields[keyof typeof profileFields], number | null>;
-  const followGroups = follows.find(item => item.name === 'follows_and_unfollows')?.total_value?.breakdowns || [];
-  const followValue = (type: string): number | null => {
-    for (const group of followGroups) {
-      const index = group.dimension_keys?.indexOf('follow_type') ?? -1;
-      if (index < 0) continue;
-      const result = group.results?.find(row => row.dimension_values?.[index] === type);
-      const count = insightCount(result?.value);
-      if (count !== null) return count;
-    }
-    return null;
-  };
-  const gained = followValue('FOLLOWER');
-  const lost = followValue('NON_FOLLOWER');
+  const { gained, lost } = followCounts(follows);
   const reachDays = new Map<string, number>();
   for (const point of reachSeries.find(item => item.name === 'reach')?.values || []) {
     const value = insightCount(point.value), end = Date.parse(point.end_time || '');
@@ -240,6 +317,13 @@ export const saveProfileSnapshot = async (accountId: string) => {
   // the account stuck in "Sincronizando" for a long time.
   const mediaSync = await syncAccountMedia(accountId, { fetchInsights: insights.length > 0 });
   const storySync = await syncAccountStories(accountId, { fetchInsights: insights.length > 0, token });
+  // Day-by-day history (last 30 days from Meta, kept from then on) for the reports.
+  let dailyHistory = { saved: 0, requested: 0 };
+  try {
+    dailyHistory = await backfillDailyInsights(accountId, account.igUserId, token);
+  } catch (error) {
+    console.error(`Daily insight history unavailable for ${account.igUsername}:`, error instanceof Error ? error.message : error);
+  }
   await prisma.profileInsight.create({
     data: {
       accountId,
@@ -277,6 +361,7 @@ export const saveProfileSnapshot = async (accountId: string) => {
     mediaSnapshotComplete: mediaSync.snapshotComplete,
     storiesAvailable: storySync.available,
     importedStories: storySync.importedStories,
+    historyDaysSaved: dailyHistory.saved,
   };
 };
 

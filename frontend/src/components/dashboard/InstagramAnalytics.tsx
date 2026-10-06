@@ -29,7 +29,7 @@ type Dashboard = {
   accountsEngaged?: number | null; profileLinkTaps?: number | null
   interactions: number | null; interactionsPartial?: boolean; engagementRate?: number | null; pendingPosts: number
 }
-type FollowerSnapshot = { date: string; followers: number; reach: number | null; views: number | null; interactions: number | null }
+type FollowerSnapshot = { date: string; followers: number | null; followersEstimated?: boolean; followsGained?: number | null; followsLost?: number | null; reach: number | null; views: number | null; accountsEngaged?: number | null; interactions: number | null }
 type TimelineItem = { date: string; likes: number | null; comments: number | null; saves: number | null; shares: number | null; reach: number | null; impressions: number | null; engagement: number | null; posts: number; interactions: number | null }
 type Insight = { likes?: number | null; comments?: number | null; saves?: number | null; shares?: number | null; reach?: number | null; views?: number | null; engagement?: number | null; collectedAt?: string }
 type PostMetrics = { likes?: number | null; comments?: number | null; replies?: number | null; saves?: number | null; shares?: number | null; reach?: number | null; views?: number | null; engagement?: number | null; interactions?: number | null; interactionsPartial?: boolean; coverage?: Record<string, number> }
@@ -237,17 +237,22 @@ export function InstagramAnalytics() {
   const ageRows = useMemo(() => rowsFor(audienceRows, "age"), [audienceRows])
   const countryRows = useMemo(() => rowsFor(audienceRows, "country").map(row => ({ ...row, label: instagramCountryLabel(row.label) })), [audienceRows])
   const cityRows = useMemo(() => rowsFor(audienceRows, "city"), [audienceRows])
-  const followerChart = useMemo(() => growth.map((item, index) => ({
+  const followerChart = useMemo(() => growth.map((item) => ({
     date: item.date, followers: item.followers,
-    netChange: index ? item.followers - growth[index - 1].followers : null,
+    // Meta's own count of who followed and who left that day.
+    novos: item.followsGained ?? null,
+    saidas: item.followsLost == null ? null : -item.followsLost,
+    saldo: item.followsGained != null && item.followsLost != null ? item.followsGained - item.followsLost : null,
   })), [growth])
+  const estimatedFollowerDays = growth.filter((item) => item.followersEstimated).length
   const profileHistory = useMemo(() => growth.map((item) => ({
-    date: item.date, alcance: item.reach, visualizacoes: item.views,
+    date: item.date, alcance: item.reach, visualizacoes: item.views, engajadas: item.accountsEngaged ?? null, interacoes: item.interactions,
   })), [growth])
   const engagementData = useMemo(() => engagement.map((item) => ({
     date: item.date, interacoes: item.interactions, posts: item.posts, likes: item.likes, comments: item.comments, saves: item.saves, shares: item.shares,
   })), [engagement])
-  const periodNetGrowth = growth.length > 1 ? growth[growth.length - 1].followers - growth[0].followers : null
+  const followerPoints = growth.filter((item): item is FollowerSnapshot & { followers: number } => typeof item.followers === 'number')
+  const periodNetGrowth = followerPoints.length > 1 ? followerPoints[followerPoints.length - 1].followers - followerPoints[0].followers : null
   const followerLatestDate = growth.length ? growth[growth.length - 1].date : null
   const currentAccount = accounts.find((account) => account.id === accountId)
   const profileWindow = instagramProfileWindow(profileReport, Number(period))
@@ -325,7 +330,7 @@ export function InstagramAnalytics() {
         <div className="grid gap-3 sm:grid-cols-2"><MetricCard label="Interações nos posts selecionados" value={dashboard?.interactions} detail={`Posts publicados nos últimos ${period} dias · contadores acumulados até a coleta${dashboard?.interactionsPartial ? " · soma parcial" : ""}`}/><MetricCard label="Taxa média por publicação" value={formatPercent(dashboard?.engagementRate)} detail="Média das taxas disponíveis dos posts selecionados. Não é a taxa do perfil acima."/></div>
         <ReportChart key={`reach-${accountId}-${period}`} title="Alcance diário" description={`${profileWindow.label} · contas únicas estimadas por dia, consultadas no Instagram. Semanal e mensal mostram o último dia disponível; o total único do período está no card de alcance.`} rows={(profileReport?.dailyReach || []).map(point => ({ date: point.date, reach: point.value }))} series={[{ key: "reach", label: "Contas alcançadas por dia", color: "#4f46e5", aggregation: "last" }]} filename="instagram-alcance-diario"/>
         <div className="grid gap-5 xl:grid-cols-2">
-          <ReportChart key={`profile-${accountId}-${period}`} title="Histórico de coletas do perfil" description="Valores recentes registrados em cada sincronização, não os totais do período. Semanal e mensal mostram a última observação disponível." rows={profileHistory} series={[{ key: "alcance", label: "Alcance recente", color: "#4f46e5", aggregation: "last" }, { key: "visualizacoes", label: "Visualizações recentes", color: "#0284c7", aggregation: "last" }]} filename="instagram-perfil"/>
+          <ReportChart key={`profile-${accountId}-${period}`} title="Perfil dia a dia" description="Valores de cada dia informados pelo Instagram (a Meta disponibiliza os últimos 30 dias; o InstaCommand guarda cada dia a partir daí). Semanal e mensal mostram o último dia disponível." rows={profileHistory} series={[{ key: "alcance", label: "Alcance", color: "#4f46e5", aggregation: "last" }, { key: "visualizacoes", label: "Visualizações", color: "#0284c7", aggregation: "last" }, { key: "engajadas", label: "Contas engajadas", color: "#0d9488", aggregation: "last" }, { key: "interacoes", label: "Interações", color: "#d97706", aggregation: "last" }]} defaultKeys={["alcance", "visualizacoes"]} filename="instagram-perfil-diario"/>
           <ReportChart key={`interactions-${accountId}-${period}`} title="Interações por data de publicação" description="Contadores dos posts publicados em cada data, acumulados até a coleta. A soma pode ser parcial." rows={engagementData} series={[{ key: "interacoes", label: "Interações", color: "#4f46e5" }, { key: "likes", label: "Curtidas", color: "#e11d48" }, { key: "comments", label: "Comentários", color: "#0284c7" }, { key: "saves", label: "Salvos", color: "#d97706" }, { key: "shares", label: "Compartilhamentos", color: "#0d9488" }]} defaultKeys={["interacoes"]} kind="bar" filename="instagram-interacoes"/>
         </div>
         <Card className="p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-2"><ChartHeading title="Formatos publicados" subtitle="Totais acumulados por formato; o alcance pode incluir as mesmas pessoas em posts diferentes."/><Badge variant="secondary">{formatNumber(contentTypes.reduce((sum, item) => sum + item.posts, 0))} posts</Badge></div>{contentTypes.length ? <ResponsiveContainer width="100%" height={290}><BarChart accessibilityLayer data={contentTypes} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false}/><XAxis dataKey="type" tickFormatter={formatType}/><YAxis/><Tooltip labelFormatter={value => formatType(String(value))} formatter={(value: number, name: string) => [formatNumber(value), name]}/><Legend/><Bar dataKey="interactions" name="Interações" isAnimationActive={false} fill="#4f46e5" radius={[5, 5, 0, 0]}/><Bar dataKey="views" name="Visualizações" isAnimationActive={false} fill="#0ea5e9" radius={[5, 5, 0, 0]}/></BarChart></ResponsiveContainer> : <Empty text="Sem dados suficientes para comparar os formatos." />}</Card>
@@ -335,9 +340,9 @@ export function InstagramAnalytics() {
       <TabsContent value="seguidores" className="space-y-5">
         {profileNotice}
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">{instagramFollowerCards(profileReport).map(card => <MetricCard key={card.label} {...card} detail={`${profileWindow.label} · informado pelo Instagram`} accent/>)}</div>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3"><Stat label="Seguidores no início" value={formatNumber(growth[0]?.followers)} detail={growth[0] ? formatDate(growth[0].date) : "Sem coleta no início"} icon={Users}/><Stat label="Seguidores atuais" value={formatNumber(growth.at(-1)?.followers ?? dashboard?.followers)} detail={growth.at(-1) ? formatDate(growth.at(-1)!.date) : "Total mais recente"} icon={Users}/><Stat label="Variação líquida" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail="Diferença entre as coletas observadas" icon={TrendingUp}/></div>
-        <ReportChart key={`followers-${accountId}-${period}`} title="Evolução de seguidores" description="Última observação de cada dia, semana ou mês. Datas sem coleta permanecem sem valor." rows={followerChart} series={[{ key: "followers", label: "Seguidores", color: "#4f46e5", aggregation: "last" }]} filename="instagram-seguidores"/>
-        <ReportChart key={`growth-${accountId}-${period}`} title="Variação líquida entre coletas" description="Diferença no total de seguidores entre observações; não separa novos seguidores de pessoas que deixaram de seguir." rows={followerChart} series={[{ key: "netChange", label: "Variação líquida", color: "#0d9488" }]} kind="bar" filename="instagram-crescimento"/>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3"><Stat label="Seguidores no início" value={formatNumber(followerPoints[0]?.followers)} detail={followerPoints[0] ? `${formatDate(followerPoints[0].date)}${followerPoints[0].followersEstimated ? " · estimado" : ""}` : "Sem dado no início"} icon={Users}/><Stat label="Seguidores atuais" value={formatNumber(followerPoints.at(-1)?.followers ?? dashboard?.followers)} detail={followerPoints.at(-1) ? formatDate(followerPoints.at(-1)!.date) : "Total mais recente"} icon={Users}/><Stat label="Variação líquida" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail="Entre o primeiro e o último dia com total disponível" icon={TrendingUp}/></div>
+        <ReportChart key={`followers-${accountId}-${period}`} title="Evolução de seguidores" description={`Total ao fim de cada dia, semana ou mês.${estimatedFollowerDays ? ` ${estimatedFollowerDays} dia(s) anteriores às coletas do InstaCommand foram calculados a partir dos ganhos e perdas diários informados pela Meta (disponíveis para os últimos 30 dias e contas com 100+ seguidores).` : ""} Datas sem dado permanecem sem valor.`} rows={followerChart} series={[{ key: "followers", label: "Seguidores", color: "#4f46e5", aggregation: "last" }]} filename="instagram-seguidores" fitToData/>
+        <ReportChart key={`growth-${accountId}-${period}`} title="Ganhos e perdas por dia" description="Contas que passaram a seguir e que deixaram de seguir em cada dia, segundo a Meta (não disponível para contas com menos de 100 seguidores)." rows={followerChart} series={[{ key: "novos", label: "Novos seguidores", color: "#0d9488" }, { key: "saidas", label: "Deixaram de seguir", color: "#e11d48" }, { key: "saldo", label: "Saldo do dia", color: "#4f46e5" }]} defaultKeys={["novos", "saidas"]} kind="bar" filename="instagram-ganhos-e-perdas"/>
       </TabsContent>
 
       <TabsContent value="demografia" className="space-y-5">
