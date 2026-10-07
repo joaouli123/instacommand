@@ -33,7 +33,8 @@ after(async () => { await new Promise(resolve => server.close(resolve)); });
 test('Threads route reaches its service before Instagram ownership middleware', async () => {
   const response = await fetch(`${baseUrl}threads-account?days=7`, { headers: { 'X-Test-User': 'owner' } });
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { network: 'THREADS', account: { id: 'threads-account' }, period: { days: 7 } });
+  // The same-length window right before comes along for the comparison badges.
+  assert.deepEqual(await response.json(), { network: 'THREADS', account: { id: 'threads-account' }, period: { days: 7 }, previous: { period: { days: 7 }, posts: null } });
   assert.deepEqual(calls.at(-1), { userId: 'owner', accountId: 'threads-account', days: 7 });
   assert.equal(instagramReads, 0);
 });

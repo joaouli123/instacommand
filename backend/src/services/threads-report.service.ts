@@ -57,13 +57,13 @@ async function request(path: string, token: string, params: Record<string, strin
   return data;
 }
 
-export async function getThreadsReport(userId: string, accountId: string, days: number) {
+export async function getThreadsReport(userId: string, accountId: string, days: number, endAt = Date.now()) {
   const account = await prisma.threadsAccount.findFirst({
     where: { id: accountId, userId, isActive: true },
     select: { id: true, threadsUserId: true, username: true, name: true, tokenExpiresAt: true },
   });
   if (!account) return null;
-  const until = Math.floor(Date.now() / 1000);
+  const until = Math.floor(endAt / 1000);
   const since = until - days * 86400;
   const token = await getDecryptedThreadsToken(account.id);
   const issues: Array<{ section: string; reason: string; status?: number; code?: number; subcode?: number; message?: string }> = [];

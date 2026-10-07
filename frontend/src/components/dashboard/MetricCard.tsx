@@ -1,4 +1,5 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { Switch } from '@/components/ui/switch'
 import { Card } from '@/components/ui/card'
 import { reportFormat } from '@/lib/report-chart'
 import { periodChange } from '@/lib/instagram-report'
@@ -12,6 +13,33 @@ export type MetricCompare = {
 
 /** Lets a report turn every "vs. período anterior" badge on or off at once. */
 export const CompareContext = createContext(true)
+
+const STORAGE_KEY = 'instacommand_compare_previous'
+const EVENT = 'instacommand-compare-changed'
+
+/** One preference for every report tab, remembered per browser (storage may be blocked). */
+export function useComparePreference(): [boolean, (value: boolean) => void] {
+  const [value, setValue] = useState(true)
+  useEffect(() => {
+    const read = () => { try { setValue(window.localStorage.getItem(STORAGE_KEY) !== '0') } catch { /* ignore */ } }
+    read()
+    window.addEventListener(EVENT, read)
+    return () => window.removeEventListener(EVENT, read)
+  }, [])
+  const update = (next: boolean) => {
+    setValue(next)
+    try { window.localStorage.setItem(STORAGE_KEY, next ? '1' : '0') } catch { /* ignore */ }
+    window.dispatchEvent(new Event(EVENT))
+  }
+  return [value, update]
+}
+
+export function CompareToggle({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) {
+  return <label className="flex w-fit cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-xs">
+    <Switch checked={value} onCheckedChange={onChange} aria-label="Comparar com o período anterior" />
+    Comparar com o período anterior
+  </label>
+}
 
 export function MetricCard({ label, value, detail, accent = false, compare }: { label: string; value: number | string | null | undefined; detail?: string; accent?: boolean; compare?: MetricCompare }) {
   const missing = value == null || value === '—'

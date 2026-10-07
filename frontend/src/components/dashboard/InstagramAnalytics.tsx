@@ -9,8 +9,7 @@ import {
   AlertCircle, Bookmark, Heart,
   MessageCircle, RefreshCw, Share2, TrendingUp, Users,
 } from "lucide-react"
-import { CompareContext, MetricCard } from "./MetricCard"
-import { Switch } from "@/components/ui/switch"
+import { CompareContext, CompareToggle, MetricCard, useComparePreference } from "./MetricCard"
 import { ReportChart } from "./ReportChart"
 import { FormatPerformance, Recommendations } from "./FormatPerformance"
 import { ReportAccessNotice } from "./ReportAccessNotice"
@@ -82,10 +81,7 @@ export function InstagramAnalytics() {
   const [accountId, setAccountId] = useState("")
   const [period, setPeriod] = useState("30")
   const [section, setSection] = useState("visao")
-  // Remembered per browser; storage can be blocked, so never rely on it.
-  const [comparing, setComparing] = useState(true)
-  useEffect(() => { try { if (window.localStorage.getItem("instacommand_compare_previous") === "0") setComparing(false) } catch { /* ignore */ } }, [])
-  const toggleComparing = (value: boolean) => { setComparing(value); try { window.localStorage.setItem("instacommand_compare_previous", value ? "1" : "0") } catch { /* ignore */ } }
+  const [comparing, toggleComparing] = useComparePreference()
   const [audienceType, setAudienceType] = useState<"followers" | "engaged">("followers")
   const [postsPage, setPostsPage] = useState(1)
   const [postsTotal, setPostsTotal] = useState(0)
@@ -322,10 +318,7 @@ export function InstagramAnalytics() {
 
       <TabsContent value="visao" className="space-y-5">
         <CompareContext.Provider value={comparing}>
-        <label className="flex w-fit cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-xs">
-          <Switch checked={comparing} onCheckedChange={toggleComparing} aria-label="Comparar com o período anterior" />
-          Comparar com o período anterior
-        </label>
+        <CompareToggle value={comparing} onChange={toggleComparing} />
         {profileNotice}
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
           <MetricCard label="Seguidores atuais" value={formatNumber(dashboard?.followers)} detail={followerLatestDate ? `Coleta de ${formatDate(followerLatestDate)}` : "Total retornado pela Meta"} compare={{ current: dashboard?.followers, previous: dashboard?.followers != null && followerNet != null ? dashboard.followers - followerNet : null }}/>

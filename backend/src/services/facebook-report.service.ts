@@ -40,7 +40,7 @@ async function pageHistory(pageId: string, token: string, since: string, until: 
   ])) as Record<typeof historyMetrics[keyof typeof historyMetrics], DailyPoint[]>;
 }
 
-export async function getFacebookReport(userId: string, accountId: string, days: number) {
+export async function getFacebookReport(userId: string, accountId: string, days: number, endAt = Date.now()) {
   analyticsDays(days);
   const account = await prisma.instagramAccount.findFirst({
     where: { id: accountId, userId, isActive: true },
@@ -49,7 +49,7 @@ export async function getFacebookReport(userId: string, accountId: string, days:
   if (!account) return null;
   const token = await getDecryptedToken(account.id);
   const page = await verifyFacebookPageLink(account.pageId, account.igUserId, token);
-  const until = Math.floor(Date.now() / 1000);
+  const until = Math.floor(endAt / 1000);
   const since = until - days * 86400;
   // Meta accepts at most 90 days in an Insights request. Keep the publication
   // range intact and disclose the separate profile window instead of silently

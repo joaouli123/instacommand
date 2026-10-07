@@ -27,9 +27,14 @@ router.get('/networks/threads/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);
   if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
   try {
-    const report = await getThreadsReport(req.user.id, req.params.accountId, days);
+    const now = Date.now();
+    // The window of the same length right before, for "vs. período anterior"; never blocks the current report.
+    const [report, previous] = await Promise.all([
+      getThreadsReport(req.user.id, req.params.accountId, days, now),
+      getThreadsReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null),
+    ]);
     if (!report) return res.status(404).json({ error: 'Conta do Threads não encontrada.' });
-    return res.json(report);
+    return res.json({ ...report, previous: previous ? { period: previous.period, metrics: previous.metrics, posts: previous.contentAvailable ? previous.posts.length : null } : null });
   } catch (error) { next(error); }
 });
 
@@ -37,9 +42,13 @@ router.get('/networks/facebook/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);
   if (![7, 30, 90, 365, 730].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
   try {
-    const report = await getFacebookReport(req.user.id, req.params.accountId, days);
+    const now = Date.now();
+    const [report, previous] = await Promise.all([
+      getFacebookReport(req.user.id, req.params.accountId, days, now),
+      getFacebookReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null),
+    ]);
     if (!report) return res.status(404).json({ error: 'Conta não encontrada.' });
-    return res.json(report);
+    return res.json({ ...report, previous: previous ? { period: previous.period, mediaViews: previous.insights.mediaViews, totals: previous.totals, posts: previous.contentAvailable ? previous.posts.length : null } : null });
   } catch (error) { next(error); }
 });
 

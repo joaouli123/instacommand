@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { AlertCircle, Download, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { MetricCard } from './MetricCard'
+import { CompareContext, CompareToggle, MetricCard, useComparePreference } from './MetricCard'
 import { ReportChart } from './ReportChart'
 import { ReportPublications } from './ReportPublications'
 import { ChartRow, downloadReport, reportDay } from '@/lib/report-chart'
@@ -36,6 +36,8 @@ export function ThreadsReport() {
     staleTime: 60_000, retry: false,
   })
   const report = reportQuery.data
+  const [comparing, setComparing] = useComparePreference()
+  const previousMetrics = (report as { previous?: { metrics: Record<string, Metric> } | null } | undefined)?.previous?.metrics
   const daily = useMemo(() => {
     const rows = new Map<string, ChartRow>()
     for (const key of Object.keys(labels).filter(k => k !== 'followers_count')) {
@@ -94,7 +96,10 @@ export function ThreadsReport() {
     {report && <>
       <p className="text-xs text-slate-500">@{report.account.username} · Consulta em {new Date(report.collectedAt).toLocaleString('pt-BR')} · Métricas do período selecionado; seguidores representam o total atual.</p>
       {report.issues.length > 0 && <Card className="border-amber-200 bg-amber-50 p-5"><div className="flex gap-3"><AlertCircle className="shrink-0 text-amber-700" size={20}/><div><h3 className="font-semibold">Alguns dados ainda não estão disponíveis</h3><p className="mt-1 text-sm text-slate-700">{reasons.has('expired') ? 'A autorização expirou. Reconecte sua conta.' : reasons.has('permission') ? 'A conexão não tem acesso às métricas solicitadas. Reconecte e autorize Insights. O aplicativo também precisa dessa permissão habilitada na Meta.' : reasons.has('rate_limit') ? 'O Threads limitou temporariamente as consultas. Aguarde antes de atualizar.' : metaInternalError ? 'Sua conta está conectada e as publicações foram carregadas, mas a Meta retornou um erro interno ao consultar os insights. Isso não significa que o perfil foi desconectado. Evite reconectar repetidamente; verifique a permissão de insights e tente novamente mais tarde.' : 'O Threads não respondeu a parte das consultas. Seus dados não foram substituídos por zeros.'}</p><details className="mt-3 text-xs text-slate-600"><summary className="cursor-pointer font-medium">Detalhes técnicos da consulta</summary><p className="mt-2">{report.issues.map(issue => `${issue.section} (HTTP ${issue.status ?? '—'}${issue.code !== undefined ? `, código ${issue.code}` : ''}${issue.subcode !== undefined ? `, subcódigo ${issue.subcode}` : ''})`).join(' · ')}</p>{report.issues.filter(issue => issue.message).map(issue => <p key={issue.section} className="mt-1 break-words">{issue.section}: {issue.message}</p>)}</details>{requiresReconnect && <Button className="mt-3" onClick={connect} disabled={connecting}>Reconectar e autorizar métricas</Button>}</div></div></Card>}
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-3">{Object.entries(labels).map(([key, label]) => <MetricCard key={key} label={label} value={report.metrics[key]?.available ? report.metrics[key].value : null} detail={key === 'followers_count' ? 'Total atual do perfil' : 'No período selecionado'} accent={key === 'views'}/>)}</div>
+      <CompareToggle value={comparing} onChange={setComparing} />
+      <CompareContext.Provider value={comparing}>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-3">{Object.entries(labels).map(([key, label]) => { const previousMetric = previousMetrics?.[key]; return <MetricCard key={key} label={label} value={report.metrics[key]?.available ? report.metrics[key].value : null} detail={key === 'followers_count' ? 'Total atual do perfil' : 'No período selecionado'} accent={key === 'views'} compare={key === 'followers_count' ? undefined : { current: report.metrics[key]?.available ? report.metrics[key].value : null, previous: previousMetric?.available ? previousMetric.value : null }}/> })}</div>
+      </CompareContext.Provider>
       <ReportChart key={`metrics-${accountId}-${days}`} title="Evolução do desempenho" description="Contadores diários retornados pelo Threads. Se a rede fornecer apenas um total, ele não será distribuído artificialmente entre os dias." rows={daily} series={Object.entries(labels).filter(([key]) => key !== 'followers_count').map(([key, label], index) => ({ key, label, color: ['#4f46e5', '#e11d48', '#0284c7', '#0d9488', '#a855f7'][index] }))} defaultKeys={['views']} filename="threads-desempenho"/>
       <ReportChart key={`posts-${accountId}-${days}`} title="Atividade de publicação" description="Quantidade de publicações recuperadas em cada data. Não representa o total de interações dos posts." rows={publicationDays} series={[{ key: 'posts', label: 'Publicações', color: '#4f46e5' }]} kind="bar" filename="threads-publicacoes"/>
       <ReportPublications key={`${accountId}-${days}`} network="Threads" available={report.contentAvailable} complete={!report.truncated} posts={report.posts.map(p => ({ id: p.id, text: p.text, date: p.timestamp, url: p.permalink, type: p.mediaType }))}/>

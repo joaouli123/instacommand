@@ -1,3 +1,7 @@
+"use client"
+
+import { useState } from "react"
+import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Clock3, Database, Film, GalleryHorizontal as Images, Image as ImageIcon, Lightbulb, Sparkles, Trophy, Type } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -17,49 +21,60 @@ const format = (type: string) => FORMATS[type] || { label: type, Icon: ImageIcon
 const number = (value: number | null) => value == null ? "—" : Math.round(value).toLocaleString("pt-BR")
 const perPost = (total: number | null | undefined, posts: number) => total == null || !posts ? null : total / posts
 
+type MetricKey = "avgInteractions" | "avgViews" | "rate"
+const METRICS: Array<{ key: MetricKey; label: string; hint: string }> = [
+  { key: "avgInteractions", label: "Interações por post", hint: "Média de curtidas, comentários, salvos e compartilhamentos em cada publicação." },
+  { key: "avgViews", label: "Visualizações por post", hint: "Média de visualizações em cada publicação." },
+  { key: "rate", label: "Engajamento", hint: "Interações ÷ visualizações, em %." },
+]
+
 /**
- * Formats compared by averages per post: totals favour whichever format was
- * posted more, and a single shared axis hides interactions behind views.
+ * Horizontal bars, one metric at a time: the right chart to rank categories,
+ * with an axis that always fits the chosen metric. Averages per post keep the
+ * comparison fair between formats posted more or fewer times.
  */
 export function FormatPerformance({ rows }: { rows: FormatRow[] }) {
+  const [metric, setMetric] = useState<MetricKey>("avgInteractions")
   const data = rows.filter((row) => row.posts > 0).map((row) => {
     const views = perPost(row.views ?? null, row.posts)
     const interactions = perPost(row.interactions ?? null, row.posts)
-    return { ...row, avgViews: views, avgInteractions: interactions, rate: views && interactions != null ? interactions / views * 100 : null }
-  }).sort((a, b) => (b.avgInteractions ?? -1) - (a.avgInteractions ?? -1))
-  const maxViews = Math.max(1, ...data.map((row) => row.avgViews ?? 0))
-  const maxInteractions = Math.max(1, ...data.map((row) => row.avgInteractions ?? 0))
-  const total = data.reduce((sum, row) => sum + row.posts, 0)
+    const { label, color } = format(row.type)
+    return { type: row.type, label, color, posts: row.posts, avgViews: views, avgInteractions: interactions, rate: views && interactions != null ? interactions / views * 100 : null }
+  }).filter((row) => row[metric] != null).sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0))
+  const total = rows.reduce((sum, row) => sum + row.posts, 0)
+  const current = METRICS.find((item) => item.key === metric)!
+  const show = (value: number) => metric === "rate" ? `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : number(value)
 
   return <Card className="p-5">
-    <div className="mb-5 flex flex-wrap items-start justify-between gap-2">
-      <div><h3 className="section-title">Desempenho por formato</h3><p className="section-subtitle">Média por publicação, para comparar formatos de forma justa.</p></div>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div><h3 className="section-title">Desempenho por formato</h3><p className="section-subtitle">{current.hint}</p></div>
       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{total} posts</span>
     </div>
-    {!data.length ? <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">Sem dados suficientes para comparar os formatos.</p>
-      : <div className="space-y-3">{data.map((row, index) => {
-        const { label, Icon, color, tint } = format(row.type)
-        return <div key={row.type} className={cn("rounded-xl border p-3.5 sm:p-4", index === 0 && data.length > 1 ? "border-amber-200 bg-amber-50/40" : "border-slate-200")}>
-          <div className="flex items-center gap-3">
-            <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", tint)}><Icon size={17} /></span>
-            <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">{label}{index === 0 && data.length > 1 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800"><Trophy size={11} />Melhor formato</span>}</p><p className="text-xs text-slate-500">{row.posts} {row.posts === 1 ? "publicação" : "publicações"}</p></div>
-            <div className="text-right"><p className="text-base font-bold tabular-nums text-slate-900">{row.rate == null ? "—" : `${row.rate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</p><p className="text-[11px] text-slate-500">engajamento</p></div>
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <Meter label="Visualizações por post" value={row.avgViews} max={maxViews} color={color} />
-            <Meter label="Interações por post" value={row.avgInteractions} max={maxInteractions} color={color} />
-          </div>
-        </div>
-      })}</div>}
+    <div className="mt-4 inline-flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1" role="group" aria-label="Métrica do gráfico">
+      {METRICS.map((item) => <button key={item.key} type="button" aria-pressed={metric === item.key} onClick={() => setMetric(item.key)} className={cn("report-toggle", metric === item.key && "bg-white text-indigo-700 shadow-sm")}>{item.label}</button>)}
+    </div>
+    {!data.length ? <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">Sem dados suficientes para comparar os formatos.</p>
+      : <div className="mt-4 w-full" style={{ height: Math.max(140, data.length * 56 + 24) }} role="img" aria-label={`${current.label} por formato: ${data.map((row) => `${row.label} ${show(row[metric] ?? 0)}`).join(", ")}`}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} layout="vertical" margin={{ top: 0, right: 56, left: 0, bottom: 0 }} barCategoryGap={14}>
+            <XAxis type="number" hide domain={[0, "dataMax"]} />
+            <YAxis type="category" dataKey="label" width={92} tickLine={false} axisLine={false} tick={{ fontSize: 13, fill: "#334155", fontWeight: 600 }} />
+            <Tooltip cursor={{ fill: "#f8fafc" }} content={({ active, payload }) => {
+              const row = active && payload?.[0]?.payload as (typeof data)[number] | undefined
+              if (!row) return null
+              return <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg"><p className="font-semibold text-slate-900">{row.label}</p><p className="mt-1 text-slate-500">{current.label}: <b className="text-slate-900">{show(row[metric] ?? 0)}</b></p><p className="text-slate-500">{row.posts} {row.posts === 1 ? "publicação" : "publicações"}</p></div>
+            }} />
+            <Bar dataKey={metric} radius={[0, 8, 8, 0]} maxBarSize={30} animationDuration={500}>
+              {data.map((row) => <Cell key={row.type} fill={row.color} />)}
+              <LabelList dataKey={metric} position="right" formatter={(value: number) => show(value)} style={{ fontSize: 12, fontWeight: 700, fill: "#0f172a" }} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>}
+    {data.length > 1 && <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500"><Trophy size={13} className="text-amber-500" /><b className="text-slate-700">{data[0].label}</b> lidera em {current.label.toLowerCase()}.</p>}
   </Card>
 }
 
-function Meter({ label, value, max, color }: { label: string; value: number | null; max: number; color: string }) {
-  return <div>
-    <div className="flex items-baseline justify-between text-xs"><span className="text-slate-500">{label}</span><span className="font-bold tabular-nums text-slate-900">{number(value)}</span></div>
-    <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full transition-all" style={{ width: `${value == null ? 0 : Math.max(3, value / max * 100)}%`, background: color }} /></div>
-  </div>
-}
 
 type Recommendation = { type: string; message: string; basedOn?: number; title?: string; highlight?: string }
 const KINDS: Record<string, { label: string; Icon: typeof Lightbulb; tint: string }> = {
