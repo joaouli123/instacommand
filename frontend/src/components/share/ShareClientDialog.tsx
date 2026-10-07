@@ -42,19 +42,39 @@ async function copyText(text: string) {
   }
 }
 
-/** Header button + dialog to create, copy and revoke client links. */
+/** One click: copies this account's client link, creating it the first time. */
 export function ShareClientButton({ accountId, accountLabel }: { accountId?: string; accountLabel?: string }) {
-  const [open, setOpen] = useState(false)
-  return <>
-    <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg text-xs font-semibold" onClick={() => setOpen(true)}>
-      <Share2 size={14} />Compartilhar com cliente
-    </Button>
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-xl" aria-label="Compartilhar com cliente">
-        {open && <ShareClientPanel accountId={accountId} accountLabel={accountLabel} />}
-      </DialogContent>
-    </Dialog>
-  </>
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const storageKey = `share-link:${accountId || "all"}`
+  const share = async () => {
+    setBusy(true)
+    try {
+      let url = 
+      try { url = localStorage.getItem(storageKey) || "" } catch {}
+      // The server keeps only a hash, so the full URL is remembered here; reuse it while that link is still active.
+      if (url) {
+        const links = await api.getShareLinks() as ShareLink[]
+        if (!links.some((link) => link.active && url.includes(link.tokenPrefix))) url = ""
+      }
+      if (!url) {
+        const created = await api.createShareLink({ name: accountLabel || "Cliente", includeDrafts: false, expiresInDays: null, accountIds: accountId ? [accountId] : [] }) as ShareLink
+        url = created.url || ""
+        try { localStorage.setItem(storageKey, url) } catch {}
+      }
+      await navigator.clipboard.writeText(url)
+      toast.success("Link do cliente copiado. É só enviar!")
+      setDone(true)
+      window.setTimeout(() => setDone(false), 2500)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível copiar o link.")
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <Button variant="outline" size="sm" disabled={busy} className="h-9 gap-1.5 rounded-lg text-xs font-semibold" onClick={() => void share()}>
+    {done ? <Check size={14} className="text-emerald-600" /> : <Share2 size={14} />}{done ? "Link copiado" : "Compartilhar com cliente"}
+  </Button>
 }
 
 function ShareClientPanel({ accountId, accountLabel }: { accountId?: string; accountLabel?: string }) {

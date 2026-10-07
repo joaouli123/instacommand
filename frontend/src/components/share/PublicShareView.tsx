@@ -115,7 +115,7 @@ export function PublicShareView({ token }: { token: string }) {
   return <div className="min-h-dvh bg-[#f6f7fb] pb-[calc(2rem+env(safe-area-inset-bottom))]">
     <header className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white">
       <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pb-16 pt-6 sm:px-6 sm:pt-10">
+      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pb-8 pt-6 sm:px-6 sm:pt-10">
         <div className="flex items-center gap-3">
           <div className="flex -space-x-3">
             {(data.accounts.length ? data.accounts.slice(0, 3) : [null]).map((account, index) => <span key={account?.key || index} className="h-12 w-12 overflow-hidden rounded-full bg-white/20 ring-2 ring-white/80 sm:h-14 sm:w-14">
@@ -135,7 +135,7 @@ export function PublicShareView({ token }: { token: string }) {
       </div>
     </header>
 
-    <main className="mx-auto -mt-10 max-w-5xl space-y-4 px-4 sm:px-6">
+    <main className="mx-auto mt-5 max-w-5xl space-y-4 px-4 sm:px-6">
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {(["SCHEDULED", "PUBLISHED", "DRAFT"] as const).filter((status) => status !== "DRAFT" || data.link.includeDrafts).map((status) => {
           const meta = STATUS[status]
@@ -425,7 +425,7 @@ function CommentForm({ token, postId, pending, clearPending, onComment, hasMedia
   return <form onSubmit={submit} className="border-t border-slate-100 bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4">
     {pending && <p className="mb-2 flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2 py-1.5 text-xs font-medium text-indigo-700"><MapPin size={12} />Marcador na mídia {pending.mediaIndex + 1}<button type="button" onClick={clearPending} className="ml-auto flex h-5 w-5 items-center justify-center rounded hover:bg-indigo-100" aria-label="Remover marcador"><CloseIcon size={12} /></button></p>}
     <div className="flex gap-2">
-      <input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} placeholder="Seu nome" autoComplete="name" className="h-9 w-32 shrink-0 rounded-lg border border-slate-200 px-2 text-sm focus:border-indigo-500 focus:outline-none sm:w-40" aria-label="Seu nome" />
+      {(body.trim() || name) && <input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} placeholder="Seu nome" autoComplete="name" className="h-9 w-32 shrink-0 rounded-lg border border-slate-200 px-2 text-sm focus:border-indigo-500 focus:outline-none sm:w-40" aria-label="Seu nome" />}
       {hasMedia && !pending && <button type="button" onClick={startPin} className="ml-auto inline-flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"><MapPin size={13} />Marcar ponto</button>}
     </div>
     <div className="mt-2 flex items-end gap-2">
@@ -452,7 +452,7 @@ function EmptyState() {
 function LoadingSkeleton() {
   return <div className="min-h-dvh bg-[#f6f7fb]" role="status" aria-label="Carregando">
     <div className="h-56 animate-pulse bg-gradient-to-br from-indigo-500 to-fuchsia-500 opacity-80" />
-    <div className="mx-auto -mt-10 max-w-5xl space-y-3 px-4">
+    <div className="mx-auto mt-5 max-w-5xl space-y-3 px-4">
       <div className="grid grid-cols-3 gap-2">{[0, 1, 2].map((index) => <div key={index} className="h-20 animate-pulse rounded-2xl bg-white" />)}</div>
       {[0, 1, 2].map((index) => <div key={index} className="h-28 animate-pulse rounded-2xl bg-white" />)}
     </div>
