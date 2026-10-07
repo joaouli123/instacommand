@@ -1,4 +1,7 @@
 import type { jsPDF as JsPDF } from "jspdf"
+import { createElement, type ComponentType } from "react"
+import { renderToStaticMarkup } from "react-dom/server"
+import { SiFacebook, SiInstagram, SiThreads, SiX } from "@icons-pack/react-simple-icons"
 import { fetchApi } from "@/lib/api"
 
 export type PdfChange = { direction: "up" | "down" | "flat"; percent: number | null }
@@ -14,6 +17,32 @@ const W = 210, H = 297, M = 14, CW = W - M * 2
 const INK: [number, number, number] = [15, 23, 42], MUTED: [number, number, number] = [100, 116, 139], LINE: [number, number, number] = [226, 232, 240]
 const hex = (value: string): [number, number, number] => { const v = value.replace("#", ""); return [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)] }
 const META_CDN = /(^|\.)(cdninstagram\.com|fbcdn\.net)$/i
+
+// The built-in PDF font only has Latin characters: emoji and other symbols
+// would print as garbage ("Ø=Þá"), so they are removed from every text.
+const EXTRA_CHARS = new Set(["–", "—", "‘", "’", "“", "”", "•", "…", "€", "™"])
+export const pdfSafe = (value: string) => Array.from(value || "")
+  .filter((char) => { const code = char.codePointAt(0)!; return (code >= 0x20 && code <= 0x7e) || (code >= 0xa0 && code <= 0xff) || char === "\n" || EXTRA_CHARS.has(char) })
+  .join("").replace(/[ \t]{2,}/g, " ").replace(/ +\n/g, "\n").trim()
+
+const NETWORK_ICONS: Record<string, ComponentType<{ size?: number | string; color?: string }>> = { Instagram: SiInstagram, Facebook: SiFacebook, Threads: SiThreads, X: SiX }
+
+/** White network logo as a PNG, rendered from the same icon set used on screen. */
+async function networkIcon(title: string): Promise<string | null> {
+  const Icon = NETWORK_ICONS[title]
+  if (!Icon) return null
+  try {
+    let svg = renderToStaticMarkup(createElement(Icon, { size: 96, color: "#ffffff" }))
+    if (!svg.includes("xmlns=")) svg = svg.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"')
+    const image = new Image()
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+    await image.decode()
+    const canvas = document.createElement("canvas")
+    canvas.width = canvas.height = 96
+    canvas.getContext("2d")!.drawImage(image, 0, 0, 96, 96)
+    return canvas.toDataURL("image/png")
+  } catch { return null }
+}
 
 /** Square JPEG thumbnail (center crop) as a data URL; Meta CDN images come through the API because they lack CORS. */
 export async function thumbnail(src?: string | null, size = 160): Promise<string | null> {
@@ -40,7 +69,7 @@ class Writer {
   ensure(height: number) { if (this.y + height > H - M - 8) { this.doc.addPage(); this.y = M } }
   text(value: string, x: number, y: number, size: number, color = INK, style: "normal" | "bold" = "normal", align: "left" | "center" | "right" = "left") {
     this.doc.setFont("helvetica", style); this.doc.setFontSize(size); this.doc.setTextColor(...color)
-    this.doc.text(value, x, y, { align, baseline: "alphabetic" })
+    this.doc.text(pdfSafe(value), x, y, { align, baseline: "alphabetic" })
   }
 }
 
@@ -87,7 +116,7 @@ function heading(w: Writer, title: string) {
 
 function paragraph(w: Writer, value: string) {
   w.doc.setFont("helvetica", "normal"); w.doc.setFontSize(9)
-  for (const line of value.split("\n").flatMap((text) => w.doc.splitTextToSize(text, CW) as string[])) {
+  for (const line of pdfSafe(value).split("\n").flatMap((text) => w.doc.splitTextToSize(text, CW) as string[])) {
     w.ensure(5)
     w.text(line, M, w.y + 3.5, 9, [51, 65, 85])
     w.y += 4.6
@@ -153,8 +182,8 @@ async function table(w: Writer, data: PdfTable) {
   autoTable(w.doc, {
     startY: w.y,
     margin: { left: M, right: M, bottom: M + 8 },
-    head: [data.head],
-    body: data.rows.map((row) => row.cells),
+    head: [data.head.map(pdfSafe)],
+    body: data.rows.map((row) => row.cells.map(pdfSafe)),
     theme: "plain",
     styles: { font: "helvetica", fontSize: 7.5, textColor: INK, cellPadding: { top: 2.2, bottom: 2.2, left: 2, right: 2 }, valign: "middle", overflow: "linebreak" },
     headStyles: { fontSize: 7, textColor: MUTED, fontStyle: "bold", fillColor: [248, 250, 252] },
@@ -197,12 +226,15 @@ export async function downloadReportPdf(report: PdfReport, filename: string) {
   for (const section of report.sections) {
     w.ensure(60)
     doc.setFillColor(...section.color); doc.rect(M, w.y, CW, 1.2, "F")
-    w.y += 7
-    doc.setFillColor(...section.color); doc.roundedRect(M, w.y - 4.5, 8, 8, 1.6, 1.6, "F")
-    w.text(section.title.slice(0, 1), M + 4, w.y + 1.2, 9, [255, 255, 255], "bold", "center")
-    w.text(section.title, M + 11, w.y, 13, INK, "bold")
-    w.text(section.subtitle, M + 11, w.y + 4.5, 8, MUTED)
-    w.y += 11
+    // Breathing room between the colour bar and the network name.
+    w.y += 6
+    doc.setFillColor(...section.color); doc.roundedRect(M, w.y, 11, 11, 2.4, 2.4, "F")
+    const icon = await networkIcon(section.title)
+    if (icon) doc.addImage(icon, "PNG", M + 2.25, w.y + 2.25, 6.5, 6.5)
+    else w.text(section.title.slice(0, 1), M + 5.5, w.y + 7.3, 10, [255, 255, 255], "bold", "center")
+    w.text(section.title, M + 14.5, w.y + 5, 13, INK, "bold")
+    w.text(section.subtitle, M + 14.5, w.y + 9.6, 8, MUTED)
+    w.y += 19
 
     if (section.analysis.trim()) { heading(w, "Análise do período"); paragraph(w, section.analysis) }
     if (section.kpis.length) kpiGrid(w, section.kpis)

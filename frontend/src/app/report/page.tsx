@@ -254,10 +254,14 @@ function InstagramSection({ data, loading, compare, username, days }: { data?: I
       { title: "Interações por post, por formato", items: formats.map((row) => ({ label: row.name, value: row.value, color: FORMAT_COLORS[row.type] || "#64748b" })) },
       { title: "Seguidores por idade", items: ages.map((row) => ({ label: row.label, value: row.value, color: "#6366f1" })) },
     ],
-    tables: [{ title: "Publicações em destaque", head: ["Publicação", "Formato", "Alcance", "Visualiz.", "Curtidas", "Coment.", "Salvos", "Interações"], textColumns: 2, rows: data.top.slice(0, 8).map((post) => ({
+    tables: [
+      { title: "Interações por post, por formato", head: ["Formato", "Posts", "Interações por post"], rows: formats.map((row) => ({ cells: [row.name, fmt((data.types || []).find((item) => item.type === row.type)?.posts ?? null), row.value.toLocaleString("pt-BR")] })) },
+      { title: "Seguidores por idade", head: ["Faixa etária", "Seguidores", "% do total"], rows: ages.map((row) => ({ cells: [row.label, fmt(row.value), `${(row.value / Math.max(1, ages.reduce((sum, item) => sum + item.value, 0)) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`] })) },
+      { title: "Publicações em destaque", head: ["Publicação", "Formato", "Alcance", "Visualiz.", "Curtidas", "Coment.", "Salvos", "Interações"], textColumns: 2, rows: data.top.slice(0, 8).map((post) => ({
       image: post.igMediaUrl || null,
       cells: [`${(post.caption?.split("\n")[0] || "Sem legenda").slice(0, 52)}\n${new Date(post.publishedAt).toLocaleDateString("pt-BR")}`, FORMAT_NAMES[post.mediaType] || post.mediaType, fmt(metric(post, "reach")), fmt(metric(post, "views")), fmt(metric(post, "likes")), fmt(metric(post, "comments")), fmt(metric(post, "saves")), fmt(metric(post, "interactions"))],
-    })) }],
+    })) },
+    ],
   } : null)
 
   return <Section icon={<SiInstagram size={18} color="white" />} color="linear-gradient(120deg, #F0407A, #D6246E)" title="Instagram" subtitle={`@${username} · últimos ${Math.min(days, 30)} dias no resumo do perfil`}>
