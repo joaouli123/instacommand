@@ -40,6 +40,7 @@ export function Header() {
     '/automations': { title: 'Automações', subtitle: 'Regras de comentários e mensagens, respostas prontas e agente de IA' },
     '/integrations': { title: 'MCP e CLI', subtitle: 'Conecte Claude, ChatGPT e outros agentes de IA ao seu workspace' },
     '/settings': { title: 'Configurações', subtitle: 'Preferências, conexões e automações' },
+    '/report': { title: 'Gerar relatório', subtitle: 'Relatório em PDF' },
     '/accounts': { title: 'Contas', subtitle: 'Gerencie seus perfis do Instagram, Facebook e Threads' }
   }
 

@@ -15,6 +15,7 @@ export type ActiveAccount = {
   isActive: boolean
   lastSyncAt?: string | null
   pageName?: string | null
+  pageId?: string | null
 }
 
 export function useActiveAccount() {

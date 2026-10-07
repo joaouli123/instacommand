@@ -106,3 +106,18 @@ select {
   [role="dialog"] textarea,
   [role="dialog"] select { font-size: 16px; }
 }
+
+
+/* Report export: the browser's "Save as PDF" prints only the report paper. */
+.print-only { display: none; }
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body { background: #fff !important; min-width: 0; }
+  aside, body > div > header, nav, .no-print, [data-sonner-toaster] { display: none !important; }
+  .app-main { padding: 0 !important; overflow: visible !important; }
+  .print-only { display: block; }
+  .report-paper { border: 0 !important; box-shadow: none !important; padding: 0 !important; max-width: none !important; }
+  .report-section { break-inside: auto; }
+  .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

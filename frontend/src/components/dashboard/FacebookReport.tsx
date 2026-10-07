@@ -24,6 +24,7 @@ const interactionSeries = [{ key: 'reactions', label: 'Reações', color: '#4f46
 
 export function FacebookReport() {
   const [selected, setSelected] = useState('')
+  const [comparing, setComparing] = useComparePreference()
   const [days, setDays] = useState(30)
   const accountsQuery = useQuery({ queryKey: ['facebook-linked-accounts'], queryFn: api.getAccounts })
   const accounts = ((accountsQuery.data || []) as Array<{ id: string; igUsername: string; pageId: string; pageName: string | null }>).filter(a => a.pageId)
@@ -53,7 +54,6 @@ export function FacebookReport() {
   if (accountsQuery.isError) return <Card className="p-6"><p role="alert">Não foi possível carregar as contas.</p><Button onClick={() => accountsQuery.refetch()}>Tentar novamente</Button></Card>
   if (!accountId) return <Card className="p-6"><h2 className="text-xl font-bold">Conecte uma Página do Facebook</h2><p className="my-3 text-sm text-slate-600">As métricas da Página ficam separadas do Instagram.</p><a className="font-semibold text-indigo-600 underline" href="/accounts">Gerenciar conexões</a></Card>
   const ranked = report ? rankFacebookPosts(report.posts).slice(0, 3) : []
-  const [comparing, setComparing] = useComparePreference()
   const previous = (report as { previous?: { mediaViews: number | null; posts: number | null; totals: Record<string, { value: number | null; complete: boolean; availablePosts: number }> } | null } | undefined)?.previous
   return <section className="min-w-0 space-y-4 sm:space-y-5" aria-label="Relatório do Facebook">
     <div className="report-header"><div><p className="report-eyebrow">Facebook</p><h2 className="report-title">Desempenho da Página</h2><p className="report-description">Acompanhe sua audiência e os conteúdos publicados.</p></div>
