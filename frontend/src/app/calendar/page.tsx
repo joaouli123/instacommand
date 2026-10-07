@@ -132,35 +132,24 @@ export default function CalendarPage() {
 
   return (
     <div className="flex h-full min-w-0 flex-col gap-4 animate-fade-in sm:gap-6">
-      {/* Calendar Header Controls */}
-      <div className="flex min-w-0 flex-col items-start justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs sm:flex-row sm:items-center sm:gap-4 sm:p-5">
-          <div className="flex min-w-0 w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
-          <div className="hidden rounded-xl border border-indigo-100 bg-indigo-50 p-2.5 text-indigo-600 sm:block">
-            <CalendarIcon size={20} />
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs sm:p-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1">
+            <Button aria-label="Mês anterior" variant="ghost" size="icon" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))} className="h-9 w-9 rounded-lg text-slate-600"><ChevronLeft size={18} /></Button>
+            <h2 className="min-w-[9.5rem] text-center text-base font-bold text-slate-900 sm:min-w-[11rem] sm:text-lg">{currentMonth}</h2>
+            <Button aria-label="Próximo mês" variant="ghost" size="icon" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))} className="h-9 w-9 rounded-lg text-slate-600"><ChevronRight size={18} /></Button>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h2 className="text-base font-bold text-slate-900 sm:text-xl">{currentMonth}</h2>
-            <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-slate-50">
-              <Button aria-label="Mês anterior" variant="ghost" size="icon" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))} className="h-10 w-10 rounded-md text-slate-600 hover:text-slate-900">
-                <ChevronLeft size={16} />
-              </Button>
-              <Button aria-label="Próximo mês" variant="ghost" size="icon" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))} className="h-10 w-10 rounded-md text-slate-600 hover:text-slate-900">
-                <ChevronRight size={16} />
-              </Button>
-            </div>
-            {activeAccount && <select value={accountId} onChange={(event) => { window.localStorage.setItem("instacommand_active_account", event.target.value); window.dispatchEvent(new Event("instacommand-account-changed")) }} className="h-9 max-w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 sm:w-auto" aria-label="Conta do calendário">{accounts.map((account) => <option key={account.id} value={account.id}>@{account.igUsername}</option>)}</select>}
+          <Button variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => setMonthDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Hoje</Button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Visualização do calendário"><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'month'} onClick={() => setView('month')}>Mês</button><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'list'} onClick={() => setView('list')}>Lista</button></div>
+            {activeAccount && accounts.length > 1 && <select value={accountId} onChange={(event) => { window.localStorage.setItem("instacommand_active_account", event.target.value); window.dispatchEvent(new Event("instacommand-account-changed")) }} className="hidden h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 sm:block" aria-label="Conta do calendário">{accounts.map((account) => <option key={account.id} value={account.id}>@{account.igUsername}</option>)}</select>}
+            <Button asChild size="sm" className="h-9 gap-1.5 rounded-lg bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"><Link href="/composer"><Plus size={14} />Agendar</Link></Button>
           </div>
         </div>
-
-        {/* Status Legend & Quick Action */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] font-semibold sm:gap-4 sm:text-xs" aria-label="Legenda: a cor do card é a rede social; o ícone é o status">
-          {(["published", "scheduled", "draft", "failed"] as const).map((status) => { const Icon = STATUS_ICON[status]; return <div key={status} className="flex items-center gap-1.5"><Icon size={13} className="text-slate-500" aria-hidden /><span className="text-slate-600">{STATUS_LABEL[status]}</span></div> })}
-          <span className="hidden items-center gap-1.5 font-medium text-slate-400 lg:inline-flex">· cor do card = rede<span className="inline-flex gap-0.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: platformBackground(["INSTAGRAM"]) }} /><span className="h-2.5 w-2.5 rounded-sm" style={{ background: platformBackground(["FACEBOOK"]) }} /><span className="h-2.5 w-2.5 rounded-sm" style={{ background: platformBackground(["THREADS"]) }} /></span></span>
-
-            <Button asChild size="sm" className="ml-auto h-10 gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"><Link href="/composer">
-              <Plus size={14} />
-              Agendar Post
-            </Link></Button>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 pt-3 text-[11px] font-medium text-slate-500" aria-label="Legenda">
+          {(["INSTAGRAM", "FACEBOOK", "THREADS"] as const).map((network) => <span key={network} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: platformBackground([network]) }} />{platformLabel(network)}</span>)}
+          <span className="hidden h-3 w-px bg-slate-200 sm:block" />
+          {(["scheduled", "published", "draft", "failed"] as const).map((status) => { const Icon = STATUS_ICON[status]; return <span key={status} className="inline-flex items-center gap-1"><Icon size={12} aria-hidden />{STATUS_LABEL[status]}</span> })}
         </div>
       </div>
 
@@ -188,7 +177,6 @@ export default function CalendarPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-wrap items-center justify-between gap-2"><div className="inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Visualização do calendário"><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'month'} onClick={() => setView('month')}>Mês</button><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'list'} onClick={() => setView('list')}>Lista</button></div><Button variant="outline" size="sm" onClick={() => setMonthDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Mês atual</Button></div>
       {error && <Card className="border-rose-200 p-4 text-sm text-rose-700"><p role="alert">{error}</p><Button className="mt-2" variant="outline" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</Button></Card>}
       {!accountsLoading && !accountId && <p className="text-sm text-slate-600">Conecte uma conta para acompanhar suas publicações.</p>}
       {view === 'list' && <Card className="divide-y divide-slate-100 overflow-hidden">{loading ? <p className="p-5 text-sm" role="status">Carregando publicações…</p> : !error && Object.keys(eventsByDay).length === 0 ? <p className="p-5 text-sm text-slate-600">Nenhuma publicação neste mês.</p> : Object.entries(eventsByDay).map(([day, events]) => <section key={day} className="p-3 sm:p-4"><h3 className="mb-2 text-xs font-bold uppercase text-slate-500">{day} de {monthDate.toLocaleDateString('pt-BR', { month: 'long' })}</h3><div className="space-y-2">{events.map(event => <button key={event.post.id} onClick={() => setSelectedPost(event.post)} className="flex w-full min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: platformBackground(event.post.platforms) }}><PlatformIcons platforms={event.post.platforms?.slice(0, 1)} size={16} color="white" /></span><span className="shrink-0 pt-2 text-sm font-bold text-indigo-700">{event.time}</span><span className="min-w-0 flex-1"><span className="block line-clamp-2 break-words text-sm font-semibold">{event.title}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><PlatformIcons platforms={event.post.platforms} size={13} />{event.type} · {(() => { const Icon = STATUS_ICON[event.status]; return <Icon size={12} className="text-slate-400" aria-hidden /> })()}{STATUS_LABEL[event.status]}</span></span></button>)}</div></section>)}</Card>}
