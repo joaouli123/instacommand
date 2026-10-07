@@ -68,14 +68,8 @@ export default function IntegrationsPage() {
   const loadingCard = (error: string) => <p className="text-sm text-slate-500">{catalogQuery.isError ? error : "Carregando…"}</p>
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 animate-fade-in pb-10">
-      <header className="flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm"><Sparkles size={20} /></span>
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Conecte sua IA</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-500">Depois de conectar, é só pedir na conversa: criar posts, agendar, responder comentários, ver relatórios e muito mais. A IA sempre pede sua confirmação antes de publicar ou excluir.</p>
-        </div>
-      </header>
+    <div className="space-y-6 animate-fade-in pb-10">
+      <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Integrações de IA</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">MCP e CLI</h2><p className="mt-1 text-sm text-slate-500">Conecte o ChatGPT, o Claude ou outra IA e peça tudo na conversa. A IA sempre pede sua confirmação antes de publicar ou excluir.</p></div>
 
       <section aria-labelledby="pick-ai">
         <h3 id="pick-ai" className="mb-3 text-sm font-semibold text-slate-700">Qual IA você usa?</h3>

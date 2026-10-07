@@ -149,11 +149,8 @@ export default function SettingsPage() {
   const aiReady = Boolean(aiStatus?.apiKeyConfigured)
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 animate-fade-in pb-10">
-      <header>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Configurações</h2>
-        <p className="mt-1 text-sm text-slate-500">Conexões, inteligência artificial e como o InstaCommand avisa você.</p>
-      </header>
+    <div className="space-y-6 animate-fade-in pb-10">
+      <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Workspace</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Configurações</h2><p className="mt-1 text-sm text-slate-500">Conexões, inteligência artificial e como o InstaCommand avisa você.</p></div>
 
       <Tabs defaultValue="connections" className="space-y-5">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
