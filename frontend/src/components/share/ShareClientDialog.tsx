@@ -50,7 +50,7 @@ export function ShareClientButton({ accountId, accountLabel }: { accountId?: str
   const share = async () => {
     setBusy(true)
     try {
-      let url = 
+      let url = ""
       try { url = localStorage.getItem(storageKey) || "" } catch {}
       // The server keeps only a hash, so the full URL is remembered here; reuse it while that link is still active.
       if (url) {
