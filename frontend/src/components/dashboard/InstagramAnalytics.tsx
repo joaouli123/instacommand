@@ -9,8 +9,10 @@ import {
   AlertCircle, Bookmark, Heart,
   MessageCircle, RefreshCw, Share2, TrendingUp, Users,
 } from "lucide-react"
-import { MetricCard } from "./MetricCard"
+import { CompareContext, MetricCard } from "./MetricCard"
+import { Switch } from "@/components/ui/switch"
 import { ReportChart } from "./ReportChart"
+import { FormatPerformance, Recommendations } from "./FormatPerformance"
 import { ReportAccessNotice } from "./ReportAccessNotice"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { api, fetchApi } from "@/lib/api"
@@ -80,6 +82,10 @@ export function InstagramAnalytics() {
   const [accountId, setAccountId] = useState("")
   const [period, setPeriod] = useState("30")
   const [section, setSection] = useState("visao")
+  // Remembered per browser; storage can be blocked, so never rely on it.
+  const [comparing, setComparing] = useState(true)
+  useEffect(() => { try { if (window.localStorage.getItem("instacommand_compare_previous") === "0") setComparing(false) } catch { /* ignore */ } }, [])
+  const toggleComparing = (value: boolean) => { setComparing(value); try { window.localStorage.setItem("instacommand_compare_previous", value ? "1" : "0") } catch { /* ignore */ } }
   const [audienceType, setAudienceType] = useState<"followers" | "engaged">("followers")
   const [postsPage, setPostsPage] = useState(1)
   const [postsTotal, setPostsTotal] = useState(0)
@@ -92,7 +98,7 @@ export function InstagramAnalytics() {
   const [audience, setAudience] = useState<AudiencePayload>(emptyAudience)
   const [bestTimes, setBestTimes] = useState<BestTime[]>([])
   const [contentTypes, setContentTypes] = useState<ContentType[]>([])
-  const [recommendations, setRecommendations] = useState<Array<{ type: string; message: string; basedOn?: number }>>([])
+  const [recommendations, setRecommendations] = useState<Array<{ type: string; message: string; basedOn?: number; title?: string; highlight?: string }>>([])
   const [rankings, setRankings] = useState<Record<TopGroup, AnalyticsPost[]>>({ STORY: [], REEL: [], FEED: [] })
   const [rankMetrics, setRankMetrics] = useState<Record<TopGroup, RankMetric>>({ STORY: "views", REEL: "views", FEED: "interactions" })
   const [rankingLoading, setRankingLoading] = useState<Record<TopGroup, boolean>>({ STORY: false, REEL: false, FEED: false })
@@ -261,7 +267,7 @@ export function InstagramAnalytics() {
   const vs = (key: keyof NonNullable<typeof profileMetrics>) => ({ current: profileMetrics?.[key], previous: previousMetrics?.[key] })
   const followerNet = profileReport?.followers.net
   const profileNotice = <div className="space-y-1 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 text-xs leading-relaxed text-slate-600">
-    <p className="font-semibold text-slate-800">Resumo do perfil · {profileWindow.label.toLowerCase()}{profileReport?.previous && <span className="font-normal text-slate-500"> · comparado aos {profileReport.previous.period.days} dias anteriores (<span className="font-semibold text-emerald-700">▲ subiu</span> / <span className="font-semibold text-rose-700">▼ caiu</span>)</span>}</p>
+    <p className="font-semibold text-slate-800">Resumo do perfil · {profileWindow.label.toLowerCase()}{comparing && profileReport?.previous && <span className="font-normal text-slate-500"> · comparado aos {profileReport.previous.period.days} dias anteriores (<span className="font-semibold text-emerald-700">▲ subiu</span> / <span className="font-semibold text-rose-700">▼ caiu</span>)</span>}</p>
     {Number(period) > 30 && <p>{profileWindow.notice}</p>}
     {!profileReport?.available && <p role="status" className="font-medium text-amber-800">{profileReport?.message || "Não foi possível consultar os totais do perfil. Os dados das publicações continuam disponíveis; tente atualizar mais tarde."}</p>}
     <details><summary className="cursor-pointer">Sobre esses números</summary><div className="mt-2 space-y-1">
@@ -315,6 +321,11 @@ export function InstagramAnalytics() {
       </TabsList></div>
 
       <TabsContent value="visao" className="space-y-5">
+        <CompareContext.Provider value={comparing}>
+        <label className="flex w-fit cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-xs">
+          <Switch checked={comparing} onCheckedChange={toggleComparing} aria-label="Comparar com o período anterior" />
+          Comparar com o período anterior
+        </label>
         {profileNotice}
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
           <MetricCard label="Seguidores atuais" value={formatNumber(dashboard?.followers)} detail={followerLatestDate ? `Coleta de ${formatDate(followerLatestDate)}` : "Total retornado pela Meta"} compare={{ current: dashboard?.followers, previous: dashboard?.followers != null && followerNet != null ? dashboard.followers - followerNet : null }}/>
@@ -336,8 +347,9 @@ export function InstagramAnalytics() {
           <ReportChart key={`profile-${accountId}-${period}`} title="Perfil dia a dia" description="Valores de cada dia informados pelo Instagram (a Meta disponibiliza os últimos 30 dias; o InstaCommand guarda cada dia a partir daí). Semanal e mensal mostram o último dia disponível." rows={profileHistory} series={[{ key: "alcance", label: "Alcance", color: "#4f46e5", aggregation: "last" }, { key: "visualizacoes", label: "Visualizações", color: "#0284c7", aggregation: "last" }, { key: "engajadas", label: "Contas engajadas", color: "#0d9488", aggregation: "last" }, { key: "interacoes", label: "Interações", color: "#d97706", aggregation: "last" }]} defaultKeys={["alcance", "visualizacoes"]} filename="instagram-perfil-diario"/>
           <ReportChart key={`interactions-${accountId}-${period}`} title="Interações por data de publicação" description="Contadores dos posts publicados em cada data, acumulados até a coleta. A soma pode ser parcial." rows={engagementData} series={[{ key: "interacoes", label: "Interações", color: "#4f46e5" }, { key: "likes", label: "Curtidas", color: "#e11d48" }, { key: "comments", label: "Comentários", color: "#0284c7" }, { key: "saves", label: "Salvos", color: "#d97706" }, { key: "shares", label: "Compartilhamentos", color: "#0d9488" }]} defaultKeys={["interacoes"]} kind="bar" filename="instagram-interacoes"/>
         </div>
-        <Card className="p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-2"><ChartHeading title="Formatos publicados" subtitle="Totais acumulados por formato; o alcance pode incluir as mesmas pessoas em posts diferentes."/><Badge variant="secondary">{formatNumber(contentTypes.reduce((sum, item) => sum + item.posts, 0))} posts</Badge></div>{contentTypes.length ? <ResponsiveContainer width="100%" height={290}><BarChart accessibilityLayer data={contentTypes} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false}/><XAxis dataKey="type" tickFormatter={formatType}/><YAxis/><Tooltip labelFormatter={value => formatType(String(value))} formatter={(value: number, name: string) => [formatNumber(value), name]}/><Legend/><Bar dataKey="interactions" name="Interações" isAnimationActive={false} fill="#4f46e5" radius={[5, 5, 0, 0]}/><Bar dataKey="views" name="Visualizações" isAnimationActive={false} fill="#0ea5e9" radius={[5, 5, 0, 0]}/></BarChart></ResponsiveContainer> : <Empty text="Sem dados suficientes para comparar os formatos." />}</Card>
-        <Card className="p-5"><ChartHeading title="Recomendações do histórico" />{recommendations.length ? <div className="mt-4 grid gap-3 md:grid-cols-2">{recommendations.map((item, index) => <div key={`${item.type}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><Badge variant="default">{{ DATA: "Dados disponíveis", FORMAT: "Formato", TIMING: "Horário" }[item.type] || "Observação"}</Badge><p className="mt-2 text-sm text-slate-700">{item.message}</p><p className="mt-2 text-xs text-slate-400">Baseado em {item.basedOn || postsTotal} publicação(ões)</p></div>)}</div> : <Empty text="Ainda não há histórico suficiente para recomendações." />}</Card>
+        <FormatPerformance rows={contentTypes} />
+        <Recommendations items={recommendations} fallbackCount={postsTotal} />
+      </CompareContext.Provider>
       </TabsContent>
 
       <TabsContent value="seguidores" className="space-y-5">

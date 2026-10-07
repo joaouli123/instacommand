@@ -1,3 +1,4 @@
+import { createContext, useContext } from 'react'
 import { Card } from '@/components/ui/card'
 import { reportFormat } from '@/lib/report-chart'
 import { periodChange } from '@/lib/instagram-report'
@@ -9,9 +10,13 @@ export type MetricCompare = {
   format?: (value: number) => string
 }
 
+/** Lets a report turn every "vs. período anterior" badge on or off at once. */
+export const CompareContext = createContext(true)
+
 export function MetricCard({ label, value, detail, accent = false, compare }: { label: string; value: number | string | null | undefined; detail?: string; accent?: boolean; compare?: MetricCompare }) {
   const missing = value == null || value === '—'
-  const change = compare ? periodChange(compare.current, compare.previous) : null
+  const comparing = useContext(CompareContext)
+  const change = compare && comparing ? periodChange(compare.current, compare.previous) : null
   return <Card className={`min-w-0 p-3.5 sm:p-4 ${accent ? 'border-indigo-200 bg-indigo-50/40' : ''}`}>
     <h3 className="text-xs font-medium leading-snug text-slate-600 sm:text-sm">{label}</h3>
     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">

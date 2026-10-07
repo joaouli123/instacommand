@@ -221,7 +221,7 @@ export const getRecommendations = async (accountId: string, days = 30) => {
 
   if (!posts.length) return [];
 
-  const recommendations: Array<{ type: string; message: string; basedOn: number }> = [];
+  const recommendations: Array<{ type: string; message: string; basedOn: number; title?: string; highlight?: string }> = [];
   const withReach = posts.filter((post) => (post.insights[0]?.reach || 0) > 0);
   if (!withReach.length) {
     recommendations.push({
@@ -240,16 +240,24 @@ export const getRecommendations = async (accountId: string, days = 30) => {
     current.interactions += interactions;
     byType.set(post.mediaType, current);
   }
-  const bestType = Array.from(byType.entries()).sort(([, a], [, b]) => {
-    const scoreA = a.posts ? a.interactions / a.posts : 0;
-    const scoreB = b.posts ? b.interactions / b.posts : 0;
-    return scoreB - scoreA;
-  })[0];
-  if (bestType) {
+  const formatName: Record<string, string> = { IMAGE: 'Imagens', CAROUSEL: 'Carrosséis', CAROUSEL_ALBUM: 'Carrosséis', REEL: 'Reels', VIDEO: 'Vídeos', STORY: 'Stories', TEXT: 'Posts de texto' };
+  const ranked = Array.from(byType.entries())
+    .map(([type, value]) => ({ type, posts: value.posts, average: value.posts ? value.interactions / value.posts : 0 }))
+    .sort((a, b) => b.average - a.average);
+  const [best, runnerUp] = ranked;
+  if (best) {
+    const name = formatName[best.type] || best.type;
+    const average = Math.round(best.average).toLocaleString('pt-BR');
+    // Only claim "X% more" against a real second format with interactions.
+    const lift = runnerUp && runnerUp.average > 0 ? Math.round((best.average / runnerUp.average - 1) * 100) : null;
     recommendations.push({
       type: 'FORMAT',
-      message: `${bestType[0]} tem mais interações médias registradas nas publicações dos últimos ${days} dias (${Math.round(bestType[1].interactions / bestType[1].posts).toLocaleString('pt-BR')} por publicação). A amostra não garante resultados futuros.`,
-      basedOn: bestType[1].posts,
+      title: `${name} engajam mais`,
+      highlight: lift !== null && lift > 0 ? `+${lift}%` : undefined,
+      message: lift !== null && lift > 0
+        ? `Nos últimos ${days} dias, ${name.toLowerCase()} tiveram em média ${average} interações por post, ${lift}% a mais que ${(formatName[runnerUp.type] || runnerUp.type).toLowerCase()}. Vale priorizar esse formato e acompanhar se o resultado se mantém.`
+        : `Nos últimos ${days} dias, ${name.toLowerCase()} tiveram em média ${average} interações por post. Publique outros formatos também para ter com o que comparar.`,
+      basedOn: best.posts,
     });
   }
 
