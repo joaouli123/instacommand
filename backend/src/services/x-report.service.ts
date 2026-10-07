@@ -57,63 +57,108 @@ export function summarizeXPosts(posts: XReportPost[]) {
 }
 
 const TWEET_FIELDS = 'created_at,public_metrics,attachments';
+/** Stored numbers are reused for this long before asking X again (saves API credits). */
+export const X_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/** Manual "Atualizar" can force a refresh, but not more often than this. */
+export const X_MIN_FORCED_INTERVAL_MS = 15 * 60 * 1000;
+/** Counters can still change for recent posts; older ones are kept as stored. */
+const RECENT_WINDOW_DAYS = 30;
+/** First sync goes further back so 90-day reports start with data. */
+const FIRST_SYNC_DAYS = 90;
+
+export function shouldSyncX(lastSync: Date | null | undefined, force: boolean, now = Date.now()) {
+  if (!lastSync) return true;
+  const age = now - lastSync.getTime();
+  return force ? age >= X_MIN_FORCED_INTERVAL_MS : age >= X_SYNC_INTERVAL_MS;
+}
+
+const syncing = new Map<string, Promise<void>>();
 
 /**
- * Report for one connected X profile and period. Posts created in the window
- * (own posts, no replies/reposts) with their counters. Only owned reads are used.
+ * Refreshes the stored profile numbers and recent post counters from X.
+ * Only owned reads (the cheapest kind) are used, at most once per interval.
  */
-export async function getXReport(userId: string, accountId: string, days: number, endAt = Date.now(), includeProfile = true) {
-  const account = await prisma.xAccount.findFirst({ where: { id: accountId, userId, isActive: true } });
-  if (!account) return null;
-  const token = await getXAccessToken(account.id);
-  const until = new Date(Math.min(endAt, Date.now() - 15_000)); // X rejects end_time too close to now
-  const since = new Date(endAt - days * 86400000);
+export async function syncXMetrics(accountId: string, force = false): Promise<{ synced: boolean; issues: string[] }> {
+  const account = await prisma.xAccount.findUnique({ where: { id: accountId } });
+  if (!account || !account.isActive) return { synced: false, issues: [] };
+  if (!shouldSyncX(account.metricsSyncedAt, force)) return { synced: false, issues: [] };
+  const running = syncing.get(accountId);
+  if (running) { await running; return { synced: true, issues: [] }; }
   const issues: string[] = [];
-
-  let profile: { followers: number | null; following: number | null; totalPosts: number | null; name: string | null; profilePicUrl: string | null } | null = null;
-  if (includeProfile) {
+  const job = (async () => {
+    const token = await getXAccessToken(account.id);
     try {
       const me = await xRequest<{ data: { name?: string; profile_image_url?: string; public_metrics?: { followers_count?: number; following_count?: number; tweet_count?: number } } }>('/2/users/me?user.fields=public_metrics,profile_image_url,name', token);
-      profile = { followers: number(me.data.public_metrics?.followers_count), following: number(me.data.public_metrics?.following_count), totalPosts: number(me.data.public_metrics?.tweet_count), name: me.data.name || null, profilePicUrl: me.data.profile_image_url || null };
-      await prisma.xAccount.update({ where: { id: account.id }, data: { followersCount: profile.followers, name: profile.name, profilePicUrl: profile.profilePicUrl, lastSyncAt: new Date() } });
+      await prisma.xAccount.update({ where: { id: account.id }, data: {
+        followersCount: number(me.data.public_metrics?.followers_count), followingCount: number(me.data.public_metrics?.following_count),
+        totalPosts: number(me.data.public_metrics?.tweet_count), name: me.data.name || account.name, profilePicUrl: me.data.profile_image_url || account.profilePicUrl, lastSyncAt: new Date(),
+      } });
     } catch (error) { issues.push(error instanceof Error ? error.message : 'Não foi possível ler o perfil.'); }
-  }
 
-  const posts: XReportPost[] = [];
-  let complete = true;
-  const fetchPage = async (withPrivate: boolean, token_: string | undefined) => {
-    const params = new URLSearchParams({
-      start_time: since.toISOString(), end_time: until.toISOString(), max_results: '100', exclude: 'retweets,replies',
-      'tweet.fields': withPrivate ? `${TWEET_FIELDS},non_public_metrics` : TWEET_FIELDS,
-      expansions: 'attachments.media_keys', 'media.fields': 'url,preview_image_url',
-    });
-    if (token_) params.set('pagination_token', token_);
-    return xRequest<{ data?: RawTweet[]; includes?: { media?: RawMedia[] }; meta?: { next_token?: string } }>(`/2/users/${encodeURIComponent(account.xUserId)}/tweets?${params}`, token);
-  };
-  try {
-    // Private counters (true impressions, link and profile clicks) only exist for the last 30 days.
-    let withPrivate = Date.now() - since.getTime() <= 30 * 86400000;
-    let next: string | undefined;
-    for (let page = 0; page < 3; page++) {
-      let result;
-      try { result = await fetchPage(withPrivate, next); }
-      catch (error) { if (!withPrivate) throw error; withPrivate = false; result = await fetchPage(false, next); }
-      const media = new Map((result.includes?.media || []).map((item) => [item.media_key, item]));
-      for (const tweet of result.data || []) posts.push(mapXPost(tweet, media, account.username));
-      next = result.meta?.next_token;
-      if (!next) break;
-      if (page === 2) complete = false;
-    }
-  } catch (error) {
-    complete = false;
-    issues.push(error instanceof Error ? error.message : 'Não foi possível ler as publicações.');
-  }
+    const days = account.metricsSyncedAt ? RECENT_WINDOW_DAYS : FIRST_SYNC_DAYS;
+    const since = new Date(Date.now() - days * 86400000);
+    const until = new Date(Date.now() - 15_000); // X rejects an end_time too close to now
+    const fetchPage = (withPrivate: boolean, next?: string) => {
+      const params = new URLSearchParams({
+        start_time: since.toISOString(), end_time: until.toISOString(), max_results: '100', exclude: 'retweets,replies',
+        'tweet.fields': withPrivate ? `${TWEET_FIELDS},non_public_metrics` : TWEET_FIELDS,
+        expansions: 'attachments.media_keys', 'media.fields': 'url,preview_image_url',
+      });
+      if (next) params.set('pagination_token', next);
+      return xRequest<{ data?: RawTweet[]; includes?: { media?: RawMedia[] }; meta?: { next_token?: string } }>(`/2/users/${encodeURIComponent(account.xUserId)}/tweets?${params}`, token);
+    };
+    try {
+      // Private counters (true views, link and profile clicks) only exist for the last 30 days.
+      let withPrivate = true;
+      let next: string | undefined;
+      for (let page = 0; page < 3; page++) {
+        let result;
+        try { result = await fetchPage(withPrivate, next); }
+        catch (error) { if (!withPrivate) throw error; withPrivate = false; result = await fetchPage(false, next); }
+        const media = new Map((result.includes?.media || []).map((item) => [item.media_key, item]));
+        for (const tweet of result.data || []) {
+          const post = mapXPost(tweet, media, account.username);
+          if (!post.createdAt) continue;
+          const data = { accountId: account.id, text: post.text, postedAt: new Date(post.createdAt), url: post.url, image: post.image, ...post.metrics, fetchedAt: new Date() };
+          await prisma.xPostMetric.upsert({ where: { id: post.id }, update: data, create: { id: post.id, ...data } });
+        }
+        next = result.meta?.next_token;
+        if (!next) break;
+      }
+      await prisma.xAccount.update({ where: { id: account.id }, data: { metricsSyncedAt: new Date() } });
+    } catch (error) { issues.push(error instanceof Error ? error.message : 'Não foi possível ler as publicações.'); }
+  })().finally(() => syncing.delete(accountId));
+  syncing.set(accountId, job);
+  await job;
+  return { synced: true, issues };
+}
 
+type StoredPost = { id: string; text: string; postedAt: Date; url: string; image: string | null; impressions: number | null; likes: number; replies: number; reposts: number; quotes: number; bookmarks: number; urlClicks: number | null; profileClicks: number | null };
+const fromStored = (row: StoredPost): XReportPost => {
+  const metrics: XPostMetrics = { impressions: row.impressions, likes: row.likes, replies: row.replies, reposts: row.reposts, quotes: row.quotes, bookmarks: row.bookmarks, urlClicks: row.urlClicks, profileClicks: row.profileClicks };
+  return { id: row.id, text: row.text, createdAt: row.postedAt.toISOString(), url: row.url, image: row.image, metrics, engagement: engagementOf(metrics) };
+};
+
+/**
+ * Report for one connected X profile, read from the stored numbers. X is
+ * asked again only when they are older than the sync interval (or on a
+ * forced refresh), so opening a report usually costs no API credits.
+ */
+export async function getXReport(userId: string, accountId: string, days: number, options: { endAt?: number; refresh?: boolean; skipSync?: boolean } = {}) {
+  const owned = await prisma.xAccount.findFirst({ where: { id: accountId, userId, isActive: true } });
+  if (!owned) return null;
+  const sync = options.skipSync ? { synced: false, issues: [] as string[] } : await syncXMetrics(owned.id, Boolean(options.refresh));
+  const account = (await prisma.xAccount.findUnique({ where: { id: owned.id } }))!;
+  const endAt = options.endAt ?? Date.now();
+  const since = new Date(endAt - days * 86400000), until = new Date(endAt);
+  const rows = await prisma.xPostMetric.findMany({ where: { accountId: account.id, postedAt: { gte: since, lt: until } }, orderBy: { postedAt: 'desc' } });
+  const posts = rows.map(fromStored);
   const summary = summarizeXPosts(posts);
   return {
-    network: 'X', account: { id: account.id, username: account.username, name: profile?.name ?? account.name, profilePicUrl: profile?.profilePicUrl ?? account.profilePicUrl },
-    period: { days, since: since.toISOString(), until: until.toISOString() }, collectedAt: new Date().toISOString(),
-    followers: profile?.followers ?? account.followersCount ?? null, following: profile?.following ?? null, totalPosts: profile?.totalPosts ?? null,
-    posts: posts.sort((a, b) => b.createdAt.localeCompare(a.createdAt)), complete, issues, ...summary,
+    network: 'X', account: { id: account.id, username: account.username, name: account.name, profilePicUrl: account.profilePicUrl },
+    period: { days, since: since.toISOString(), until: until.toISOString() }, collectedAt: (account.metricsSyncedAt || new Date()).toISOString(),
+    syncedAt: account.metricsSyncedAt?.toISOString() ?? null, nextSyncAt: account.metricsSyncedAt ? new Date(account.metricsSyncedAt.getTime() + X_SYNC_INTERVAL_MS).toISOString() : null,
+    followers: account.followersCount ?? null, following: account.followingCount ?? null, totalPosts: account.totalPosts ?? null,
+    posts, complete: true, issues: sync.issues, ...summary,
   };
 }

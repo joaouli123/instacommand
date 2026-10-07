@@ -122,3 +122,14 @@ test('X connection problems never answer 401, which would sign the user out of I
   assert.doesNotMatch(source, /AppError\([^)]*,\s*401\)/);
   assert.doesNotMatch(source, /\?\s*401\s*:/);
 });
+
+test('stored X numbers are reused for 6 hours; a manual refresh waits at least 15 minutes', () => {
+  const { shouldSyncX } = require('../dist/services/x-report.service');
+  const now = Date.parse('2026-10-07T12:00:00Z');
+  const minutesAgo = (m) => new Date(now - m * 60000);
+  assert.equal(shouldSyncX(null, false, now), true);
+  assert.equal(shouldSyncX(minutesAgo(60), false, now), false);
+  assert.equal(shouldSyncX(minutesAgo(6 * 60 + 1), false, now), true);
+  assert.equal(shouldSyncX(minutesAgo(5), true, now), false);
+  assert.equal(shouldSyncX(minutesAgo(16), true, now), true);
+});

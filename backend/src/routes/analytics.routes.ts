@@ -56,10 +56,9 @@ router.get('/networks/x/:accountId', async (req: any, res, next) => {
     const { getXReport } = require('../services/x-report.service') as typeof import('../services/x-report.service');
     const now = Date.now();
     // Previous window of the same length for the comparison badges; it never blocks the current report.
-    const [report, previous] = await Promise.all([
-      getXReport(req.user.id, req.params.accountId, days, now),
-      getXReport(req.user.id, req.params.accountId, days, now - days * 86400000, false).catch(() => null),
-    ]);
+    // Current period first (it may refresh the stored numbers); the previous one is read from the database only.
+    const report = await getXReport(req.user.id, req.params.accountId, days, { endAt: now, refresh: req.query.refresh === '1' });
+    const previous = report ? await getXReport(req.user.id, req.params.accountId, days, { endAt: now - days * 86400000, skipSync: true }).catch(() => null) : null;
     if (!report) return res.status(404).json({ error: 'Conta do X não encontrada.' });
     return res.json({ ...report, previous: previous ? { period: previous.period, totals: previous.totals, engagementRate: previous.engagementRate } : null });
   } catch (error) { next(error); }

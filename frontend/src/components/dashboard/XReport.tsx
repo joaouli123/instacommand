@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Download, ExternalLink, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
@@ -20,7 +20,7 @@ export type XReportData = {
   period: { days: number; since: string; until: string }; collectedAt: string
   followers: number | null; following: number | null; totalPosts: number | null
   posts: Post[]; totals: Totals; engagementRate: number | null; daily: Array<{ date: string; impressions: number; engagement: number; posts: number }>
-  complete: boolean; issues: string[]
+  complete: boolean; issues: string[]; syncedAt?: string | null; nextSyncAt?: string | null
   previous?: { totals: Totals; engagementRate: number | null } | null
 }
 
@@ -45,6 +45,16 @@ export function XReport() {
   const accounts = accountsQuery.data?.accounts || []
   const accountId = accounts.some((a) => a.id === selectedId) ? selectedId : accounts[0]?.id || ''
   const reportQuery = useXReport(accountId, days)
+  const queryClient = useQueryClient()
+  const [refreshing, setRefreshing] = useState(false)
+  // Forces a fresh read from X (the server allows it at most every 15 minutes).
+  const refresh = async () => {
+    if (!accountId || refreshing) return
+    setRefreshing(true)
+    try { queryClient.setQueryData(['x-report', accountId, days], await fetchApi(`/analytics/networks/x/${encodeURIComponent(accountId)}?days=${days}&refresh=1`)) }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar agora.') }
+    finally { setRefreshing(false) }
+  }
   const report = reportQuery.data
   const [comparing, setComparing] = useComparePreference()
   const posts = useMemo(() => [...(report?.posts || [])].sort((a, b) => order === 'recent' ? b.createdAt.localeCompare(a.createdAt) : order === 'impressions' ? (b.metrics.impressions ?? -1) - (a.metrics.impressions ?? -1) : b.engagement - a.engagement).slice(0, 20), [report, order])
@@ -74,7 +84,7 @@ export function XReport() {
         <label>Período<select value={days} onChange={(e) => setDays(Number(e.target.value))}>{[7, 30, 90].map((d) => <option key={d} value={d}>Últimos {d} dias</option>)}</select></label>
       </div>
     </div>
-    <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => reportQuery.refetch()} disabled={reportQuery.isFetching}><RefreshCw size={16} className={`mr-2 ${reportQuery.isFetching ? 'animate-spin' : ''}`} />Atualizar</Button><Button variant="outline" onClick={exportReport} disabled={!report}><Download size={16} className="mr-2" />Exportar métricas</Button></div>
+    <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void refresh()} disabled={refreshing || reportQuery.isFetching}><RefreshCw size={16} className={`mr-2 ${refreshing ? 'animate-spin' : ''}`} />Atualizar</Button><Button variant="outline" onClick={exportReport} disabled={!report}><Download size={16} className="mr-2" />Exportar métricas</Button></div>
     {reportQuery.isPending && <Card className="p-8" role="status">Consultando o X…</Card>}
     {reportQuery.isError && <Card className="border-rose-200 p-5 text-rose-700" role="alert">{reportQuery.error.message}</Card>}
     {report && <>
@@ -99,7 +109,7 @@ export function XReport() {
           </div>
         </article>)}</div>}
       </Card>
-      <p className="text-xs text-slate-500">@{report.account.username} · Consulta em {new Date(report.collectedAt).toLocaleString('pt-BR')} · Cada leitura de post consome créditos da API do X (leituras do próprio perfil têm o menor custo).</p>
+      <p className="text-xs text-slate-500">@{report.account.username} · Dados do X de {report.syncedAt ? new Date(report.syncedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'agora'}{report.nextSyncAt ? ` · próxima atualização automática a partir de ${new Date(report.nextSyncAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}. Os números ficam guardados para economizar créditos da API do X.</p>
     </>}
   </section>
 }

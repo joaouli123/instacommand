@@ -409,13 +409,41 @@ model XAccount {
   isActive       Boolean         @default(true)
   connectedAt    DateTime        @default(now())
   lastSyncAt     DateTime?
+  // Stored numbers so reports do not spend X API credits on every view.
+  followingCount Int?
+  totalPosts     Int?
+  metricsSyncedAt DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   user           User            @relation(fields: [userId], references: [id])
   scheduledPosts ScheduledPost[]
+  postMetrics    XPostMetric[]
 
   @@index([userId])
+}
+
+// Last known counters of each X post, refreshed while they can still change (30 days).
+model XPostMetric {
+  id            String   @id // X post id
+  accountId     String
+  text          String   @default("")
+  postedAt      DateTime
+  url           String
+  image         String?
+  impressions   Int?
+  likes         Int      @default(0)
+  replies       Int      @default(0)
+  reposts       Int      @default(0)
+  quotes        Int      @default(0)
+  bookmarks     Int      @default(0)
+  urlClicks     Int?
+  profileClicks Int?
+  fetchedAt     DateTime @default(now())
+
+  account       XAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, postedAt])
 }
 
 model ThreadsAccount {
