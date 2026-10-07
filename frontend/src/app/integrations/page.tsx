@@ -69,7 +69,7 @@ export default function IntegrationsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
-      <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Integrações de IA</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">MCP e CLI</h2><p className="mt-1 text-sm text-slate-500">Conecte o ChatGPT, o Claude ou outra IA e peça tudo na conversa. A IA sempre pede sua confirmação antes de publicar ou excluir.</p></div>
+      <div><p className="page-eyebrow">Integrações de IA</p><h1 className="page-title">MCP e CLI</h1><p className="page-subtitle">Conecte o ChatGPT, o Claude ou outra IA e peça tudo na conversa. A IA sempre pede sua confirmação antes de publicar ou excluir.</p></div>
 
       <section aria-labelledby="pick-ai">
         <h3 id="pick-ai" className="mb-3 text-sm font-semibold text-slate-700">Qual IA você usa?</h3>
@@ -100,7 +100,7 @@ export default function IntegrationsPage() {
       </Card>
 
       <Card className="p-4 sm:p-5">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900"><MessageSquare size={16} className="text-indigo-600" />Depois de conectar, peça assim</h3>
+        <h3 className="section-title flex items-center gap-2"><MessageSquare size={16} className="text-indigo-600" />Depois de conectar, peça assim</h3>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2">
           {PROMPT_EXAMPLES.slice(0, 4).map((prompt) => (
             <li key={prompt} className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 p-3 text-sm leading-5 text-slate-700">

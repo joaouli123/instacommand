@@ -150,7 +150,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
-      <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Workspace</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Configurações</h2><p className="mt-1 text-sm text-slate-500">Conexões, inteligência artificial e como o InstaCommand avisa você.</p></div>
+      <div><p className="page-eyebrow">Workspace</p><h1 className="page-title">Configurações</h1><p className="page-subtitle">Conexões, inteligência artificial e como o InstaCommand avisa você.</p></div>
 
       <Tabs defaultValue="connections" className="space-y-5">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
@@ -237,7 +237,7 @@ function SettingsCard({ icon, tile, title, description, badge, children }: { ico
   return <Card className="overflow-hidden p-0">
     <div className="flex items-start gap-3 border-b border-slate-100 p-4 sm:p-5">
       <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white", tile)}>{icon}</span>
-      <div className="min-w-0 flex-1"><h3 className="font-bold text-slate-900">{title}</h3><p className="mt-0.5 text-xs leading-5 text-slate-500">{description}</p></div>
+      <div className="min-w-0 flex-1"><h3 className="section-title">{title}</h3><p className="mt-0.5 text-xs leading-5 text-slate-500">{description}</p></div>
       {badge && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={13} />{badge}</span>}
     </div>
     <div className="p-4 sm:p-5">{children}</div>

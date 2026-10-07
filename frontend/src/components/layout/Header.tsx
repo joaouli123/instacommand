@@ -30,17 +30,17 @@ export function Header() {
   const pathname = usePathname()
   
   const titles: Record<string, { title: string; subtitle: string }> = {
-    '/': { title: 'Dashboard Executivo', subtitle: 'Visão unificada das suas contas e métricas principais' },
-    '/composer': { title: 'Compositor de Conteúdo', subtitle: 'Crie, visualize e agende para Instagram, Facebook e Threads' },
-    '/calendar': { title: 'Calendário Editorial', subtitle: 'Cronograma visual de postagens programadas' },
+    '/': { title: 'Dashboard', subtitle: 'Visão unificada das suas contas e métricas principais' },
+    '/composer': { title: 'Criar publicação', subtitle: 'Crie, visualize e agende para Instagram, Facebook e Threads' },
+    '/calendar': { title: 'Calendário', subtitle: 'Cronograma visual de postagens programadas' },
     '/analytics': { title: 'Relatórios', subtitle: 'Instagram, Facebook e Threads · métricas, público e conteúdo' },
-    '/competitors': { title: 'Monitor de Concorrentes', subtitle: 'Benchmarking e acompanhamento de mercado' },
-    '/trends': { title: 'Tendências e Insights', subtitle: 'Hashtags em alta e formatos de alta performance' },
+    '/competitors': { title: 'Concorrentes', subtitle: 'Benchmarking e acompanhamento de mercado' },
+    '/trends': { title: 'Tendências', subtitle: 'Hashtags em alta e formatos de alta performance' },
     '/community': { title: 'Comunidade', subtitle: 'Leia e responda comentários reais do Instagram' },
     '/automations': { title: 'Automações', subtitle: 'Regras de comentários e mensagens, respostas prontas e agente de IA' },
     '/integrations': { title: 'MCP e CLI', subtitle: 'Conecte Claude, ChatGPT e outros agentes de IA ao seu workspace' },
-    '/settings': { title: 'Configurações da Plataforma', subtitle: 'Preferências, conexões e automações' },
-    '/accounts': { title: 'Contas conectadas', subtitle: 'Gerencie seus perfis do Instagram, Facebook e Threads' }
+    '/settings': { title: 'Configurações', subtitle: 'Preferências, conexões e automações' },
+    '/accounts': { title: 'Contas', subtitle: 'Gerencie seus perfis do Instagram, Facebook e Threads' }
   }
 
   const current = titles[pathname] || { title: 'InstaCommand', subtitle: 'Plataforma de Gestão do Instagram' }
@@ -79,12 +79,8 @@ export function Header() {
   return (
     <header className="sticky top-0 z-20 flex h-14 min-w-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/95 px-3 shadow-sm backdrop-blur-md sm:h-16 sm:px-6 md:h-[72px] md:px-8">
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight text-slate-900 sm:text-lg md:text-xl">
-          <span className="sm:hidden">{{ '/': 'Visão geral', '/composer': 'Criar', '/calendar': 'Calendário', '/accounts': 'Contas', '/settings': 'Ajustes', '/competitors': 'Concorrentes', '/trends': 'Tendências' }[pathname] || current.title}</span><span className="hidden sm:inline">{current.title}</span>
-        </h1>
-        <p className="hidden truncate text-xs text-slate-500 xl:block">
-          {current.subtitle}
-        </p>
+        {/* The page itself carries the title; the bar only says where you are. */}
+        <p className="truncate text-sm font-semibold text-slate-700"><span className="hidden text-slate-400 sm:inline">InstaCommand <span aria-hidden>/</span> </span>{current.title}</p>
       </div>
       
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">

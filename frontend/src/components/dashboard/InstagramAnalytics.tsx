@@ -374,7 +374,7 @@ function Stat({ label, value, detail, icon: Icon }: { label: string; value: stri
 }
 
 function ChartHeading({ title, subtitle }: { title: string; subtitle?: string }) {
-  return <div className="mb-3"><h3 className="text-base font-bold text-slate-900">{title}</h3>{subtitle && <p className="mt-1 text-xs leading-5 text-slate-500">{subtitle}</p>}</div>
+  return <div className="mb-3"><h3 className="section-title">{title}</h3>{subtitle && <p className="mt-1 text-xs leading-5 text-slate-500">{subtitle}</p>}</div>
 }
 
 function Empty({ text }: { text: string }) {

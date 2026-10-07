@@ -28,9 +28,9 @@ export default function AutomationsPage() {
 
   return <div className="space-y-6 animate-fade-in pb-8">
     <header>
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Atendimento automático</p>
-      <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Automações</h2>
-      <p className="mt-1 text-sm text-slate-500">Responda comentários e mensagens automaticamente — com respostas prontas ou com um assistente de IA — e assuma a conversa quando quiser.</p>
+      <p className="page-eyebrow">Atendimento automático</p>
+      <h1 className="page-title">Automações</h1>
+      <p className="page-subtitle">Responda comentários e mensagens automaticamente — com respostas prontas ou com um assistente de IA — e assuma a conversa quando quiser.</p>
     </header>
 
     <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Rede social">

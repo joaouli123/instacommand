@@ -65,7 +65,7 @@ export function TokenManager({ scopes, durations, onSecret }: { scopes: ScopeInf
         <div className="flex items-start gap-3 border-b border-slate-100 p-5 sm:p-6">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><KeyRound size={19} /></div>
           <div>
-            <h3 className="font-bold text-slate-900">Criar token pessoal</h3>
+            <h3 className="section-title">Criar token pessoal</h3>
             <p className="mt-1 text-xs leading-5 text-slate-500">Para o CLI, Claude Code, Cursor, VS Code, Codex e outros clientes que usam token. ChatGPT e Claude (web/desktop) não precisam de token: eles conectam por OAuth.</p>
           </div>
         </div>
@@ -124,7 +124,7 @@ export function TokenManager({ scopes, durations, onSecret }: { scopes: ScopeInf
 
       <Card className="overflow-hidden p-0">
         <div className="border-b border-slate-100 p-5 sm:p-6">
-          <h3 className="font-bold text-slate-900">Tokens pessoais</h3>
+          <h3 className="section-title">Tokens pessoais</h3>
           <p className="mt-1 text-xs text-slate-500">Mostramos só o início de cada token. Revogue os que não usa mais.</p>
         </div>
         <div className="divide-y divide-slate-100">
@@ -148,7 +148,7 @@ export function TokenManager({ scopes, durations, onSecret }: { scopes: ScopeInf
         <div className="flex items-start gap-3 border-b border-slate-100 p-5 sm:p-6">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><Plug size={19} /></div>
           <div>
-            <h3 className="font-bold text-slate-900">Aplicativos conectados por OAuth</h3>
+            <h3 className="section-title">Aplicativos conectados por OAuth</h3>
             <p className="mt-1 text-xs text-slate-500">ChatGPT, Claude e outros clientes que você autorizou. A conexão renova sozinha e expira após 30 dias sem uso.</p>
           </div>
         </div>

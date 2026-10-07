@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { useEffect, useMemo, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -132,6 +133,7 @@ export default function CalendarPage() {
 
   return (
     <div className="flex h-full min-w-0 flex-col gap-4 animate-fade-in sm:gap-6">
+      <PageHeader eyebrow="Planejamento" title="Calendário" description="Tudo o que está agendado, publicado ou em rascunho, mês a mês." />
       <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs sm:p-4">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-1">
