@@ -54,7 +54,7 @@ export function ReferencePostCard({ post, rank, highlight }: { post: RankedPost;
   const isVideo = post.format === "REELS" && !post.thumbnailUrl
   return <article className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs transition hover:border-indigo-200 hover:shadow-sm">
     <a href={post.permalink || undefined} target="_blank" rel="noreferrer" aria-label="Abrir post no Instagram" className="relative block aspect-[4/5] overflow-hidden bg-slate-100">
-      <MediaPreview src={post.thumbnailUrl || post.mediaUrl} isVideo={isVideo} fallback={post.format === "REELS" ? "Reels sem prévia" : "Prévia indisponível"} className="transition duration-300 group-hover:scale-105" />
+      <MediaPreview src={post.thumbnailUrl || post.mediaUrl} isVideo={post.format === "REELS"} asVideo={isVideo} fallback={post.format === "REELS" ? "Reels sem prévia" : "Prévia indisponível"} className="transition duration-300 group-hover:scale-105" />
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2">
         {rank !== undefined && <span className="rounded-md bg-slate-900/80 px-1.5 py-0.5 text-[11px] font-bold text-white">#{rank}</span>}
         <span className="ml-auto rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">{formatLabel[post.format]}</span>

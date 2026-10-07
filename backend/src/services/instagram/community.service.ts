@@ -24,6 +24,7 @@ type CommunityComment = {
   answered: boolean;
   firstReplyAt: string | null;
   intent: CommentIntent;
+  avatarUrl?: string | null;
 };
 
 const finiteOrNull = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -59,6 +60,45 @@ const getOwnedAccount = async (accountId: string, userId: string) => {
   });
   if (!account) throw new NotFoundError('Conta do Instagram n√£o encontrada.');
   return account;
+};
+
+// Instagram comments never include the commenter's photo. business_discovery can
+// return it for professional accounts; personal accounts fail, so misses are
+// cached too and every failure is ignored.
+const AVATAR_TTL_MS = 24 * 60 * 60 * 1000;
+const AVATAR_MISS_TTL_MS = 6 * 60 * 60 * 1000;
+const AVATAR_LOOKUP_LIMIT = 20;
+const AVATAR_CONCURRENCY = 4;
+const avatarCache = new Map<string, { url: string | null; expiresAt: number }>();
+
+export const clearAvatarCache = () => avatarCache.clear();
+
+export const resolveCommenterAvatars = async (igUserId: string, token: string, usernames: string[]) => {
+  const result = new Map<string, string | null>();
+  const pending: string[] = [];
+  const now = Date.now();
+  for (const raw of usernames) {
+    const username = String(raw || '').toLowerCase();
+    if (!username || username === 'usu·rio' || !/^[a-z0-9._]+$/.test(username) || result.has(username) || pending.includes(username)) continue;
+    const cached = avatarCache.get(username);
+    if (cached && cached.expiresAt > now) result.set(username, cached.url);
+    else if (pending.length < AVATAR_LOOKUP_LIMIT) pending.push(username);
+  }
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < pending.length) {
+      const username = pending[cursor++];
+      let url: string | null = null;
+      try {
+        const response = await graphGet(`/${igUserId}`, token, { fields: `business_discovery.username(${username}){profile_picture_url}` });
+        url = typeof response?.business_discovery?.profile_picture_url === 'string' ? response.business_discovery.profile_picture_url : null;
+      } catch { url = null; }
+      avatarCache.set(username, { url, expiresAt: Date.now() + (url ? AVATAR_TTL_MS : AVATAR_MISS_TTL_MS) });
+      result.set(username, url);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(AVATAR_CONCURRENCY, pending.length) }, worker));
+  return result;
 };
 
 export const listRecentComments = async (accountId: string, userId: string, limit = 50) => {
@@ -109,7 +149,11 @@ export const listRecentComments = async (accountId: string, userId: string, limi
 
   if (!comments.length && media.length > 0 && failures === media.length && lastFailure) throw lastFailure;
   comments.sort((left, right) => new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime());
-  return { available: true, comments, summary: summarizeComments(comments) };
+  const avatars = await resolveCommenterAvatars(account.igUserId, token, comments.map(comment => comment.username || ''));
+  for (const comment of comments) comment.avatarUrl = avatars.get(String(comment.username || '').toLowerCase()) ?? null;
+  const summary = summarizeComments(comments);
+  const topCommenters = summary.topCommenters.map(fan => ({ ...fan, avatarUrl: avatars.get(fan.username.toLowerCase()) ?? null }));
+  return { available: true, comments, summary: { ...summary, topCommenters } };
 };
 
 const assertMediaBelongsToAccount = async (accountId: string, userId: string, mediaId: string) => {

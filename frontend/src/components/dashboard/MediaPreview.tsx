@@ -11,14 +11,17 @@ import { isVideoUrl } from "@/lib/media"
  * frame for video URLs and a clean placeholder (never a broken image) when the
  * link no longer loads.
  */
-export function MediaPreview({ src, isVideo, className, fallback = "Prévia indisponível" }: {
+export function MediaPreview({ src, isVideo, asVideo, className, fallback = "Prévia indisponível" }: {
   src?: string | null
   isVideo?: boolean
+  /** Render src as a video even when the signed URL has no .mp4 extension. */
+  asVideo?: boolean
   className?: string
   fallback?: string
 }) {
   const [failed, setFailed] = useState(false)
-  useEffect(() => { setFailed(false) }, [src])
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => { setFailed(false); setLoaded(false) }, [src])
 
   if (!src || failed) {
     return <div className={cn("flex h-full w-full flex-col items-center justify-center gap-1 bg-slate-100 px-2 text-center text-[11px] text-slate-400", className)}>
@@ -27,7 +30,7 @@ export function MediaPreview({ src, isVideo, className, fallback = "Prévia indi
     </div>
   }
 
-  if (isVideoUrl(src)) {
+  if (asVideo || isVideoUrl(src)) {
     return <div className={cn("relative h-full w-full bg-slate-900", className)}>
       {/* #t asks the browser to seek to the first frame, so the poster is not black. */}
       <video src={`${src.split("#")[0]}#t=0.1`} muted playsInline preload="metadata" aria-hidden onError={() => setFailed(true)} className="h-full w-full object-cover" />
@@ -35,8 +38,8 @@ export function MediaPreview({ src, isVideo, className, fallback = "Prévia indi
     </div>
   }
 
-  return <div className={cn("relative h-full w-full", className)}>
-    <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="h-full w-full object-cover" />
+  return <div className={cn("relative h-full w-full", !loaded && "animate-pulse bg-slate-200", className)}>
+    <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onLoad={() => setLoaded(true)} onError={() => setFailed(true)} className="h-full w-full object-cover" />
     {isVideo && <span className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="rounded-full bg-black/55 p-2 text-white"><Play size={14} fill="currentColor" /></span></span>}
   </div>
 }

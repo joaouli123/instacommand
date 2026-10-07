@@ -13,9 +13,19 @@ export const getCompetitorProfile = async (igUserId: string, competitorUsername:
 };
 
 export const getCompetitorRecentPosts = async (igUserId: string, competitorUsername: string, token: string, limit = 25) => {
-  const fields = `business_discovery.username(${competitorUsername}){media.limit(${limit}){id,caption,media_url,permalink,timestamp,media_type,comments_count,like_count}}`;
-  const response = await graphGet(`/${igUserId}`, token, { fields });
-  return response.business_discovery?.media?.data || [];
+  const base = 'id,caption,media_url,permalink,timestamp,media_type,comments_count,like_count';
+  const read = async (extra: string) => {
+    const fields = `business_discovery.username(${competitorUsername}){media.limit(${limit}){${base}${extra}}}`;
+    const response = await graphGet(`/${igUserId}`, token, { fields });
+    return response.business_discovery?.media?.data || [];
+  };
+  // thumbnail_url and children give Reels and carousels a cover. If this Graph
+  // version rejects the extra fields (code 100), fall back to the basic set.
+  try { return await read(',thumbnail_url,children{media_url,media_type,thumbnail_url}'); }
+  catch (error) {
+    if (error instanceof InstagramApiError && error.metaCode === 100) return read('');
+    throw error;
+  }
 };
 
 /** Accepts "@user", "user", " User ", "instagram.com/user/" or a full profile URL. */

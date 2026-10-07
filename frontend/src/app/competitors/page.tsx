@@ -40,7 +40,7 @@ function Delta({ value, base }: { value: number | null; base: number | null }) {
   const diff = ((value - base) / base) * 100
   if (Math.abs(diff) < 1) return null
   const up = diff > 0
-  return <span className={`ml-1 inline-flex items-center text-[10px] font-semibold ${up ? "text-rose-600" : "text-emerald-600"}`} title="Comparado à sua conta">{up ? <ArrowUp size={10} /> : <ArrowDown size={10} />}{Math.abs(diff).toFixed(0)}%</span>
+  return <span className={`ml-1 inline-flex items-center text-[10px] font-semibold ${up ? "text-rose-600" : "text-emerald-600"}`} title="Comparado à sua conta">{up ? <ArrowUp size={10} /> : <ArrowDown size={10} />}{Math.abs(diff) > 300 ? `${(value / base).toLocaleString("pt-BR", { notation: value / base >= 1000 ? "compact" : "standard", maximumFractionDigits: value / base >= 10 ? 0 : 1 })}×` : `${Math.abs(diff).toFixed(0)}%`}</span>
 }
 
 const followerGrowth = (history: Competitor["history"]) => {

@@ -52,3 +52,33 @@ test('owner replies mark comments answered and own comments are left out', async
   assert.equal(result.summary.responseRate, 50);
   assert.equal(result.summary.avgResponseMinutes, 20);
 });
+
+test('commenter avatars come from business_discovery, cached for hits and misses', async () => {
+  const { clearAvatarCache } = require('../dist/services/instagram/community.service');
+  clearAvatarCache();
+  comments = [
+    { id: '1', text: 'Oi', username: 'Ana', timestamp: '2026-01-01T10:00:00Z' },
+    { id: '2', text: 'Oi de novo', username: 'ana', timestamp: '2026-01-01T11:00:00Z' },
+    { id: '3', text: 'Pessoal', username: 'bia', timestamp: '2026-01-01T12:00:00Z' },
+  ];
+  const original = require('../dist/utils/instagram-api').graphGet;
+  const api = require.cache[require.resolve('../dist/utils/instagram-api')].exports;
+  api.graphGet = async (path, token, params) => {
+    reads.push({ path, params });
+    if (path === '/789/media') return { data: media };
+    if (path === '/789') {
+      if (params.fields.includes('(ana)')) return { business_discovery: { profile_picture_url: 'https://cdn/ana.jpg' } };
+      throw new Error('personal account');
+    }
+    return { data: comments };
+  };
+  try {
+    const first = await listRecentComments('account', 'user');
+    assert.deepEqual(first.comments.map(comment => comment.avatarUrl), [null, 'https://cdn/ana.jpg', 'https://cdn/ana.jpg']);
+    assert.equal(first.summary.topCommenters.find(fan => fan.username.toLowerCase() === 'ana').avatarUrl, 'https://cdn/ana.jpg');
+    assert.equal(reads.filter(item => item.path === '/789').length, 2);
+    reads = [];
+    await listRecentComments('account', 'user');
+    assert.equal(reads.filter(item => item.path === '/789').length, 0);
+  } finally { api.graphGet = original; }
+});

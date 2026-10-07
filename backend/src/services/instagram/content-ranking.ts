@@ -64,7 +64,7 @@ export const normalizePost = (
     mediaType: typeof post.media_type === 'string' ? post.media_type : null,
     format: postFormat(post),
     mediaUrl: typeof post.media_url === 'string' ? post.media_url : (typeof firstChild?.media_url === 'string' ? firstChild.media_url : null),
-    thumbnailUrl: typeof post.thumbnail_url === 'string' ? post.thumbnail_url : null,
+    thumbnailUrl: typeof post.thumbnail_url === 'string' ? post.thumbnail_url : (typeof firstChild?.thumbnail_url === 'string' ? firstChild.thumbnail_url : null),
     timestamp: published && hours !== null ? published.toISOString() : null,
     likes,
     comments,

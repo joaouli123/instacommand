@@ -12,6 +12,7 @@ import toast from "react-hot-toast"
 import { api } from "@/lib/api"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { PageHeader } from "@/components/layout/PageHeader"
+import { InfoTip } from "@/components/ui/info-tip"
 import { ReferencePostCard, type RankedPost } from "@/components/dashboard/ReferencePostCard"
 
 type SavedHashtag = { id: string; hashtag: string; lastSearchedAt: string }
@@ -37,6 +38,7 @@ export default function TrendsPage() {
   const [newTag, setNewTag] = useState("")
   const [busyTag, setBusyTag] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [tagError, setTagError] = useState<string | null>(null)
 
   const savedQuery = useQuery({ queryKey: ["saved-hashtags", accountId], queryFn: () => api.getSavedHashtags(accountId) as Promise<SavedHashtag[]>, enabled: !!accountId })
   const feedQuery = useQuery({ queryKey: ["trend-feed", accountId, days, format, sort], queryFn: () => api.getTrendFeed(accountId, { days, format, sort }) as Promise<Feed>, enabled: !!accountId, staleTime: 5 * 60 * 1000 })
@@ -50,14 +52,14 @@ export default function TrendsPage() {
     if (!accountId || !tag) return
     if (!HASHTAG.test(tag)) return toast.error("Hashtag inválida: use letras, números e _ sem espaços.")
     if (saved.some((item) => item.hashtag === tag)) return toast(`#${tag} já está monitorada.`)
-    setBusyTag(tag)
+    setBusyTag(tag); setTagError(null)
     try {
       // Search first so the hashtag id is stored and invalid tags are rejected by Meta.
       const result = await api.searchHashtag(accountId, tag)
       await api.trackHashtag(accountId, { hashtag: tag, data: result })
       setNewTag(""); toast.success(`#${tag} adicionada ao radar.`)
       await invalidate()
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível consultar essa hashtag na Meta.") }
+    } catch (error) { const message = error instanceof Error && error.message ? error.message : "Não foi possível consultar essa hashtag na Meta."; setTagError(message); toast.error(message) }
     finally { setBusyTag(null) }
   }
 
@@ -80,6 +82,7 @@ export default function TrendsPage() {
   if (!accountLoading && !activeAccount) return <Card className="mx-auto max-w-xl p-10 text-center"><Hash className="mx-auto mb-3 text-indigo-600" size={28} /><h2 className="text-xl font-bold text-slate-900">Conecte uma conta para ver o que está em alta</h2><p className="mt-2 text-sm text-slate-500">A busca de hashtags da Meta só funciona a partir de um perfil profissional conectado.</p></Card>
 
   const failed = feed?.sources.filter((source) => source.status === "error") ?? []
+  const contentAccessBlocked = [tagError, ...failed.map((source) => source.error)].some((message) => !!message && /public content access/i.test(message))
   const hasSources = saved.length > 0 || (feed?.competitorsIncluded ?? 0) > 0
 
   return <div className="space-y-6 animate-fade-in">
@@ -89,21 +92,22 @@ export default function TrendsPage() {
     <Card className="p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Hashtags no radar</p>
+          <div className="flex items-center gap-1.5"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Hashtags no radar</p><InfoTip label="Limite de hashtags da Meta">Uso: {feed ? `${feed.quota.used}/${feed.quota.limit}` : "—/30"} hashtags nesta semana. A Meta permite até 30 hashtags diferentes por conta a cada 7 dias. Resultados ficam em cache por 1 h; repetir a mesma hashtag não gasta cota.</InfoTip></div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {savedQuery.isLoading ? <Skeleton className="h-8 w-48" /> : saved.length ? saved.map((item) => { const source = feed?.sources.find((entry) => entry.label === item.hashtag); return <span key={item.id} title={source?.error} className={`inline-flex items-center gap-1 rounded-lg border pl-2.5 text-xs font-medium ${source?.status === "error" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-slate-200 bg-slate-50 text-slate-700"}`}><Hash size={12} />{item.hashtag}{source?.count !== undefined && <span className="text-slate-400">· {source.count}</span>}<button type="button" aria-label={`Remover #${item.hashtag}`} onClick={() => void untrack(item)} className="ml-0.5 rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><X size={13} /></button></span> }) : <span className="text-xs text-slate-500">Nenhuma hashtag ainda. Adicione abaixo ou escolha uma sugestão.</span>}
           </div>
-          <form onSubmit={submit} className="mt-3 flex max-w-md gap-2"><div className="relative flex-1"><Hash className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><Input value={newTag} onChange={(event) => setNewTag(event.target.value)} placeholder="adicionar hashtag do nicho" className="h-9 pl-9" /></div><Button type="submit" size="sm" disabled={!!busyTag || !newTag.trim()} className="h-9 gap-1 bg-indigo-600 text-white">{busyTag && busyTag === newTag.trim().replace(/[#\s]+/g, "").toLowerCase() ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}Adicionar</Button></form>
+          <form onSubmit={submit} className="mt-3 flex max-w-md gap-2"><div className="relative flex-1"><Hash className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><Input value={newTag} onChange={(event) => { setNewTag(event.target.value); setTagError(null) }} placeholder="adicionar hashtag do nicho" className="h-9 pl-9" /></div><Button type="submit" size="sm" disabled={!!busyTag || !newTag.trim()} className="h-9 gap-1 bg-indigo-600 text-white">{busyTag && busyTag === newTag.trim().replace(/[#\s]+/g, "").toLowerCase() ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}Adicionar</Button></form>
+          {tagError && <p role="alert" className="mt-2 flex max-w-md items-start gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs text-rose-700"><AlertTriangle size={13} className="mt-0.5 shrink-0" /><span>{tagError}</span></p>}
           {wordSuggestions.length > 0 && <div className="mt-2 flex flex-wrap items-center gap-1.5"><span className="text-[11px] text-slate-500">Hashtags não têm espaço. Adicionar:</span>{wordSuggestions.map((tag) => <button key={tag} type="button" disabled={!!busyTag} onClick={() => void track(tag)} className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">{busyTag === tag ? "..." : `#${tag}`}</button>)}</div>}
           <div className="mt-3 flex flex-wrap gap-1.5"><span className="mr-1 text-[11px] text-slate-400">Sugestões:</span>{SUGGESTED.filter((tag) => !saved.some((item) => item.hashtag === tag)).slice(0, 8).map((tag) => <button key={tag} type="button" disabled={!!busyTag} onClick={() => void track(tag)} className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-[11px] text-slate-600 hover:border-indigo-300 hover:text-indigo-700">{busyTag === tag ? "..." : `#${tag}`}</button>)}</div>
         </div>
-        <div className="flex shrink-0 items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs leading-5 text-amber-900 lg:max-w-xs"><Info size={15} className="mt-0.5 shrink-0" /><div><p className="font-semibold">Limite da Meta: {feed ? `${feed.quota.used}/${feed.quota.limit}` : "30"} hashtags por semana</p><p>Cada conta pode consultar até 30 hashtags diferentes a cada 7 dias. Os resultados ficam em cache por 1 h; repetir a mesma hashtag não gasta cota nova.</p></div></div>
       </div>
     </Card>
 
     <div className="flex flex-wrap items-center gap-2"><Segmented label="Período" options={PERIODS} value={days} onChange={setDays} /><Segmented label="Formato" options={FORMATS} value={format} onChange={setFormat} /><Segmented label="Ordenar por" options={SORTS} value={sort} onChange={setSort} />{feedQuery.isFetching && !feedQuery.isLoading && <RefreshCw size={14} className="animate-spin text-slate-400" />}{feed && <span className="ml-auto text-[11px] text-slate-400">Fontes: {saved.length} hashtags · {feed.competitorsIncluded} concorrentes</span>}</div>
 
-    {failed.length > 0 && <Card role="alert" className="flex items-start gap-2 border-rose-200 bg-rose-50/60 p-3 text-xs text-rose-800"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><div>{failed.map((source) => <p key={source.label}><strong>#{source.label}:</strong> {source.error}</p>)}</div></Card>}
+    {contentAccessBlocked && <Card className="flex items-start gap-2 border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><Info size={15} className="mt-0.5 shrink-0 text-slate-400" /><div><p className="font-semibold text-slate-700">Busca de hashtags indisponível</p><p>Aguardando a Meta liberar o recurso Public Content Access. O radar dos concorrentes continua funcionando abaixo.</p></div></Card>}
+    {!contentAccessBlocked && failed.length > 0 && <Card role="alert" className="flex items-start gap-2 border-rose-200 bg-rose-50/60 p-3 text-xs text-rose-800"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><div>{failed.map((source) => <p key={source.label}><strong>#{source.label}:</strong> {source.error}</p>)}</div></Card>}
 
     {feedQuery.isLoading ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">{Array.from({ length: 12 }, (_, index) => <Skeleton key={index} className="aspect-[4/6] w-full" />)}</div>
       : feedQuery.isError ? <Card className="flex flex-col items-center gap-3 p-10 text-center"><AlertTriangle className="text-amber-500" /><p className="text-sm text-slate-600">{feedQuery.error instanceof Error ? feedQuery.error.message : "Não foi possível carregar o radar."}</p><Button variant="outline" onClick={() => feedQuery.refetch()}>Tentar novamente</Button></Card>
@@ -115,6 +119,6 @@ export default function TrendsPage() {
         </Card>
       </>}
 
-    <Card className="border-indigo-100 bg-indigo-50/50 p-4 text-xs leading-5 text-indigo-900"><p className="text-sm font-semibold">Por que não aparece o “Explorar” do Instagram?</p><p className="mt-1 text-indigo-800">A Meta não oferece a aba Explorar nem um ranking global de virais pela API oficial. O que existe de real é a busca de hashtags (posts em destaque e das últimas 24 h) e os dados públicos de perfis profissionais. Visualizações de posts de terceiros não são liberadas pela Meta; por isso o ranking usa curtidas e comentários. Posts de vídeo podem vir sem prévia.</p><Badge variant="secondary" className="mt-2">Dados oficiais da Meta</Badge></Card>
+    <div className="flex items-center gap-1.5 text-xs text-slate-500"><span>Por que não aparece o “Explorar” do Instagram?</span><InfoTip label="Sobre o Explorar">A Meta não oferece a aba Explorar nem um ranking global de virais pela API oficial. O radar usa a busca de hashtags (destaques e últimas 24 h) e dados públicos de perfis profissionais. Visualizações de terceiros não são liberadas, por isso o ranking usa curtidas e comentários. Vídeos podem vir sem prévia.</InfoTip><Badge variant="secondary" className="ml-1">Dados oficiais da Meta</Badge></div>
   </div>
 }

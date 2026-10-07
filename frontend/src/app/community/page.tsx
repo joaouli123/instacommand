@@ -19,6 +19,7 @@ type CommentItem = {
   id: string
   text: string
   username?: string
+  avatarUrl?: string | null
   timestamp?: string
   like_count?: number | null
   mediaId: string
@@ -41,10 +42,10 @@ type StatusFilter = "all" | "unanswered" | "answered"
 type IntentFilter = "all" | Intent
 
 const INTENTS: Record<Intent, { label: string; className: string; icon: typeof HelpCircle }> = {
-  question: { label: "Pergunta", className: "bg-sky-50 text-sky-700 ring-sky-200", icon: HelpCircle },
-  complaint: { label: "Reclamação", className: "bg-rose-50 text-rose-700 ring-rose-200", icon: AlertTriangle },
-  praise: { label: "Elogio", className: "bg-emerald-50 text-emerald-700 ring-emerald-200", icon: Smile },
-  other: { label: "Outro", className: "bg-slate-50 text-slate-600 ring-slate-200", icon: MessageCircle },
+  question: { label: "Pergunta", className: "bg-sky-500", icon: HelpCircle },
+  complaint: { label: "Reclamação", className: "bg-rose-500", icon: AlertTriangle },
+  praise: { label: "Elogio", className: "bg-emerald-500", icon: Smile },
+  other: { label: "Outro", className: "bg-slate-400", icon: MessageCircle },
 }
 
 const SORTS: Record<SortKey, string> = {
@@ -94,12 +95,13 @@ function summarize(comments: CommentItem[]) {
     .map((comment) => (time(comment.firstReplyAt) - time(comment.timestamp)) / 60000)
     .filter((delay) => Number.isFinite(delay) && delay >= 0)
   const intents: Record<Intent, number> = { question: 0, complaint: 0, praise: 0, other: 0 }
-  const fans = new Map<string, { username: string; comments: number; unanswered: number }>()
+  const fans = new Map<string, { username: string; comments: number; unanswered: number; avatarUrl?: string | null }>()
   for (const comment of comments) {
     intents[comment.intent || "other"] += 1
     const username = comment.username || "usuário"
     const fan = fans.get(username) || { username, comments: 0, unanswered: 0 }
     fan.comments += 1
+    if (!fan.avatarUrl && comment.avatarUrl) fan.avatarUrl = comment.avatarUrl
     if (!comment.answered) fan.unanswered += 1
     fans.set(username, fan)
   }
@@ -278,7 +280,7 @@ function AccountCommunity({ accountId, username }: { accountId: string; username
                 </div>
               </div>
             </div>
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            <div className="flex gap-2 overflow-x-auto px-px py-1">
               {([["all", "Todos", summary.total], ["unanswered", "Sem resposta", summary.unanswered], ["answered", "Respondidos", summary.answered]] as const).map(([key, label, count]) => <Chip key={key} active={status === key} onClick={() => setStatus(key)}>{label} <span className="opacity-60">{count}</span></Chip>)}
               <span className="mx-1 w-px shrink-0 bg-slate-200"/>
               {(Object.keys(INTENTS) as Intent[]).filter((key) => key !== "other").map((key) => { const Icon = INTENTS[key].icon; return <Chip key={key} active={intent === key} onClick={() => setIntent(intent === key ? "all" : key)}><Icon size={13}/>{INTENTS[key].label}s <span className="opacity-60">{summary.intents[key]}</span></Chip> })}
@@ -308,16 +310,16 @@ function AccountCommunity({ accountId, username }: { accountId: string; username
 
 const TONES = {
   indigo: "bg-indigo-50 text-indigo-600",
-  amber: "bg-amber-50 text-amber-600",
-  emerald: "bg-emerald-50 text-emerald-600",
-  sky: "bg-sky-50 text-sky-600",
+  amber: "bg-slate-100 text-slate-500",
+  emerald: "bg-slate-100 text-slate-500",
+  sky: "bg-slate-100 text-slate-500",
 }
 
 function Kpi({ icon: Icon, tone, label, value, hint, progress, onClick }: { icon: typeof MessageCircle; tone: keyof typeof TONES; label: string; value: string; hint: string; progress?: number | null; onClick?: () => void }) {
   const body = <>
     <div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-medium text-slate-500">{label}</p><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${TONES[tone]}`}><Icon size={15}/></span></div>
     <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{value}</p>
-    {typeof progress === "number" ? <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, progress)}%` }}/></div> : <p className="mt-1 truncate text-xs text-slate-400">{hint}</p>}
+    {typeof progress === "number" ? <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${Math.min(100, progress)}%` }}/></div> : <p className="mt-1 truncate text-xs text-slate-400">{hint}</p>}
   </>
   return <Card className="p-4">{onClick ? <button type="button" onClick={onClick} className="w-full text-left">{body}</button> : body}</Card>
 }
@@ -330,7 +332,7 @@ function IntentBadge({ intent }: { intent?: Intent }) {
   const meta = INTENTS[intent || "other"]
   if (!intent || intent === "other") return null
   const Icon = meta.icon
-  return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${meta.className}`}><Icon size={11}/>{meta.label}</span>
+  return <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"><span className={`h-1.5 w-1.5 rounded-full ${meta.className}`}/><Icon size={11} className="text-slate-400"/>{meta.label}</span>
 }
 
 type Group = { mediaId: string; first: CommentItem; items: CommentItem[]; unanswered: number }
@@ -349,7 +351,7 @@ function PostGroup({ group, comments, ...actions }: { group: Group; comments: Co
           <span className="inline-flex items-center gap-1"><Heart size={12}/>{formatNumber(first.mediaLikeCount)}</span>
           <span className="inline-flex items-center gap-1"><MessageCircle size={12}/>{formatNumber(first.mediaCommentsCount ?? group.items.length)}</span>
           {first.mediaTimestamp && <span>{timeAgo(first.mediaTimestamp)}</span>}
-          {group.unanswered > 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">{group.unanswered} sem resposta</span> : <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-800">Tudo respondido</span>}
+          {group.unanswered > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">{group.unanswered} sem resposta</span> : <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-500">Tudo respondido</span>}
           {first.permalink && <a href={first.permalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:underline">Abrir <ExternalLink size={11}/></a>}
         </div>
       </div>
@@ -386,9 +388,9 @@ function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDel
     if (ok) { setDraft(""); setOpen(false) }
   }
 
-  return <div className={`p-3 sm:p-4 ${comment.answered ? "" : "bg-amber-50/30"}`}>
+  return <div className={`p-3 sm:p-4 ${comment.answered ? "" : "border-l-2 border-amber-300"}`}>
     <div className="flex gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-orange-400 text-sm font-bold text-white">{name[0].toUpperCase()}</div>
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-sm font-semibold text-slate-600"><AvatarImage src={comment.avatarUrl} alt={`@${name}`} fallback={name[0].toUpperCase()}/></div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <p className="truncate text-sm font-bold text-slate-900">@{name}</p>
@@ -406,7 +408,7 @@ function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDel
           {comment.permalink && showPost && <a href={comment.permalink} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 px-2 text-xs font-semibold text-slate-500 hover:text-indigo-600">Post <ExternalLink size={11}/></a>}
         </div>
         {open && <div className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-white p-2.5">
-          {quickReplies.length > 0 && <div className="-mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-1">{quickReplies.map((template, index) => <button key={index} type="button" onClick={() => setDraft(template.replaceAll("{nome}", `@${name}`))} className="max-w-[220px] shrink-0 truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-700" title={template}>{template.replaceAll("{nome}", `@${name}`)}</button>)}</div>}
+          {quickReplies.length > 0 && <div className="flex gap-1.5 overflow-x-auto px-px py-1">{quickReplies.map((template, index) => <button key={index} type="button" onClick={() => setDraft(template.replaceAll("{nome}", `@${name}`))} className="max-w-[220px] shrink-0 truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-700" title={template}>{template.replaceAll("{nome}", `@${name}`)}</button>)}</div>}
           <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) void send() }} maxLength={1000} autoFocus placeholder={`Responder @${name}...`} className="min-h-20 w-full resize-y rounded-lg border border-slate-200 p-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"/>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] text-slate-400">{draft.length}/1000 · Ctrl+Enter envia</span>
@@ -427,21 +429,20 @@ function IntentBreakdown({ intents, total, active, onSelect }: { intents: Record
     <p className="mt-0.5 text-xs text-slate-400">Estimativa por palavras-chave</p>
     <div className="mt-3 space-y-2.5">{(Object.keys(INTENTS) as Intent[]).map((key) => {
       const pct = total ? Math.round((intents[key] / total) * 100) : 0
-      const Icon = INTENTS[key].icon
       return <button key={key} type="button" onClick={() => onSelect(active === key ? "all" : key)} className={`block w-full rounded-lg p-1.5 text-left transition-colors ${active === key ? "bg-indigo-50" : "hover:bg-slate-50"}`}>
-        <div className="flex items-center justify-between text-xs"><span className="inline-flex items-center gap-1.5 font-medium text-slate-700"><Icon size={13}/>{INTENTS[key].label}</span><span className="text-slate-500">{intents[key]} · {pct}%</span></div>
-        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${key === "question" ? "bg-sky-500" : key === "complaint" ? "bg-rose-500" : key === "praise" ? "bg-emerald-500" : "bg-slate-400"}`} style={{ width: `${pct}%` }}/></div>
+        <div className="flex items-center justify-between text-xs"><span className="inline-flex items-center gap-1.5 font-medium text-slate-700"><span className={`h-1.5 w-1.5 rounded-full ${INTENTS[key].className}`}/>{INTENTS[key].label}</span><span className="text-slate-500">{intents[key]} · {pct}%</span></div>
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${key === "complaint" ? "bg-rose-400" : "bg-slate-400"}`} style={{ width: `${pct}%` }}/></div>
       </button>
     })}</div>
   </Card>
 }
 
-function TopFans({ fans, onSelect }: { fans: Array<{ username: string; comments: number; unanswered: number }>; onSelect: (username: string) => void }) {
+function TopFans({ fans, onSelect }: { fans: Array<{ username: string; comments: number; unanswered: number; avatarUrl?: string | null }>; onSelect: (username: string) => void }) {
   return <Card className="p-4">
     <h3 className="section-title">Fãs mais ativos</h3>
     {!fans.length ? <p className="mt-2 text-sm text-slate-500">Ainda sem comentários.</p> : <ol className="mt-3 space-y-1">{fans.map((fan, index) => <li key={fan.username}><button type="button" onClick={() => onSelect(fan.username)} className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-slate-50">
       <span className="w-4 text-xs font-semibold text-slate-400">{index + 1}</span>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-orange-400 text-xs font-bold text-white">{fan.username[0]?.toUpperCase()}</span>
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-xs font-semibold text-slate-600"><AvatarImage src={fan.avatarUrl} fallback={fan.username[0]?.toUpperCase()}/></span>
       <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">@{fan.username}</span>
       <span className="text-xs text-slate-500">{fan.comments}</span>
       {fan.unanswered > 0 && <span className="h-2 w-2 rounded-full bg-amber-500" title={`${fan.unanswered} sem resposta`}/>}
