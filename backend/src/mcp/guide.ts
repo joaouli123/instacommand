@@ -11,19 +11,20 @@ export const PUBLISHING_GUIDE = {
     '5. Confira o resultado com get_post. Nunca repita uma publicação de resultado incerto sem checar o status.',
   ],
   formats: {
-    IMAGE: 'Uma imagem. Instagram (feed), Facebook (foto da Página) e Threads.',
-    CAROUSEL: 'De 2 a 10 mídias. Instagram e Threads aceitam imagens e vídeos misturados; o álbum do Facebook aceita somente fotos.',
-    REEL: 'Um vídeo vertical. Instagram (Reels), Facebook (vídeo da Página) e Threads (vídeo).',
+    IMAGE: 'Uma imagem. Instagram (feed), Facebook (foto da Página), Threads e X.',
+    CAROUSEL: 'De 2 a 10 mídias (no X, até 4). Instagram e Threads aceitam imagens e vídeos misturados; o álbum do Facebook aceita somente fotos.',
+    REEL: 'Um vídeo. Instagram (Reels), Facebook (vídeo da Página), Threads (vídeo) e X (vídeo).',
     STORY: 'Uma imagem ou vídeo. Somente Instagram.',
-    TEXT: 'Somente Threads, sem mídia, texto de 1 a 500 caracteres.',
+    TEXT: 'Somente Threads e/ou X, sem mídia. Até 500 caracteres no Threads e 280 no X.',
   },
   platforms: {
     INSTAGRAM: 'Exige accountId de uma conta do Instagram conectada.',
     FACEBOOK: 'Publica na Página do Facebook vinculada à conta do Instagram (accountId). Stories não são suportados.',
     THREADS: 'Exige threadsAccountId. Mesmo em posts somente para Threads, accountId (Instagram) continua obrigatório.',
+    X: 'Exige xAccountId (campo "x" de list_accounts). Texto de até 280 caracteres (com hashtags), até 4 imagens ou 1 vídeo. Cada post consome créditos da API do X do workspace; links no texto custam bem mais — prefira deixar o link na bio. accountId (Instagram) continua obrigatório.',
   },
   limits: {
-    caption: 'Até 2.200 caracteres (Instagram). No Threads, texto final de até 500 caracteres.',
+    caption: 'Até 2.200 caracteres (Instagram). No Threads, texto final de até 500 caracteres; no X, até 280.',
     hashtags: 'Até 30 no campo hashtags (recomendado 3 a 8), sem o símbolo #.',
     media: 'Até 10 mídias por post, 100 MB por arquivo. Formatos: JPG, PNG, WebP, GIF, MP4, MOV. Para Instagram, prefira JPG e vídeo MP4 (H.264/AAC); Reels e Stories em 9:16.',
     mediaUrls: 'Sempre passe as mídias por import_media_from_url ou upload_media_base64: as redes baixam o arquivo de uma URL pública e o InstaCommand reconhece vídeos pela extensão .mp4/.mov que essas ferramentas garantem.',
@@ -46,9 +47,9 @@ export const PUBLISHING_GUIDE = {
     isAiGenerated: 'Rótulo de conteúdo gerado por IA (somente quando o Instagram está entre as redes).',
     instagramAudio: 'Música da biblioteca do Instagram, somente em REEL publicado no Instagram. Busque com search_instagram_audio.',
   },
-  deletion: 'A API oficial do Instagram não permite excluir mídia já publicada: delete_post remove do InstaCommand e tenta excluir no Facebook e no Threads; o post do Instagram precisa ser apagado no app.',
+  deletion: 'A API oficial do Instagram não permite excluir mídia já publicada: delete_post remove do InstaCommand e tenta excluir no Facebook, no Threads e no X; o post do Instagram precisa ser apagado no app.',
   safety: [
     'Peça confirmação explícita antes de publicar agora, agendar, excluir, responder comentários, enviar mensagens ou desconectar contas.',
-    'Conectar contas exige que o usuário abra o link de autorização da Meta ou do Threads no navegador.',
+    'Conectar contas exige que o usuário abra o link de autorização da Meta, do Threads ou do X no navegador.',
   ],
 };

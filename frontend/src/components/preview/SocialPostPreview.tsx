@@ -4,13 +4,15 @@
 // the composer and the calendar so both show exactly what will be published.
 import { useEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
-import { SiThreads } from "@icons-pack/react-simple-icons"
+import { SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import { RiBarChartLine, RiChat1Line, RiShare2Line } from "@remixicon/react"
 import { RiAccountCircleLine, RiAddLine, RiArrowLeftLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiEmotionHappyLine, RiHeartFill, RiHeartLine, RiImageLine, RiMore2Line, RiMusic2Line, RiPauseFill, RiPlayFill, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiThumbUpFill, RiThumbUpLine, RiVolumeMuteLine, RiVolumeUpLine } from "@remixicon/react"
 import { AvatarImage } from "@/components/ui/avatar-image"
 
 export type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY" | "TEXT"
 export type PreviewAccount = { igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null }
 export type PreviewThreadsAccount = { username: string }
+export type PreviewXAccount = { username: string; name?: string | null; profilePicUrl?: string | null }
 export type MediaItem = {
   id: string
   src: string
@@ -45,6 +47,7 @@ export type SocialPreviewProps = {
   previewPlatform: string
   selectedAccount?: PreviewAccount
   threadsAccount?: PreviewThreadsAccount
+  xAccount?: PreviewXAccount
   media: MediaItem | null
   mediaItems: MediaItem[]
   activeMediaIndex: number
@@ -217,7 +220,52 @@ export function PreviewAvatar({ src, name, ring = false, facebook = false, compa
   </span>
 }
 
-export function SocialPostPreview({ postType, previewPlatform, selectedAccount, threadsAccount, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags }: SocialPreviewProps) {
+// Built with the constructor: the project targets an ES version without regex literal flags.
+const TAG_PATTERN = new RegExp("^[#@][\\p{L}\\p{N}_]+", "u")
+
+/** Post as it appears in the X timeline: header, text, up to 4 media in a grid and the action bar. */
+function XPostPreview({ account, caption, hashtags, mediaItems, postType }: { account?: PreviewXAccount; caption: string; hashtags: string[]; mediaItems: MediaItem[]; postType: PostType }) {
+  const handle = account?.username || "sua_conta"
+  const name = account?.name || handle
+  const text = [caption, hashtags.map((tag) => `#${tag}`).join(" ")].filter(Boolean).join("\n\n")
+  const length = Array.from(text).length
+  const items = postType === "TEXT" ? [] : mediaItems.slice(0, 4)
+  // Hashtags and @mentions are blue on X.
+  const rich = text.split(/(\s+)/).map((part, index) => TAG_PATTERN.test(part) ? <span key={index} className="text-[#1d9bf0]">{part}</span> : part)
+  const grid = items.length === 1 ? "grid-cols-1" : "grid-cols-2"
+  return <article data-preview="x-post" aria-label="Prévia de publicação no X" className="w-full max-w-[400px] border border-[#eff3f4] bg-white px-4 py-3 text-[#0f1419] font-[system-ui,-apple-system,'Segoe_UI',Roboto,Helvetica,Arial,sans-serif]">
+    <div className="flex gap-3">
+      <span className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-[#cfd9de]"><AvatarImage src={account?.profilePicUrl} fallback={(handle[0] || "X").toUpperCase()} /></span>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-1 text-[15px] leading-5">
+          <span className="truncate font-bold">{name}</span>
+          <span className="truncate text-[#536471]">@{handle}</span>
+          <span className="shrink-0 text-[#536471]">· agora</span>
+          <SiX className="ml-auto h-4 w-4 shrink-0 text-[#0f1419]" title="X" />
+        </div>
+        <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-5">{text ? rich : <span className="text-[#536471]">O texto do seu post aparecerá aqui.</span>}</p>
+        {items.length > 0 && <div className={`mt-3 grid ${grid} gap-0.5 overflow-hidden rounded-2xl border border-[#cfd9de]`}>
+          {items.map((item, index) => <div key={item.id} className={`relative bg-[#f7f9f9] ${items.length === 1 ? (postType === "REEL" ? "aspect-[9/16] max-h-[420px]" : "aspect-[4/3]") : items.length === 3 && index === 0 ? "row-span-2 aspect-auto" : "aspect-square"}`}>
+            {item.kind === "video" ? <video src={item.src} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" /> : <img src={item.src} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+            {item.kind === "video" && <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">Vídeo</span>}
+          </div>)}
+        </div>}
+        <div className="mt-3 flex max-w-[360px] items-center justify-between text-[13px] text-[#536471]" aria-label="Ações do post no X">
+          <span className="flex items-center gap-1"><RiChat1Line size={18} />0</span>
+          <span className="flex items-center gap-1"><RiRepeat2Line size={18} />0</span>
+          <span className="flex items-center gap-1"><RiHeartLine size={18} />0</span>
+          <span className="flex items-center gap-1"><RiBarChartLine size={18} />0</span>
+          <span className="flex items-center gap-2"><RiBookmarkLine size={18} /><RiShare2Line size={18} /></span>
+        </div>
+        <p className={`mt-2 text-right text-[11px] font-medium ${length > 280 ? "text-[#f4212e]" : "text-[#536471]"}`}>{length}/280 caracteres{length > 280 ? " · passa do limite do X" : ""}</p>
+        {mediaItems.length > 4 && postType !== "TEXT" && <p className="mt-1 text-right text-[11px] font-medium text-[#f4212e]">O X mostra só as 4 primeiras mídias.</p>}
+      </div>
+    </div>
+  </article>
+}
+
+export function SocialPostPreview({ postType, previewPlatform, selectedAccount, threadsAccount, xAccount, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags }: SocialPreviewProps) {
+  if (previewPlatform === "X") return <XPostPreview account={xAccount} caption={caption} hashtags={hashtags} mediaItems={mediaItems} postType={postType} />
   const isInstagram = previewPlatform === "INSTAGRAM"
   const isFacebook = previewPlatform === "FACEBOOK"
   const username = isFacebook ? selectedAccount?.pageName || "Sua Página" : isInstagram ? selectedAccount?.igUsername || "sua_conta" : threadsAccount?.username || "sua_conta"

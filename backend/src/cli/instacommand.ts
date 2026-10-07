@@ -326,10 +326,10 @@ const formatDate = (value: string | null | undefined) => {
 
 // ---------------------------------------------------------------- lookups
 
-const PLATFORM_ALIASES: Record<string, string> = { instagram: 'INSTAGRAM', ig: 'INSTAGRAM', facebook: 'FACEBOOK', fb: 'FACEBOOK', threads: 'THREADS', th: 'THREADS' };
+const PLATFORM_ALIASES: Record<string, string> = { instagram: 'INSTAGRAM', ig: 'INSTAGRAM', facebook: 'FACEBOOK', fb: 'FACEBOOK', threads: 'THREADS', th: 'THREADS', x: 'X', twitter: 'X' };
 const parsePlatforms = (values: string[]) => values.map((value) => {
   const platform = PLATFORM_ALIASES[value.toLowerCase()];
-  if (!platform) throw usageError(`Rede desconhecida: ${value}. Use instagram, facebook e/ou threads.`);
+  if (!platform) throw usageError(`Rede desconhecida: ${value}. Use instagram, facebook, threads e/ou x.`);
   return platform;
 });
 
@@ -337,27 +337,30 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let accountsCache: any = null;
 const loadAccounts = async (ctx: Context) => (accountsCache ??= await callTool(ctx, 'list_accounts'));
 
-async function resolveAccount(ctx: Context, value: string | undefined, kind: 'instagram' | 'threads', required: boolean): Promise<string | undefined> {
+const KIND_NAMES = { instagram: 'do Instagram', threads: 'do Threads', x: 'do X' } as const;
+const KIND_FLAGS = { instagram: 'account', threads: 'threads-account', x: 'x-account' } as const;
+
+async function resolveAccount(ctx: Context, value: string | undefined, kind: 'instagram' | 'threads' | 'x', required: boolean): Promise<string | undefined> {
   if (value && UUID.test(value)) return value;
   const accounts = await loadAccounts(ctx);
-  const list: any[] = kind === 'instagram' ? accounts.instagram : accounts.threads;
+  const list: any[] = (kind === 'instagram' ? accounts.instagram : kind === 'x' ? accounts.x : accounts.threads) || [];
   if (value) {
     const username = value.replace(/^@/, '').toLowerCase();
     const match = list.find((account) => String(account.username).toLowerCase() === username);
-    if (!match) throw new CliError(`Conta ${kind === 'instagram' ? 'do Instagram' : 'do Threads'} @${username} não encontrada. Veja "instacommand accounts".`);
+    if (!match) throw new CliError(`Conta ${KIND_NAMES[kind]} @${username} não encontrada. Veja "instacommand accounts".`);
     return match.id;
   }
   if (list.length === 1) return list[0].id;
   if (!required) return undefined;
   throw usageError(list.length
-    ? `Escolha a conta ${kind === 'instagram' ? 'do Instagram' : 'do Threads'} com --${kind === 'instagram' ? 'account' : 'threads-account'} (id ou @usuário).`
-    : `Nenhuma conta ${kind === 'instagram' ? 'do Instagram' : 'do Threads'} conectada.`);
+    ? `Escolha a conta ${KIND_NAMES[kind]} com --${KIND_FLAGS[kind]} (id ou @usuário).`
+    : `Nenhuma conta ${KIND_NAMES[kind]} conectada.`);
 }
 
 // ---------------------------------------------------------------- human output
 
 const STATUS_LABELS: Record<string, string> = { DRAFT: 'Rascunho', SCHEDULED: 'Agendado', PROCESSING: 'Enviando', PUBLISHED: 'Publicado', FAILED: 'Falhou' };
-const NETWORK_SHORT: Record<string, string> = { INSTAGRAM: 'IG', FACEBOOK: 'FB', THREADS: 'TH' };
+const NETWORK_SHORT: Record<string, string> = { INSTAGRAM: 'IG', FACEBOOK: 'FB', THREADS: 'TH', X: 'X' };
 
 function printPostLine(post: any) {
   const networks = (post.platforms || []).map((platform: string) => NETWORK_SHORT[platform] || platform).join('+');
@@ -419,7 +422,7 @@ function readCaption(flags: Flags): string | undefined {
 }
 
 function inferMediaType(media: string[], platforms: string[]) {
-  if (!media.length) return platforms.length === 1 && platforms[0] === 'THREADS' ? 'TEXT' : undefined;
+  if (!media.length) return platforms.length > 0 && platforms.every((platform) => platform === 'THREADS' || platform === 'X') ? 'TEXT' : undefined;
   if (media.length > 1) return 'CAROUSEL';
   return /\.(mp4|mov)(\?|$)/i.test(media[0]) ? 'REEL' : 'IMAGE';
 }
@@ -444,6 +447,9 @@ async function postArgsFromFlags(ctx: Context, flags: Flags, mode: 'create' | 'u
   if (mode === 'create') args.accountId = await resolveAccount(ctx, flagString(flags, 'account'), 'instagram', true);
   if (platforms?.includes('THREADS') || flagString(flags, 'threads-account')) {
     args.threadsAccountId = await resolveAccount(ctx, flagString(flags, 'threads-account'), 'threads', mode === 'create');
+  }
+  if (platforms?.includes('X') || flagString(flags, 'x-account')) {
+    args.xAccountId = await resolveAccount(ctx, flagString(flags, 'x-account'), 'x', mode === 'create');
   }
   const mediaValues = flagRepeat(flags, 'media').flatMap((value) => value.split(',').map((item) => item.trim()).filter(Boolean));
   let media: string[] | undefined;
@@ -589,10 +595,10 @@ Conexão
 Contas
   accounts                                   Lista Instagram (+ Página do Facebook) e Threads
   accounts sync <id>                         Atualiza perfil e métricas
-  accounts connect meta|threads [--replies]  Gera o link de autorização
+  accounts connect meta|threads|x [--replies]  Gera o link de autorização
   accounts pending                           Contas aguardando seleção
   accounts select <id> [<id>...]             Ativa as contas pendentes escolhidas
-  accounts disconnect instagram|threads <id> --yes
+  accounts disconnect instagram|threads|x <id> --yes
 
 Mídias
   media upload <arquivo> [...]               Envia arquivos locais e mostra as URLs
@@ -603,8 +609,8 @@ Publicações
   calendar [--from D] [--to D] [--account A]  Agenda dos próximos 7 dias (padrão)
   posts get <id>
   posts create [--account A] [--media arquivo|url ...] [--type IMAGE|CAROUSEL|REEL|STORY|TEXT]
-               [--caption T | --caption-file F] [--hashtags a,b] [--platforms instagram,facebook,threads]
-               [--threads-account A] [--at "2026-10-10 18:30"] [--schedule] [--first-comment T]
+               [--caption T | --caption-file F] [--hashtags a,b] [--platforms instagram,facebook,threads,x]
+               [--threads-account A] [--x-account A] [--at "2026-10-10 18:30"] [--schedule] [--first-comment T]
                [--collaborators a,b] [--alt T ...] [--disable-comments] [--ai-generated] [--audio-id ID]
   posts update <id> [mesmas opções]
   posts schedule <id> --at <data>
@@ -616,7 +622,7 @@ Publicações
 Relatórios, comunidade e IA
   analytics <relatório> [--account A] [--days 7|30|90|365|730]
             relatórios: dashboard, profile_report, growth, engagement, top_posts, posts, audience,
-                        best_times, content_types, recommendations, access, facebook, threads
+                        best_times, content_types, recommendations, access, facebook, threads, x
   comments [list] [--account A]
   comments reply <commentId> --media <mediaId> --message T [--account A] --yes
   comments delete <commentId> --media <mediaId> [--account A] --yes
@@ -711,6 +717,9 @@ async function commandAccounts(ctx: Context, positionals: string[], flags: Flags
       stdout('Threads:');
       for (const account of accounts.threads) stdout(`  @${String(account.username).padEnd(24)} ${account.id}`);
       if (!accounts.threads.length) stdout('  (nenhuma) — conecte com "instacommand accounts connect threads"');
+      stdout('X:');
+      for (const account of accounts.x || []) stdout(`  @${String(account.username).padEnd(24)} ${account.id}  ${account.followers ?? '?'} seguidores`);
+      if (!(accounts.x || []).length) stdout('  (nenhuma) — conecte com "instacommand accounts connect x"');
     });
   }
   if (action === 'get') return printJson(await callTool(ctx, 'get_account', { accountId: await resolveAccount(ctx, rest[0], 'instagram', true) }));
@@ -720,7 +729,7 @@ async function commandAccounts(ctx: Context, positionals: string[], flags: Flags
   }
   if (action === 'connect') {
     const network = rest[0];
-    if (network !== 'meta' && network !== 'threads') throw usageError('Use "accounts connect meta" ou "accounts connect threads".');
+    if (network !== 'meta' && network !== 'threads' && network !== 'x') throw usageError('Use "accounts connect meta", "accounts connect threads" ou "accounts connect x".');
     const result = await callTool(ctx, 'start_account_connection', { network, enableThreadsReplies: flagBool(flags, 'replies') });
     return output(ctx, result, () => {
       stdout('Abra este link no navegador para autorizar (válido por 10 minutos):');
@@ -742,9 +751,9 @@ async function commandAccounts(ctx: Context, positionals: string[], flags: Flags
   }
   if (action === 'disconnect') {
     const [network, id] = rest;
-    if (!['instagram', 'threads'].includes(network) || !id) throw usageError('Use "accounts disconnect instagram|threads <id> --yes".');
+    if (!['instagram', 'threads', 'x'].includes(network) || !id) throw usageError('Use "accounts disconnect instagram|threads|x <id> --yes".');
     requireYes(flags, 'Desconectar a conta');
-    return printJson(await callTool(ctx, 'disconnect_account', { network, accountId: await resolveAccount(ctx, id, network as 'instagram' | 'threads', true), confirm: true }));
+    return printJson(await callTool(ctx, 'disconnect_account', { network, accountId: await resolveAccount(ctx, id, network as 'instagram' | 'threads' | 'x', true), confirm: true }));
   }
   throw usageError(`Ação desconhecida: accounts ${action}`);
 }
@@ -862,6 +871,7 @@ async function commandAnalytics(ctx: Context, positionals: string[], flags: Flag
   const [report = 'dashboard'] = positionals;
   const days = flagInt(flags, 'days') ?? 30;
   if (report === 'facebook') return printJson(await callTool(ctx, 'get_network_report', { network: 'facebook', accountId: await resolveAccount(ctx, flagString(flags, 'account'), 'instagram', true), days }));
+  if (report === 'x') return printJson(await callTool(ctx, 'get_network_report', { network: 'x', accountId: await resolveAccount(ctx, flagString(flags, 'account') || flagString(flags, 'x-account'), 'x', true), days }));
   if (report === 'threads') return printJson(await callTool(ctx, 'get_network_report', { network: 'threads', accountId: await resolveAccount(ctx, flagString(flags, 'account') || flagString(flags, 'threads-account'), 'threads', true), days }));
   const args: Record<string, unknown> = { accountId: await resolveAccount(ctx, flagString(flags, 'account'), 'instagram', true), report, days };
   for (const key of ['mediaType', 'sortBy', 'audience']) { const value = flagString(flags, key.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)); if (value) args[key] = key === 'mediaType' ? value.toUpperCase() : value; }

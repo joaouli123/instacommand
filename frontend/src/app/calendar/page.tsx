@@ -1,5 +1,6 @@
 "use client"
 import { PageHeader } from "@/components/layout/PageHeader"
+import { useXAccounts } from "@/components/accounts/XAccountsCard"
 import { useEffect, useMemo, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,7 @@ type CalendarPost = {
   mediaUrls?: string[]
   hashtags?: string[]
   threadsAccountId?: string | null
+  xAccountId?: string | null
   isAiGenerated?: boolean
   instagramAudioTitle?: string | null
   instagramAudioArtist?: string | null
@@ -53,6 +55,7 @@ export default function CalendarPage() {
   const { accounts, accountId, activeAccount, isLoading: accountsLoading } = useActiveAccount()
   const threadsQuery = useQuery({ queryKey: ["threads-accounts"], queryFn: api.getThreadsAccounts, staleTime: 5 * 60_000 })
   const threadsAccounts = (threadsQuery.data || []) as Array<{ id: string; username: string }>
+  const xAccounts = useXAccounts().data?.accounts || []
   const [monthDate, setMonthDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [posts, setPosts] = useState<CalendarPost[]>([])
   const [loading, setLoading] = useState(true)
@@ -162,6 +165,7 @@ export default function CalendarPage() {
              post={selectedPost}
              account={accounts.find((account) => account.id === selectedPost.accountId)}
              threadsAccount={threadsAccounts.find((account) => account.id === selectedPost.threadsAccountId)}
+             xAccount={xAccounts.find((account) => account.id === selectedPost.xAccountId) || xAccounts[0]}
            />
            <div className="min-w-0 space-y-4">
              <div className="pr-8"><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Detalhes da publicação</p><h3 className="mt-1 break-words text-xl font-bold text-slate-900">{selectedPost.caption?.split("\n")[0] || "Publicação sem legenda"}</h3></div>

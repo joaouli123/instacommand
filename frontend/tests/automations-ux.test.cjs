@@ -110,3 +110,12 @@ test('the MCP page leads with ChatGPT, Claude and other AIs', () => {
   assert.match(page, /<TokenManager/);
   assert.match(page, /<ToolCatalog/);
 });
+
+test('X posts preview in the X layout with the 280-character counter', () => {
+  const preview = read('components/preview/SocialPostPreview.tsx');
+  assert.match(preview, /function XPostPreview/);
+  assert.match(preview, /data-preview="x-post"/);
+  assert.match(preview, /\/280 caracteres/);
+  assert.match(preview, /if \(previewPlatform === "X"\) return <XPostPreview/);
+  assert.match(read('components/calendar/PostPreviewPanel.tsx'), /X: \{ name: "X", Icon: SiX \}/);
+});

@@ -311,8 +311,7 @@ export default function ComposerPage() {
 
   const activeMedia = mediaItems[activeMediaIndex] ?? null
   const selectedAccount = accounts.find((account) => account.id === accountId)
-  // X uses the same text-first layout as the Threads preview, with the X handle.
-  const resolvedPreviewPlatform = postType === "TEXT" || previewPlatform === "X" ? "THREADS" : previewPlatform
+  const resolvedPreviewPlatform = postType === "TEXT" ? (previewPlatform === "X" || !platforms.includes("THREADS") ? "X" : "THREADS") : previewPlatform
   const selectedXAccount = xAccounts.find((account) => account.id === xAccountId) || xAccounts[0]
   const previewDescription = {
     FEED: "Prévia da publicação única no feed, sem faixa de Stories.",
@@ -1274,7 +1273,7 @@ export default function ComposerPage() {
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-xs md:p-5">
           <div className="flex items-center justify-between gap-3"><div><h3 className="section-title">Prévia da publicação</h3><p className="text-xs text-slate-500">{previewDescription}</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500"><Eye size={17} /></span></div>
           <div className="mt-4 flex w-full gap-1 rounded-md bg-slate-100 p-1" role="tablist" aria-label="Prévia por plataforma">
-            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }, { id: "X", label: "X", Icon: SiX }].filter(tab => postType === "TEXT" ? TEXT_ONLY_NETWORKS.includes(tab.id) : postType === "STORY" ? tab.id === "INSTAGRAM" || tab.id === "FACEBOOK" : true).map(tab => <button key={tab.id} type="button" role="tab" aria-label={postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook (prévia visual)" : tab.label} aria-selected={(previewPlatform === "X" ? "X" : resolvedPreviewPlatform) === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${(previewPlatform === "X" ? "X" : resolvedPreviewPlatform) === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook · prévia" : tab.label}</button>)}
+            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }, { id: "X", label: "X", Icon: SiX }].filter(tab => postType === "TEXT" ? TEXT_ONLY_NETWORKS.includes(tab.id) : postType === "STORY" ? tab.id === "INSTAGRAM" || tab.id === "FACEBOOK" : true).map(tab => <button key={tab.id} type="button" role="tab" aria-label={postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook (prévia visual)" : tab.label} aria-selected={resolvedPreviewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${resolvedPreviewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook · prévia" : tab.label}</button>)}
           </div>
           {postType === "STORY" && resolvedPreviewPlatform === "FACEBOOK" && <p role="note" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">Apenas prévia visual. Facebook Stories não está habilitado para publicação neste compositor.</p>}
           {postType === "CAROUSEL" && resolvedPreviewPlatform === "FACEBOOK" && (mediaItems.some(item => item.kind === "video")
@@ -1282,11 +1281,12 @@ export default function ComposerPage() {
             : <p role="note" className="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-4 text-blue-900">As fotos serão publicadas juntas em uma única publicação da Página, como um álbum. Arraste a imagem ou toque nos pontos para conferir cada foto.</p>)}
           <div className="social-preview-native mt-4 flex justify-center">
             <ComposerSocialPreview
-              key={previewPlatform === "X" ? "X" : resolvedPreviewPlatform}
+              key={resolvedPreviewPlatform}
               postType={postType}
               previewPlatform={resolvedPreviewPlatform}
               selectedAccount={selectedAccount}
-              threadsAccount={previewPlatform === "X" || (postType === "TEXT" && !platforms.includes("THREADS")) ? (selectedXAccount ? { id: selectedXAccount.id, username: selectedXAccount.username, name: selectedXAccount.name, isActive: true } : undefined) : threadsAccounts.find(account => account.id === threadsAccountId)}
+              threadsAccount={threadsAccounts.find(account => account.id === threadsAccountId)}
+              xAccount={selectedXAccount}
               media={activeMedia}
               mediaItems={mediaItems}
               activeMediaIndex={activeMediaIndex}

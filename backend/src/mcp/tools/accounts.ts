@@ -100,16 +100,18 @@ export const accountTools = [
     name: 'disconnect_account',
     title: 'Desconectar conta',
     category: 'accounts',
-    description: 'Desconecta uma conta do Instagram (e sua Página do Facebook) ou do Threads deste workspace. Agendamentos dela deixam de ser publicados. Exige confirmação explícita.',
+    description: 'Desconecta uma conta do Instagram (e sua Página do Facebook), do Threads ou do X deste workspace. Agendamentos dela deixam de ser publicados. Exige confirmação explícita.',
     scopes: ['admin'],
     annotations: DESTRUCTIVE,
     inputSchema: {
-      network: z.enum(['instagram', 'threads']),
-      accountId: z.string().uuid().describe('id da conta do Instagram ou do Threads.'),
+      network: z.enum(['instagram', 'threads', 'x']),
+      accountId: z.string().uuid().describe('id da conta do Instagram, do Threads ou do X.'),
       confirm: confirmSchema,
     },
     handler: async ({ network, accountId }, { api }) => api.delete(network === 'threads'
       ? `/accounts/threads/${encodePathSegment(accountId)}`
-      : `/accounts/${encodePathSegment(accountId)}`),
+      : network === 'x'
+        ? `/accounts/x/${encodePathSegment(accountId)}`
+        : `/accounts/${encodePathSegment(accountId)}`),
   }),
 ];

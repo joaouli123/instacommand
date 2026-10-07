@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { SiFacebook, SiInstagram, SiThreads } from "@icons-pack/react-simple-icons"
-import { getMediaDimensions, SocialPostPreview, type MediaItem, type PostType, type PreviewAccount, type PreviewThreadsAccount } from "@/components/preview/SocialPostPreview"
+import { SiFacebook, SiInstagram, SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import { getMediaDimensions, SocialPostPreview, type MediaItem, type PostType, type PreviewAccount, type PreviewThreadsAccount, type PreviewXAccount } from "@/components/preview/SocialPostPreview"
 import { isVideoUrl } from "@/lib/media"
 import { captionAsPublished } from "@/lib/caption"
 import { cn } from "@/lib/utils"
@@ -21,12 +21,13 @@ const NETWORKS: Record<string, { name: string; Icon: typeof SiInstagram }> = {
   INSTAGRAM: { name: "Instagram", Icon: SiInstagram },
   FACEBOOK: { name: "Facebook", Icon: SiFacebook },
   THREADS: { name: "Threads", Icon: SiThreads },
+  X: { name: "X", Icon: SiX },
 }
 
 const toPostType = (mediaType: string): PostType => (mediaType === "IMAGE" ? "FEED" : (["CAROUSEL", "REEL", "STORY", "TEXT"].includes(mediaType) ? mediaType : "FEED") as PostType)
 
 /** The same native-style preview the composer shows, for a saved post. */
-export function PostPreviewPanel({ post, account, threadsAccount }: { post: PreviewablePost; account?: PreviewAccount; threadsAccount?: PreviewThreadsAccount }) {
+export function PostPreviewPanel({ post, account, threadsAccount, xAccount }: { post: PreviewablePost; account?: PreviewAccount; threadsAccount?: PreviewThreadsAccount; xAccount?: PreviewXAccount }) {
   const platforms = post.platforms?.length ? post.platforms : ["INSTAGRAM"]
   const [platform, setPlatform] = useState(platforms[0])
   const [activeIndex, setActiveIndex] = useState(0)
@@ -70,6 +71,7 @@ export function PostPreviewPanel({ post, account, threadsAccount }: { post: Prev
         previewPlatform={platform}
         selectedAccount={account}
         threadsAccount={threadsAccount}
+        xAccount={xAccount}
         media={mediaItems[index] || null}
         mediaItems={mediaItems}
         activeMediaIndex={index}
