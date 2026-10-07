@@ -13,7 +13,7 @@ import { ReportChart } from './ReportChart'
 import { ReportPublications } from './ReportPublications'
 import { ReportAccessNotice } from './ReportAccessNotice'
 
-type Post = { id: string; text: string; createdAt: string; permalink: string | null; reactions: number | null; comments: number | null; shares: number | null }
+type Post = { id: string; text: string; createdAt: string; permalink: string | null; image?: string | null; reactions: number | null; comments: number | null; shares: number | null }
 type Total = { value: number; availablePosts: number; complete: boolean }
 type Report = { page: { id: string; name: string | null }; account: { instagram: string }; collectedAt: string;
   followers: number | null; pageLikes: number | null; posts: Post[]; contentAvailable: boolean; complete: boolean;
@@ -83,7 +83,7 @@ export function FacebookReport() {
       <ReportChart key={`follows-${accountId}-${days}`} title="Novos seguidores e saídas por dia" description={`${insightWindow} · contagens únicas diárias estimadas pelo Facebook. Semanal e mensal mostram o último dia disponível, não o total da semana ou mês.`} rows={audienceHistory} series={[{ key: 'gained', label: 'Novos seguidores', color: '#0284c7', aggregation: 'last' }, { key: 'lost', label: 'Deixaram de seguir', color: '#e11d48', aggregation: 'last' }]} kind="bar" filename="facebook-entradas-saidas"/>
       <ReportChart key={`interactions-${accountId}-${days}`} title="Interações por data de publicação" description={report.measurement} rows={daily} series={interactionSeries} kind="bar" filename="facebook-interacoes"/>
       {!!ranked.length && <Card className="p-4 sm:p-5"><h3 className="font-bold">Destaques por interações</h3><p className="mt-1 text-xs text-slate-500">Soma dos contadores disponíveis, acumulados até a consulta.</p><ol className="mt-3 grid gap-3 lg:grid-cols-3">{ranked.map(({ post, interactions }, index) => <li key={post.id} className="min-w-0 rounded-xl bg-slate-50 p-3"><div className="flex items-center justify-between text-sm"><strong className="text-indigo-700">#{index + 1}</strong><strong>{reportFormat(interactions.value)}</strong></div><p className="mt-2 line-clamp-3 break-words text-sm text-slate-700">{post.text || 'Sem texto'}</p><p className="mt-2 text-[11px] text-slate-500">{interactions.complete ? 'Todos os contadores disponíveis' : 'Soma parcial'}</p></li>)}</ol></Card>}
-      <ReportPublications key={`${accountId}-${days}`} network="Facebook" available={report.contentAvailable} complete={report.complete} posts={report.posts.map(p => ({ id: p.id, text: p.text, date: p.createdAt, url: p.permalink, score: getObservedInteractions(p).value, metrics: interactionSeries.map(s => ({ label: s.label, value: p[s.key as 'reactions' | 'comments' | 'shares'] })) }))}/>
+      <ReportPublications key={`${accountId}-${days}`} network="Facebook" available={report.contentAvailable} complete={report.complete} posts={report.posts.map(p => ({ id: p.id, text: p.text, image: p.image ?? null, date: p.createdAt, url: p.permalink, score: getObservedInteractions(p).value, metrics: interactionSeries.map(s => ({ label: s.label, value: p[s.key as 'reactions' | 'comments' | 'shares'] })) }))}/>
     </>}
   </section>
 }

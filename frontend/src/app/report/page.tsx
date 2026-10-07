@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 type Num = number | null | undefined
 type Kpi = { label: string; value: Num; previous?: Num; format?: (value: number) => string }
 type IgPost = { id: string; mediaType: string; caption?: string | null; igMediaUrl?: string | null; publishedAt: string; metrics?: Record<string, number | null | undefined>; insights?: Array<Record<string, number | null | undefined>> }
-type FbReport = { followers: number | null; pageLikes: number | null; contentAvailable: boolean; posts: Array<{ id: string; text: string; createdAt: string; reactions: number | null; comments: number | null; shares: number | null }>; totals: Record<string, { value: number; complete: boolean }>; insights: { mediaViews: number | null }; page: { name: string | null }; previous?: { mediaViews: number | null; posts: number | null; totals: Record<string, { value: number; complete: boolean }> } | null }
+type FbReport = { followers: number | null; pageLikes: number | null; contentAvailable: boolean; posts: Array<{ id: string; text: string; createdAt: string; image?: string | null; reactions: number | null; comments: number | null; shares: number | null }>; totals: Record<string, { value: number; complete: boolean }>; insights: { mediaViews: number | null }; page: { name: string | null }; previous?: { mediaViews: number | null; posts: number | null; totals: Record<string, { value: number; complete: boolean }> } | null }
 type ThMetric = { value: number | null; available: boolean }
 type ThReport = { account: { username: string }; metrics: Record<string, ThMetric>; contentAvailable: boolean; posts: Array<{ id: string; text: string; timestamp: string }>; previous?: { metrics: Record<string, ThMetric>; posts: number | null } | null }
 
@@ -222,7 +222,7 @@ function FacebookSection({ data, loading, failed, compare }: { data?: FbReport; 
       <Analysis initial={summarize(compare ? kpis : [])} />
       <KpiGrid items={kpis} compare={compare} />
       <Table title="Publicações em destaque" head={["Publicação", "Reações", "Comentários", "Compartilhamentos"]} rows={posts.map((post) => [
-        <div key="p" className="min-w-[240px]"><p className="line-clamp-2 text-xs font-medium text-slate-800">{post.text || "Sem texto"}</p><p className="text-[10px] text-slate-400">{new Date(post.createdAt).toLocaleDateString("pt-BR")}</p></div>, fmt(post.reactions), fmt(post.comments), fmt(post.shares),
+        <div key="p" className="flex min-w-[220px] items-center gap-3"><div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"><MediaPreview src={post.image} fallback="" /></div><div className="min-w-0"><p className="line-clamp-2 text-xs font-medium text-slate-800">{post.text || "Sem texto"}</p><p className="text-[10px] text-slate-400">{new Date(post.createdAt).toLocaleDateString("pt-BR")}</p></div></div>, fmt(post.reactions), fmt(post.comments), fmt(post.shares),
       ])} />
     </>}
   </Section>

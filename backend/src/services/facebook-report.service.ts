@@ -83,14 +83,14 @@ export async function getFacebookReport(userId: string, accountId: string, days:
       : 'A Meta recusou ou não retornou visualizações. Confirme se read_insights foi aprovado e autorizado para esta Página e se o insight está disponível no período selecionado.');
   }
 
-  const posts: Array<{ id: string; text: string; createdAt: string; permalink: string | null; reactions: number | null; comments: number | null; shares: number | null }> = [];
+  const posts: Array<{ id: string; text: string; createdAt: string; permalink: string | null; image: string | null; reactions: number | null; comments: number | null; shares: number | null }> = [];
   const seen = new Set<string>();
   const cursors = new Set<string>();
   let after = '';
   let complete = false;
   let contentAvailable = false;
   let countersRestricted = false;
-  const baseFields = 'id,message,created_time,permalink_url,shares';
+  const baseFields = 'id,message,created_time,permalink_url,shares,full_picture';
   for (let index = 0; index < 4; index++) {
     try {
       const params = {
@@ -118,6 +118,7 @@ export async function getFacebookReport(userId: string, accountId: string, days:
         seen.add(item.id);
         posts.push({ id: item.id, text: typeof item.message === 'string' ? item.message : '', createdAt: item.created_time,
           permalink: typeof item.permalink_url === 'string' ? item.permalink_url : null,
+          image: typeof item.full_picture === 'string' ? item.full_picture : null,
           reactions: count(item.reactions?.summary?.total_count), comments: count(item.comments?.summary?.total_count), shares: count(item.shares?.count) });
       }
       if (!result.paging?.next) { complete = true; break; }
