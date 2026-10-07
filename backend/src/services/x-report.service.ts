@@ -114,19 +114,28 @@ export async function syncXMetrics(accountId: string, force = false): Promise<{ 
       for (let page = 0; page < 3; page++) {
         let result;
         try { result = await fetchPage(withPrivate, next); }
-        catch (error) { if (!withPrivate) throw error; withPrivate = false; result = await fetchPage(false, next); }
+        catch (error) {
+          // Only a refusal of the private fields justifies retrying without them; limits and outages do not.
+          const status = (error as { xStatus?: number }).xStatus;
+          if (!withPrivate || (status !== 400 && status !== 403)) throw error;
+          withPrivate = false; result = await fetchPage(false, next);
+        }
         const media = new Map((result.includes?.media || []).map((item) => [item.media_key, item]));
         for (const tweet of result.data || []) {
           const post = mapXPost(tweet, media, account.username);
           if (!post.createdAt) continue;
           const data = { accountId: account.id, text: post.text, postedAt: new Date(post.createdAt), url: post.url, image: post.image, ...post.metrics, fetchedAt: new Date() };
-          await prisma.xPostMetric.upsert({ where: { id: post.id }, update: data, create: { id: post.id, ...data } });
+          // Private counters missing in this read keep the values already stored.
+          const update = Object.fromEntries(Object.entries(data).filter(([key, value]) => !(value === null && ['impressions', 'urlClicks', 'profileClicks'].includes(key))));
+          await prisma.xPostMetric.upsert({ where: { id: post.id }, update, create: { id: post.id, ...data } });
         }
         next = result.meta?.next_token;
         if (!next) break;
       }
-      await prisma.xAccount.update({ where: { id: account.id }, data: { metricsSyncedAt: new Date() } });
+      if (next) issues.push('Muitos posts no período: guardamos os 300 mais recentes desta atualização.');
     } catch (error) { issues.push(error instanceof Error ? error.message : 'Não foi possível ler as publicações.'); }
+    // Remember when we asked and what went wrong, so later reports keep showing it.
+    await prisma.xAccount.update({ where: { id: account.id }, data: { metricsSyncedAt: new Date(), metricsSyncError: issues.length ? issues.join(' ').slice(0, 500) : null } });
   })().finally(() => syncing.delete(accountId));
   syncing.set(accountId, job);
   await job;
@@ -159,6 +168,6 @@ export async function getXReport(userId: string, accountId: string, days: number
     period: { days, since: since.toISOString(), until: until.toISOString() }, collectedAt: (account.metricsSyncedAt || new Date()).toISOString(),
     syncedAt: account.metricsSyncedAt?.toISOString() ?? null, nextSyncAt: account.metricsSyncedAt ? new Date(account.metricsSyncedAt.getTime() + X_SYNC_INTERVAL_MS).toISOString() : null,
     followers: account.followersCount ?? null, following: account.followingCount ?? null, totalPosts: account.totalPosts ?? null,
-    posts, complete: true, issues: sync.issues, ...summary,
+    posts, complete: !account.metricsSyncError, issues: sync.issues.length ? sync.issues : account.metricsSyncError ? [account.metricsSyncError] : [], ...summary,
   };
 }

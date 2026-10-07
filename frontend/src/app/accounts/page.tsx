@@ -297,7 +297,7 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="page-header"><div><p className="page-eyebrow">Conexões</p><h1 className="page-title">Contas conectadas</h1><p className="page-subtitle">Gerencie suas contas do Instagram, Facebook e Threads.</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />Adicionar conta</Button></div>
+      <div className="page-header"><div><p className="page-eyebrow">Conexões</p><h1 className="page-title">Contas conectadas</h1><p className="page-subtitle">Gerencie suas contas do Instagram, Facebook, Threads e X.</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />Adicionar conta</Button></div>
 
       {handedOff && <Card className="flex items-start gap-3 border-emerald-200 bg-emerald-50/70 p-4">
         <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-600" />

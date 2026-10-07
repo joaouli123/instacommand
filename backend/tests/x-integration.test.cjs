@@ -57,8 +57,11 @@ test('posting rules: 280 characters and up to 4 media on X; text-only posts on T
   assert.throws(() => assertPostReady({ mediaType: 'TEXT', mediaUrls: [], caption: 'oi', platforms: ['INSTAGRAM', 'X'] }), /Threads e no X/);
   assert.throws(() => assertPostReady({ mediaType: 'CAROUSEL', mediaUrls: ['a', 'b', 'c', 'd', 'e'], caption: 'oi', platforms: ['INSTAGRAM', 'X'] }), /até 4/);
   assert.doesNotThrow(() => assertPostReady({ mediaType: 'CAROUSEL', mediaUrls: ['a', 'b', 'c', 'd', 'e'], caption: 'oi', platforms: ['INSTAGRAM'] }));
-  // Emoji count as one character, as on X.
-  assert.doesNotThrow(() => assertPostReady({ mediaType: 'TEXT', mediaUrls: [], caption: '🚗'.repeat(280), platforms: ['X'] }));
+  // X weighting: emoji count 2, links 23; a video never mixes with other media.
+  assert.doesNotThrow(() => assertPostReady({ mediaType: 'TEXT', mediaUrls: [], caption: '🚗'.repeat(140), platforms: ['X'] }));
+  assert.throws(() => assertPostReady({ mediaType: 'TEXT', mediaUrls: [], caption: '🚗'.repeat(141), platforms: ['X'] }), /280/);
+  assert.doesNotThrow(() => assertPostReady({ mediaType: 'TEXT', mediaUrls: [], caption: 'a'.repeat(250) + ' https://example.com/' + 'x'.repeat(200), platforms: ['X'] }));
+  assert.throws(() => assertPostReady({ mediaType: 'CAROUSEL', mediaUrls: ['a.jpg', 'b.mp4'], caption: 'oi', platforms: ['X'] }), /vídeo/);
 });
 
 test('X report sums counters, prefers private impressions and never invents missing ones', () => {

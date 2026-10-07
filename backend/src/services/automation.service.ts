@@ -6,7 +6,7 @@ import { verifyFacebookPageLink } from './instagram/facebook-link.service';
 import { graphPost } from '../utils/instagram-api';
 import { ConflictError, NotFoundError, ValidationError } from '../utils/errors';
 import { buildConversationHistory, conversationIntent, hasKeywordMatch, matchesEvent, validMessageWindow } from './automation-logic';
-import { accountScope, automationDb as prisma, automationPermissions, ownedAutomationAccount, permissionCapabilities, sendAutomationResponse, ThreadsAutomationError, type Platform } from './automation-platform';
+import { accountScope, automationDb as prisma, automationPermissions, ownedAutomationAccount, permissionCapabilities, sendAutomationResponse, ThreadsAutomationError, type Platform, isPublicReplyPlatform, replyLimit } from './automation-platform';
 import { conversationKey, withConversationLock } from './automation-lock';
 
 export type InstagramAutomationEvent = {
@@ -17,7 +17,9 @@ export type InstagramAutomationEvent = {
 const permissionsCache = new Map<string, { expiresAt: number; grantedPermissions: string[]; permissionCheckError: string | null }>();
 const agentKey = (accountId: string, platform: Platform) => platform === 'THREADS'
   ? { threadsAccountId_platform: { threadsAccountId: accountId, platform } }
-  : { accountId_platform: { accountId, platform } };
+  : platform === 'X'
+    ? { xAccountId_platform: { xAccountId: accountId, platform } }
+    : { accountId_platform: { accountId, platform } };
 const diagnostic = (error: unknown) => error instanceof ValidationError || error instanceof NotFoundError || error instanceof ConflictError || error instanceof ThreadsAutomationError
   ? error.message.slice(0, 500) : 'Não foi possível concluir a operação com o provedor. Confira a conexão; não repetimos envios de resultado incerto.';
 
@@ -36,14 +38,15 @@ export const getAutomationStatus = async (userId: string, accountId: string, ref
   const [lastEvent, lastReply, threads] = await Promise.all([
     prisma.automationExecution.findFirst({ where: scope, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
     prisma.automationExecution.findFirst({ where: { ...scope, OR: [{ publicReplySent: true }, { privateReplySent: true }] }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
-    platform === 'THREADS' ? prisma.threadsAccount.findUnique({ where: { id: accountId }, select: { automationSyncAt: true, automationSyncError: true } }) : null,
+    platform === 'THREADS' ? prisma.threadsAccount.findUnique({ where: { id: accountId }, select: { automationSyncAt: true, automationSyncError: true } })
+      : platform === 'X' ? prisma.xAccount.findUnique({ where: { id: accountId }, select: { automationSyncAt: true, automationSyncError: true } }) : null,
   ]);
-  return { platform, webhookConfigured: platform === 'THREADS' || Boolean(env.WEBHOOK_VERIFY_TOKEN && env.FB_APP_SECRET),
+  return { platform, webhookConfigured: isPublicReplyPlatform(platform) || Boolean(env.WEBHOOK_VERIFY_TOKEN && env.FB_APP_SECRET),
     callbackUrl: `${env.BACKEND_URL.replace(/\/$/, '')}/api/webhooks/${platform === 'FACEBOOK' ? 'facebook' : 'instagram'}`,
     grantedPermissions: result.grantedPermissions, permissionCheckError: result.permissionCheckError,
     ...permissionCapabilities(platform, result.grantedPermissions),
     activity: { lastEventProcessedAt: lastEvent?.createdAt ?? null, lastReplyAcceptedAt: lastReply?.updatedAt ?? null },
-    collectionMode: platform === 'THREADS' ? 'POLLING' : 'WEBHOOK',
+    collectionMode: isPublicReplyPlatform(platform) ? 'POLLING' : 'WEBHOOK',
     lastSyncAt: threads?.automationSyncAt ?? null, syncError: threads?.automationSyncError ?? null,
   };
 };
@@ -70,10 +73,10 @@ type RuleInput = { accountId: string; platform?: Platform; name: string; trigger
 function validateRule(data: RuleInput) {
   const platform = data.platform || 'INSTAGRAM';
   if (data.trigger.endsWith('_KEYWORD') && !data.keywords.some(keyword => keyword.trim())) throw new ValidationError('Adicione ao menos uma palavra-chave.');
-  if (platform === 'THREADS' && (!data.trigger.startsWith('COMMENT_') || data.privateCommentReply || data.directMessageReply)) throw new ValidationError('No Threads, use somente respostas públicas.');
+  if (isPublicReplyPlatform(platform) && (!data.trigger.startsWith('COMMENT_') || data.privateCommentReply || data.directMessageReply)) throw new ValidationError(`No ${platform === 'X' ? 'X' : 'Threads'}, use somente respostas públicas.`);
   if (platform === 'FACEBOOK' && !data.trigger.startsWith('MESSAGE_')) throw new ValidationError('No Facebook, use mensagens recebidas pelo Messenger da Página.');
   if (data.continueConversation && (data.replyMode !== 'AI' || !data.trigger.startsWith('MESSAGE_'))) throw new ValidationError('A continuidade é exclusiva de conversas privadas por IA.');
-  const limit = platform === 'THREADS' ? 500 : 1000;
+  const limit = replyLimit(platform);
   if ([data.publicCommentReply, data.privateCommentReply, data.directMessageReply].some(text => text && [...text].length > limit)) throw new ValidationError(`Use respostas com até ${limit} caracteres.`);
   if (data.replyMode === 'TEMPLATE' && !(data.trigger.startsWith('COMMENT_') ? data.publicCommentReply?.trim() || data.privateCommentReply?.trim() : data.directMessageReply?.trim())) throw new ValidationError('Escreva uma resposta para esta regra.');
 }
@@ -113,7 +116,7 @@ export const deleteAutomation = async (userId: string, accountId: string, id: st
 export const saveAutomationTemplate = async (userId: string, data: { accountId: string; platform?: Platform; name: string; type: AutomationTemplateType; content: string }) => {
   const platform = data.platform || 'INSTAGRAM';
   await ownedAutomationAccount(userId, data.accountId, platform);
-  if (platform === 'THREADS' && (data.type !== 'PUBLIC_COMMENT' || [...data.content].length > 500)) throw new ValidationError('Threads: somente resposta pública de até 500 caracteres.');
+  if (isPublicReplyPlatform(platform) && (data.type !== 'PUBLIC_COMMENT' || [...data.content].length > replyLimit(platform))) throw new ValidationError(`${platform === 'X' ? 'X' : 'Threads'}: somente resposta pública de até ${replyLimit(platform)} caracteres.`);
   if (platform === 'FACEBOOK' && data.type !== 'DIRECT_MESSAGE') throw new ValidationError('Facebook: use resposta para o Messenger.');
   return prisma.automationTemplate.create({ data: { name: data.name, type: data.type, content: data.content, userId, ...accountScope(data.accountId, platform) } });
 };
@@ -163,6 +166,8 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
   const platform = event.platform || 'INSTAGRAM';
   const rawAccount = platform === 'THREADS'
     ? await prisma.threadsAccount.findUnique({ where: { threadsUserId: event.accountIgId } })
+    : platform === 'X'
+      ? await prisma.xAccount.findUnique({ where: { xUserId: event.accountIgId } })
     : platform === 'FACEBOOK'
       ? await prisma.instagramAccount.findFirst({ where: { pageId: event.accountIgId, isActive: true, selectionPending: false } })
       : await prisma.instagramAccount.findUnique({ where: { igUserId: event.accountIgId } });
@@ -170,7 +175,7 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
   const account = await ownedAutomationAccount(rawAccount.userId, rawAccount.id, platform);
   const scope = accountScope(account.id, platform);
   const isComment = event.type.startsWith('COMMENT_');
-  if (platform === 'THREADS' && !isComment || platform === 'FACEBOOK' && isComment) return;
+  if (isPublicReplyPlatform(platform) && !isComment || platform === 'FACEBOOK' && isComment) return;
   if (!event.senderId || event.senderId === account.externalId) return;
   const key = conversationKey(platform, account.id, event.senderId, isComment ? `PUBLIC:${event.mediaId || event.commentId}` : 'DIRECT');
 
@@ -239,12 +244,12 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
       try {
         const generated = await generateAiContent({ mode: 'automation-reply', comment: event.text || '', context: {
           platform, conversationKind: conversation.kind, username: event.senderUsername || '', tone: agent.tone, instructions: agent.instructions,
-          knowledgeBase: agent.knowledgeBase, history: buildConversationHistory(previous), maxReplyCharacters: platform === 'THREADS' ? 500 : 1000,
+          knowledgeBase: agent.knowledgeBase, history: buildConversationHistory(previous), maxReplyCharacters: replyLimit(platform),
         } }, await getAiCredentials(account.userId)) as { response: string; shouldEscalate: boolean; reason: string };
         response = generated.response;
         if (generated.shouldEscalate) { await handoff(`Revisão humana recomendada: ${generated.reason}`, agent.fallback); return; }
         if (!agent.autoSend) { await handoff('Resposta gerada. Envio automático desativado: revise antes de enviar.', response); return; }
-        if ([...response].length > (platform === 'THREADS' ? 500 : 1000)) { await handoff('A resposta gerada ultrapassou o limite desta rede. Revise o texto.', response.slice(0, 1000)); return; }
+        if ([...response].length > replyLimit(platform)) { await handoff('A resposta gerada ultrapassou o limite desta rede. Revise o texto.', response.slice(0, 1000)); return; }
       } catch { await handoff('A IA não gerou uma resposta segura. Revise manualmente.'); return; }
     }
     if (!response) { await update({ status: 'SKIPPED', error: 'Esta regra não tem uma resposta configurada.' }); return; }
@@ -310,7 +315,7 @@ export const sendReviewedAutomationReply = async (userId: string, accountId: str
   const key = execution.conversation?.scopeKey || conversationKey(platform, accountId, execution.senderId || '', isComment ? `PUBLIC:${execution.mediaId || execution.commentId}` : 'DIRECT');
   return withConversationLock(key, async assertLease => {
     const text = message.trim();
-    if (!text || [...text].length > (platform === 'THREADS' ? 500 : 1000)) throw new ValidationError('Confira o texto e o limite de caracteres da resposta.');
+    if (!text || [...text].length > replyLimit(platform)) throw new ValidationError('Confira o texto e o limite de caracteres da resposta.');
     if (execution.conversationId) {
       const conversation = await prisma.automationConversation.findUniqueOrThrow({ where: { id: execution.conversationId } });
       if (conversation.state === 'STOPPED') throw new ValidationError('A pessoa pediu para não receber respostas.');
@@ -342,7 +347,7 @@ export const sendReviewedAutomationReply = async (userId: string, accountId: str
 
 export const subscribeInstagramAccountToWebhooks = async (userId: string, accountId: string, platform: Platform = 'INSTAGRAM') => {
   const account = await ownedAutomationAccount(userId, accountId, platform);
-  if (platform === 'THREADS') throw new ValidationError('No Threads as respostas públicas são consultadas periodicamente, sem configurar este webhook.');
+  if (isPublicReplyPlatform(platform)) throw new ValidationError('Nesta rede as respostas públicas são consultadas periodicamente, sem configurar este webhook.');
   if (!env.WEBHOOK_VERIFY_TOKEN || !env.FB_APP_SECRET) throw new ValidationError('Configure o recebimento de eventos da Meta no servidor.');
   const status = await getAutomationStatus(userId, accountId, true, platform);
   if (!status.canAutomateComments && !status.canAutomateMessages) throw new ValidationError('A conta ainda não tem permissões para esta automação.');

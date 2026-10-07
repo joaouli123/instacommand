@@ -152,7 +152,7 @@ export default function CalendarPage() {
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 pt-3 text-[11px] font-medium text-slate-500" aria-label="Legenda">
-          {(["INSTAGRAM", "FACEBOOK", "THREADS"] as const).map((network) => <span key={network} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: platformBackground([network]) }} />{platformLabel(network)}</span>)}
+          {(["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).map((network) => <span key={network} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: platformBackground([network]) }} />{platformLabel(network)}</span>)}
           <span className="hidden h-3 w-px bg-slate-200 sm:block" />
           {(["scheduled", "published", "draft", "failed"] as const).map((status) => { const Icon = STATUS_ICON[status]; return <span key={status} className="inline-flex items-center gap-1"><Icon size={12} aria-hidden />{STATUS_LABEL[status]}</span> })}
         </div>
@@ -175,7 +175,7 @@ export default function CalendarPage() {
             <p className="text-sm text-slate-600">{new Date(selectedPost.scheduledFor).toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "short" })}</p>
             <PostContentDetails post={selectedPost} />
             {selectedPost.errorMessage && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-700">{selectedPost.errorMessage}</p>}
-            {selectedPost.status === "PUBLISHED" && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Excluir aqui remove o registro do InstaCommand. A API não consegue apagar do Instagram uma mídia que já foi publicada; remova-a diretamente no Instagram. No Facebook/Threads, o app tenta excluir também e avisa se a Meta recusar.</p>}
+            {selectedPost.status === "PUBLISHED" && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Excluir aqui remove o registro do InstaCommand. A API não consegue apagar do Instagram uma mídia que já foi publicada; remova-a diretamente no Instagram. No Facebook/Threads{selectedPost.platforms?.includes("X") ? "/X" : ""}, o app tenta excluir também e avisa se a rede recusar.</p>}
             {['DRAFT', 'FAILED'].includes(selectedPost.status) && <Link href={`/composer?draft=${encodeURIComponent(selectedPost.id)}`} className="inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Editar rascunho e adicionar mídias</Link>}
             <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setSelectedPost(null)}>Fechar</Button>{selectedPost.status === "SCHEDULED" && <Button variant="outline" onClick={cancelSchedule} disabled={actionLoading}>Cancelar agendamento</Button>}<Button variant="danger" onClick={deletePost} disabled={actionLoading}>{actionLoading ? "Excluindo…" : selectedPost.status === "PUBLISHED" ? "Excluir registro" : "Excluir"}</Button></div>
            </div>

@@ -8,6 +8,7 @@ import { setupCollectInsightsWorker } from './jobs/collectInsights.job';
 import { setupCollectCompetitorsWorker } from './jobs/collectCompetitors.job';
 import { setupInstagramAutomationWorker } from './jobs/instagramAutomation.job';
 import { setupThreadsAutomationWorker } from './jobs/threadsAutomation.job';
+import { setupXAutomationWorker } from './jobs/xAutomation.job';
 import { setupRecurringJobs } from './services/scheduler.service';
 import { reconcileScheduledPosts } from './services/schedule-reconciler.service';
 
@@ -28,6 +29,7 @@ const startServer = async () => {
       setupCollectCompetitorsWorker(),
       setupInstagramAutomationWorker(),
       await setupThreadsAutomationWorker(),
+      await setupXAutomationWorker(),
     ];
 
     // Setup cron jobs

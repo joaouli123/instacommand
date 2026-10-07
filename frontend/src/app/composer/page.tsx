@@ -13,6 +13,7 @@ import {
   Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search
 } from "lucide-react"
 import { SiInstagram, SiFacebook, SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import twitterText from "twitter-text"
 import { RiMore2Line, RiMusic2Line, RiPauseFill, RiPlayFill } from "@remixicon/react"
 import { useDropzone } from "react-dropzone"
 import toast from "react-hot-toast"
@@ -72,7 +73,8 @@ const platformNames: Record<string, string> = { INSTAGRAM: "Instagram", FACEBOOK
 const TEXT_ONLY_NETWORKS = ["THREADS", "X"]
 /** Limit of the strictest selected text network (X 280, Threads 500). */
 const textLimitFor = (selected: string[]) => selected.includes("X") ? 280 : 500
-const textLength = (value: string) => Array.from(value).length
+/** X counts with weighted length (URLs, emoji, CJK); the other networks by code point. */
+const textLength = (value: string, selected: string[] = []) => selected.includes("X") ? twitterText.parseTweet(value).weightedLength : Array.from(value).length
 
 function formatAspectRatio(width: number, height: number) {
   const ratio = width / height
@@ -641,7 +643,7 @@ export default function ComposerPage() {
       toast.error("Foto única aceita apenas uma imagem. Para vídeos, escolha o formato de vídeo/Reel.")
       return
     }
-    if ((textOnlyThreads || platforms.includes("X")) && textLength(caption) > textLimit) {
+    if ((textOnlyThreads || platforms.includes("X")) && textLength(caption, platforms) > textLimit) {
       toast.error(platforms.includes("X") ? "O X tem limite de 280 caracteres." : "O texto do Threads tem limite de 500 caracteres.")
       return
     }
@@ -676,7 +678,7 @@ export default function ComposerPage() {
       const finalCaption = [caption.trim(), hashtags.filter(tag => !existingTags.has(`#${tag}`.toLowerCase())).map((tag) => `#${tag}`).join(" ")]
         .filter(Boolean)
         .join("\n\n")
-      if ((textOnlyThreads || platforms.includes("X")) && textLength(finalCaption) > textLimit) {
+      if ((textOnlyThreads || platforms.includes("X")) && textLength(finalCaption, platforms) > textLimit) {
         toast.error(`Texto e hashtags juntos ultrapassam o limite de ${textLimit} caracteres${platforms.includes("X") ? " do X" : " do Threads"}.`)
         return
       }
@@ -744,7 +746,8 @@ export default function ComposerPage() {
     const textOnlyThreads = postType === 'TEXT' && platforms.length > 0 && platforms.every((platform) => TEXT_ONLY_NETWORKS.includes(platform))
     if (!draftId && !mediaItems.length && !textOnlyThreads) { toast.error('Adicione uma mídia ou escolha Post de texto (Threads ou X) antes de criar este rascunho.'); return }
     if (textOnlyThreads && !caption.trim()) { toast.error('Escreva o texto do post antes de salvar.'); return }
-    if ((textOnlyThreads || platforms.includes('X')) && textLength(caption) > textLimitFor(platforms)) { toast.error(`O texto passa do limite de ${textLimitFor(platforms)} caracteres.`); return }
+    const draftText = [caption.trim(), hashtags.map((tag) => `#${tag}`).join(' ')].filter(Boolean).join('\n\n')
+    if ((textOnlyThreads || platforms.includes('X')) && textLength(draftText, platforms) > textLimitFor(platforms)) { toast.error(`Texto e hashtags passam do limite de ${textLimitFor(platforms)} caracteres${platforms.includes('X') ? ' do X' : ''}.`); return }
     setIsSubmitting(true)
     try {
       const files = mediaItems.flatMap(item => item.file ? [item.file] : [])
@@ -807,7 +810,7 @@ export default function ComposerPage() {
   }
   return (
     <div className="space-y-5 animate-fade-in">
-      <PageHeader eyebrow="Criação" title="Nova publicação" description="Crie, visualize e agende para Instagram, Facebook e Threads." />
+      <PageHeader eyebrow="Criação" title="Nova publicação" description="Crie, visualize e agende para Instagram, Facebook, Threads e X." />
       <nav className="grid grid-cols-2 gap-x-3 gap-y-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-xs md:flex md:items-center md:gap-0 md:px-7" aria-label="Etapas da publicação">
         {[
           { label: "Onde publicar", help: "Escolha a rede social" },
@@ -920,7 +923,7 @@ export default function ComposerPage() {
                 { id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram, handle: selectedAccount ? `@${selectedAccount.igUsername}` : "Nenhuma conta selecionada", help: selectedAccount ? "Conectado" : "Conecte uma conta em Contas", color: "instagram" },
                 { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook, handle: selectedAccount?.pageName || "Página do Facebook", help: selectedAccount?.pageName ? "Conectado" : "Não conectado", color: "facebook" },
                 { id: "THREADS", label: "Threads", Icon: SiThreads, handle: threadsAccounts[0] ? `@${threadsAccounts[0].username}` : "Conta do Threads", help: threadsAccounts.length ? "Conectado" : "Não conectado", color: "threads" },
-                { id: "X", label: "X", Icon: SiX, handle: selectedXAccount ? `@${selectedXAccount.username}` : "Conta do X", help: xAccounts.length ? "Conectado · até 280 caracteres" : "Não conectado", color: "threads" },
+                { id: "X", label: "X", Icon: SiX, handle: selectedXAccount ? `@${selectedXAccount.username}` : "Conta do X", help: xAccounts.length ? "Conectado · até 280 caracteres" : "Não conectado", color: "x" },
               ].map((target) => {
                 const selected = platforms.includes(target.id)
                 const unavailable = (target.id === "INSTAGRAM" && (!selectedAccount || postType === "TEXT")) || (target.id === "X" && (!xAccounts.length || postType === "STORY")) || (target.id === "THREADS" && (!threadsAccounts.length || postType === "STORY")) || (target.id === "FACEBOOK" && (!selectedAccount?.pageName || postType === "STORY" || postType === "TEXT"))
@@ -933,7 +936,7 @@ export default function ComposerPage() {
                     className={`relative grid min-h-[76px] w-full grid-cols-[36px_minmax(0,1fr)_24px] items-center gap-x-3 gap-y-1 rounded-xl border px-3 py-3 text-left transition-all sm:grid-cols-[48px_minmax(0,1fr)_auto_28px] sm:gap-4 sm:px-4 ${selected ? "border-indigo-600 bg-indigo-50/50 shadow-[0_0_0_1px_rgba(99,102,241,.16)]" : "border-slate-200 bg-white hover:border-slate-300"} ${unavailable ? "cursor-not-allowed opacity-60" : ""}`}
                     aria-pressed={selected}
                   >
-                    <span className={`row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:row-span-1 sm:h-12 sm:w-12 ${target.color === "instagram" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : target.color === "facebook" ? "bg-[#1877F2]" : "bg-[#101113]"}`}>
+                    <span className={`row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:row-span-1 sm:h-12 sm:w-12 ${target.color === "instagram" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : target.color === "facebook" ? "bg-[#1877F2]" : target.color === "x" ? "bg-black" : "bg-[#101113]"}`}>
                       <target.Icon size={25} color="#fff" title={`${target.label} logo`} />
                     </span>
                     <span className="min-w-0 flex-1"><span className="block text-[13px] font-semibold leading-4 text-slate-800">{target.label}</span><span className="mt-0.5 block truncate text-[10px] text-slate-500">{target.handle}</span></span>
@@ -1025,7 +1028,7 @@ export default function ComposerPage() {
           <div>
             <div className="mb-2 flex items-center justify-between gap-3">
               <label htmlFor="post-caption" className="block text-sm font-semibold text-slate-800">Texto do post</label>
-              <span className={`text-xs font-medium ${caption.length > (postType === "TEXT" ? 450 : 2100) ? "text-amber-700" : "text-slate-400"}`}>{caption.length.toLocaleString("pt-BR")}/{postType === "TEXT" ? "500" : "2.200"} caracteres</span>
+              {platforms.includes("X") ? <span className={`text-xs font-medium ${textLength(caption, platforms) > 280 ? "text-rose-700" : textLength(caption, platforms) > 260 ? "text-amber-700" : "text-slate-400"}`}>{textLength(caption, platforms)}/280 caracteres (X)</span> : <span className={`text-xs font-medium ${caption.length > (postType === "TEXT" ? 450 : 2100) ? "text-amber-700" : "text-slate-400"}`}>{caption.length.toLocaleString("pt-BR")}/{postType === "TEXT" ? "500" : "2.200"} caracteres</span>}
             </div>
             <textarea id="post-caption" className="h-28 w-full resize-y rounded-xl border border-slate-200 bg-white p-3.5 text-sm leading-5 text-slate-900 shadow-xs transition placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 md:h-32" placeholder={postType === "TEXT" ? "Escreva seu post para o Threads..." : "Escreva sua legenda, conte a ideia e personalize o post..."} value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={postType === "TEXT" ? 500 : 2200} />
             <div className="mt-2 flex flex-wrap gap-2">

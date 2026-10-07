@@ -20,7 +20,7 @@ const TEMPLATE_ICONS: Record<TemplateType, typeof MessageCircle> = { PUBLIC_COMM
 export function TemplatesPanel({ platform, accountId, workspace, busy, run }: PanelProps) {
   const types = templateTypesFor(platform)
   const [template, setTemplate] = useState({ name: "", type: types[0], content: "" })
-  const maxLength = platform === "THREADS" ? 500 : 1000
+  const maxLength = platform === "X" ? 280 : platform === "THREADS" ? 500 : 1000
   return <div className="grid items-start gap-4 lg:grid-cols-2">
     <Card className="p-4 sm:p-5">
       <h2 className="flex items-center gap-2 font-bold text-slate-900"><MessageSquareText size={18} className="text-indigo-600" />Nova resposta pronta</h2>
@@ -48,7 +48,7 @@ export function TemplatesPanel({ platform, accountId, workspace, busy, run }: Pa
 export function AgentPanel({ platform, accountId, workspace, busy, run }: PanelProps) {
   const [agent, setAgent] = useState<Agent>(blankAgent)
   useEffect(() => { setAgent(workspace.agent ? { ...blankAgent, ...workspace.agent } : blankAgent) }, [workspace.agent?.id, workspace.agent?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
-  const maxLength = platform === "THREADS" ? 500 : 1000
+  const maxLength = platform === "X" ? 280 : platform === "THREADS" ? 500 : 1000
   return <Card className="mx-auto max-w-3xl p-4 sm:p-6">
     <div className="flex items-start gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><Sparkles size={20} /></span><div><h2 className="font-bold text-slate-900">Assistente de IA</h2><p className="text-sm text-slate-500">Ensine o assistente sobre o seu negócio. Ele responde nas regras marcadas como “Assistente de IA”.</p></div></div>
     <form className="mt-5 space-y-5" onSubmit={(event) => { event.preventDefault(); void run(() => api.saveInstagramAgent({ ...agent, accountId, platform }), "Assistente salvo.") }}>

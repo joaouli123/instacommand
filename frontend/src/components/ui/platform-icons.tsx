@@ -11,12 +11,12 @@ const PLATFORMS = {
 type KnownPlatform = keyof typeof PLATFORMS
 const isKnown = (value: string): value is KnownPlatform => value in PLATFORMS
 
-/** Brand tones used as backgrounds: Instagram pink, Facebook blue, Threads black. */
+/** Brand tones used as backgrounds: Instagram pink, Facebook blue, Threads black, X zinc. */
 const BRAND_STOPS: Record<KnownPlatform, string[]> = {
   INSTAGRAM: ["#F0407A", "#D6246E"],
   FACEBOOK: ["#2B7BFF", "#0866FF"],
   THREADS: ["#2A2A2A", "#000000"],
-  X: ["#1F1F1F", "#000000"],
+  X: ["#52525B", "#3F3F46"],
 }
 
 /**

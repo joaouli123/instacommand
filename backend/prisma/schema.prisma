@@ -8,32 +8,32 @@ datasource db {
 }
 
 model User {
-  id             String             @id @default(uuid())
-  email          String             @unique
-  password       String?
-  name           String
-  avatarUrl      String?
-  metaAppId      String?
-  metaAppSecret  String?
-  metaClientToken String?
-  threadsAppId      String?
-  threadsAppSecret  String?
-  geminiApiKey      String?
-  geminiModel       String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  accounts       InstagramAccount[]
-  threadsAccounts ThreadsAccount[]
-  xAccounts      XAccount[]
-  scheduledPosts ScheduledPost[]
-  preferences     UserPreference?
-  notifications   Notification[]
-  socialAutomations SocialAutomation[]
+  id                  String                   @id @default(uuid())
+  email               String                   @unique
+  password            String?
+  name                String
+  avatarUrl           String?
+  metaAppId           String?
+  metaAppSecret       String?
+  metaClientToken     String?
+  threadsAppId        String?
+  threadsAppSecret    String?
+  geminiApiKey        String?
+  geminiModel         String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  accounts            InstagramAccount[]
+  threadsAccounts     ThreadsAccount[]
+  xAccounts           XAccount[]
+  scheduledPosts      ScheduledPost[]
+  preferences         UserPreference?
+  notifications       Notification[]
+  socialAutomations   SocialAutomation[]
   automationTemplates AutomationTemplate[]
-  instagramAgents InstagramAgentSettings[]
-  conversations AutomationConversation[]
-  apiTokens       ApiToken[]
-  oauthCodes      OAuthAuthorizationCode[]
+  instagramAgents     InstagramAgentSettings[]
+  conversations       AutomationConversation[]
+  apiTokens           ApiToken[]
+  oauthCodes          OAuthAuthorizationCode[]
 }
 
 enum ApiTokenKind {
@@ -62,48 +62,48 @@ model ApiToken {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
-  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  oauthClient      OAuthClient? @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthClient OAuthClient? @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
 
   @@index([userId, kind, revokedAt])
 }
 
 model OAuthClient {
-  id                      String   @id @default(uuid())
+  id                      String    @id @default(uuid())
   // Generated for dynamic registration, or the HTTPS URL of a Client ID Metadata Document.
-  clientId                String   @unique @db.VarChar(500)
-  clientSecretHash        String?  @db.VarChar(64)
-  clientName              String   @db.VarChar(200)
-  clientUri               String?  @db.VarChar(500)
+  clientId                String    @unique @db.VarChar(500)
+  clientSecretHash        String?   @db.VarChar(64)
+  clientName              String    @db.VarChar(200)
+  clientUri               String?   @db.VarChar(500)
   redirectUris            String[]
-  tokenEndpointAuthMethod String   @default("none") @db.VarChar(40)
-  registrationType        String   @db.VarChar(10)
+  tokenEndpointAuthMethod String    @default("none") @db.VarChar(40)
+  registrationType        String    @db.VarChar(10)
   metadataFetchedAt       DateTime?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  tokens                  ApiToken[]
-  codes                   OAuthAuthorizationCode[]
+  tokens ApiToken[]
+  codes  OAuthAuthorizationCode[]
 
   @@index([registrationType, createdAt])
 }
 
 model OAuthAuthorizationCode {
-  id            String      @id @default(uuid())
-  codeHash      String      @unique @db.VarChar(64)
+  id            String    @id @default(uuid())
+  codeHash      String    @unique @db.VarChar(64)
   clientId      String
   userId        String
-  redirectUri   String      @db.VarChar(1000)
-  codeChallenge String      @db.VarChar(128)
+  redirectUri   String    @db.VarChar(1000)
+  codeChallenge String    @db.VarChar(128)
   scopes        String[]
-  resource      String      @db.VarChar(500)
+  resource      String    @db.VarChar(500)
   expiresAt     DateTime
   usedAt        DateTime?
   tokenId       String?
-  createdAt     DateTime    @default(now())
+  createdAt     DateTime  @default(now())
 
-  client        OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
 }
@@ -140,28 +140,28 @@ model Notification {
 }
 
 model InstagramAccount {
-  id                   String                @id @default(uuid())
-  userId               String
-  igUserId             String                @unique // Instagram business account ID
-  igUsername           String
-  igName               String?
-  igProfilePicUrl      String?
-  igBio                String?
-  igFollowersCount     Int                   @default(0)
-  igFollowsCount       Int                   @default(0)
-  igMediaCount         Int                   @default(0)
-  pageId               String // Facebook page ID
-  pageName             String?
-  pageAccessToken      String // Encrypted access token
-  tokenExpiresAt       DateTime?
-  isActive             Boolean               @default(true)
-  selectionPending     Boolean               @default(false)
-  connectedAt          DateTime              @default(now())
-  lastSyncAt           DateTime?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  id               String    @id @default(uuid())
+  userId           String
+  igUserId         String    @unique // Instagram business account ID
+  igUsername       String
+  igName           String?
+  igProfilePicUrl  String?
+  igBio            String?
+  igFollowersCount Int       @default(0)
+  igFollowsCount   Int       @default(0)
+  igMediaCount     Int       @default(0)
+  pageId           String // Facebook page ID
+  pageName         String?
+  pageAccessToken  String // Encrypted access token
+  tokenExpiresAt   DateTime?
+  isActive         Boolean   @default(true)
+  selectionPending Boolean   @default(false)
+  connectedAt      DateTime  @default(now())
+  lastSyncAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  user                 User                  @relation(fields: [userId], references: [id])
+  user                 User                     @relation(fields: [userId], references: [id])
   scheduledPosts       ScheduledPost[]
   publishedPosts       PublishedPost[]
   profileInsights      ProfileInsight[]
@@ -182,19 +182,19 @@ model InstagramAccount {
 // answers about the last 30 days, so keeping each day here is what lets
 // reports cover longer periods and survive gaps between syncs.
 model AccountDailyInsight {
-  id                String           @id @default(uuid())
+  id                String   @id @default(uuid())
   accountId         String
   // Calendar day in America/Sao_Paulo, YYYY-MM-DD.
-  date              String           @db.VarChar(10)
+  date              String   @db.VarChar(10)
   reach             Int?
   views             Int?
   accountsEngaged   Int?
   totalInteractions Int?
   followsGained     Int?
   followsLost       Int?
-  fetchedAt         DateTime         @default(now())
+  fetchedAt         DateTime @default(now())
 
-  account           InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@unique([accountId, date])
 }
@@ -210,6 +210,7 @@ enum AutomationPlatform {
   INSTAGRAM
   FACEBOOK
   THREADS
+  X
 }
 
 enum ConversationState {
@@ -240,28 +241,30 @@ enum AutomationExecutionStatus {
 }
 
 model SocialAutomation {
-  id                    String                    @id @default(uuid())
-  userId                String
-  accountId             String?
-  threadsAccountId      String?
-  platform              AutomationPlatform        @default(INSTAGRAM)
-  name                  String                    @db.VarChar(100)
-  trigger               SocialAutomationTrigger
-  keywords              String[]                  @default([])
-  replyMode             SocialAutomationReplyMode @default(TEMPLATE)
-  publicCommentReply    String?                   @db.VarChar(1000)
-  privateCommentReply   String?                   @db.VarChar(1000)
-  directMessageReply    String?                   @db.VarChar(1000)
-  enabled               Boolean                   @default(false)
-  continueConversation  Boolean                   @default(false)
-  enabledAt             DateTime?
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
+  id                   String                    @id @default(uuid())
+  userId               String
+  accountId            String?
+  threadsAccountId     String?
+  platform             AutomationPlatform        @default(INSTAGRAM)
+  name                 String                    @db.VarChar(100)
+  trigger              SocialAutomationTrigger
+  keywords             String[]                  @default([])
+  replyMode            SocialAutomationReplyMode @default(TEMPLATE)
+  publicCommentReply   String?                   @db.VarChar(1000)
+  privateCommentReply  String?                   @db.VarChar(1000)
+  directMessageReply   String?                   @db.VarChar(1000)
+  enabled              Boolean                   @default(false)
+  continueConversation Boolean                   @default(false)
+  enabledAt            DateTime?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
 
-  user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account               InstagramAccount?         @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  threadsAccount        ThreadsAccount?           @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
-  executions            AutomationExecution[]
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account        InstagramAccount?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  threadsAccount ThreadsAccount?       @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId     String?
+  xAccount       XAccount?             @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  executions     AutomationExecution[]
 
   @@index([userId, accountId, enabled])
   @@index([accountId, trigger, enabled])
@@ -269,80 +272,87 @@ model SocialAutomation {
 }
 
 model AutomationTemplate {
-  id          String                @id @default(uuid())
-  userId      String
-  accountId   String?
+  id               String                 @id @default(uuid())
+  userId           String
+  accountId        String?
   threadsAccountId String?
-  platform    AutomationPlatform @default(INSTAGRAM)
-  name        String                @db.VarChar(100)
-  type        AutomationTemplateType
-  content     String                @db.VarChar(1000)
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  platform         AutomationPlatform     @default(INSTAGRAM)
+  name             String                 @db.VarChar(100)
+  type             AutomationTemplateType
+  content          String                 @db.VarChar(1000)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 
-  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account     InstagramAccount?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account        InstagramAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
   threadsAccount ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId     String?
+  xAccount       XAccount?         @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
 
   @@index([userId, accountId, type])
 }
 
 model InstagramAgentSettings {
-  id             String           @id @default(uuid())
-  userId         String
-  accountId      String?
-  threadsAccountId String?
-  platform       AutomationPlatform @default(INSTAGRAM)
-  enabled        Boolean          @default(false)
-  autoSend       Boolean          @default(false)
-  tone           String           @default("Humano, cordial e direto") @db.VarChar(200)
-  instructions   String           @default("") @db.VarChar(2000)
-  knowledgeBase  String           @default("") @db.VarChar(8000)
-  fallback       String           @default("Vou chamar alguém da equipe para continuar com você.") @db.VarChar(1000)
-  memoryDays     Int              @default(7)
-  maxRepliesPerHour Int           @default(10)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                String             @id @default(uuid())
+  userId            String
+  accountId         String?
+  threadsAccountId  String?
+  platform          AutomationPlatform @default(INSTAGRAM)
+  enabled           Boolean            @default(false)
+  autoSend          Boolean            @default(false)
+  tone              String             @default("Humano, cordial e direto") @db.VarChar(200)
+  instructions      String             @default("") @db.VarChar(2000)
+  knowledgeBase     String             @default("") @db.VarChar(8000)
+  fallback          String             @default("Vou chamar alguém da equipe para continuar com você.") @db.VarChar(1000)
+  memoryDays        Int                @default(7)
+  maxRepliesPerHour Int                @default(10)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   account        InstagramAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  threadsAccount ThreadsAccount? @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  threadsAccount ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId     String?
+  xAccount       XAccount?         @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
 
-  @@index([userId, accountId])
   @@unique([accountId, platform])
   @@unique([threadsAccountId, platform])
+  @@unique([xAccountId, platform])
+  @@index([userId, accountId])
 }
 
 model AutomationExecution {
-  id               String                    @id @default(uuid())
-  accountId        String?
-  threadsAccountId String?
-  platform         AutomationPlatform @default(INSTAGRAM)
-  conversationId   String?
-  automationId     String?
-  eventKey         String                    @unique @db.VarChar(255)
-  eventType        SocialAutomationTrigger
-  status           AutomationExecutionStatus @default(RECEIVED)
-  senderId         String?                   @db.VarChar(255)
-  senderUsername   String?                   @db.VarChar(100)
-  eventText        String?                   @db.VarChar(2000)
-  mediaId          String?                   @db.VarChar(255)
-  commentId        String?                   @db.VarChar(255)
-  sourceMessageId  String?                   @db.VarChar(255)
-  eventAt          DateTime                  @default(now())
-  responseText     String?                   @db.VarChar(1000)
-  providerMessageId String?                  @db.VarChar(255)
-  humanReply       Boolean                   @default(false)
-  publicReplySent  Boolean                   @default(false)
-  privateReplySent Boolean                   @default(false)
-  error            String?                   @db.VarChar(1000)
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
+  id                String                    @id @default(uuid())
+  accountId         String?
+  threadsAccountId  String?
+  platform          AutomationPlatform        @default(INSTAGRAM)
+  conversationId    String?
+  automationId      String?
+  eventKey          String                    @unique @db.VarChar(255)
+  eventType         SocialAutomationTrigger
+  status            AutomationExecutionStatus @default(RECEIVED)
+  senderId          String?                   @db.VarChar(255)
+  senderUsername    String?                   @db.VarChar(100)
+  eventText         String?                   @db.VarChar(2000)
+  mediaId           String?                   @db.VarChar(255)
+  commentId         String?                   @db.VarChar(255)
+  sourceMessageId   String?                   @db.VarChar(255)
+  eventAt           DateTime                  @default(now())
+  responseText      String?                   @db.VarChar(1000)
+  providerMessageId String?                   @db.VarChar(255)
+  humanReply        Boolean                   @default(false)
+  publicReplySent   Boolean                   @default(false)
+  privateReplySent  Boolean                   @default(false)
+  error             String?                   @db.VarChar(1000)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
 
-  account          InstagramAccount?         @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  threadsAccount   ThreadsAccount?           @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
-  conversation     AutomationConversation?   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  automation       SocialAutomation?         @relation(fields: [automationId], references: [id], onDelete: SetNull)
+  account        InstagramAccount?       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  threadsAccount ThreadsAccount?         @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId     String?
+  xAccount       XAccount?               @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  conversation   AutomationConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  automation     SocialAutomation?       @relation(fields: [automationId], references: [id], onDelete: SetNull)
 
   @@index([accountId, createdAt])
   @@index([automationId, status, createdAt])
@@ -351,28 +361,30 @@ model AutomationExecution {
 }
 
 model AutomationConversation {
-  id                String @id @default(uuid())
-  userId            String
-  accountId         String?
-  threadsAccountId  String?
-  platform          AutomationPlatform @default(INSTAGRAM)
-  scopeKey          String @unique @db.VarChar(255)
-  senderId          String @db.VarChar(255)
-  senderUsername    String? @db.VarChar(100)
-  kind              String @db.VarChar(20)
-  rootMediaId       String? @db.VarChar(255)
-  state             ConversationState @default(BOT)
-  stateReason       String? @db.VarChar(500)
+  id                 String             @id @default(uuid())
+  userId             String
+  accountId          String?
+  threadsAccountId   String?
+  platform           AutomationPlatform @default(INSTAGRAM)
+  scopeKey           String             @unique @db.VarChar(255)
+  senderId           String             @db.VarChar(255)
+  senderUsername     String?            @db.VarChar(100)
+  kind               String             @db.VarChar(20)
+  rootMediaId        String?            @db.VarChar(255)
+  state              ConversationState  @default(BOT)
+  stateReason        String?            @db.VarChar(500)
   continuationRuleId String?
-  lastInboundAt     DateTime
-  memoryClearedAt   DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  lastInboundAt      DateTime
+  memoryClearedAt    DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account           InstagramAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  threadsAccount    ThreadsAccount? @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
-  executions        AutomationExecution[]
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account        InstagramAccount?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  threadsAccount ThreadsAccount?       @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId     String?
+  xAccount       XAccount?             @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  executions     AutomationExecution[]
 
   @@index([userId, platform, updatedAt])
   @@index([accountId, platform, updatedAt])
@@ -380,14 +392,14 @@ model AutomationConversation {
 }
 
 model PrivateReplyClaim {
-  id          String           @id @default(uuid())
-  accountId   String
-  commentId   String           @db.VarChar(255)
-  status      String           @default("SENDING") @db.VarChar(20)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id        String   @id @default(uuid())
+  accountId String
+  commentId String   @db.VarChar(255)
+  status    String   @default("SENDING") @db.VarChar(20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  account     InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@unique([accountId, commentId])
   @@index([createdAt])
@@ -395,30 +407,40 @@ model PrivateReplyClaim {
 
 // X (Twitter) profile connected with OAuth 2.0 + PKCE. Tokens are stored encrypted.
 model XAccount {
-  id             String          @id @default(uuid())
-  userId         String
-  xUserId        String          @unique
-  username       String
-  name           String?
-  profilePicUrl  String?
-  followersCount Int?
-  accessToken    String
-  refreshToken   String?
-  tokenExpiresAt DateTime?
-  scopes         String?
-  isActive       Boolean         @default(true)
-  connectedAt    DateTime        @default(now())
-  lastSyncAt     DateTime?
+  id                  String    @id @default(uuid())
+  userId              String
+  xUserId             String    @unique
+  username            String
+  name                String?
+  profilePicUrl       String?
+  followersCount      Int?
+  accessToken         String
+  refreshToken        String?
+  tokenExpiresAt      DateTime?
+  scopes              String?
+  isActive            Boolean   @default(true)
+  connectedAt         DateTime  @default(now())
+  lastSyncAt          DateTime?
   // Stored numbers so reports do not spend X API credits on every view.
-  followingCount Int?
-  totalPosts     Int?
-  metricsSyncedAt DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  followingCount      Int?
+  totalPosts          Int?
+  metricsSyncedAt     DateTime?
+  metricsSyncError String?
+  // Automation: newest mention already read, so each check only pays for new ones.
+  automationSinceId   String?
+  automationSyncAt    DateTime?
+  automationSyncError String?   @db.VarChar(500)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  user           User            @relation(fields: [userId], references: [id])
-  scheduledPosts ScheduledPost[]
-  postMetrics    XPostMetric[]
+  user                 User                     @relation(fields: [userId], references: [id])
+  scheduledPosts       ScheduledPost[]
+  postMetrics          XPostMetric[]
+  socialAutomations    SocialAutomation[]
+  automationTemplates  AutomationTemplate[]
+  instagramAgents      InstagramAgentSettings[]
+  automationExecutions AutomationExecution[]
+  conversations        AutomationConversation[]
 
   @@index([userId])
 }
@@ -441,29 +463,29 @@ model XPostMetric {
   profileClicks Int?
   fetchedAt     DateTime @default(now())
 
-  account       XAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account XAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId, postedAt])
 }
 
 model ThreadsAccount {
-  id                   String         @id @default(uuid())
-  userId               String
-  threadsUserId        String         @unique
-  username             String
-  name                 String?
-  profilePicUrl        String?
-  accessToken          String
-  tokenExpiresAt       DateTime?
-  isActive             Boolean        @default(true)
-  connectedAt          DateTime       @default(now())
-  lastSyncAt           DateTime?
-  automationSyncAt     DateTime?
-  automationSyncError  String? @db.VarChar(500)
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  id                  String    @id @default(uuid())
+  userId              String
+  threadsUserId       String    @unique
+  username            String
+  name                String?
+  profilePicUrl       String?
+  accessToken         String
+  tokenExpiresAt      DateTime?
+  isActive            Boolean   @default(true)
+  connectedAt         DateTime  @default(now())
+  lastSyncAt          DateTime?
+  automationSyncAt    DateTime?
+  automationSyncError String?   @db.VarChar(500)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  user                 User           @relation(fields: [userId], references: [id])
+  user                 User                     @relation(fields: [userId], references: [id])
   scheduledPosts       ScheduledPost[]
   socialAutomations    SocialAutomation[]
   automationTemplates  AutomationTemplate[]
@@ -492,37 +514,37 @@ enum PostStatus {
 }
 
 model ScheduledPost {
-  id               String            @id @default(uuid())
-  userId           String
-  accountId        String
-  threadsAccountId String?
-  xAccountId       String?
-  mediaType        MediaType
-  mediaUrls        String[]
-  thumbnailUrl     String?
-  editorialBrief   Json?
-  caption          String?
-  hashtags         String[]
-  platforms        String[]          @default(["INSTAGRAM"])
-  isAiGenerated    Boolean           @default(false)
-  instagramAudioId String?
-  instagramAudioTitle String?
+  id                   String     @id @default(uuid())
+  userId               String
+  accountId            String
+  threadsAccountId     String?
+  xAccountId           String?
+  mediaType            MediaType
+  mediaUrls            String[]
+  thumbnailUrl         String?
+  editorialBrief       Json?
+  caption              String?
+  hashtags             String[]
+  platforms            String[]   @default(["INSTAGRAM"])
+  isAiGenerated        Boolean    @default(false)
+  instagramAudioId     String?
+  instagramAudioTitle  String?
   instagramAudioArtist String?
   instagramAudioVolume Int?
   instagramVideoVolume Int?
-  advancedSettings  Json?
-  scheduledFor     DateTime
-  status           PostStatus        @default(DRAFT)
-  errorMessage     String?
-  publishedPostId  String?           @unique
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  advancedSettings     Json?
+  scheduledFor         DateTime
+  status               PostStatus @default(DRAFT)
+  errorMessage         String?
+  publishedPostId      String?    @unique
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
 
-  user             User              @relation(fields: [userId], references: [id])
-  account          InstagramAccount  @relation(fields: [accountId], references: [id])
-  threadsAccount   ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id])
-  xAccount         XAccount?         @relation(fields: [xAccountId], references: [id])
-  publishedPost    PublishedPost?    @relation(fields: [publishedPostId], references: [id])
+  user           User             @relation(fields: [userId], references: [id])
+  account        InstagramAccount @relation(fields: [accountId], references: [id])
+  threadsAccount ThreadsAccount?  @relation(fields: [threadsAccountId], references: [id])
+  xAccount       XAccount?        @relation(fields: [xAccountId], references: [id])
+  publishedPost  PublishedPost?   @relation(fields: [publishedPostId], references: [id])
 
   @@index([accountId])
   @@index([userId])
@@ -532,22 +554,22 @@ model ScheduledPost {
 }
 
 model PublishedPost {
-  id            String             @id @default(uuid())
-  accountId     String
-  igMediaId     String?            @unique
-  facebookPostId String?
-  threadsPostId  String?
-  xPostId        String?
-  publishResults Json?
-  igMediaUrl    String?
-  igPermalink   String?
-  mediaType     MediaType
-  caption       String?
+  id                 String    @id @default(uuid())
+  accountId          String
+  igMediaId          String?   @unique
+  facebookPostId     String?
+  threadsPostId      String?
+  xPostId            String?
+  publishResults     Json?
+  igMediaUrl         String?
+  igPermalink        String?
+  mediaType          MediaType
+  caption            String?
   instagramDeletedAt DateTime?
-  publishedAt   DateTime           @default(now())
-  createdAt     DateTime           @default(now())
+  publishedAt        DateTime  @default(now())
+  createdAt          DateTime  @default(now())
 
-  account       InstagramAccount   @relation(fields: [accountId], references: [id])
+  account       InstagramAccount @relation(fields: [accountId], references: [id])
   scheduledPost ScheduledPost?
   insights      PostInsight[]
 
@@ -556,45 +578,45 @@ model PublishedPost {
 }
 
 model PostInsight {
-  id          String        @id @default(uuid())
-  postId      String
-  impressions Int           @default(0)
-  views       Int?
-  reach       Int           @default(0)
-  likes       Int           @default(0)
-  comments    Int           @default(0)
-  replies     Int?
-  shares      Int           @default(0)
-  saves       Int           @default(0)
-  engagement  Float         @default(0)
+  id               String   @id @default(uuid())
+  postId           String
+  impressions      Int      @default(0)
+  views            Int?
+  reach            Int      @default(0)
+  likes            Int      @default(0)
+  comments         Int      @default(0)
+  replies          Int?
+  shares           Int      @default(0)
+  saves            Int      @default(0)
+  engagement       Float    @default(0)
   availableMetrics String[] @default([])
-  collectedAt DateTime      @default(now())
+  collectedAt      DateTime @default(now())
 
-  post        PublishedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post PublishedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])
 }
 
 model ProfileInsight {
-  id            String           @id @default(uuid())
-  accountId     String
-  followers     Int              @default(0)
-  following     Int              @default(0)
-  mediaCount    Int              @default(0)
-  reach         Int              @default(0)
-  impressions   Int              @default(0)
-  views         Int?
-  accountsEngaged Int?
+  id                String   @id @default(uuid())
+  accountId         String
+  followers         Int      @default(0)
+  following         Int      @default(0)
+  mediaCount        Int      @default(0)
+  reach             Int      @default(0)
+  impressions       Int      @default(0)
+  views             Int?
+  accountsEngaged   Int?
   totalInteractions Int?
-  profileLinkTaps Int?
-  profileViews  Int              @default(0)
-  websiteClicks Int              @default(0)
-  emailClicks   Int              @default(0)
-  phoneClicks   Int              @default(0)
-  availableMetrics String[]      @default([])
-  collectedAt   DateTime         @default(now())
+  profileLinkTaps   Int?
+  profileViews      Int      @default(0)
+  websiteClicks     Int      @default(0)
+  emailClicks       Int      @default(0)
+  phoneClicks       Int      @default(0)
+  availableMetrics  String[] @default([])
+  collectedAt       DateTime @default(now())
 
-  account       InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
 }
@@ -607,62 +629,62 @@ enum DemographicType {
 }
 
 model AudienceDemographic {
-  id          String           @id @default(uuid())
+  id          String          @id @default(uuid())
   accountId   String
   type        DemographicType
   label       String
   value       Float
-  collectedAt DateTime         @default(now())
+  collectedAt DateTime        @default(now())
 
-  account     InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
 }
 
 model Competitor {
-  id               String              @id @default(uuid())
+  id               String   @id @default(uuid())
   accountId        String
   igUsername       String
   igName           String?
   igProfilePicUrl  String?
   igBio            String?
-  igFollowersCount Int                 @default(0)
-  igMediaCount     Int                 @default(0)
-  isActive         Boolean             @default(true)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  igFollowersCount Int      @default(0)
+  igMediaCount     Int      @default(0)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  account          InstagramAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  insights         CompetitorInsight[]
+  account  InstagramAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  insights CompetitorInsight[]
 
   @@unique([accountId, igUsername])
 }
 
 model CompetitorInsight {
-  id              String     @id @default(uuid())
+  id              String   @id @default(uuid())
   competitorId    String
-  followers       Int        @default(0)
-  mediaCount      Int        @default(0)
+  followers       Int      @default(0)
+  mediaCount      Int      @default(0)
   avgLikes        Int?
   avgComments     Int?
   engagementRate  Float?
   recentPostsData Json?
-  collectedAt     DateTime   @default(now())
+  collectedAt     DateTime @default(now())
 
-  competitor      Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  competitor Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
 
   @@index([competitorId])
 }
 
 model HashtagSearch {
-  id               String            @id @default(uuid())
+  id               String   @id @default(uuid())
   accountId        String?
   hashtag          String
   igHashtagId      String?
-  topMediaCount    Int               @default(0)
-  recentMediaCount Int               @default(0)
-  lastSearchedAt   DateTime          @default(now())
-  createdAt        DateTime          @default(now())
+  topMediaCount    Int      @default(0)
+  recentMediaCount Int      @default(0)
+  lastSearchedAt   DateTime @default(now())
+  createdAt        DateTime @default(now())
 
   @@index([hashtag])
 }

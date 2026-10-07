@@ -73,6 +73,7 @@ export function XReport() {
   }
 
   if (accountsQuery.isPending) return <p role="status">Carregando contas do X…</p>
+  if (accountsQuery.isError) return <Card className="border-rose-200 p-5 text-rose-700" role="alert">Não foi possível carregar suas contas do X. <button onClick={() => void accountsQuery.refetch()} className="font-semibold underline">Tentar novamente</button></Card>
   if (!accountId) return <Card className="p-8 text-center"><h2 className="text-xl font-bold">Conecte seu X</h2><p className="my-3 text-sm text-slate-600">Entre com o X e autorize publicar e ler as métricas do perfil.</p><Button onClick={() => void connect()} disabled={accountsQuery.data?.configured === false}>{accountsQuery.data?.configured === false ? 'Conexão em configuração' : 'Conectar X'}</Button></Card>
 
   const previous = report?.previous
@@ -93,7 +94,7 @@ export function XReport() {
       <CompareContext.Provider value={comparing}>
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
           <MetricCard label="Seguidores" value={report.followers} detail="Total atual" accent />
-          {X_METRICS.map(({ key, label }) => <MetricCard key={key} label={label} value={report.totals[key]} detail={key === 'impressions' && report.totals.impressions == null ? 'O X não informou para estes posts' : 'Posts publicados no período'} compare={{ current: report.totals[key], previous: previous?.totals?.[key] ?? null }} />)}
+          {X_METRICS.map(({ key, label }) => <MetricCard key={key} label={label} value={report.totals[key]} detail={key === 'impressions' && report.totals.impressions == null ? 'O X não informou para estes posts' : key === 'posts' ? 'No período selecionado' : 'Soma dos posts do período'} compare={{ current: report.totals[key], previous: previous?.totals?.[key] ?? null }} />)}
           <MetricCard label="Taxa de engajamento" value={report.engagementRate == null ? null : `${report.engagementRate.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`} detail="Engajamentos ÷ visualizações" compare={{ current: report.engagementRate, previous: previous?.engagementRate, format: (v) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%` }} />
         </div>
       </CompareContext.Provider>
@@ -109,7 +110,7 @@ export function XReport() {
           </div>
         </article>)}</div>}
       </Card>
-      <p className="text-xs text-slate-500">@{report.account.username} · Dados do X de {report.syncedAt ? new Date(report.syncedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'agora'}{report.nextSyncAt ? ` · próxima atualização automática a partir de ${new Date(report.nextSyncAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}. Os números ficam guardados para economizar créditos da API do X.</p>
+      <p className="text-xs text-slate-500">@{report.account.username} · Dados do X de {report.syncedAt ? new Date(report.syncedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'ainda não sincronizado'}{report.nextSyncAt ? ` · próxima atualização automática a partir de ${new Date(report.nextSyncAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}. Os números ficam guardados para economizar créditos da API do X.</p>
     </>}
   </section>
 }

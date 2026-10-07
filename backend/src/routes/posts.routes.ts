@@ -8,13 +8,13 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { env } from '../config/env';
-import { assertPostReady, SUPPORTED_PLATFORMS, TEXT_PLATFORMS, textLimitFor, X_MAX_MEDIA, X_TEXT_LIMIT } from '../services/post-readiness';
+import { assertPostReady, SUPPORTED_PLATFORMS, TEXT_PLATFORMS, textLimitFor, X_MAX_MEDIA, X_TEXT_LIMIT, xTextLength } from '../services/post-readiness';
 import { deleteXPost } from '../services/x.service';
 
 /** Rules for X on top of the shared ones: 280 characters and up to 4 media. */
 const xRuleError = (platforms: string[], caption: unknown, mediaCount: number) => {
   if (!platforms.includes('X')) return null;
-  if ([...String(caption || '')].length > X_TEXT_LIMIT) return `O texto passa de ${X_TEXT_LIMIT} caracteres, o limite do X. Encurte a legenda ou desmarque o X.`;
+  if (xTextLength(String(caption || '')) > X_TEXT_LIMIT) return `O texto passa de ${X_TEXT_LIMIT} caracteres no X (links contam 23 e emojis contam 2). Encurte a legenda ou desmarque o X.`;
   if (mediaCount > X_MAX_MEDIA) return `O X aceita até ${X_MAX_MEDIA} mídias por post.`;
   return null;
 };
@@ -435,6 +435,8 @@ router.delete('/:id', async (req: any, res, next) => {
         warnings.push('O post do X pode continuar no perfil; não foi possível localizar a conta conectada.');
       } else {
         try {
+          const owner = await prisma.xAccount.findFirst({ where: { id: post.xAccountId, userId: req.user.id, isActive: true } });
+          if (!owner) throw new Error('not owner');
           await deleteXPost(post.publishedPost.xPostId, post.xAccountId);
         } catch {
           warnings.push('O post do X pode continuar no perfil; o X não autorizou a exclusão. Remova-o diretamente no X se necessário.');

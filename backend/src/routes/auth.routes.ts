@@ -284,9 +284,10 @@ router.get('/x/callback', async (req, res) => {
   const { code } = req.query;
   if (!code || typeof code !== 'string') return res.redirect(`${accounts}?x_connected=0&reason=${req.query.error ? 'x_denied' : 'x_callback_missing_code'}`);
   try {
-    const { userId } = await handleXCallback(code, req.query.state);
-    const oauthSession = createOAuthSessionHandoff(userId);
-    return res.redirect(`${accounts}?x_connected=1&oauth_session=${encodeURIComponent(oauthSession)}`);
+    // No session handoff here: a link with someone else's code and state must not sign
+    // the visitor into that workspace (login CSRF). The tab that started it is already signed in.
+    await handleXCallback(code, req.query.state);
+    return res.redirect(`${accounts}?x_connected=1`);
   } catch (error) {
     // Never log provider payloads: they may contain codes or tokens.
     console.error('X OAuth callback failed');

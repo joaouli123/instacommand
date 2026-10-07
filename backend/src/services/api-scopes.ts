@@ -57,7 +57,7 @@ const writeRules: Rule[] = [
   { methods: ['POST'], pattern: /^\/api\/automations\/executions\/[^/]+\/send$/, requirement: fixed('publish') },
   { methods: ['PUT'], pattern: /^\/api\/automations\/conversations\/[^/]+\/state$/, requirement: fixed('write') },
   { methods: ['POST'], pattern: /^\/api\/automations\/conversations\/[^/]+\/forget$/, requirement: fixed('write') },
-  { methods: ['POST'], pattern: /^\/api\/automations\/threads\/sync$/, requirement: fixed('write') },
+  { methods: ['POST'], pattern: /^\/api\/automations\/(threads|x)\/sync$/, requirement: fixed('write') },
   { methods: ['POST'], pattern: /^\/api\/automations$/, requirement: enabledRequiresPublish },
   { methods: ['PUT'], pattern: /^\/api\/automations\/[^/]+$/, requirement: enabledRequiresPublish },
   { methods: ['DELETE'], pattern: /^\/api\/automations\/[^/]+$/, requirement: fixed('write') },

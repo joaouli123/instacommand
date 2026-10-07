@@ -31,9 +31,9 @@ export function Header() {
   
   const titles: Record<string, { title: string; subtitle: string }> = {
     '/': { title: 'Dashboard', subtitle: 'Visão unificada das suas contas e métricas principais' },
-    '/composer': { title: 'Criar publicação', subtitle: 'Crie, visualize e agende para Instagram, Facebook e Threads' },
+    '/composer': { title: 'Criar publicação', subtitle: 'Crie, visualize e agende para Instagram, Facebook, Threads e X' },
     '/calendar': { title: 'Calendário', subtitle: 'Cronograma visual de postagens programadas' },
-    '/analytics': { title: 'Relatórios', subtitle: 'Instagram, Facebook e Threads · métricas, público e conteúdo' },
+    '/analytics': { title: 'Relatórios', subtitle: 'Instagram, Facebook, Threads e X · métricas, público e conteúdo' },
     '/competitors': { title: 'Concorrentes', subtitle: 'Benchmarking e acompanhamento de mercado' },
     '/trends': { title: 'Tendências', subtitle: 'Hashtags em alta e formatos de alta performance' },
     '/community': { title: 'Comunidade', subtitle: 'Leia e responda comentários reais do Instagram' },
@@ -41,7 +41,7 @@ export function Header() {
     '/integrations': { title: 'MCP e CLI', subtitle: 'Conecte Claude, ChatGPT e outros agentes de IA ao seu workspace' },
     '/settings': { title: 'Configurações', subtitle: 'Preferências, conexões e automações' },
     '/report': { title: 'Gerar relatório', subtitle: 'Relatório em PDF' },
-    '/accounts': { title: 'Contas', subtitle: 'Gerencie seus perfis do Instagram, Facebook e Threads' }
+    '/accounts': { title: 'Contas', subtitle: 'Gerencie seus perfis do Instagram, Facebook, Threads e X' }
   }
 
   const current = titles[pathname] || { title: 'InstaCommand', subtitle: 'Plataforma de Gestão do Instagram' }

@@ -36,7 +36,7 @@ router.get('/media-preview', async (req: any, res, next) => {
     let url: URL;
     try { url = new URL(raw); } catch { return res.status(400).json({ error: 'URL inválida.' }); }
     if (url.protocol !== 'https:' || !isMetaCdnHost(url.hostname)) return res.status(400).json({ error: 'Somente imagens da Meta.' });
-    const { response, abort } = await safeGet(url.toString(), { allowHttp: false, timeoutMs: 10_000 });
+    const { response, abort } = await safeGet(url.toString(), { allowHttp: false, timeoutMs: 10_000, maxRedirects: 0 });
     try {
       if ((response.statusCode || 500) >= 400) return res.status(404).json({ error: 'Imagem indisponível.' });
       const body = await readLimitedBody(response, 5 * 1024 * 1024);
@@ -71,10 +71,9 @@ router.get('/networks/threads/:accountId', async (req: any, res, next) => {
   try {
     const now = Date.now();
     // The window of the same length right before, for "vs. período anterior"; never blocks the current report.
-    const [report, previous] = await Promise.all([
-      getThreadsReport(req.user.id, req.params.accountId, days, now),
-      getThreadsReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null),
-    ]);
+    // Current report first; the previous window only after it, to avoid a burst of provider calls.
+    const report = await getThreadsReport(req.user.id, req.params.accountId, days, now);
+    const previous = report ? await getThreadsReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null) : null;
     if (!report) return res.status(404).json({ error: 'Conta do Threads não encontrada.' });
     return res.json({ ...report, previous: previous ? { period: previous.period, metrics: previous.metrics, posts: previous.contentAvailable ? previous.posts.length : null } : null });
   } catch (error) { next(error); }
@@ -85,10 +84,9 @@ router.get('/networks/facebook/:accountId', async (req: any, res, next) => {
   if (![7, 30, 90, 365, 730].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
   try {
     const now = Date.now();
-    const [report, previous] = await Promise.all([
-      getFacebookReport(req.user.id, req.params.accountId, days, now),
-      getFacebookReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null),
-    ]);
+    const report = await getFacebookReport(req.user.id, req.params.accountId, days, now);
+    // Comparing 1–2 years would page through years of posts; only up to 90 days is compared.
+    const previous = report && days <= 90 ? await getFacebookReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null) : null;
     if (!report) return res.status(404).json({ error: 'Conta não encontrada.' });
     return res.json({ ...report, previous: previous ? { period: previous.period, mediaViews: previous.insights.mediaViews, totals: previous.totals, posts: previous.contentAvailable ? previous.posts.length : null } : null });
   } catch (error) { next(error); }

@@ -8,12 +8,23 @@ import { setTimeout as delay } from 'node:timers/promises';
 export const automationDb = new PrismaClient();
 export type Platform = AutomationPlatform;
 export type AutomationAccount = { id: string; userId: string; platform: Platform; externalId: string; username: string; pageId?: string; igUserId?: string };
+/** Networks where automations only answer publicly and new items are collected by polling. */
+export const isPublicReplyPlatform = (platform: Platform) => platform === 'THREADS' || platform === 'X';
+/** Longest automatic reply each network accepts. */
+export const replyLimit = (platform: Platform) => platform === 'X' ? 280 : platform === 'THREADS' ? 500 : 1000;
+
 export const accountScope = (accountId: string, platform: Platform = 'INSTAGRAM') => ({
-  platform, accountId: platform === 'THREADS' ? null : accountId,
+  platform, accountId: isPublicReplyPlatform(platform) ? null : accountId,
   threadsAccountId: platform === 'THREADS' ? accountId : null,
+  xAccountId: platform === 'X' ? accountId : null,
 });
 
 export async function ownedAutomationAccount(userId: string, accountId: string, platform: Platform = 'INSTAGRAM'): Promise<AutomationAccount> {
+  if (platform === 'X') {
+    const account = await automationDb.xAccount.findFirst({ where: { id: accountId, userId, isActive: true } });
+    if (!account) throw new NotFoundError('Conta do X não encontrada.');
+    return { id: account.id, userId, platform, externalId: account.xUserId, username: account.username };
+  }
   if (platform === 'THREADS') {
     const account = await automationDb.threadsAccount.findFirst({ where: { id: accountId, userId, isActive: true } });
     if (!account) throw new NotFoundError('Conta do Threads não encontrada.');
@@ -68,6 +79,11 @@ export async function waitForThreadsReplyContainer(containerId: string, token: s
 }
 
 export async function automationPermissions(account: AutomationAccount): Promise<string[]> {
+  if (account.platform === 'X') {
+    // Scopes granted on the X consent screen are stored with the connection.
+    const stored = await automationDb.xAccount.findUnique({ where: { id: account.id }, select: { scopes: true } });
+    return (stored?.scopes || '').split(/\s+/).filter(Boolean);
+  }
   if (account.platform !== 'THREADS') return getInstagramGrantedPermissions(account.id);
   const token = await getDecryptedThreadsToken(account.id);
   const credentials = await getThreadsCredentials(account.userId);
@@ -79,7 +95,10 @@ export async function automationPermissions(account: AutomationAccount): Promise
   return Array.isArray(debug.data.scopes) ? debug.data.scopes.filter((scope: unknown): scope is string => typeof scope === 'string') : [];
 }
 
-export const permissionCapabilities = (platform: Platform, scopes: string[]) => ({
+export const permissionCapabilities = (platform: Platform, scopes: string[]) => platform === 'X' ? ({
+  canAutomateComments: ['tweet.read', 'tweet.write', 'users.read'].every(scope => scopes.includes(scope)),
+  canAutomateMessages: false,
+}) : ({
   canAutomateComments: platform === 'THREADS' ? ['threads_read_replies', 'threads_manage_replies', 'threads_content_publish'].every(scope => scopes.includes(scope))
     : platform === 'INSTAGRAM' && ['instagram_manage_comments', 'instagram_business_manage_comments'].some(scope => scopes.includes(scope)),
   canAutomateMessages: platform === 'THREADS' ? false : platform === 'FACEBOOK' ? scopes.includes('pages_messaging')
@@ -87,6 +106,17 @@ export const permissionCapabilities = (platform: Platform, scopes: string[]) => 
 });
 
 export async function sendAutomationResponse(account: AutomationAccount, target: { commentId?: string | null; senderId?: string | null }, text: string, assertCanSend: () => Promise<void> = async () => {}) {
+  if (account.platform === 'X') {
+    if (!target.commentId) throw new ValidationError('No X, a automação responde publicamente às menções.');
+    if ([...text].length > 280) throw new ValidationError('A resposta no X deve ter até 280 caracteres.');
+    // Loaded on demand so the other networks never depend on the X client.
+    const { getXAccessToken, xRequest } = require('./x.service') as typeof import('./x.service');
+    const token = await getXAccessToken(account.id);
+    await assertCanSend();
+    const result = await xRequest<{ data?: { id?: string } }>('/2/tweets', token, { method: 'POST', body: JSON.stringify({ text, reply: { in_reply_to_tweet_id: target.commentId } }) });
+    if (!result.data?.id) throw new AppError('O X não confirmou a resposta. Confira a conversa antes de tentar novamente.', 502);
+    return String(result.data.id);
+  }
   if (account.platform === 'THREADS') {
     if (!target.commentId) throw new ValidationError('Threads permite somente respostas públicas nesta integração.');
     if ([...text].length > 500) throw new ValidationError('A resposta pública do Threads deve ter até 500 caracteres.');

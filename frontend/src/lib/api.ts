@@ -122,5 +122,6 @@ export const api = {
   revokeApiToken: (id: string) => fetchApi(`/integrations/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   describeOAuthRequest: (request: string) => fetchApi('/oauth/requests/describe', { method: 'POST', body: JSON.stringify({ request }) }),
   decideOAuthConsent: (request: string, decision: 'approve' | 'deny', scopes?: string[]) => fetchApi('/oauth/consent', { method: 'POST', body: JSON.stringify({ request, decision, scopes }) }),
+  syncXAutomation: (accountId: string) => fetchApi('/automations/x/sync', { method: 'POST', body: JSON.stringify({ accountId, platform: 'X' }) }),
   syncThreadsAutomation: (accountId: string) => fetchApi('/automations/threads/sync', { method: 'POST', body: JSON.stringify({ accountId, platform: 'THREADS' }) }),
 };

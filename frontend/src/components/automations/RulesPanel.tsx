@@ -25,6 +25,10 @@ const PRESETS: Record<Platform, Preset[]> = {
     { title: "Preço por palavra-chave", description: "Quem perguntar sobre preço recebe a tabela.", draft: { name: "Tabela de preços", trigger: "MESSAGE_KEYWORD", keywords: ["preço", "valor"], replyMode: "TEMPLATE", directMessageReply: "Nossa tabela de preços: " } },
     { title: "Atendimento com IA no Messenger", description: "O assistente de IA conversa usando as informações da sua empresa.", draft: { name: "Atendimento com IA", trigger: "MESSAGE_ANY", replyMode: "AI", continueConversation: true } },
   ],
+  X: [
+    { title: "Agradecer menções", description: "Uma resposta pública curta para quem mencionar sua conta.", draft: { name: "Agradecimento", trigger: "COMMENT_ANY", replyMode: "TEMPLATE", publicCommentReply: "Valeu pela menção! 💜" } },
+    { title: "Responder dúvidas de preço", description: "Quem mencionar preço ou valor recebe a resposta pública.", draft: { name: "Dúvidas de preço", trigger: "COMMENT_KEYWORD", keywords: ["preço", "valor"], replyMode: "TEMPLATE", publicCommentReply: "Os valores estão no link da bio! 😉" } },
+  ],
   THREADS: [
     { title: "Agradecer quem comentar", description: "Uma resposta pública de agradecimento em cada comentário.", draft: { name: "Agradecimento", trigger: "COMMENT_ANY", replyMode: "TEMPLATE", publicCommentReply: "Obrigado pelo comentário! 💜" } },
     { title: "Responder dúvidas de preço", description: "Quem comentar preço ou valor recebe a resposta pública.", draft: { name: "Dúvidas de preço", trigger: "COMMENT_KEYWORD", keywords: ["preço", "valor"], replyMode: "TEMPLATE", publicCommentReply: "Os valores estão no link da bio! 😉" } },
@@ -67,7 +71,7 @@ export function RulesPanel({ platform, accountId, workspace, busy, run }: { plat
   const [draft, setDraft] = useState<RuleDraft | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const kinds = allowedKinds(platform)
-  const maxLength = platform === "THREADS" ? 500 : 1000
+  const maxLength = platform === "X" ? 280 : platform === "THREADS" ? 500 : 1000
 
   const open = (base?: Partial<RuleDraft>, id: string | null = null) => { setEditing(id); setDraft({ ...blankRule(platform), ...base }) }
   const close = () => { setDraft(null); setEditing(null) }

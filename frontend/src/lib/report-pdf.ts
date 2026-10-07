@@ -15,6 +15,10 @@ export type PdfReport = { title: string; subtitle: string; period: string; avata
 // A4 portrait, millimetres.
 const W = 210, H = 297, M = 14, CW = W - M * 2
 const INK: [number, number, number] = [15, 23, 42], MUTED: [number, number, number] = [100, 116, 139], LINE: [number, number, number] = [226, 232, 240]
+/** Truncates by code point so emoji are never cut in half. */
+export const clip = (text: string, max: number) => Array.from(text).slice(0, max).join("")
+/** "Dados fornecidos pela Meta e pelo X" for the networks in the report. */
+export const dataSource = (networks: string[]) => { const meta = networks.some((n) => n !== "X"), x = networks.includes("X"); return `Dados fornecidos ${meta && x ? "pela Meta e pelo X" : x ? "pelo X" : "pela Meta"}` }
 const hex = (value: string): [number, number, number] => { const v = value.replace("#", ""); return [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)] }
 const META_CDN = /(^|\.)(cdninstagram\.com|fbcdn\.net)$/i
 
@@ -231,7 +235,7 @@ export async function downloadReportPdf(report: PdfReport, filename: string) {
     doc.setFillColor(...section.color); doc.roundedRect(M, w.y, 11, 11, 2.4, 2.4, "F")
     const icon = await networkIcon(section.title)
     if (icon) doc.addImage(icon, "PNG", M + 2.25, w.y + 2.25, 6.5, 6.5)
-    else w.text(section.title.slice(0, 1), M + 5.5, w.y + 7.3, 10, [255, 255, 255], "bold", "center")
+    else w.text(clip(section.title, 1), M + 5.5, w.y + 7.3, 10, [255, 255, 255], "bold", "center")
     w.text(section.title, M + 14.5, w.y + 5, 13, INK, "bold")
     w.text(section.subtitle, M + 14.5, w.y + 9.6, 8, MUTED)
     w.y += 19

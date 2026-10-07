@@ -1,4 +1,5 @@
 import { ValidationError } from '../utils/errors';
+import twitterText from 'twitter-text';
 
 export const SUPPORTED_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X'];
 /** Networks that accept a post with text only, no media. */
@@ -9,18 +10,22 @@ export const X_MAX_MEDIA = 4;
 /** Character limit of the strictest selected text network. */
 export const textLimitFor = (platforms: string[]) => platforms.includes('X') ? X_TEXT_LIMIT : 500;
 const textLength = (value?: string | null) => [...(value || '')].length;
+/** X counts links as 23 characters and most emoji as 2 (official twitter-text rules). */
+export const xTextLength = (value?: string | null) => twitterText.parseTweet(value || '').weightedLength;
+const isVideoUrl = (url: string) => /\.(mp4|mov|m4v)(\?|$)/i.test(url);
 
 export function assertPostReady(post: { mediaType: string; mediaUrls: string[]; caption?: string | null; platforms?: string[] }) {
   const platforms = post.platforms?.length ? post.platforms : ['INSTAGRAM'];
   if (platforms.some(p => !SUPPORTED_PLATFORMS.includes(p))) throw new ValidationError('Rede de publicação inválida.');
   if (!Array.isArray(post.mediaUrls)) throw new ValidationError('Mídias inválidas.');
-  if (platforms.includes('X') && textLength(post.caption) > X_TEXT_LIMIT) throw new ValidationError(`O texto passa de ${X_TEXT_LIMIT} caracteres, o limite do X. Encurte a legenda ou desmarque o X.`);
+  if (platforms.includes('X') && xTextLength(post.caption) > X_TEXT_LIMIT) throw new ValidationError(`O texto passa de ${X_TEXT_LIMIT} caracteres no X (links contam 23 e emojis contam 2). Encurte a legenda ou desmarque o X.`);
+  if (platforms.includes('X') && post.mediaUrls.length > 1 && post.mediaUrls.some(isVideoUrl)) throw new ValidationError('No X, um post leva até 4 imagens ou 1 vídeo — não os dois juntos. Desmarque o X ou separe o vídeo.');
   const textOnlyNetworks = platforms.every(p => TEXT_PLATFORMS.includes(p));
   if (post.mediaType === 'TEXT') {
     if (!textOnlyNetworks) throw new ValidationError('Post de texto sem mídia só está disponível no Threads e no X.');
     if (post.mediaUrls.length) throw new ValidationError('Post de texto não pode conter arquivos de mídia.');
     if (!post.caption?.trim()) throw new ValidationError('Escreva o texto da publicação.');
-    if (textLength(post.caption) > textLimitFor(platforms)) throw new ValidationError(`O texto deve ter até ${textLimitFor(platforms)} caracteres.`);
+    if (platforms.includes('X') ? xTextLength(post.caption) > X_TEXT_LIMIT : textLength(post.caption) > textLimitFor(platforms)) throw new ValidationError(`O texto deve ter até ${textLimitFor(platforms)} caracteres.`);
     return;
   }
   if (textOnlyNetworks && !post.mediaUrls.length) {

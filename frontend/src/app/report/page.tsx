@@ -16,7 +16,7 @@ import { ChangeBadge } from "@/components/dashboard/MetricCard"
 import { MediaPreview } from "@/components/dashboard/MediaPreview"
 import { periodChange, type InstagramProfileReport } from "@/lib/instagram-report"
 import { cn } from "@/lib/utils"
-import { downloadReportPdf, thumbnail, type PdfReport, type PdfSection } from "@/lib/report-pdf"
+import { clip, dataSource, downloadReportPdf, thumbnail, type PdfReport, type PdfSection } from "@/lib/report-pdf"
 import toast from "react-hot-toast"
 
 type Num = number | null | undefined
@@ -35,7 +35,7 @@ const metric = (post: IgPost, key: string) => post.metrics?.[key] ?? post.insigh
 
 type PdfDraft = {
   title: string; subtitle: string; color: [number, number, number]; analysis: string; kpis: Kpi[]
-  daily?: { labels: string[]; series: Array<{ name: string; color: string; values: Array<number | null> }> } | null
+  daily?: { title: string; labels: string[]; series: Array<{ name: string; color: string; values: Array<number | null> }> } | null
   bars?: Array<{ title: string; items: Array<{ label: string; value: number; color: string }> }>
   tables: Array<{ title: string; head: string[]; textColumns?: number; rows: Array<{ image?: string | null; cells: string[] }> }>
 }
@@ -97,17 +97,21 @@ export default function ReportPage() {
     queryFn: ({ signal }) => fetchApi(`/analytics/networks/threads/${encodeURIComponent(threadsId!)}?days=${days}`, { signal }) as Promise<ThReport> })
 
   const until = new Date(), since = new Date(until.getTime() - days * 864e5), prevSince = new Date(since.getTime() - days * 864e5)
+  const xUsername = xAccountsQuery.data?.accounts?.[0]?.username
+  const threadsUsername = ((threadsQuery.data || []) as Array<{ username?: string }>)[0]?.username
+  const handle = account?.igUsername || xUsername || threadsUsername || ""
+  const source = dataSource((["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).filter((key) => networks[key]))
   const loading = (networks.INSTAGRAM && ig.isLoading) || (networks.FACEBOOK && fb.isLoading) || (networks.THREADS && th.isLoading) || (networks.X && !!xId && xr.isLoading)
 
   const download = async () => {
-    if (!account || exporting) return
+    if (!handle || exporting) return
     setExporting(true)
     try {
       const order = (["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).filter((key) => networks[key] && drafts.current[key])
       const sections: PdfSection[] = await Promise.all(order.map(async (key) => {
         const draft = drafts.current[key]
         return {
-          title: draft.title, subtitle: draft.subtitle, color: draft.color, analysis: draft.analysis, daily: draft.daily ? { title: "Alcance e visualizações por dia", ...draft.daily } : null, bars: draft.bars,
+          title: draft.title, subtitle: draft.subtitle, color: draft.color, analysis: draft.analysis, daily: draft.daily, bars: draft.bars,
           kpis: draft.kpis.map((kpi) => {
             const show = (value: Num) => value == null ? "—" : kpi.format ? kpi.format(value) : fmt(value)
             const change = compare ? periodChange(kpi.value ?? null, kpi.previous ?? null) : null
@@ -117,19 +121,19 @@ export default function ReportPage() {
         }
       }))
       const report: PdfReport = {
-        title: `Relatório de @${account.igUsername}`, subtitle: "Análise de desempenho", initial: account.igUsername[0]?.toUpperCase() || "R",
-        avatar: await thumbnail(account.igProfilePicUrl, 200),
+        title: `Relatório de @${handle}`, subtitle: "Análise de desempenho", initial: clip(handle, 1).toUpperCase() || "R",
+        avatar: account?.igProfilePicUrl ? await thumbnail(account.igProfilePicUrl, 200) : null,
         period: `Dados de ${date(since)} a ${date(until)}${compare ? `, comparados com o período de ${date(prevSince)} a ${date(since)}` : ""}.`,
-        sections, footer: `Gerado pelo InstaCommand em ${new Date().toLocaleString("pt-BR")} · Dados fornecidos pela Meta · "—" = dado não fornecido pela rede`,
+        sections, footer: `Gerado pelo InstaCommand em ${new Date().toLocaleString("pt-BR")} · ${source} · "—" = dado não fornecido pela rede`,
       }
-      await downloadReportPdf(report, `relatorio-${account.igUsername}-${since.toISOString().slice(0, 10)}-a-${until.toISOString().slice(0, 10)}.pdf`)
+      await downloadReportPdf(report, `relatorio-${handle}-${since.toISOString().slice(0, 10)}-a-${until.toISOString().slice(0, 10)}.pdf`)
     }
     catch { toast.error("Não foi possível gerar o PDF. Tente novamente.") }
     finally { setExporting(false) }
   }
 
-  if (isLoading) return <p className="text-sm text-slate-500">Carregando…</p>
-  if (!account) return <p className="text-sm text-slate-500">Conecte uma conta para gerar relatórios.</p>
+  if (isLoading || threadsQuery.isLoading || xAccountsQuery.isLoading) return <p className="text-sm text-slate-500">Carregando…</p>
+  if (!handle) return <p className="text-sm text-slate-500">Conecte uma conta para gerar relatórios. <Link href="/accounts" className="font-semibold text-indigo-600 underline">Ir para Contas</Link></p>
 
   return <div className="report-doc space-y-6">
     <div className="no-print space-y-4">
@@ -138,29 +142,30 @@ export default function ReportPage() {
         <div className="flex gap-2"><Button variant="outline" asChild><Link href="/analytics"><ArrowLeft size={15} className="mr-1.5" />Relatórios</Link></Button><Button onClick={() => void download()} disabled={loading || exporting} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700">{exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{exporting ? "Gerando PDF…" : "Baixar PDF"}</Button></div>
       </div>
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-        <label className="text-xs font-semibold text-slate-600">Conta<select value={account.id} onChange={(event) => setAccountId(event.target.value)} className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm">{accounts.map((item) => <option key={item.id} value={item.id}>@{item.igUsername}</option>)}</select></label>
+        {account && <label className="text-xs font-semibold text-slate-600">Conta<select value={account.id} onChange={(event) => setAccountId(event.target.value)} className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm">{accounts.map((item) => <option key={item.id} value={item.id}>@{item.igUsername}</option>)}</select></label>}
         <label className="text-xs font-semibold text-slate-600">Período<select value={days} onChange={(event) => setDays(Number(event.target.value))} className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm"><option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select></label>
         <div className="flex flex-wrap gap-2">{(["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).map((network) => <label key={network} className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm"><input type="checkbox" checked={networks[network]} onChange={(event) => setNetworks((current) => ({ ...current, [network]: event.target.checked }))} className="accent-indigo-600" />{{ INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X" }[network]}</label>)}</div>
         <label className="flex h-10 items-center gap-2 text-sm text-slate-700"><Switch checked={compare} onCheckedChange={setCompare} />Comparar com o período anterior</label>
         {loading && <span className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 size={14} className="animate-spin" />Buscando dados…</span>}
       </div>
+      {networks.X && !xId && <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">Nenhuma conta do X conectada. <Link href="/accounts" className="font-semibold text-indigo-600 underline">Conecte em Contas</Link> para incluir o X no relatório.</p>}
     </div>
 
     <PdfRegistry.Provider value={register}>
     <article ref={paperRef} className="report-paper mx-auto max-w-[1000px] rounded-2xl border border-slate-200 bg-white px-6 py-10 shadow-sm sm:px-10">
       <div data-pdf-block className="bg-white pb-2 text-center">
-        {account.igProfilePicUrl ? <img src={account.igProfilePicUrl} alt="" className="mx-auto h-16 w-16 rounded-full object-cover" referrerPolicy="no-referrer" /> : <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-indigo-600 text-2xl font-bold text-white">{account.igUsername[0]?.toUpperCase()}</div>}
-        <h2 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">Relatório de @{account.igUsername}</h2>
+        {account?.igProfilePicUrl ? <img src={account.igProfilePicUrl} alt="" className="mx-auto h-16 w-16 rounded-full object-cover" referrerPolicy="no-referrer" /> : <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-indigo-600 text-2xl font-bold text-white">{clip(handle, 1).toUpperCase()}</div>}
+        <h2 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">Relatório de @{handle}</h2>
         <p className="mt-1 text-sm font-medium text-slate-500">Análise de desempenho</p>
         <p className="mx-auto mt-5 max-w-xl text-sm leading-6 text-slate-600">Relatório gerado com os dados de {date(since)} a {date(until)}{compare ? `, comparados com o período de ${date(prevSince)} a ${date(since)}` : ""}.</p>
       </div>
 
-      {networks.INSTAGRAM && <InstagramSection data={ig.data} loading={ig.isLoading} compare={compare} username={account.igUsername} days={days} />}
-      {networks.FACEBOOK && account.pageId && <FacebookSection data={fb.data} loading={fb.isLoading} failed={fb.isError} compare={compare} />}
+      {networks.INSTAGRAM && account && <InstagramSection data={ig.data} loading={ig.isLoading} compare={compare} username={account.igUsername} days={days} />}
+      {networks.FACEBOOK && account?.pageId && <FacebookSection data={fb.data} loading={fb.isLoading} failed={fb.isError} compare={compare} />}
       {networks.THREADS && threadsId && <ThreadsSection data={th.data} loading={th.isLoading} failed={th.isError} compare={compare} />}
       {networks.X && xId && <XSection data={xr.data} loading={xr.isLoading} failed={xr.isError} compare={compare} />}
 
-      <p data-pdf-block className="mt-10 bg-white text-center text-[11px] text-slate-400">Gerado pelo InstaCommand em {new Date().toLocaleString("pt-BR")} · Dados fornecidos pela Meta. “—” indica dado não fornecido pela rede.</p>
+      <p data-pdf-block className="mt-10 bg-white text-center text-[11px] text-slate-400">Gerado pelo InstaCommand em {new Date().toLocaleString("pt-BR")} · {source}. “—” indica dado não fornecido pela rede.</p>
     </article>
     </PdfRegistry.Provider>
   </div>
@@ -249,7 +254,7 @@ function InstagramSection({ data, loading, compare, username, days }: { data?: I
   const dayLabel = (value: string) => value.slice(8, 10) + "/" + value.slice(5, 7)
   useRegisterPdf("INSTAGRAM", data ? {
     title: "Instagram", subtitle: `@${username} · resumo do perfil dos últimos ${Math.min(days, 30)} dias`, color: [214, 36, 110], analysis, kpis,
-    daily: data.growth.some((row) => row.reach != null) ? { labels: data.growth.map((row) => dayLabel(row.date)), series: [{ name: "Alcance", color: "#6366f1", values: data.growth.map((row) => row.reach) }, { name: "Visualizações", color: "#ec4899", values: data.growth.map((row) => row.views) }] } : null,
+    daily: data.growth.some((row) => row.reach != null) ? { title: "Instagram · alcance e visualizações por dia", labels: data.growth.map((row) => dayLabel(row.date)), series: [{ name: "Alcance", color: "#6366f1", values: data.growth.map((row) => row.reach) }, { name: "Visualizações", color: "#ec4899", values: data.growth.map((row) => row.views) }] } : null,
     bars: [
       { title: "Interações por post, por formato", items: formats.map((row) => ({ label: row.name, value: row.value, color: FORMAT_COLORS[row.type] || "#64748b" })) },
       { title: "Seguidores por idade", items: ages.map((row) => ({ label: row.label, value: row.value, color: "#6366f1" })) },
@@ -259,7 +264,7 @@ function InstagramSection({ data, loading, compare, username, days }: { data?: I
       { title: "Seguidores por idade", head: ["Faixa etária", "Seguidores", "% do total"], rows: ages.map((row) => ({ cells: [row.label, fmt(row.value), `${(row.value / Math.max(1, ages.reduce((sum, item) => sum + item.value, 0)) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`] })) },
       { title: "Publicações em destaque", head: ["Publicação", "Formato", "Alcance", "Visualiz.", "Curtidas", "Coment.", "Salvos", "Interações"], textColumns: 2, rows: data.top.slice(0, 8).map((post) => ({
       image: post.igMediaUrl || null,
-      cells: [`${(post.caption?.split("\n")[0] || "Sem legenda").slice(0, 52)}\n${new Date(post.publishedAt).toLocaleDateString("pt-BR")}`, FORMAT_NAMES[post.mediaType] || post.mediaType, fmt(metric(post, "reach")), fmt(metric(post, "views")), fmt(metric(post, "likes")), fmt(metric(post, "comments")), fmt(metric(post, "saves")), fmt(metric(post, "interactions"))],
+      cells: [`${clip(post.caption?.split("\n")[0] || "Sem legenda", 52)}\n${new Date(post.publishedAt).toLocaleDateString("pt-BR")}`, FORMAT_NAMES[post.mediaType] || post.mediaType, fmt(metric(post, "reach")), fmt(metric(post, "views")), fmt(metric(post, "likes")), fmt(metric(post, "comments")), fmt(metric(post, "saves")), fmt(metric(post, "interactions"))],
     })) },
     ],
   } : null)
@@ -299,7 +304,7 @@ function FacebookSection({ data, loading, failed, compare }: { data?: FbReport; 
     title: "Facebook", subtitle: data.page.name || "Página vinculada", color: [8, 102, 255], analysis, kpis,
     tables: [{ title: "Publicações em destaque", head: ["Publicação", "Reações", "Comentários", "Compartilhamentos"], rows: posts.map((post) => ({
       image: post.image ?? null,
-      cells: [`${(post.text || "Sem texto").slice(0, 80)}\n${new Date(post.createdAt).toLocaleDateString("pt-BR")}`, fmt(post.reactions), fmt(post.comments), fmt(post.shares)],
+      cells: [`${clip(post.text || "Sem texto", 80)}\n${new Date(post.createdAt).toLocaleDateString("pt-BR")}`, fmt(post.reactions), fmt(post.comments), fmt(post.shares)],
     })) }],
   } : null)
   return <Section icon={<SiFacebook size={18} color="white" />} color="#0866FF" title="Facebook" subtitle={data?.page.name || "Página vinculada"}>
@@ -323,7 +328,7 @@ function ThreadsSection({ data, loading, failed, compare }: { data?: ThReport; l
   const [analysis, setAnalysis] = useState("")
   useRegisterPdf("THREADS", data ? {
     title: "Threads", subtitle: `@${data.account.username}`, color: [17, 17, 17], analysis, kpis,
-    tables: [{ title: "Publicações do período", head: ["Publicação", "Data"], rows: data.posts.slice(0, 8).map((post) => ({ cells: [(post.text || "Sem texto").slice(0, 120), new Date(post.timestamp).toLocaleDateString("pt-BR")] })) }],
+    tables: [{ title: "Publicações do período", head: ["Publicação", "Data"], rows: data.posts.slice(0, 8).map((post) => ({ cells: [clip(post.text || "Sem texto", 120), new Date(post.timestamp).toLocaleDateString("pt-BR")] })) }],
   } : null)
   return <Section icon={<SiThreads size={18} color="white" />} color="#111111" title="Threads" subtitle={data ? `@${data.account.username}` : "Perfil do Threads"}>
     {failed ? <p className="text-sm text-slate-500">Não foi possível consultar o Threads agora.</p> : loading || !data ? <Loading /> : <>
@@ -344,16 +349,17 @@ function XSection({ data, loading, failed, compare }: { data?: XReportData; load
   const [analysis, setAnalysis] = useState("")
   useRegisterPdf("X", data ? {
     title: "X", subtitle: `@${data.account.username}`, color: [17, 17, 17], analysis, kpis,
-    daily: data.daily.length ? { labels: data.daily.map((row) => row.date.slice(8, 10) + "/" + row.date.slice(5, 7)), series: [{ name: "Visualizações", color: "#0f172a", values: data.daily.map((row) => row.impressions) }, { name: "Engajamentos", color: "#6366f1", values: data.daily.map((row) => row.engagement) }] } : null,
+    daily: data.daily.length ? { title: "X · visualizações e engajamentos por dia", labels: data.daily.map((row) => row.date.slice(8, 10) + "/" + row.date.slice(5, 7)), series: [{ name: "Visualizações", color: "#0f172a", values: data.daily.map((row) => row.impressions) }, { name: "Engajamentos", color: "#6366f1", values: data.daily.map((row) => row.engagement) }] } : null,
     tables: [{ title: "Posts em destaque", head: ["Post", "Visualiz.", "Curtidas", "Respostas", "Reposts", "Engaj."], rows: posts.map((post) => ({
       image: post.image ?? null,
-      cells: [`${(post.text || "Sem texto").slice(0, 80)}\n${new Date(post.createdAt).toLocaleDateString("pt-BR")}`, fmt(post.metrics.impressions), fmt(post.metrics.likes), fmt(post.metrics.replies), fmt(post.metrics.reposts), fmt(post.engagement)],
+      cells: [`${clip(post.text || "Sem texto", 80)}\n${new Date(post.createdAt).toLocaleDateString("pt-BR")}`, fmt(post.metrics.impressions), fmt(post.metrics.likes), fmt(post.metrics.replies), fmt(post.metrics.reposts), fmt(post.engagement)],
     })) }],
   } : null)
   return <Section icon={<SiX size={16} color="white" />} color="#111111" title="X" subtitle={data ? `@${data.account.username}` : "Perfil do X"}>
     {failed ? <p className="text-sm text-slate-500">Não foi possível consultar o X agora.</p> : loading || !data ? <Loading /> : <>
       <Analysis initial={summarize(compare ? kpis : [])} onText={setAnalysis} />
       <KpiGrid items={kpis} compare={compare} />
+      {data.daily.length > 0 && <div className="avoid-break bg-white"><h3 className="mb-3 text-center text-sm font-semibold text-slate-900">Visualizações e engajamentos por dia</h3><div className="h-56"><ResponsiveContainer><AreaChart data={data.daily} margin={{ left: -10, right: 8 }}><CartesianGrid stroke="#eef2f7" vertical={false} /><XAxis dataKey="date" tickFormatter={(value: string) => value.slice(8, 10) + "/" + value.slice(5, 7)} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} minTickGap={20} /><YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={44} /><Area type="monotone" dataKey="impressions" name="Visualizações" stroke="#0f172a" fill="#0f172a" fillOpacity={0.08} strokeWidth={2} isAnimationActive={false} /><Area type="monotone" dataKey="engagement" name="Engajamentos" stroke="#6366f1" fill="#6366f1" fillOpacity={0.12} strokeWidth={2} isAnimationActive={false} /></AreaChart></ResponsiveContainer></div><p className="mt-1 text-center text-[11px] text-slate-500"><span className="mr-3 inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-slate-900" />Visualizações</span><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-500" />Engajamentos</span></p></div>}
       <Table title="Posts em destaque" head={["Post", "Visualizações", "Curtidas", "Respostas", "Reposts", "Engajamentos"]} rows={posts.map((post) => [
         <div key="p" className="flex min-w-[220px] items-center gap-3">{post.image && <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"><MediaPreview src={post.image} fallback="" /></div>}<div className="min-w-0"><p className="line-clamp-2 text-xs font-medium text-slate-800">{post.text || "Sem texto"}</p><p className="text-[10px] text-slate-400">{new Date(post.createdAt).toLocaleDateString("pt-BR")}</p></div></div>,
         fmt(post.metrics.impressions), fmt(post.metrics.likes), fmt(post.metrics.replies), fmt(post.metrics.reposts), fmt(post.engagement),

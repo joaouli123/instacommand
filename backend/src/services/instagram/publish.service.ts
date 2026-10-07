@@ -324,7 +324,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
 
     if (platforms.includes('X')) {
       try {
-        if (!post.xAccount || !post.xAccount.isActive) throw new Error('Conecte uma conta do X antes de publicar.');
+        if (!post.xAccount || !post.xAccount.isActive || post.xAccount.userId !== post.userId) throw new Error('Conecte uma conta do X antes de publicar.');
         // Loaded on demand so publishing to the other networks never depends on the X client.
         const { publishXPost } = require('../x.service') as typeof import('../x.service');
         const xPostId = await publishXPost(post, post.xAccount.id);

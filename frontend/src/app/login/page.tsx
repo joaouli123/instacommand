@@ -117,7 +117,7 @@ export default function LoginPage() {
         </form>
 
         <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-3 text-center text-xs leading-5 text-indigo-800">
-          Entre primeiro no seu workspace. Depois, em <strong>Contas</strong>, clique em <strong>Adicionar conta</strong> para conectar Instagram, Facebook e Threads com a autorização oficial da Meta.
+          Entre primeiro no seu workspace. Depois, em <strong>Contas</strong>, clique em <strong>Adicionar conta</strong> para conectar Instagram, Facebook, Threads e X com a autorização oficial da Meta.
         </div>
 
         <p className="mt-6 text-center text-[11px] text-slate-400">Cada cliente conecta e administra somente as próprias contas.</p>

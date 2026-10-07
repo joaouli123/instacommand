@@ -28,7 +28,7 @@ function Avatar({ name }: { name: string }) {
 /** Text box to review an AI suggestion and send it (used here and in the history). */
 export function ReviewEditor({ item, platform, accountId, busy, run, disabled = false }: { item: Execution; platform: Platform; accountId: string; busy: boolean; run: Run; disabled?: boolean }) {
   const [text, setText] = useState(item.responseText ?? "")
-  const maxLength = platform === "THREADS" ? 500 : 1000
+  const maxLength = platform === "X" ? 280 : platform === "THREADS" ? 500 : 1000
   return <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
     <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-900"><Hand size={13} />Sugestão aguardando sua revisão</p>
     <textarea aria-label="Resposta para revisão" className={inputClass} rows={3} maxLength={maxLength} value={text} onChange={(event) => setText(event.target.value)} />

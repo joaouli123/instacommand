@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
 import { SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import twitterText from "twitter-text"
 import { RiBarChartLine, RiChat1Line, RiShare2Line } from "@remixicon/react"
 import { RiAccountCircleLine, RiAddLine, RiArrowLeftLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiEmotionHappyLine, RiHeartFill, RiHeartLine, RiImageLine, RiMore2Line, RiMusic2Line, RiPauseFill, RiPlayFill, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiThumbUpFill, RiThumbUpLine, RiVolumeMuteLine, RiVolumeUpLine } from "@remixicon/react"
 import { AvatarImage } from "@/components/ui/avatar-image"
@@ -228,7 +229,7 @@ function XPostPreview({ account, caption, hashtags, mediaItems, postType }: { ac
   const handle = account?.username || "sua_conta"
   const name = account?.name || handle
   const text = [caption, hashtags.map((tag) => `#${tag}`).join(" ")].filter(Boolean).join("\n\n")
-  const length = Array.from(text).length
+  const length = twitterText.parseTweet(text).weightedLength
   const items = postType === "TEXT" ? [] : mediaItems.slice(0, 4)
   // Hashtags and @mentions are blue on X.
   const rich = text.split(/(\s+)/).map((part, index) => TAG_PATTERN.test(part) ? <span key={index} className="text-[#1d9bf0]">{part}</span> : part)

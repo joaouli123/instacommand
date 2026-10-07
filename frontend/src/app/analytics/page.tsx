@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function AnalyticsPage() {
   return <div className="space-y-6 animate-fade-in">
-    <PageHeader eyebrow="Desempenho" title="Relatórios" description="Métricas, público e conteúdos do Instagram, Facebook e Threads." actions={<Link href="/report" className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"><FileText size={16} />Gerar relatório em PDF</Link>} />
+    <PageHeader eyebrow="Desempenho" title="Relatórios" description="Métricas, público e conteúdos do Instagram, Facebook, Threads e X." actions={<Link href="/report" className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"><FileText size={16} />Gerar relatório em PDF</Link>} />
     <Tabs defaultValue="instagram" className="space-y-6">
     <TabsList aria-label="Rede social do relatório" className="grid h-10 w-full grid-cols-4">
       <TabsTrigger value="instagram" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiInstagram size={14} color="currentColor" aria-hidden />Instagram</TabsTrigger>

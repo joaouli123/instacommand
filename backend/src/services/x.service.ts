@@ -102,6 +102,12 @@ export async function handleXCallback(code: string, state: unknown) {
   const profile = me.data;
   const existing = await prisma.xAccount.findUnique({ where: { xUserId: profile.id } });
   if (existing && existing.userId !== parsed.userId && existing.isActive) throw new AppError('X_ACCOUNT_CONFLICT', 409);
+  if (existing && existing.userId !== parsed.userId) {
+    // The previous owner disconnected: nothing of theirs (scheduled posts, stored metrics,
+    // automations) may move to the new workspace or be published with the new tokens.
+    await prisma.scheduledPost.updateMany({ where: { xAccountId: existing.id }, data: { xAccountId: null } });
+    await prisma.xAccount.delete({ where: { id: existing.id } });
+  }
   const data = {
     userId: parsed.userId, username: profile.username, name: profile.name || null, profilePicUrl: profile.profile_image_url || null,
     followersCount: profile.public_metrics?.followers_count ?? null,
@@ -161,7 +167,9 @@ export async function disconnectXAccount(accountId: string, userId: string) {
       signal: AbortSignal.timeout(10_000),
     });
   } catch { /* ignore */ }
-  await prisma.scheduledPost.updateMany({ where: { xAccountId: accountId, status: { in: ['DRAFT', 'FAILED'] } }, data: { xAccountId: null } });
+  // Every post of this connection loses it, scheduled ones included: they must never be
+  // published later through a reconnection by someone else.
+  await prisma.scheduledPost.updateMany({ where: { xAccountId: accountId }, data: { xAccountId: null } });
   await prisma.xAccount.update({ where: { id: accountId }, data: { isActive: false, accessToken: encryptSecret('revoked'), refreshToken: null } });
   return true;
 }
@@ -214,7 +222,8 @@ export async function uploadXMedia(url: string, token: string): Promise<string> 
 /** Publishes a scheduled post on X and returns the new post id. */
 export async function publishXPost(post: { caption?: string | null; mediaUrls?: string[]; mediaType: string }, accountId: string) {
   const text = (post.caption || '').trim();
-  if ([...text].length > X_TEXT_LIMIT) throw new AppError(`O texto passa de ${X_TEXT_LIMIT} caracteres, o limite do X.`, 400);
+  const { xTextLength } = require('./post-readiness') as typeof import('./post-readiness');
+  if (xTextLength(text) > X_TEXT_LIMIT) throw new AppError(`O texto passa de ${X_TEXT_LIMIT} caracteres no X (links contam 23 e emojis contam 2).`, 400);
   const token = await getXAccessToken(accountId);
   const urls = (post.mediaUrls || []).slice(0, X_MAX_IMAGES);
   const hasVideo = urls.some(isVideoUrl);

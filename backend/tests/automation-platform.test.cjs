@@ -106,7 +106,26 @@ test('capabilities and database scopes cannot bleed between the three channels',
   assert.equal(permissionCapabilities('THREADS', ['threads_read_replies', 'threads_content_publish']).canAutomateComments, false);
   assert.equal(permissionCapabilities('THREADS', ['threads_read_replies', 'threads_manage_replies', 'threads_content_publish']).canAutomateComments, true);
   assert.equal(permissionCapabilities('THREADS', ['pages_messaging']).canAutomateMessages, false);
-  assert.deepEqual(accountScope('id', 'THREADS'), { accountId: null, threadsAccountId: 'id', platform: 'THREADS' });
+  assert.deepEqual(accountScope('id', 'THREADS'), { accountId: null, threadsAccountId: 'id', xAccountId: null, platform: 'THREADS' });
+  assert.deepEqual(accountScope('id', 'X'), { accountId: null, threadsAccountId: null, xAccountId: 'id', platform: 'X' });
+  assert.deepEqual(accountScope('id', 'INSTAGRAM'), { accountId: 'id', threadsAccountId: null, xAccountId: null, platform: 'INSTAGRAM' });
+  // X: public replies only, and only with read + write consent.
+  assert.equal(permissionCapabilities('X', ['tweet.read', 'tweet.write', 'users.read']).canAutomateComments, true);
+  assert.equal(permissionCapabilities('X', ['tweet.read', 'users.read']).canAutomateComments, false);
+  assert.equal(permissionCapabilities('X', ['tweet.read', 'tweet.write', 'users.read', 'dm.write']).canAutomateMessages, false);
+});
+
+test('X mentions become public-reply events; own posts and old mentions are ignored', () => {
+  const { xMentionEvents } = require('../dist/services/x-automation.service');
+  const since = Date.parse('2026-10-01T00:00:00Z');
+  const events = xMentionEvents([
+    { id: '10', text: '@marca @outro eu quero o link', author_id: 'u1', created_at: '2026-10-02T10:00:00Z', conversation_id: '9' },
+    { id: '11', text: '@marca resposta minha', author_id: 'me', created_at: '2026-10-02T11:00:00Z', conversation_id: '9' },
+    { id: '12', text: '@marca antiga', author_id: 'u2', created_at: '2026-09-20T10:00:00Z', conversation_id: '8' },
+  ], [{ id: 'u1', username: 'cliente' }], { externalId: 'me', username: 'marca' }, since);
+  assert.equal(events.length, 1);
+  assert.deepEqual({ platform: events[0].platform, type: events[0].type, senderUsername: events[0].senderUsername, text: events[0].text, mediaId: events[0].mediaId, commentId: events[0].commentId, eventKey: events[0].eventKey },
+    { platform: 'X', type: 'COMMENT_ANY', senderUsername: 'cliente', text: 'eu quero o link', mediaId: '9', commentId: '10', eventKey: 'x:me:mention:10' });
 });
 test('Page webhook accepts only inbound Messenger messages for the exact Page', () => {
   const payload = { object: 'page', entry: [{ id: 'page', messaging: [
