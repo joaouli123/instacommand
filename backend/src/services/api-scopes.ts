@@ -68,6 +68,10 @@ const writeRules: Rule[] = [
   { methods: ['POST'], pattern: /^\/api\/notifications\/(read-all|[^/]+\/read)$/, requirement: fixed('write') },
   { methods: ['PUT'], pattern: /^\/api\/settings\/preferences$/, requirement: fixed('write') },
   { methods: ['POST'], pattern: /^\/api\/auth\/logout$/, requirement: fixed('write') },
+  // A client link exposes the schedule publicly, so creating one is a publish action.
+  { methods: ['POST'], pattern: /^\/api\/share-links$/, requirement: fixed('publish') },
+  { methods: ['DELETE'], pattern: /^\/api\/share-links\/[^/]+$/, requirement: fixed('write') },
+  { methods: ['POST'], pattern: /^\/api\/share-links\/comments\/[^/]+\/(resolve|reply)$/, requirement: fixed('write') },
 ];
 
 const adminReadPattern = /^\/api\/auth\/(facebook|threads|x)(\/url)?$/;

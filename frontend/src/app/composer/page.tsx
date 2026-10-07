@@ -113,6 +113,7 @@ export default function ComposerPage() {
   const [draftId, setDraftId] = useState('')
   const [draftLoading, setDraftLoading] = useState(false)
   const [draftError, setDraftError] = useState('')
+  const [referenceUrl, setReferenceUrl] = useState("")
   const [editorialBrief, setEditorialBrief] = useState<{ creativeBrief?: string; storyIdea?: string; reason?: string } | null>(null)
   const [postType, setPostType] = useState<PostType>("FEED")
   const [selectedDate, setSelectedDate] = useState("")
@@ -158,6 +159,8 @@ export default function ComposerPage() {
   useEffect(() => {
     setSelectedDate(getDefaultDate())
     const requestedDraft = new URLSearchParams(window.location.search).get('draft')
+    const requestedReference = new URLSearchParams(window.location.search).get('reference') || ''
+    if (/^https:\/\/(www\.)?instagram\.com\//.test(requestedReference)) setReferenceUrl(requestedReference)
     setDraftLoading(!!requestedDraft)
     Promise.all([api.getAccounts(), api.getThreadsAccounts(), requestedDraft ? api.getPost(requestedDraft) : Promise.resolve(null), (api.getXAccounts() as Promise<{ accounts: XAccount[] }>).catch(() => ({ accounts: [] as XAccount[] }))])
       .then(([instagramAccounts, threadAccounts, draft, xPayload]) => {
@@ -811,6 +814,7 @@ export default function ComposerPage() {
   return (
     <div className="space-y-5 animate-fade-in">
       <PageHeader eyebrow="Criação" title="Nova publicação" description="Crie, visualize e agende para Instagram, Facebook, Threads e X." />
+      {referenceUrl && <Card className="flex flex-col gap-2 border-amber-200 bg-amber-50/60 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-semibold text-amber-900">Criando a partir de uma referência</p><p className="truncate text-xs text-amber-800">Use o post como inspiração de formato e gancho, sem copiar o conteúdo. {referenceUrl}</p></div><div className="flex shrink-0 gap-2"><a href={referenceUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100">Abrir referência</a><button type="button" onClick={() => setReferenceUrl("")} className="rounded-lg px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100">Ocultar</button></div></Card>}
       <nav className="grid grid-cols-2 gap-x-3 gap-y-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-xs md:flex md:items-center md:gap-0 md:px-7" aria-label="Etapas da publicação">
         {[
           { label: "Onde publicar", help: "Escolha a rede social" },

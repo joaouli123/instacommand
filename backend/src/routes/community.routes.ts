@@ -10,7 +10,7 @@ router.get('/comments', async (req: AuthRequest, res, next) => {
   try {
     const accountId = String(req.query.accountId || '');
     if (!accountId) return res.status(400).json({ error: 'Selecione uma conta do Instagram.' });
-    const result = await listRecentComments(accountId, req.user!.id, 50);
+    const result = await listRecentComments(accountId, req.user!.id, 100);
     res.json(result);
   } catch (error) {
     next(error);

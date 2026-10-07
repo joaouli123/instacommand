@@ -50,7 +50,9 @@ export const errorHandler = (
   next: NextFunction
 ) => {
   if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
+    // A provider refusing its token is not our session expiring: never 401, or the app logs out.
+    const status = err instanceof InstagramApiError && err.statusCode === 401 ? 400 : err.statusCode;
+    return res.status(status).json({
       status: 'error',
       message: err instanceof InstagramApiError ? metaGraphPublicMessage(err) : publicMessage(err.message),
     });

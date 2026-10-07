@@ -45,3 +45,37 @@ test('legacy aggregate zeros are reconstructed from source posts, never trusted 
   assert.equal(unavailable.avgComments, null);
   assert.equal(unavailable.engagementRate, null);
 });
+
+test('normalized insight exposes posting frequency and format breakdown', () => {
+  const insight = normalizeCompetitorInsight({ followers: 100, recentPostsData: [{ id: 'a', media_type: 'VIDEO', like_count: 5, comments_count: 1, timestamp: new Date().toISOString() }] });
+  assert.equal(insight.formats[0].format, 'REELS');
+  assert.equal(insight.formats[0].avgInteractions, 6);
+  assert.equal(typeof insight.postsPerWeek, 'number');
+});
+
+const { normalizeUsername, competitorLookupError } = require('../dist/services/instagram/discovery.service');
+const { InstagramApiError, AppError } = require('../dist/utils/errors');
+
+test('competitor usernames are normalized from @, spaces, case and profile URLs', () => {
+  assert.equal(normalizeUsername('  @Nike '), 'nike');
+  assert.equal(normalizeUsername('https://www.instagram.com/nat.geo/?hl=pt'), 'nat.geo');
+  assert.equal(normalizeUsername('instagram.com/some_user/'), 'some_user');
+  assert.equal(normalizeUsername('foo bar'), 'foobar');
+});
+
+test('business_discovery errors become clear messages and never 401', () => {
+  const meta = (metaCode, metaSubcode, status = 400) => new InstagramApiError('x', status, { metaCode, metaSubcode });
+  const notFound = competitorLookupError(meta(110, 2207013), 'abc');
+  assert.equal(notFound.statusCode, 404);
+  assert.match(notFound.message, /profissional/);
+  assert.match(competitorLookupError(meta(100), 'abc').message, /@abc/);
+  const perm = competitorLookupError(meta(10, undefined, 403), 'abc');
+  assert.equal(perm.statusCode, 400);
+  assert.match(perm.message, /Permissão faltando/);
+  const expired = competitorLookupError(meta(190, undefined, 401), 'abc');
+  assert.equal(expired.statusCode, 400);
+  assert.match(expired.message, /Reconecte/);
+  assert.equal(competitorLookupError(meta(4), 'abc').statusCode, 429);
+  assert.notEqual(competitorLookupError(new AppError('u', 401), 'abc').statusCode, 401);
+  assert.equal(competitorLookupError(new Error('boom'), 'abc').statusCode, 502);
+});

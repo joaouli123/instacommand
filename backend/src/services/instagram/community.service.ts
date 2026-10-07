@@ -3,6 +3,7 @@ import { graphGet, graphPost, graphDelete } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
 import { AppError, NotFoundError, ValidationError } from '../../utils/errors';
 import { mediaPreviewUrl } from '../../utils/meta-media';
+import { classifyIntent, CommentIntent, findOwnerReply, summarizeComments } from '../../utils/community-insights';
 
 const prisma = new PrismaClient();
 
@@ -16,24 +17,45 @@ type CommunityComment = {
   mediaCaption?: string | null;
   mediaUrl?: string | null;
   permalink?: string | null;
+  mediaTimestamp?: string | null;
+  mediaLikeCount?: number | null;
+  mediaCommentsCount?: number | null;
+  replyCount: number;
+  answered: boolean;
+  firstReplyAt: string | null;
+  intent: CommentIntent;
 };
 
-const normalizeComment = (comment: any, media: any): CommunityComment => ({
-  id: String(comment.id),
-  text: String(comment.text || ''),
-  username: comment.username || comment.from?.username || 'usuário',
-  timestamp: comment.timestamp,
-  like_count: typeof comment.like_count === 'number' && Number.isFinite(comment.like_count) ? comment.like_count : null,
-  mediaId: String(media.id),
-  mediaCaption: media.caption || null,
-  mediaUrl: mediaPreviewUrl(media),
-  permalink: media.permalink || null,
-});
+const finiteOrNull = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+export const normalizeComment = (comment: any, media: any, ownerUsername?: string | null): CommunityComment => {
+  const replies: any[] = Array.isArray(comment.replies?.data) ? comment.replies.data : [];
+  const ownerReply = findOwnerReply(replies, ownerUsername);
+  const text = String(comment.text || '');
+  return {
+    id: String(comment.id),
+    text,
+    username: comment.username || comment.from?.username || 'usuário',
+    timestamp: comment.timestamp,
+    like_count: finiteOrNull(comment.like_count),
+    mediaId: String(media.id),
+    mediaCaption: media.caption || null,
+    mediaUrl: mediaPreviewUrl(media),
+    permalink: media.permalink || null,
+    mediaTimestamp: media.timestamp || null,
+    mediaLikeCount: finiteOrNull(media.like_count),
+    mediaCommentsCount: finiteOrNull(media.comments_count),
+    replyCount: replies.length,
+    answered: Boolean(ownerReply),
+    firstReplyAt: ownerReply?.timestamp || null,
+    intent: classifyIntent(text),
+  };
+};
 
 const getOwnedAccount = async (accountId: string, userId: string) => {
   const account = await prisma.instagramAccount.findFirst({
     where: { id: accountId, userId, isActive: true },
-    select: { id: true, igUserId: true },
+    select: { id: true, igUserId: true, igUsername: true },
   });
   if (!account) throw new NotFoundError('Conta do Instagram não encontrada.');
   return account;
@@ -43,7 +65,7 @@ export const listRecentComments = async (accountId: string, userId: string, limi
   const account = await getOwnedAccount(accountId, userId);
   const token = await getDecryptedToken(account.id);
   const mediaResponse = await graphGet(`/${account.igUserId}/media`, token, {
-    fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp',
+    fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
     limit: Math.min(25, Math.max(1, Math.ceil(limit / 2))),
   });
   const media: any[] = Array.isArray(mediaResponse.data) ? mediaResponse.data : [];
@@ -60,7 +82,7 @@ export const listRecentComments = async (accountId: string, userId: string, limi
         return {
           item,
           response: await graphGet(`/${item.id}/comments`, token, {
-            fields: 'id,text,username,timestamp,like_count,from',
+            fields: 'id,text,username,timestamp,like_count,from,replies{id,username,timestamp}',
             limit: Math.min(25, limit),
           }),
         };
@@ -77,14 +99,17 @@ export const listRecentComments = async (accountId: string, userId: string, limi
     for (const { item, response } of results) {
       for (const comment of Array.isArray(response?.data) ? response.data : []) {
         if (comments.length >= limit) break;
-        comments.push(normalizeComment(comment, item));
+        const normalized = normalizeComment(comment, item, account.igUsername);
+        // The account's own comments on its posts are not community interactions.
+        if (account.igUsername && normalized.username?.toLowerCase() === account.igUsername.toLowerCase()) continue;
+        comments.push(normalized);
       }
     }
   }
 
   if (!comments.length && media.length > 0 && failures === media.length && lastFailure) throw lastFailure;
   comments.sort((left, right) => new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime());
-  return { available: true, comments };
+  return { available: true, comments, summary: summarizeComments(comments) };
 };
 
 const assertMediaBelongsToAccount = async (accountId: string, userId: string, mediaId: string) => {

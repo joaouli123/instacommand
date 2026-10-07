@@ -1,11 +1,11 @@
 const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 
-let media, comments, reads;
+let media, comments, reads, ownerUsername;
 require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: class {
   instagramAccount = { findFirst: async ({ where }) => {
     assert.deepEqual(where, { id: 'account', userId: 'user', isActive: true });
-    return { id: 'account', igUserId: '789' };
+    return { id: 'account', igUserId: '789', igUsername: ownerUsername };
   } };
 } } };
 require.cache[require.resolve('../dist/services/instagram/auth.service')] = {
@@ -28,6 +28,7 @@ beforeEach(() => {
     { id: '3', text: 'Tem curtidas', like_count: 4 },
   ];
   reads = [];
+  ownerUsername = null;
 });
 
 test('missing comment likes stay unavailable while a returned zero stays a real zero', async () => {
@@ -36,4 +37,18 @@ test('missing comment likes stay unavailable while a returned zero stays a real 
   assert.deepEqual(result.comments.map(comment => comment.like_count), [null, 0, 4]);
   assert.equal(result.comments[0].mediaCaption, 'Post real');
   assert.deepEqual(reads.map(item => item.path), ['/789/media', '/123/comments']);
+  assert.equal(result.summary.total, 3);
+});
+
+test('owner replies mark comments answered and own comments are left out', async () => {
+  ownerUsername = 'loja';
+  comments = [
+    { id: '1', text: 'Qual o preço?', username: 'ana', timestamp: '2026-01-01T10:00:00Z', replies: { data: [{ id: 'r', username: 'Loja', timestamp: '2026-01-01T10:20:00Z' }] } },
+    { id: '2', text: 'Amei', username: 'bia', timestamp: '2026-01-01T11:00:00Z' },
+    { id: '3', text: 'Obrigado a todos', username: 'loja', timestamp: '2026-01-01T12:00:00Z' },
+  ];
+  const result = await listRecentComments('account', 'user');
+  assert.deepEqual(result.comments.map(comment => [comment.id, comment.answered, comment.intent]), [['2', false, 'praise'], ['1', true, 'question']]);
+  assert.equal(result.summary.responseRate, 50);
+  assert.equal(result.summary.avgResponseMinutes, 20);
 });

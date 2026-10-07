@@ -425,7 +425,7 @@ model XAccount {
   followingCount      Int?
   totalPosts          Int?
   metricsSyncedAt     DateTime?
-  metricsSyncError String?
+  metricsSyncError    String?
   // Automation: newest mention already read, so each check only pays for new ones.
   automationSinceId   String?
   automationSyncAt    DateTime?
@@ -687,4 +687,48 @@ model HashtagSearch {
   createdAt        DateTime @default(now())
 
   @@index([hashtag])
+}
+
+// Read-only public link a workspace shares with its client to review the
+// schedule. Only the SHA-256 of the token is stored; `tokenPrefix` lets the
+// owner recognise a link without revealing it.
+model ClientShareLink {
+  id            String    @id @default(uuid())
+  userId        String
+  tokenHash     String    @unique
+  tokenPrefix   String
+  name          String
+  accountIds    String[]  @default([])
+  platforms     String[]  @default([])
+  includeDrafts Boolean   @default(false)
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  lastViewedAt  DateTime?
+  createdAt     DateTime  @default(now())
+
+  comments PostClientComment[]
+
+  @@index([userId])
+}
+
+// Figma-like observation left by a client on a shared post, optionally
+// pinned to a point (percent coordinates) of one media item.
+model PostClientComment {
+  id         String    @id @default(uuid())
+  postId     String
+  linkId     String
+  parentId   String?
+  authorName String
+  body       String
+  fromOwner  Boolean   @default(false)
+  mediaIndex Int?
+  x          Float?
+  y          Float?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  link ClientShareLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([linkId, createdAt])
 }

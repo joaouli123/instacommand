@@ -29,6 +29,7 @@ import oauthConsentRoutes from './routes/oauth-consent.routes';
 import oauthRoutes from './routes/oauth.routes';
 import mcpRoutes from './routes/mcp.routes';
 import downloadsRoutes from './routes/downloads.routes';
+import { ownerRouter as shareLinksRoutes, publicRouter as publicShareRoutes } from './routes/client-share.routes';
 
 export function createApp() {
   const app = express();
@@ -116,6 +117,9 @@ export function createApp() {
   app.use('/api/automations', automationsRoutes);
   app.use('/api/integrations', integrationsRoutes);
   app.use('/api/oauth', oauthConsentRoutes);
+  app.use('/api/share-links', shareLinksRoutes);
+  // Public, read-only client view: authenticated only by the link token.
+  app.use('/api/public/share', publicShareRoutes);
 
   // Error handling
   app.use(errorHandler);

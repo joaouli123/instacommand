@@ -17,6 +17,8 @@ import { useQuery } from "@tanstack/react-query"
 import { PostPreviewPanel } from "@/components/calendar/PostPreviewPanel"
 import { captionAsPublished } from "@/lib/caption"
 import { PlatformChip, PlatformIcons, platformBackground, platformLabel } from "@/components/ui/platform-icons"
+import { ShareClientButton } from "@/components/share/ShareClientDialog"
+import { ClientCommentsPanel } from "@/components/share/ClientCommentsPanel"
 
 // Status is shown with small white icons so the card keeps only the network's own color.
 const STATUS_ICON = { published: CheckCircle2, scheduled: Clock, draft: PencilLine, failed: AlertTriangle } as const
@@ -148,6 +150,7 @@ export default function CalendarPage() {
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <div className="inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Visualização do calendário"><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'month'} onClick={() => setView('month')}>Mês</button><button className="report-toggle aria-pressed:bg-white aria-pressed:shadow-sm" aria-pressed={view === 'list'} onClick={() => setView('list')}>Lista</button></div>
             {activeAccount && accounts.length > 1 && <select value={accountId} onChange={(event) => { window.localStorage.setItem("instacommand_active_account", event.target.value); window.dispatchEvent(new Event("instacommand-account-changed")) }} className="hidden h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 sm:block" aria-label="Conta do calendário">{accounts.map((account) => <option key={account.id} value={account.id}>@{account.igUsername}</option>)}</select>}
+            <ShareClientButton accountId={accountId || undefined} accountLabel={activeAccount ? `@${activeAccount.igUsername}` : undefined} />
             <Button asChild size="sm" className="h-9 gap-1.5 rounded-lg bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"><Link href="/composer"><Plus size={14} />Agendar</Link></Button>
           </div>
         </div>
@@ -174,6 +177,7 @@ export default function CalendarPage() {
              {selectedPost.publishedPost?.publishResults && <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Resultado real</p><div className="mt-2 space-y-1 text-xs text-slate-600">{Object.entries(selectedPost.publishedPost.publishResults).map(([platform, result]) => <p key={platform} className="flex items-center gap-1.5"><PlatformIcons platforms={[platform]} size={12} /><span className="font-semibold">{platformLabel(platform)}:</span> publicado{result.id ? ` · ID ${result.id}` : ""}</p>)}</div></div>}
             <p className="text-sm text-slate-600">{new Date(selectedPost.scheduledFor).toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "short" })}</p>
             <PostContentDetails post={selectedPost} />
+            <ClientCommentsPanel postId={selectedPost.id} />
             {selectedPost.errorMessage && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-700">{selectedPost.errorMessage}</p>}
             {selectedPost.status === "PUBLISHED" && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Excluir aqui remove o registro do InstaCommand. A API não consegue apagar do Instagram uma mídia que já foi publicada; remova-a diretamente no Instagram. No Facebook/Threads{selectedPost.platforms?.includes("X") ? "/X" : ""}, o app tenta excluir também e avisa se a rede recusar.</p>}
             {['DRAFT', 'FAILED'].includes(selectedPost.status) && <Link href={`/composer?draft=${encodeURIComponent(selectedPost.id)}`} className="inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Editar rascunho e adicionar mídias</Link>}
