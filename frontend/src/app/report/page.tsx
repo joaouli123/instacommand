@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { SiFacebook, SiInstagram, SiThreads } from "@icons-pack/react-simple-icons"
@@ -14,6 +14,8 @@ import { ChangeBadge } from "@/components/dashboard/MetricCard"
 import { MediaPreview } from "@/components/dashboard/MediaPreview"
 import { periodChange, type InstagramProfileReport } from "@/lib/instagram-report"
 import { cn } from "@/lib/utils"
+import { downloadReportPdf, thumbnail, type PdfReport, type PdfSection } from "@/lib/report-pdf"
+import toast from "react-hot-toast"
 
 type Num = number | null | undefined
 type Kpi = { label: string; value: Num; previous?: Num; format?: (value: number) => string }
@@ -28,6 +30,19 @@ const date = (value: Date) => value.toLocaleDateString("pt-BR")
 const FORMAT_NAMES: Record<string, string> = { IMAGE: "Imagem", CAROUSEL: "Carrossel", CAROUSEL_ALBUM: "Carrossel", REEL: "Reel", VIDEO: "Vídeo", STORY: "Story", TEXT: "Texto" }
 const FORMAT_COLORS: Record<string, string> = { IMAGE: "#6366f1", CAROUSEL: "#0ea5e9", CAROUSEL_ALBUM: "#0ea5e9", REEL: "#ec4899", VIDEO: "#ec4899", STORY: "#f59e0b", TEXT: "#64748b" }
 const metric = (post: IgPost, key: string) => post.metrics?.[key] ?? post.insights?.[0]?.[key] ?? null
+
+type PdfDraft = {
+  title: string; subtitle: string; color: [number, number, number]; analysis: string; kpis: Kpi[]
+  daily?: { labels: string[]; series: Array<{ name: string; color: string; values: Array<number | null> }> } | null
+  bars?: Array<{ title: string; items: Array<{ label: string; value: number; color: string }> }>
+  tables: Array<{ title: string; head: string[]; textColumns?: number; rows: Array<{ image?: string | null; cells: string[] }> }>
+}
+const PdfRegistry = createContext<(key: string, draft: PdfDraft | null) => void>(() => undefined)
+function useRegisterPdf(key: string, draft: PdfDraft | null) {
+  const register = useContext(PdfRegistry)
+  const serialized = JSON.stringify(draft)
+  useEffect(() => { register(key, draft); return () => register(key, null) }, [key, serialized]) // eslint-disable-line react-hooks/exhaustive-deps
+}
 
 /** Plain-language bullets built only from the numbers on the page; the user can edit them before exporting. */
 function summarize(kpis: Kpi[], extra: string[] = []) {
@@ -47,6 +62,10 @@ export default function ReportPage() {
   const [days, setDays] = useState(30)
   const [compare, setCompare] = useState(true)
   const [networks, setNetworks] = useState({ INSTAGRAM: true, FACEBOOK: true, THREADS: true })
+  const paperRef = useRef<HTMLElement>(null)
+  const drafts = useRef<Record<string, PdfDraft>>({})
+  const register = useRef((key: string, draft: PdfDraft | null) => { if (draft) drafts.current[key] = draft; else delete drafts.current[key] }).current
+  const [exporting, setExporting] = useState(false)
   const account = accounts.find((item) => item.id === (accountId || activeAccount?.id)) || activeAccount
   const id = account?.id || ""
   const threadsQuery = useQuery({ queryKey: ["threads-accounts"], queryFn: api.getThreadsAccounts })
@@ -75,6 +94,35 @@ export default function ReportPage() {
   const until = new Date(), since = new Date(until.getTime() - days * 864e5), prevSince = new Date(since.getTime() - days * 864e5)
   const loading = (networks.INSTAGRAM && ig.isLoading) || (networks.FACEBOOK && fb.isLoading) || (networks.THREADS && th.isLoading)
 
+  const download = async () => {
+    if (!account || exporting) return
+    setExporting(true)
+    try {
+      const order = (["INSTAGRAM", "FACEBOOK", "THREADS"] as const).filter((key) => networks[key] && drafts.current[key])
+      const sections: PdfSection[] = await Promise.all(order.map(async (key) => {
+        const draft = drafts.current[key]
+        return {
+          title: draft.title, subtitle: draft.subtitle, color: draft.color, analysis: draft.analysis, daily: draft.daily ? { title: "Alcance e visualizações por dia", ...draft.daily } : null, bars: draft.bars,
+          kpis: draft.kpis.map((kpi) => {
+            const show = (value: Num) => value == null ? "—" : kpi.format ? kpi.format(value) : fmt(value)
+            const change = compare ? periodChange(kpi.value ?? null, kpi.previous ?? null) : null
+            return { label: kpi.label, value: show(kpi.value), change, previous: change ? show(kpi.previous) : null }
+          }),
+          tables: await Promise.all(draft.tables.map(async (table) => ({ ...table, rows: await Promise.all(table.rows.map(async (row) => ({ cells: row.cells, image: row.image === undefined ? undefined : await thumbnail(row.image) }))) }))),
+        }
+      }))
+      const report: PdfReport = {
+        title: `Relatório de @${account.igUsername}`, subtitle: "Análise de desempenho", initial: account.igUsername[0]?.toUpperCase() || "R",
+        avatar: await thumbnail(account.igProfilePicUrl, 200),
+        period: `Dados de ${date(since)} a ${date(until)}${compare ? `, comparados com o período de ${date(prevSince)} a ${date(since)}` : ""}.`,
+        sections, footer: `Gerado pelo InstaCommand em ${new Date().toLocaleString("pt-BR")} · Dados fornecidos pela Meta · "—" = dado não fornecido pela rede`,
+      }
+      await downloadReportPdf(report, `relatorio-${account.igUsername}-${since.toISOString().slice(0, 10)}-a-${until.toISOString().slice(0, 10)}.pdf`)
+    }
+    catch { toast.error("Não foi possível gerar o PDF. Tente novamente.") }
+    finally { setExporting(false) }
+  }
+
   if (isLoading) return <p className="text-sm text-slate-500">Carregando…</p>
   if (!account) return <p className="text-sm text-slate-500">Conecte uma conta para gerar relatórios.</p>
 
@@ -82,7 +130,7 @@ export default function ReportPage() {
     <div className="no-print space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="page-eyebrow">Desempenho</p><h1 className="page-title">Gerar relatório</h1><p className="page-subtitle">Monte o relatório, ajuste a análise escrita e baixe em PDF para enviar ao cliente.</p></div>
-        <div className="flex gap-2"><Button variant="outline" asChild><Link href="/analytics"><ArrowLeft size={15} className="mr-1.5" />Relatórios</Link></Button><Button onClick={() => window.print()} disabled={loading} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Download size={15} />Baixar PDF</Button></div>
+        <div className="flex gap-2"><Button variant="outline" asChild><Link href="/analytics"><ArrowLeft size={15} className="mr-1.5" />Relatórios</Link></Button><Button onClick={() => void download()} disabled={loading || exporting} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700">{exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{exporting ? "Gerando PDF…" : "Baixar PDF"}</Button></div>
       </div>
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
         <label className="text-xs font-semibold text-slate-600">Conta<select value={account.id} onChange={(event) => setAccountId(event.target.value)} className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm">{accounts.map((item) => <option key={item.id} value={item.id}>@{item.igUsername}</option>)}</select></label>
@@ -93,8 +141,9 @@ export default function ReportPage() {
       </div>
     </div>
 
-    <article className="report-paper mx-auto max-w-[1000px] rounded-2xl border border-slate-200 bg-white px-6 py-10 shadow-sm sm:px-10">
-      <div className="text-center">
+    <PdfRegistry.Provider value={register}>
+    <article ref={paperRef} className="report-paper mx-auto max-w-[1000px] rounded-2xl border border-slate-200 bg-white px-6 py-10 shadow-sm sm:px-10">
+      <div data-pdf-block className="bg-white pb-2 text-center">
         {account.igProfilePicUrl ? <img src={account.igProfilePicUrl} alt="" className="mx-auto h-16 w-16 rounded-full object-cover" referrerPolicy="no-referrer" /> : <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-indigo-600 text-2xl font-bold text-white">{account.igUsername[0]?.toUpperCase()}</div>}
         <h2 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">Relatório de @{account.igUsername}</h2>
         <p className="mt-1 text-sm font-medium text-slate-500">Análise de desempenho</p>
@@ -105,23 +154,27 @@ export default function ReportPage() {
       {networks.FACEBOOK && account.pageId && <FacebookSection data={fb.data} loading={fb.isLoading} failed={fb.isError} compare={compare} />}
       {networks.THREADS && threadsId && <ThreadsSection data={th.data} loading={th.isLoading} failed={th.isError} compare={compare} />}
 
-      <p className="mt-10 text-center text-[11px] text-slate-400">Gerado pelo InstaCommand em {new Date().toLocaleString("pt-BR")} · Dados fornecidos pela Meta. “—” indica dado não fornecido pela rede.</p>
+      <p data-pdf-block className="mt-10 bg-white text-center text-[11px] text-slate-400">Gerado pelo InstaCommand em {new Date().toLocaleString("pt-BR")} · Dados fornecidos pela Meta. “—” indica dado não fornecido pela rede.</p>
     </article>
+    </PdfRegistry.Provider>
   </div>
 }
 
 function Section({ icon, color, title, subtitle, children }: { icon: ReactNode; color: string; title: string; subtitle: string; children: ReactNode }) {
   return <section className="report-section mt-10 overflow-hidden rounded-2xl border border-slate-200">
+    <div data-pdf-block data-pdf-keep-next className="bg-white">
     <div className="h-1" style={{ background: color }} />
     <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4"><span className="flex h-9 w-9 items-center justify-center rounded-lg text-white" style={{ background: color }}>{icon}</span><div><p className="font-bold text-slate-900">{title}</p><p className="text-xs text-slate-500">{subtitle}</p></div></div>
+    </div>
     <div className="space-y-8 px-5 py-6">{children}</div>
   </section>
 }
 
-function Analysis({ initial }: { initial: string }) {
+function Analysis({ initial, onText }: { initial: string; onText: (text: string) => void }) {
   const [text, setText] = useState(initial)
   useEffect(() => { setText(initial) }, [initial])
-  return <div className="avoid-break">
+  useEffect(() => { onText(text) }, [text]) // eslint-disable-line react-hooks/exhaustive-deps
+  return <div className="avoid-break bg-white">
     <h3 className="text-base font-semibold text-slate-900">Análise do período</h3>
     <textarea value={text} onChange={(event) => setText(event.target.value)} rows={Math.max(4, text.split("\n").length + 1)} className="no-print mt-2 w-full rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 p-3 text-sm leading-6 text-slate-700 outline-none focus:border-indigo-400" aria-label="Análise escrita (editável)" />
     <p className="no-print mt-1 text-[11px] text-slate-400">Texto sugerido a partir dos números. Edite à vontade: é assim que vai sair no PDF.</p>
@@ -130,7 +183,7 @@ function Analysis({ initial }: { initial: string }) {
 }
 
 function KpiGrid({ items, compare }: { items: Kpi[]; compare: boolean }) {
-  return <div className="avoid-break grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4">{items.map((item) => {
+  return <div className="avoid-break bg-white grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4">{items.map((item) => {
     const change = compare ? periodChange(item.value ?? null, item.previous ?? null) : null
     const show = (value: Num) => value == null ? "—" : item.format ? item.format(value) : fmt(value)
     return <div key={item.label} className="text-center">
@@ -143,7 +196,7 @@ function KpiGrid({ items, compare }: { items: Kpi[]; compare: boolean }) {
 
 function Table({ title, head, rows }: { title: string; head: string[]; rows: ReactNode[][] }) {
   if (!rows.length) return null
-  return <div className="avoid-break">
+  return <div className="avoid-break bg-white">
     <h3 className="mb-3 text-center text-sm font-semibold text-slate-900">{title}</h3>
     <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full text-left text-xs">
       <thead className="bg-slate-50 text-slate-500"><tr>{head.map((cell, index) => <th key={cell} className={cn("px-3 py-2.5 font-semibold", index > 0 && "text-right")}>{cell}</th>)}</tr></thead>
@@ -186,19 +239,33 @@ function InstagramSection({ data, loading, compare, username, days }: { data?: I
     best ? `• A publicação de maior destaque teve ${fmt(Number(metric(best, "interactions") ?? 0))} interações.` : "",
   ].filter(Boolean)
   const summary = data ? summarize(compare ? kpis : [], extra) : ""
+  const [analysis, setAnalysis] = useState("")
+  const dayLabel = (value: string) => value.slice(8, 10) + "/" + value.slice(5, 7)
+  useRegisterPdf("INSTAGRAM", data ? {
+    title: "Instagram", subtitle: `@${username} · resumo do perfil dos últimos ${Math.min(days, 30)} dias`, color: [214, 36, 110], analysis, kpis,
+    daily: data.growth.some((row) => row.reach != null) ? { labels: data.growth.map((row) => dayLabel(row.date)), series: [{ name: "Alcance", color: "#6366f1", values: data.growth.map((row) => row.reach) }, { name: "Visualizações", color: "#ec4899", values: data.growth.map((row) => row.views) }] } : null,
+    bars: [
+      { title: "Interações por post, por formato", items: formats.map((row) => ({ label: row.name, value: row.value, color: FORMAT_COLORS[row.type] || "#64748b" })) },
+      { title: "Seguidores por idade", items: ages.map((row) => ({ label: row.label, value: row.value, color: "#6366f1" })) },
+    ],
+    tables: [{ title: "Publicações em destaque", head: ["Publicação", "Formato", "Alcance", "Visualiz.", "Curtidas", "Coment.", "Salvos", "Interações"], textColumns: 2, rows: data.top.slice(0, 8).map((post) => ({
+      image: post.igMediaUrl || null,
+      cells: [`${(post.caption?.split("\n")[0] || "Sem legenda").slice(0, 52)}\n${new Date(post.publishedAt).toLocaleDateString("pt-BR")}`, FORMAT_NAMES[post.mediaType] || post.mediaType, fmt(metric(post, "reach")), fmt(metric(post, "views")), fmt(metric(post, "likes")), fmt(metric(post, "comments")), fmt(metric(post, "saves")), fmt(metric(post, "interactions"))],
+    })) }],
+  } : null)
 
   return <Section icon={<SiInstagram size={18} color="white" />} color="linear-gradient(120deg, #F0407A, #D6246E)" title="Instagram" subtitle={`@${username} · últimos ${Math.min(days, 30)} dias no resumo do perfil`}>
     {loading || !data ? <Loading /> : <>
-      <Analysis initial={summary} />
+      <Analysis initial={summary} onText={setAnalysis} />
       <KpiGrid items={kpis} compare={compare} />
-      {data.growth.some((row) => row.reach != null) && <div className="avoid-break"><h3 className="mb-3 text-center text-sm font-semibold text-slate-900">Alcance e visualizações por dia</h3><div className="h-56"><ResponsiveContainer><AreaChart data={data.growth} margin={{ left: -10, right: 8 }}><defs><linearGradient id="rp-reach" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} /><stop offset="100%" stopColor="#6366f1" stopOpacity={0} /></linearGradient><linearGradient id="rp-views" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ec4899" stopOpacity={0.25} /><stop offset="100%" stopColor="#ec4899" stopOpacity={0} /></linearGradient></defs><CartesianGrid stroke="#eef2f7" vertical={false} /><XAxis dataKey="date" tickFormatter={(value: string) => value.slice(8, 10) + "/" + value.slice(5, 7)} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} minTickGap={20} /><YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={44} /><Area type="monotone" dataKey="views" name="Visualizações" stroke="#ec4899" fill="url(#rp-views)" strokeWidth={2} isAnimationActive={false} /><Area type="monotone" dataKey="reach" name="Alcance" stroke="#6366f1" fill="url(#rp-reach)" strokeWidth={2} isAnimationActive={false} /></AreaChart></ResponsiveContainer></div><p className="mt-1 text-center text-[11px] text-slate-500"><span className="mr-3 inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-500" />Alcance</span><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-pink-500" />Visualizações</span></p></div>}
+      {data.growth.some((row) => row.reach != null) && <div className="avoid-break bg-white"><h3 className="mb-3 text-center text-sm font-semibold text-slate-900">Alcance e visualizações por dia</h3><div className="h-56"><ResponsiveContainer><AreaChart data={data.growth} margin={{ left: -10, right: 8 }}><defs><linearGradient id="rp-reach" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} /><stop offset="100%" stopColor="#6366f1" stopOpacity={0} /></linearGradient><linearGradient id="rp-views" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ec4899" stopOpacity={0.25} /><stop offset="100%" stopColor="#ec4899" stopOpacity={0} /></linearGradient></defs><CartesianGrid stroke="#eef2f7" vertical={false} /><XAxis dataKey="date" tickFormatter={(value: string) => value.slice(8, 10) + "/" + value.slice(5, 7)} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} minTickGap={20} /><YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={44} /><Area type="monotone" dataKey="views" name="Visualizações" stroke="#ec4899" fill="url(#rp-views)" strokeWidth={2} isAnimationActive={false} /><Area type="monotone" dataKey="reach" name="Alcance" stroke="#6366f1" fill="url(#rp-reach)" strokeWidth={2} isAnimationActive={false} /></AreaChart></ResponsiveContainer></div><p className="mt-1 text-center text-[11px] text-slate-500"><span className="mr-3 inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-500" />Alcance</span><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-pink-500" />Visualizações</span></p></div>}
       <Table title="Publicações em destaque" head={["Publicação", "Formato", "Alcance", "Visualizações", "Curtidas", "Comentários", "Salvos", "Interações"]} rows={data.top.slice(0, 8).map((post) => [
         <div key="p" className="flex min-w-[220px] items-center gap-3"><div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"><MediaPreview src={post.igMediaUrl} isVideo={post.mediaType === "REEL"} fallback="" /></div><div className="min-w-0"><p className="line-clamp-2 text-xs font-medium text-slate-800">{post.caption?.split("\n")[0] || "Sem legenda"}</p><p className="text-[10px] text-slate-400">{new Date(post.publishedAt).toLocaleDateString("pt-BR")}</p></div></div>,
         FORMAT_NAMES[post.mediaType] || post.mediaType, fmt(metric(post, "reach")), fmt(metric(post, "views")), fmt(metric(post, "likes")), fmt(metric(post, "comments")), fmt(metric(post, "saves")), <b key="i" className="text-slate-900">{fmt(metric(post, "interactions"))}</b>,
       ])} />
-      <div className="grid gap-8 sm:grid-cols-2">
-        {formats.length > 0 && <div className="avoid-break"><h3 className="mb-3 text-center text-sm font-semibold text-slate-900">Interações por post, por formato</h3><div style={{ height: Math.max(120, formats.length * 48) }}><ResponsiveContainer><BarChart data={formats} layout="vertical" margin={{ right: 40 }}><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={80} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#334155" }} /><Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={24} isAnimationActive={false}>{formats.map((row) => <Cell key={row.type} fill={FORMAT_COLORS[row.type] || "#64748b"} />)}<LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 700, fill: "#0f172a" }} /></Bar></BarChart></ResponsiveContainer></div></div>}
-        {ages.length > 0 && <div className="avoid-break"><h3 className="mb-3 text-center text-sm font-semibold text-slate-900">Seguidores por idade</h3><div className="h-48"><ResponsiveContainer><BarChart data={ages} margin={{ left: -10 }}><CartesianGrid stroke="#eef2f7" vertical={false} /><XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={40} /><Bar dataKey="value" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={36} isAnimationActive={false} /></BarChart></ResponsiveContainer></div></div>}
+      <div data-pdf-block className="grid gap-8 bg-white sm:grid-cols-2">
+        {formats.length > 0 && <div className="avoid-break bg-white"><h3 className="mb-3 text-center text-sm font-semibold text-slate-900">Interações por post, por formato</h3><div style={{ height: Math.max(120, formats.length * 48) }}><ResponsiveContainer><BarChart data={formats} layout="vertical" margin={{ right: 40 }}><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={80} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#334155" }} /><Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={24} isAnimationActive={false}>{formats.map((row) => <Cell key={row.type} fill={FORMAT_COLORS[row.type] || "#64748b"} />)}<LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 700, fill: "#0f172a" }} /></Bar></BarChart></ResponsiveContainer></div></div>}
+        {ages.length > 0 && <div className="avoid-break bg-white"><h3 className="mb-3 text-center text-sm font-semibold text-slate-900">Seguidores por idade</h3><div className="h-48"><ResponsiveContainer><BarChart data={ages} margin={{ left: -10 }}><CartesianGrid stroke="#eef2f7" vertical={false} /><XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={40} /><Bar dataKey="value" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={36} isAnimationActive={false} /></BarChart></ResponsiveContainer></div></div>}
       </div>
     </>}
   </Section>
@@ -217,9 +284,17 @@ function FacebookSection({ data, loading, failed, compare }: { data?: FbReport; 
     { label: "Compartilhamentos", value: total(data.totals, "shares"), previous: total(prev?.totals, "shares") },
   ] : []
   const posts = (data?.posts || []).map((post) => ({ ...post, total: (post.reactions ?? 0) + (post.comments ?? 0) + (post.shares ?? 0) })).sort((a, b) => b.total - a.total).slice(0, 8)
+  const [analysis, setAnalysis] = useState("")
+  useRegisterPdf("FACEBOOK", data ? {
+    title: "Facebook", subtitle: data.page.name || "Página vinculada", color: [8, 102, 255], analysis, kpis,
+    tables: [{ title: "Publicações em destaque", head: ["Publicação", "Reações", "Comentários", "Compartilhamentos"], rows: posts.map((post) => ({
+      image: post.image ?? null,
+      cells: [`${(post.text || "Sem texto").slice(0, 80)}\n${new Date(post.createdAt).toLocaleDateString("pt-BR")}`, fmt(post.reactions), fmt(post.comments), fmt(post.shares)],
+    })) }],
+  } : null)
   return <Section icon={<SiFacebook size={18} color="white" />} color="#0866FF" title="Facebook" subtitle={data?.page.name || "Página vinculada"}>
     {failed ? <p className="text-sm text-slate-500">Não foi possível consultar a Página agora.</p> : loading || !data ? <Loading /> : <>
-      <Analysis initial={summarize(compare ? kpis : [])} />
+      <Analysis initial={summarize(compare ? kpis : [])} onText={setAnalysis} />
       <KpiGrid items={kpis} compare={compare} />
       <Table title="Publicações em destaque" head={["Publicação", "Reações", "Comentários", "Compartilhamentos"]} rows={posts.map((post) => [
         <div key="p" className="flex min-w-[220px] items-center gap-3"><div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"><MediaPreview src={post.image} fallback="" /></div><div className="min-w-0"><p className="line-clamp-2 text-xs font-medium text-slate-800">{post.text || "Sem texto"}</p><p className="text-[10px] text-slate-400">{new Date(post.createdAt).toLocaleDateString("pt-BR")}</p></div></div>, fmt(post.reactions), fmt(post.comments), fmt(post.shares),
@@ -235,9 +310,14 @@ function ThreadsSection({ data, loading, failed, compare }: { data?: ThReport; l
     ...([["views", "Visualizações"], ["likes", "Curtidas"], ["replies", "Respostas"], ["reposts", "Republicações"], ["quotes", "Citações"]] as const).map(([key, label]) => ({ label, value: value(data.metrics, key), previous: value(data.previous?.metrics, key) })),
     { label: "Publicações", value: data.contentAvailable ? data.posts.length : null, previous: data.previous?.posts },
   ] : []
+  const [analysis, setAnalysis] = useState("")
+  useRegisterPdf("THREADS", data ? {
+    title: "Threads", subtitle: `@${data.account.username}`, color: [17, 17, 17], analysis, kpis,
+    tables: [{ title: "Publicações do período", head: ["Publicação", "Data"], rows: data.posts.slice(0, 8).map((post) => ({ cells: [(post.text || "Sem texto").slice(0, 120), new Date(post.timestamp).toLocaleDateString("pt-BR")] })) }],
+  } : null)
   return <Section icon={<SiThreads size={18} color="white" />} color="#111111" title="Threads" subtitle={data ? `@${data.account.username}` : "Perfil do Threads"}>
     {failed ? <p className="text-sm text-slate-500">Não foi possível consultar o Threads agora.</p> : loading || !data ? <Loading /> : <>
-      <Analysis initial={summarize(compare ? kpis : [])} />
+      <Analysis initial={summarize(compare ? kpis : [])} onText={setAnalysis} />
       <KpiGrid items={kpis} compare={compare} />
       <Table title="Publicações do período" head={["Publicação", "Data"]} rows={data.posts.slice(0, 8).map((post) => [<p key="t" className="line-clamp-2 min-w-[260px] text-xs font-medium text-slate-800">{post.text || "Sem texto"}</p>, new Date(post.timestamp).toLocaleDateString("pt-BR")])} />
     </>}

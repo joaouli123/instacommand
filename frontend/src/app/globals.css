@@ -108,6 +108,13 @@ select {
 }
 
 
+/* PDF export (direct download): same rules as print, applied while capturing. */
+.pdf-mode .no-print { display: none !important; }
+.pdf-mode .print-only { display: block !important; }
+.pdf-mode .overflow-x-auto { overflow: visible !important; }
+.pdf-mode [class*="min-w-"] { min-width: 0 !important; }
+.pdf-mode video { visibility: hidden; }
+
 /* Report export: the browser's "Save as PDF" prints only the report paper. */
 .print-only { display: none; }
 @media print {

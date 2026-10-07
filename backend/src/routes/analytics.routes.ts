@@ -16,11 +16,37 @@ import { InstagramApiError } from '../utils/errors';
 import { getFacebookReport } from '../services/facebook-report.service';
 import { getThreadsReport } from '../services/threads-report.service';
 import { analyticsDays } from '../services/analytics-period';
+import { readLimitedBody, safeGet } from '../utils/safe-fetch';
+import { detectMediaSignature } from '../utils/media-signature';
 
 const router = Router();
 const prisma = new PrismaClient();
 
+// Meta CDN hosts that serve post thumbnails; nothing else is proxied.
+export const isMetaCdnHost = (host: string) => /(^|\.)(cdninstagram\.com|fbcdn\.net)$/i.test(host);
+
 router.use(authenticate);
+
+// Thumbnails for the PDF report. Meta's CDN sends no CORS headers, so the
+// browser cannot draw those images into a PDF; the signed-in user gets them
+// here as data URLs. Only small HTTPS images from Meta's CDN.
+router.get('/media-preview', async (req: any, res, next) => {
+  try {
+    const raw = typeof req.query.url === 'string' ? req.query.url : '';
+    let url: URL;
+    try { url = new URL(raw); } catch { return res.status(400).json({ error: 'URL inválida.' }); }
+    if (url.protocol !== 'https:' || !isMetaCdnHost(url.hostname)) return res.status(400).json({ error: 'Somente imagens da Meta.' });
+    const { response, abort } = await safeGet(url.toString(), { allowHttp: false, timeoutMs: 10_000 });
+    try {
+      if ((response.statusCode || 500) >= 400) return res.status(404).json({ error: 'Imagem indisponível.' });
+      const body = await readLimitedBody(response, 5 * 1024 * 1024);
+      const media = detectMediaSignature(body.subarray(0, 64));
+      if (media?.kind !== 'image') return res.status(415).json({ error: 'O arquivo não é uma imagem.' });
+      res.setHeader('Cache-Control', 'private, max-age=600');
+      return res.json({ dataUrl: `data:${media.mimeType};base64,${body.toString('base64')}` });
+    } finally { abort(); }
+  } catch (error) { next(error); }
+});
 
 // Network-specific routes must precede the Instagram account middleware.
 router.get('/networks/threads/:accountId', async (req: any, res, next) => {
