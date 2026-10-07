@@ -12,6 +12,7 @@ import {
 import { CompareContext, CompareToggle, MetricCard, useComparePreference } from "./MetricCard"
 import { ReportChart } from "./ReportChart"
 import { FormatPerformance, Recommendations } from "./FormatPerformance"
+import { BestTimesHeatmap } from "./BestTimesHeatmap"
 import { ReportAccessNotice } from "./ReportAccessNotice"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { api, fetchApi } from "@/lib/api"
@@ -369,7 +370,7 @@ export function InstagramAnalytics() {
       <TabsContent value="stories"><TopContent title="Top 20 Stories" group="STORY" posts={rankings.STORY} metric={rankMetrics.STORY} loading={rankingLoading.STORY} onMetricChange={changeRankMetric} period={period} /></TabsContent>
       <TabsContent value="reels"><TopContent title="Top 20 Reels" group="REEL" posts={rankings.REEL} metric={rankMetrics.REEL} loading={rankingLoading.REEL} onMetricChange={changeRankMetric} period={period} /></TabsContent>
       <TabsContent value="posts" className="space-y-5"><TopContent title="Top 20 posts e carrosséis" group="FEED" posts={rankings.FEED} metric={rankMetrics.FEED} loading={rankingLoading.FEED} onMetricChange={changeRankMetric} period={period} /><PostTable posts={posts} total={postsTotal} page={postsPage} pages={postsTotalPages} loading={loadingPosts} onPageChange={onPostsPageChange}/></TabsContent>
-      <TabsContent value="horarios" className="space-y-5"><Card className="p-5"><ChartHeading title="Melhores horários observados" subtitle="Média de interações dos posts por dia e hora de publicação (horário de São Paulo)."/>{bestTimes.length ? <ResponsiveContainer width="100%" height={350}><BarChart data={bestTimes} layout="vertical" margin={{ top: 8, right: 28, left: 22, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false}/><XAxis type="number"/><YAxis type="category" dataKey="day" width={62} tickFormatter={(day, index) => `${day} ${String(bestTimes[index]?.hour ?? 0).padStart(2, "0")}h`}/><Tooltip formatter={(value: number) => [formatNumber(value), "Média de interações"]} labelFormatter={(_, payload) => payload?.[0]?.payload ? `${payload[0].payload.day}, ${String(payload[0].payload.hour).padStart(2, "0")}h · ${payload[0].payload.posts} post(s)` : "Horário"}/><Bar dataKey="averageInteractions" name="Média de interações" fill="#4f46e5" radius={[0, 5, 5, 0]}/></BarChart></ResponsiveContainer> : <Empty text="Ainda não há amostra suficiente para calcular horários."/>}</Card><p className="text-xs text-slate-500">Horários com poucos posts podem oscilar bastante; a média descreve apenas as publicações observadas e não garante desempenho futuro.</p></TabsContent>
+      <TabsContent value="horarios" className="space-y-3"><BestTimesHeatmap items={bestTimes} /><p className="text-xs text-slate-500">Horários com poucos posts podem oscilar bastante; a média descreve apenas as publicações observadas e não garante desempenho futuro.</p></TabsContent>
     </Tabs>
   </div>
 }
