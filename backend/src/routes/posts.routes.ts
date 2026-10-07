@@ -8,7 +8,16 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { env } from '../config/env';
-import { assertPostReady } from '../services/post-readiness';
+import { assertPostReady, SUPPORTED_PLATFORMS, TEXT_PLATFORMS, textLimitFor, X_MAX_MEDIA, X_TEXT_LIMIT } from '../services/post-readiness';
+import { deleteXPost } from '../services/x.service';
+
+/** Rules for X on top of the shared ones: 280 characters and up to 4 media. */
+const xRuleError = (platforms: string[], caption: unknown, mediaCount: number) => {
+  if (!platforms.includes('X')) return null;
+  if ([...String(caption || '')].length > X_TEXT_LIMIT) return `O texto passa de ${X_TEXT_LIMIT} caracteres, o limite do X. Encurte a legenda ou desmarque o X.`;
+  if (mediaCount > X_MAX_MEDIA) return `O X aceita até ${X_MAX_MEDIA} mídias por post.`;
+  return null;
+};
 import { AppError, ConflictError } from '../utils/errors';
 import { importMediaFromUrl, type ImportedMedia } from '../services/media-import.service';
 import { publicMediaBase, normalizeMediaUrl } from '../utils/public-media';
@@ -45,13 +54,13 @@ router.use(authenticate);
 
 router.post('/', async (req: any, res, next) => {
   try {
-    const { accountId, threadsAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status,
+    const { accountId, threadsAccountId, xAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
       instagramAudioVolume, instagramVideoVolume, advancedSettings } = req.body;
     if (status !== undefined && !['DRAFT', 'SCHEDULED'].includes(status)) return res.status(400).json({ error: 'Status de criação inválido.' });
     const normalizedPlatforms = Array.isArray(platforms) && platforms.length ? platforms : ['INSTAGRAM'];
-    const textOnlyThreads = normalizedPlatforms.length === 1 && normalizedPlatforms[0] === 'THREADS';
-    const unsupportedPlatform = normalizedPlatforms.find((platform: unknown) => !['INSTAGRAM', 'FACEBOOK', 'THREADS'].includes(String(platform)));
+    const textOnlyThreads = normalizedPlatforms.every((platform: string) => TEXT_PLATFORMS.includes(platform));
+    const unsupportedPlatform = normalizedPlatforms.find((platform: unknown) => !SUPPORTED_PLATFORMS.includes(String(platform)));
     if (unsupportedPlatform) return res.status(400).json({ error: `Plataforma não suportada: ${unsupportedPlatform}` });
     const account = await prisma.instagramAccount.findFirst({ where: { id: accountId, userId: req.user.id, isActive: true } });
     if (!account) return res.status(400).json({ error: 'Selecione uma conta do Instagram conectada.' });
@@ -61,20 +70,28 @@ router.post('/', async (req: any, res, next) => {
     if (normalizedPlatforms.includes('THREADS') && !threadsAccount) {
       return res.status(400).json({ error: 'Conecte uma conta do Threads antes de selecionar essa plataforma.' });
     }
+    const xAccount = xAccountId
+      ? await prisma.xAccount.findFirst({ where: { id: xAccountId, userId: req.user.id, isActive: true } })
+      : null;
+    if (normalizedPlatforms.includes('X') && !xAccount) {
+      return res.status(400).json({ error: 'Conecte uma conta do X antes de selecionar essa plataforma.' });
+    }
     if (normalizedPlatforms.includes('FACEBOOK') && !account.pageId) {
       return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
     }
+    const xError = xRuleError(normalizedPlatforms, caption, Array.isArray(mediaUrls) ? mediaUrls.length : 0);
+    if (xError) return res.status(400).json({ error: xError });
     if (!Array.isArray(mediaUrls) || (mediaUrls.length === 0 && !textOnlyThreads)) {
       return res.status(400).json({ error: 'Envie pelo menos uma mídia.' });
     }
     if (textOnlyThreads && mediaUrls.length === 0 && !String(caption || '').trim()) {
-      return res.status(400).json({ error: 'Escreva um texto antes de publicar somente no Threads.' });
+      return res.status(400).json({ error: 'Escreva um texto antes de publicar só texto.' });
     }
     if (!['IMAGE', 'CAROUSEL', 'REEL', 'STORY', 'TEXT'].includes(mediaType)) {
       return res.status(400).json({ error: 'Formato de publicação inválido.' });
     }
-    if (mediaType === 'TEXT' && (!textOnlyThreads || mediaUrls.length > 0 || !String(caption || '').trim() || String(caption).length > 500)) {
-      return res.status(400).json({ error: 'Post de texto exige somente Threads, sem mídia e com até 500 caracteres.' });
+    if (mediaType === 'TEXT' && (!textOnlyThreads || mediaUrls.length > 0 || !String(caption || '').trim() || [...String(caption)].length > textLimitFor(normalizedPlatforms))) {
+      return res.status(400).json({ error: `Post de texto exige somente Threads e/ou X, sem mídia e com até ${textLimitFor(normalizedPlatforms)} caracteres.` });
     }
     if (mediaType === 'STORY' && normalizedPlatforms.some((platform: string) => platform !== 'INSTAGRAM')) {
       return res.status(400).json({ error: 'Stories só podem ser publicados pelo Instagram nesta versão da API.' });
@@ -123,6 +140,7 @@ router.post('/', async (req: any, res, next) => {
         userId: req.user.id,
         accountId,
         threadsAccountId: threadsAccount?.id,
+        xAccountId: xAccount?.id,
         mediaType,
         mediaUrls,
         caption,
@@ -167,6 +185,7 @@ router.get('/', async (req: any, res, next) => {
             igMediaId: true,
             facebookPostId: true,
             threadsPostId: true,
+            xPostId: true,
             publishResults: true,
             igPermalink: true,
             publishedAt: true,
@@ -231,6 +250,7 @@ router.get('/:id', async (req: any, res, next) => {
             igMediaId: true,
             facebookPostId: true,
             threadsPostId: true,
+            xPostId: true,
             publishResults: true,
             igPermalink: true,
             publishedAt: true,
@@ -247,7 +267,7 @@ router.get('/:id', async (req: any, res, next) => {
 
 router.patch('/:id', async (req: any, res, next) => {
   try {
-    const { caption, scheduledFor, status, platforms, threadsAccountId, mediaUrls, mediaType, hashtags,
+    const { caption, scheduledFor, status, platforms, threadsAccountId, xAccountId, mediaUrls, mediaType, hashtags,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
       instagramAudioVolume, instagramVideoVolume, advancedSettings } = req.body;
     const post = await prisma.scheduledPost.findFirst({
@@ -266,9 +286,16 @@ router.patch('/:id', async (req: any, res, next) => {
     if (isAiGenerated !== undefined && typeof isAiGenerated !== 'boolean') return res.status(400).json({ error: 'A opção de conteúdo gerado por IA é inválida.' });
 
     const nextPlatforms = Array.isArray(platforms) && platforms.length ? platforms : post.platforms;
-    const unsupportedPlatform = nextPlatforms.find((platform: unknown) => !['INSTAGRAM', 'FACEBOOK', 'THREADS'].includes(String(platform)));
+    const unsupportedPlatform = nextPlatforms.find((platform: unknown) => !SUPPORTED_PLATFORMS.includes(String(platform)));
     if (unsupportedPlatform) return res.status(400).json({ error: `Plataforma não suportada: ${unsupportedPlatform}` });
 
+    if (nextPlatforms.includes('X')) {
+      const nextXAccountId = xAccountId === undefined ? post.xAccountId : xAccountId;
+      const xAccount = nextXAccountId
+        ? await prisma.xAccount.findFirst({ where: { id: nextXAccountId, userId: req.user.id, isActive: true } })
+        : null;
+      if (!xAccount) return res.status(400).json({ error: 'Conecte uma conta do X antes de selecionar essa plataforma.' });
+    }
     if (nextPlatforms.includes('THREADS')) {
       const nextThreadsAccountId = threadsAccountId === undefined ? post.threadsAccountId : threadsAccountId;
       const threadsAccount = nextThreadsAccountId
@@ -309,8 +336,10 @@ router.patch('/:id', async (req: any, res, next) => {
       || (instagramAudioArtist !== undefined && instagramAudioArtist !== null && (typeof instagramAudioArtist !== 'string' || instagramAudioArtist.length > 200)))) {
       return res.status(400).json({ error: 'Os dados da faixa de áudio são inválidos.' });
     }
-    if (nextMediaType === 'TEXT' && (nextPlatforms.length !== 1 || nextPlatforms[0] !== 'THREADS' || nextMediaUrls.length > 0 || !String(nextCaption || '').trim() || String(nextCaption).length > 500)) {
-      return res.status(400).json({ error: 'Post de texto exige somente Threads, sem mídia e com até 500 caracteres.' });
+    const nextXError = xRuleError(nextPlatforms, nextCaption, nextMediaUrls.length);
+    if (nextXError) return res.status(400).json({ error: nextXError });
+    if (nextMediaType === 'TEXT' && (!nextPlatforms.every((platform: string) => TEXT_PLATFORMS.includes(platform)) || nextMediaUrls.length > 0 || !String(nextCaption || '').trim() || [...String(nextCaption)].length > textLimitFor(nextPlatforms))) {
+      return res.status(400).json({ error: `Post de texto exige somente Threads e/ou X, sem mídia e com até ${textLimitFor(nextPlatforms)} caracteres.` });
     }
     if ((mediaType || post.mediaType) === 'STORY' && nextPlatforms.some((platform: string) => platform !== 'INSTAGRAM')) {
       return res.status(400).json({ error: 'Stories só podem ser publicados pelo Instagram nesta versão da API.' });
@@ -346,6 +375,7 @@ router.patch('/:id', async (req: any, res, next) => {
         status,
         platforms: Array.isArray(platforms) && platforms.length ? nextPlatforms : undefined,
         threadsAccountId: threadsAccountId === null ? null : threadsAccountId || undefined,
+        xAccountId: xAccountId === null ? null : xAccountId || undefined,
       }
     }).catch((error) => {
       if (error?.code === 'P2025') throw new ConflictError('Esta publicação mudou ou já está sendo enviada. Atualize a tela antes de editar.');
@@ -396,6 +426,18 @@ router.delete('/:id', async (req: any, res, next) => {
         } catch (error) {
           console.error(`Could not delete Threads post ${post.publishedPost.threadsPostId}:`, error);
           warnings.push('O post do Threads pode continuar no perfil; a plataforma não autorizou a exclusão. Confira o post e remova-o diretamente no Threads se necessário.');
+        }
+      }
+    }
+
+    if (post.publishedPost?.xPostId) {
+      if (!post.xAccountId) {
+        warnings.push('O post do X pode continuar no perfil; não foi possível localizar a conta conectada.');
+      } else {
+        try {
+          await deleteXPost(post.publishedPost.xPostId, post.xAccountId);
+        } catch {
+          warnings.push('O post do X pode continuar no perfil; o X não autorizou a exclusão. Remova-o diretamente no X se necessário.');
         }
       }
     }

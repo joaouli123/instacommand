@@ -53,18 +53,18 @@ export const analyticsTools = [
 
   defineTool({
     name: 'get_network_report',
-    title: 'Relatório do Facebook ou Threads',
+    title: 'Relatório do Facebook, Threads ou X',
     category: 'analytics',
-    description: 'Relatório da Página do Facebook (vinculada à conta do Instagram) ou de uma conta do Threads. Facebook aceita 7, 30, 90, 365 ou 730 dias; Threads aceita 7, 30 ou 90.',
+    description: 'Relatório da Página do Facebook (vinculada à conta do Instagram), de uma conta do Threads ou do X. Facebook aceita 7, 30, 90, 365 ou 730 dias; Threads e X aceitam 7, 30 ou 90. Todos trazem o período anterior para comparação.',
     scopes: ['read'],
     annotations: READ_LIVE,
     inputSchema: {
-      network: z.enum(['facebook', 'threads']),
-      accountId: z.string().uuid().describe('facebook: id da conta do Instagram dona da Página. threads: id da conta do Threads.'),
+      network: z.enum(['facebook', 'threads', 'x']),
+      accountId: z.string().uuid().describe('facebook: id da conta do Instagram dona da Página. threads: id da conta do Threads. x: id da conta do X.'),
       days: daysSchema,
     },
     handler: async ({ network, accountId, days }, { api }) => {
-      if (network === 'threads' && ![7, 30, 90].includes(days)) throw new ValidationError('O relatório do Threads aceita 7, 30 ou 90 dias.');
+      if (network !== 'facebook' && ![7, 30, 90].includes(days)) throw new ValidationError('Os relatórios do Threads e do X aceitam 7, 30 ou 90 dias.');
       return api.get(`/analytics/networks/${network}/${encodePathSegment(accountId)}`, { days });
     },
   }),

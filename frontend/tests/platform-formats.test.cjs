@@ -8,10 +8,10 @@ const source = fs.readFileSync(path.join(__dirname, '../src/app/composer/page.ts
   + fs.readFileSync(path.join(__dirname, '../src/components/preview/SocialPostPreview.tsx'), 'utf8');
 
 test('composer defines platform-specific formats and makes Stories Instagram-only', () => {
-  assert.match(source, /FEED: \["INSTAGRAM", "FACEBOOK", "THREADS"\]/);
-  assert.match(source, /CAROUSEL: \["INSTAGRAM", "FACEBOOK", "THREADS"\]/);
+  assert.match(source, /FEED: \["INSTAGRAM", "FACEBOOK", "THREADS", "X"\]/);
+  assert.match(source, /CAROUSEL: \["INSTAGRAM", "FACEBOOK", "THREADS", "X"\]/);
   assert.match(source, /STORY: \["INSTAGRAM"\]/);
-  assert.match(source, /TEXT: \["THREADS"\]/);
+  assert.match(source, /TEXT: \["THREADS", "X"\]/);
   assert.match(source, /Formato e dimensões por plataforma/);
   assert.match(source, /Proporção: 1,91:1 a 3:4/);
   assert.match(source, /1080 × 566 a 1440 px/);

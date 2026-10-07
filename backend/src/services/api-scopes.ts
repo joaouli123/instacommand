@@ -70,7 +70,7 @@ const writeRules: Rule[] = [
   { methods: ['POST'], pattern: /^\/api\/auth\/logout$/, requirement: fixed('write') },
 ];
 
-const adminReadPattern = /^\/api\/auth\/(facebook|threads)(\/url)?$/;
+const adminReadPattern = /^\/api\/auth\/(facebook|threads|x)(\/url)?$/;
 const sessionOnlyPattern = /^\/api\/(integrations|oauth)(\/|$)/;
 
 /**

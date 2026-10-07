@@ -4,7 +4,7 @@ import { ValidationError } from '../../utils/errors';
 import {
   accountIdSchema, advancedSettingsSchema, audioFields, confirmSchema, dateTimeSchema, defineTool, DESTRUCTIVE, EXTERNAL,
   instagramAudioSchema, MEDIA_TYPES, mergeHashtagsIntoCaption, normalizeHashtags, platformSchema, POST_STATUSES,
-  postDetails, postIdSchema, postSummary, READ, threadsAccountIdSchema, toIso, WRITE,
+  postDetails, postIdSchema, postSummary, READ, threadsAccountIdSchema, xAccountIdSchema, toIso, WRITE,
 } from '../tool-kit';
 
 const EDITABLE = new Set(['DRAFT', 'SCHEDULED', 'FAILED']);
@@ -12,11 +12,11 @@ const QUEUE_DELAY_MS = 30_000;
 
 const mediaUrlsSchema = z.array(z.string().url().max(2048)).max(10)
   .describe('URLs públicas retornadas por import_media_from_url ou upload_media_base64, na ordem do post. TEXT não usa mídia.');
-const captionSchema = z.string().max(2200).describe('Legenda/texto do post. No Threads, o texto final (com hashtags) precisa ter até 500 caracteres.');
+const captionSchema = z.string().max(2200).describe('Legenda/texto do post. No Threads, o texto final (com hashtags) precisa ter até 500 caracteres; no X, até 280.');
 const hashtagsSchema = z.array(z.string().min(1).max(100)).max(30)
   .describe('Hashtags sem "#". São acrescentadas ao fim da legenda ao agendar/publicar (sem duplicar as que já estão no texto).');
-const platformsSchema = z.array(platformSchema).min(1).max(3)
-  .describe('Redes de destino. FACEBOOK publica na Página vinculada à conta do Instagram; THREADS exige threadsAccountId.');
+const platformsSchema = z.array(platformSchema).min(1).max(4)
+  .describe('Redes de destino. FACEBOOK publica na Página vinculada à conta do Instagram; THREADS exige threadsAccountId; X exige xAccountId (até 280 caracteres e 4 mídias).');
 
 const unique = <T>(values: T[]) => [...new Set(values)];
 
@@ -89,7 +89,8 @@ export const postTools = [
       accountId: accountIdSchema.describe('Conta do Instagram dona do post (obrigatória mesmo para posts só no Facebook ou só no Threads).'),
       platforms: platformsSchema.default(['INSTAGRAM']),
       threadsAccountId: threadsAccountIdSchema.optional().describe('Obrigatório quando platforms inclui THREADS.'),
-      mediaType: z.enum(MEDIA_TYPES).describe('IMAGE (1 imagem), CAROUSEL (2–10 mídias), REEL (1 vídeo), STORY (1 mídia, só Instagram) ou TEXT (só Threads, sem mídia).'),
+      xAccountId: xAccountIdSchema.optional().describe('Obrigatório quando platforms inclui X.'),
+      mediaType: z.enum(MEDIA_TYPES).describe('IMAGE (1 imagem), CAROUSEL (2–10 mídias; no X até 4), REEL (1 vídeo), STORY (1 mídia, só Instagram) ou TEXT (só Threads e/ou X, sem mídia).'),
       mediaUrls: mediaUrlsSchema.default([]),
       caption: captionSchema.default(''),
       hashtags: hashtagsSchema.optional(),
@@ -105,6 +106,7 @@ export const postTools = [
       const created = await api.post('/posts', {
         accountId: args.accountId,
         threadsAccountId: args.threadsAccountId,
+        xAccountId: args.xAccountId,
         platforms: unique(args.platforms),
         mediaType: args.mediaType,
         mediaUrls: args.mediaUrls,
@@ -138,6 +140,7 @@ export const postTools = [
       postId: postIdSchema,
       platforms: platformsSchema.optional(),
       threadsAccountId: threadsAccountIdSchema.nullable().optional().describe('null remove a conta do Threads.'),
+      xAccountId: xAccountIdSchema.nullable().optional().describe('null remove a conta do X.'),
       mediaType: z.enum(MEDIA_TYPES).optional(),
       mediaUrls: mediaUrlsSchema.optional(),
       caption: captionSchema.optional(),
@@ -155,6 +158,7 @@ export const postTools = [
       const body: Record<string, unknown> = {};
       if (changes.platforms) body.platforms = unique(changes.platforms);
       if (changes.threadsAccountId !== undefined) body.threadsAccountId = changes.threadsAccountId;
+      if (changes.xAccountId !== undefined) body.xAccountId = changes.xAccountId;
       if (changes.mediaType) body.mediaType = changes.mediaType;
       if (changes.mediaUrls) body.mediaUrls = changes.mediaUrls;
       if (changes.caption !== undefined) body.caption = changes.caption;

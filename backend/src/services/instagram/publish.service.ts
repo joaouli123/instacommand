@@ -213,7 +213,7 @@ export const publishThreadsPost = async (post: any, token: string) => {
 export const publishPost = async (scheduledPostId: string, trigger?: { scheduledFor?: string }) => {
   const post = await prisma.scheduledPost.findUnique({
     where: { id: scheduledPostId },
-    include: { account: true, threadsAccount: true },
+    include: { account: true, threadsAccount: true, xAccount: true },
   });
 
   if (!post) throw new Error('Post not found');
@@ -322,18 +322,32 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
       }
     }
 
+    if (platforms.includes('X')) {
+      try {
+        if (!post.xAccount || !post.xAccount.isActive) throw new Error('Conecte uma conta do X antes de publicar.');
+        // Loaded on demand so publishing to the other networks never depends on the X client.
+        const { publishXPost } = require('../x.service') as typeof import('../x.service');
+        const xPostId = await publishXPost(post, post.xAccount.id);
+        results.X = { id: xPostId, url: `https://x.com/${post.xAccount.username}/status/${xPostId}` };
+      } catch (error) {
+        errors.push(`X: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+      }
+    }
+
     const successfulPlatforms = Object.keys(results);
     if (!successfulPlatforms.length) throw new Error(errors.join(' | ') || 'Nenhuma plataforma publicou o conteúdo.');
 
     const instagramResult = results.INSTAGRAM as { id?: string; permalink?: string; mediaUrl?: string } | undefined;
     const facebookResult = results.FACEBOOK as { id?: string } | undefined;
     const threadsResult = results.THREADS as { id?: string } | undefined;
+    const xResult = results.X as { id?: string } | undefined;
     const published = await prisma.publishedPost.create({
       data: {
         accountId: post.accountId,
         igMediaId: instagramResult?.id,
         facebookPostId: facebookResult?.id,
         threadsPostId: threadsResult?.id,
+        xPostId: xResult?.id,
         publishResults: JSON.parse(JSON.stringify(results)),
         igMediaUrl: instagramResult?.mediaUrl,
         igPermalink: instagramResult?.permalink,

@@ -5,6 +5,9 @@ import { publicMetaMessage } from '../utils/public-meta-message';
 
 const publicMessage = (message: string) => {
   const normalized = message.toLowerCase();
+  if (message === 'X_OAUTH_NOT_CONFIGURED') {
+    return 'A conexão com o X ainda não foi habilitada neste sistema. O administrador precisa cadastrar o Client ID e o Client Secret do app do X no servidor.';
+  }
   if (message === 'THREADS_OAUTH_NOT_CONFIGURED') {
     return 'A conexão automática com Threads ainda não foi habilitada neste sistema. Você não precisa criar um aplicativo nem copiar tokens; o administrador precisa concluir a configuração uma vez no servidor.';
   }

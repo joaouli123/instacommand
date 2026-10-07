@@ -47,7 +47,7 @@ test('browser detects uploaded video type, shows loading feedback and reports un
 });
 
 test('switching social preview tabs remounts the media and retries muted playback once decodable', () => {
-  assert.match(source, /<ComposerSocialPreview\s+key=\{resolvedPreviewPlatform\}/);
+  assert.match(source, /<ComposerSocialPreview\s+key=\{previewPlatform === "X" \? "X" : resolvedPreviewPlatform\}/);
   assert.match(source, /onCanPlay=\{\(event\) => \{[\s\S]*?if \(!video\.paused\) return[\s\S]*?video\.muted = true[\s\S]*?video\.play\(\)/);
 });
 

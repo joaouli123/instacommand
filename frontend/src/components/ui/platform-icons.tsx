@@ -1,10 +1,11 @@
-import { SiFacebook, SiInstagram, SiThreads } from "@icons-pack/react-simple-icons"
+import { SiFacebook, SiInstagram, SiThreads, SiX } from "@icons-pack/react-simple-icons"
 import { cn } from "@/lib/utils"
 
 const PLATFORMS = {
   INSTAGRAM: { label: "Instagram", Icon: SiInstagram, color: "#E4405F" },
   FACEBOOK: { label: "Facebook", Icon: SiFacebook, color: "#0866FF" },
   THREADS: { label: "Threads", Icon: SiThreads, color: "#101010" },
+  X: { label: "X", Icon: SiX, color: "#000000" },
 } as const
 
 type KnownPlatform = keyof typeof PLATFORMS
@@ -15,6 +16,7 @@ const BRAND_STOPS: Record<KnownPlatform, string[]> = {
   INSTAGRAM: ["#F0407A", "#D6246E"],
   FACEBOOK: ["#2B7BFF", "#0866FF"],
   THREADS: ["#2A2A2A", "#000000"],
+  X: ["#1F1F1F", "#000000"],
 }
 
 /**

@@ -3,7 +3,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
-import { SiFacebook, SiInstagram, SiThreads } from "@icons-pack/react-simple-icons"
+import { SiFacebook, SiInstagram, SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import { useXAccounts } from "@/components/accounts/XAccountsCard"
+import { useXReport, X_METRICS, type XReportData } from "@/components/dashboard/XReport"
 import { ArrowLeft, Download, Loader2 } from "lucide-react"
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, XAxis, YAxis } from "recharts"
 import { api, fetchApi } from "@/lib/api"
@@ -61,7 +63,7 @@ export default function ReportPage() {
   const [accountId, setAccountId] = useState("")
   const [days, setDays] = useState(30)
   const [compare, setCompare] = useState(true)
-  const [networks, setNetworks] = useState({ INSTAGRAM: true, FACEBOOK: true, THREADS: true })
+  const [networks, setNetworks] = useState({ INSTAGRAM: true, FACEBOOK: true, THREADS: true, X: true })
   const paperRef = useRef<HTMLElement>(null)
   const drafts = useRef<Record<string, PdfDraft>>({})
   const register = useRef((key: string, draft: PdfDraft | null) => { if (draft) drafts.current[key] = draft; else delete drafts.current[key] }).current
@@ -70,6 +72,9 @@ export default function ReportPage() {
   const id = account?.id || ""
   const threadsQuery = useQuery({ queryKey: ["threads-accounts"], queryFn: api.getThreadsAccounts })
   const threadsId = ((threadsQuery.data || []) as Array<{ id: string }>)[0]?.id
+  const xAccountsQuery = useXAccounts()
+  const xId = xAccountsQuery.data?.accounts?.[0]?.id || ""
+  const xr = useXReport(networks.X ? xId : "", days)
 
   const ig = useQuery({
     queryKey: ["report-ig", id, days], enabled: !!id && networks.INSTAGRAM,
@@ -92,13 +97,13 @@ export default function ReportPage() {
     queryFn: ({ signal }) => fetchApi(`/analytics/networks/threads/${encodeURIComponent(threadsId!)}?days=${days}`, { signal }) as Promise<ThReport> })
 
   const until = new Date(), since = new Date(until.getTime() - days * 864e5), prevSince = new Date(since.getTime() - days * 864e5)
-  const loading = (networks.INSTAGRAM && ig.isLoading) || (networks.FACEBOOK && fb.isLoading) || (networks.THREADS && th.isLoading)
+  const loading = (networks.INSTAGRAM && ig.isLoading) || (networks.FACEBOOK && fb.isLoading) || (networks.THREADS && th.isLoading) || (networks.X && !!xId && xr.isLoading)
 
   const download = async () => {
     if (!account || exporting) return
     setExporting(true)
     try {
-      const order = (["INSTAGRAM", "FACEBOOK", "THREADS"] as const).filter((key) => networks[key] && drafts.current[key])
+      const order = (["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).filter((key) => networks[key] && drafts.current[key])
       const sections: PdfSection[] = await Promise.all(order.map(async (key) => {
         const draft = drafts.current[key]
         return {
@@ -135,7 +140,7 @@ export default function ReportPage() {
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
         <label className="text-xs font-semibold text-slate-600">Conta<select value={account.id} onChange={(event) => setAccountId(event.target.value)} className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm">{accounts.map((item) => <option key={item.id} value={item.id}>@{item.igUsername}</option>)}</select></label>
         <label className="text-xs font-semibold text-slate-600">Período<select value={days} onChange={(event) => setDays(Number(event.target.value))} className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm"><option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select></label>
-        <div className="flex flex-wrap gap-2">{(["INSTAGRAM", "FACEBOOK", "THREADS"] as const).map((network) => <label key={network} className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm"><input type="checkbox" checked={networks[network]} onChange={(event) => setNetworks((current) => ({ ...current, [network]: event.target.checked }))} className="accent-indigo-600" />{{ INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads" }[network]}</label>)}</div>
+        <div className="flex flex-wrap gap-2">{(["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).map((network) => <label key={network} className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm"><input type="checkbox" checked={networks[network]} onChange={(event) => setNetworks((current) => ({ ...current, [network]: event.target.checked }))} className="accent-indigo-600" />{{ INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X" }[network]}</label>)}</div>
         <label className="flex h-10 items-center gap-2 text-sm text-slate-700"><Switch checked={compare} onCheckedChange={setCompare} />Comparar com o período anterior</label>
         {loading && <span className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 size={14} className="animate-spin" />Buscando dados…</span>}
       </div>
@@ -153,6 +158,7 @@ export default function ReportPage() {
       {networks.INSTAGRAM && <InstagramSection data={ig.data} loading={ig.isLoading} compare={compare} username={account.igUsername} days={days} />}
       {networks.FACEBOOK && account.pageId && <FacebookSection data={fb.data} loading={fb.isLoading} failed={fb.isError} compare={compare} />}
       {networks.THREADS && threadsId && <ThreadsSection data={th.data} loading={th.isLoading} failed={th.isError} compare={compare} />}
+      {networks.X && xId && <XSection data={xr.data} loading={xr.isLoading} failed={xr.isError} compare={compare} />}
 
       <p data-pdf-block className="mt-10 bg-white text-center text-[11px] text-slate-400">Gerado pelo InstaCommand em {new Date().toLocaleString("pt-BR")} · Dados fornecidos pela Meta. “—” indica dado não fornecido pela rede.</p>
     </article>
@@ -320,6 +326,34 @@ function ThreadsSection({ data, loading, failed, compare }: { data?: ThReport; l
       <Analysis initial={summarize(compare ? kpis : [])} onText={setAnalysis} />
       <KpiGrid items={kpis} compare={compare} />
       <Table title="Publicações do período" head={["Publicação", "Data"]} rows={data.posts.slice(0, 8).map((post) => [<p key="t" className="line-clamp-2 min-w-[260px] text-xs font-medium text-slate-800">{post.text || "Sem texto"}</p>, new Date(post.timestamp).toLocaleDateString("pt-BR")])} />
+    </>}
+  </Section>
+}
+
+function XSection({ data, loading, failed, compare }: { data?: XReportData; loading: boolean; failed: boolean; compare: boolean }) {
+  const kpis: Kpi[] = data ? [
+    { label: "Seguidores", value: data.followers },
+    ...X_METRICS.map(({ key, label }) => ({ label, value: data.totals[key], previous: data.previous?.totals?.[key] ?? null })),
+    { label: "Taxa de engajamento", value: data.engagementRate, previous: data.previous?.engagementRate, format: pct },
+  ] : []
+  const posts = [...(data?.posts || [])].sort((a, b) => b.engagement - a.engagement).slice(0, 8)
+  const [analysis, setAnalysis] = useState("")
+  useRegisterPdf("X", data ? {
+    title: "X", subtitle: `@${data.account.username}`, color: [17, 17, 17], analysis, kpis,
+    daily: data.daily.length ? { labels: data.daily.map((row) => row.date.slice(8, 10) + "/" + row.date.slice(5, 7)), series: [{ name: "Visualizações", color: "#0f172a", values: data.daily.map((row) => row.impressions) }, { name: "Engajamentos", color: "#6366f1", values: data.daily.map((row) => row.engagement) }] } : null,
+    tables: [{ title: "Posts em destaque", head: ["Post", "Visualiz.", "Curtidas", "Respostas", "Reposts", "Engaj."], rows: posts.map((post) => ({
+      image: post.image ?? null,
+      cells: [`${(post.text || "Sem texto").slice(0, 80)}\n${new Date(post.createdAt).toLocaleDateString("pt-BR")}`, fmt(post.metrics.impressions), fmt(post.metrics.likes), fmt(post.metrics.replies), fmt(post.metrics.reposts), fmt(post.engagement)],
+    })) }],
+  } : null)
+  return <Section icon={<SiX size={16} color="white" />} color="#111111" title="X" subtitle={data ? `@${data.account.username}` : "Perfil do X"}>
+    {failed ? <p className="text-sm text-slate-500">Não foi possível consultar o X agora.</p> : loading || !data ? <Loading /> : <>
+      <Analysis initial={summarize(compare ? kpis : [])} onText={setAnalysis} />
+      <KpiGrid items={kpis} compare={compare} />
+      <Table title="Posts em destaque" head={["Post", "Visualizações", "Curtidas", "Respostas", "Reposts", "Engajamentos"]} rows={posts.map((post) => [
+        <div key="p" className="flex min-w-[220px] items-center gap-3">{post.image && <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"><MediaPreview src={post.image} fallback="" /></div>}<div className="min-w-0"><p className="line-clamp-2 text-xs font-medium text-slate-800">{post.text || "Sem texto"}</p><p className="text-[10px] text-slate-400">{new Date(post.createdAt).toLocaleDateString("pt-BR")}</p></div></div>,
+        fmt(post.metrics.impressions), fmt(post.metrics.likes), fmt(post.metrics.replies), fmt(post.metrics.reposts), fmt(post.engagement),
+      ])} />
     </>}
   </Section>
 }

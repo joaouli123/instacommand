@@ -7,15 +7,16 @@ export const accountTools = [
     name: 'list_accounts',
     title: 'Listar contas conectadas',
     category: 'accounts',
-    description: 'Lista as contas do Instagram (cada uma com a Página do Facebook vinculada) e as contas do Threads conectadas, com os IDs usados nas demais ferramentas.',
+    description: 'Lista as contas do Instagram (cada uma com a Página do Facebook vinculada) e as contas do Threads e do X conectadas, com os IDs usados nas demais ferramentas.',
     scopes: ['read'],
     annotations: READ,
     inputSchema: {},
     handler: async (_args, { api }) => {
-      const [instagram, threads] = await Promise.all([api.get<any[]>('/accounts'), api.get<any[]>('/accounts/threads')]);
+      const [instagram, threads, x] = await Promise.all([api.get<any[]>('/accounts'), api.get<any[]>('/accounts/threads'), api.get<{ accounts: any[] }>('/accounts/x').catch(() => ({ accounts: [] }))]);
       return {
         instagram: instagram.map(compactAccount),
         threads: threads.map(compactThreadsAccount),
+        x: (x.accounts || []).map((account: any) => ({ id: account.id, username: account.username, name: account.name, followers: account.followersCount ?? null })),
         note: 'Para publicar no Facebook use o accountId da conta do Instagram: o post vai para a Página em facebookPage.',
       };
     },
@@ -47,17 +48,19 @@ export const accountTools = [
     name: 'start_account_connection',
     title: 'Conectar nova conta',
     category: 'accounts',
-    description: 'Gera o link oficial de autorização para conectar contas. network "meta" conecta Instagram profissional + Página do Facebook; "threads" conecta o Threads. Entregue o link ao usuário para abrir no navegador (válido por 10 minutos). As contas escolhidas na tela da Meta ficam ativas na hora e a primeira sincronização começa sozinha; depois, chame list_accounts para confirmar.',
+    description: 'Gera o link oficial de autorização para conectar contas. network "meta" conecta Instagram profissional + Página do Facebook; "threads" conecta o Threads; "x" conecta o X (Twitter). Entregue o link ao usuário para abrir no navegador (válido por 10 minutos). As contas escolhidas na tela da Meta ficam ativas na hora e a primeira sincronização começa sozinha; depois, chame list_accounts para confirmar.',
     scopes: ['admin'],
     annotations: READ_LIVE,
     inputSchema: {
-      network: z.enum(['meta', 'threads']).describe('meta = Instagram + Facebook; threads = Threads.'),
+      network: z.enum(['meta', 'threads', 'x']).describe('meta = Instagram + Facebook; threads = Threads; x = X (Twitter).'),
       enableThreadsReplies: z.boolean().default(false).describe('Somente Threads: pede também a permissão de gerenciar respostas, necessária para automações.'),
     },
     handler: async ({ network, enableThreadsReplies }, { api }) => {
       const result = network === 'meta'
         ? await api.get('/auth/facebook/url')
-        : await api.get('/auth/threads/url', enableThreadsReplies ? { automations: 1 } : undefined);
+        : network === 'x'
+          ? await api.get('/auth/x/url')
+          : await api.get('/auth/threads/url', enableThreadsReplies ? { automations: 1 } : undefined);
       return {
         authorizationUrl: result.url,
         expiresInMinutes: 10,

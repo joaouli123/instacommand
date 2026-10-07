@@ -26,6 +26,10 @@ function decrypt(text: string): string {
   return decrypted;
 }
 
+/** Shared with other integrations (X) that store tokens the same way. */
+export const encryptSecret = (text: string) => encrypt(text);
+export const decryptSecret = (text: string) => decrypt(text);
+
 /**
  * Shows that a secret is saved without revealing it: the first characters of
  * long values followed by asterisks. Only used for the user's own secrets,

@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import { env } from '../config/env';
 import { randomUUID } from 'node:crypto';
 import { syncAccountsInBackground } from '../services/account-sync.service';
+import { createXAuthorization, handleXCallback, readXState } from '../services/x.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -262,6 +263,35 @@ router.get('/threads/callback', async (req, res) => {
       ? 'threads_account_conflict'
       : 'threads_connection';
     return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0&reason=${reason}`);
+  }
+});
+
+// X (Twitter): OAuth 2.0 with PKCE for the signed-in user.
+router.get('/x/url', authenticate, async (req: any, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    return res.json(createXAuthorization(user.id));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/x/callback', async (req, res) => {
+  const accounts = `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts`;
+  const parsed = readXState(req.query.state);
+  if (!parsed) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
+  const { code } = req.query;
+  if (!code || typeof code !== 'string') return res.redirect(`${accounts}?x_connected=0&reason=${req.query.error ? 'x_denied' : 'x_callback_missing_code'}`);
+  try {
+    const { userId } = await handleXCallback(code, req.query.state);
+    const oauthSession = createOAuthSessionHandoff(userId);
+    return res.redirect(`${accounts}?x_connected=1&oauth_session=${encodeURIComponent(oauthSession)}`);
+  } catch (error) {
+    // Never log provider payloads: they may contain codes or tokens.
+    console.error('X OAuth callback failed');
+    const reason = error instanceof Error && error.message === 'X_ACCOUNT_CONFLICT' ? 'x_account_conflict' : 'x_connection';
+    return res.redirect(`${accounts}?x_connected=0&reason=${reason}`);
   }
 });
 

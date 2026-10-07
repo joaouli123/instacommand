@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getConnectedAccounts, getPendingConnectedAccounts, selectConnectedAccounts, disconnectAccount, getConnectedThreadsAccounts, disconnectThreadsAccount } from '../services/instagram/auth.service';
 import { isAccountSyncRunning, syncAccountOnce } from '../services/account-sync.service';
 import { authenticate } from '../middleware/auth';
+import { disconnectXAccount, getConnectedXAccounts, isXConfigured } from '../services/x.service';
 import { PrismaClient } from '@prisma/client';
 
 const router = Router();
@@ -23,6 +24,14 @@ router.get('/threads', async (req: any, res, next) => {
   try {
     const accounts = await getConnectedThreadsAccounts(req.user.id);
     res.json(accounts);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/x', async (req: any, res, next) => {
+  try {
+    res.json({ configured: isXConfigured(), accounts: await getConnectedXAccounts(req.user.id) });
   } catch (error) {
     next(error);
   }
@@ -71,6 +80,15 @@ router.get('/:id', async (req: any, res, next) => {
     });
     if (!account) return res.status(404).json({ error: 'Account not found' });
     res.json(account);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/x/:id', async (req: any, res, next) => {
+  try {
+    if (!(await disconnectXAccount(req.params.id, req.user.id))) return res.status(404).json({ error: 'Conta do X não encontrada.' });
+    res.json({ message: 'Conta do X desconectada' });
   } catch (error) {
     next(error);
   }

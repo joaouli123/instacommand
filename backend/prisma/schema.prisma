@@ -24,6 +24,7 @@ model User {
   updatedAt      DateTime           @updatedAt
   accounts       InstagramAccount[]
   threadsAccounts ThreadsAccount[]
+  xAccounts      XAccount[]
   scheduledPosts ScheduledPost[]
   preferences     UserPreference?
   notifications   Notification[]
@@ -392,6 +393,31 @@ model PrivateReplyClaim {
   @@index([createdAt])
 }
 
+// X (Twitter) profile connected with OAuth 2.0 + PKCE. Tokens are stored encrypted.
+model XAccount {
+  id             String          @id @default(uuid())
+  userId         String
+  xUserId        String          @unique
+  username       String
+  name           String?
+  profilePicUrl  String?
+  followersCount Int?
+  accessToken    String
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  scopes         String?
+  isActive       Boolean         @default(true)
+  connectedAt    DateTime        @default(now())
+  lastSyncAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id])
+  scheduledPosts ScheduledPost[]
+
+  @@index([userId])
+}
+
 model ThreadsAccount {
   id                   String         @id @default(uuid())
   userId               String
@@ -442,6 +468,7 @@ model ScheduledPost {
   userId           String
   accountId        String
   threadsAccountId String?
+  xAccountId       String?
   mediaType        MediaType
   mediaUrls        String[]
   thumbnailUrl     String?
@@ -466,12 +493,14 @@ model ScheduledPost {
   user             User              @relation(fields: [userId], references: [id])
   account          InstagramAccount  @relation(fields: [accountId], references: [id])
   threadsAccount   ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id])
+  xAccount         XAccount?         @relation(fields: [xAccountId], references: [id])
   publishedPost    PublishedPost?    @relation(fields: [publishedPostId], references: [id])
 
   @@index([accountId])
   @@index([userId])
   @@index([status, scheduledFor])
   @@index([threadsAccountId])
+  @@index([xAccountId])
 }
 
 model PublishedPost {
@@ -480,6 +509,7 @@ model PublishedPost {
   igMediaId     String?            @unique
   facebookPostId String?
   threadsPostId  String?
+  xPostId        String?
   publishResults Json?
   igMediaUrl    String?
   igPermalink   String?

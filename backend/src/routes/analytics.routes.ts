@@ -48,6 +48,23 @@ router.get('/media-preview', async (req: any, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get('/networks/x/:accountId', async (req: any, res, next) => {
+  const days = Number(req.query.days || 30);
+  if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
+  try {
+    // Loaded on demand: the X client is only needed for this route.
+    const { getXReport } = require('../services/x-report.service') as typeof import('../services/x-report.service');
+    const now = Date.now();
+    // Previous window of the same length for the comparison badges; it never blocks the current report.
+    const [report, previous] = await Promise.all([
+      getXReport(req.user.id, req.params.accountId, days, now),
+      getXReport(req.user.id, req.params.accountId, days, now - days * 86400000, false).catch(() => null),
+    ]);
+    if (!report) return res.status(404).json({ error: 'Conta do X não encontrada.' });
+    return res.json({ ...report, previous: previous ? { period: previous.period, totals: previous.totals, engagementRate: previous.engagementRate } : null });
+  } catch (error) { next(error); }
+});
+
 // Network-specific routes must precede the Instagram account middleware.
 router.get('/networks/threads/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);

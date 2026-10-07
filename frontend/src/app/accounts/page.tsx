@@ -28,6 +28,9 @@ type ConnectedAccount = {
 type ConnectedThreadsAccount = { id: string; username: string; name?: string | null; profilePicUrl?: string | null; isActive: boolean }
 type ThreadsOAuthStatus = { appIdConfigured: boolean; appSecretConfigured: boolean; platformConfigured: boolean; credentialSource: 'platform' | 'workspace' | 'missing' }
 
+import { XAccountsCard } from "@/components/accounts/XAccountsCard"
+import { SiX } from "@icons-pack/react-simple-icons"
+
 export default function AccountsPage() {
   const queryClient = useQueryClient()
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
@@ -89,6 +92,11 @@ export default function AccountsPage() {
     void startOAuth("/auth/threads/url")
   }
 
+  const connectX = () => {
+    setConnectDialogOpen(false)
+    void startOAuth("/auth/x/url")
+  }
+
   const refreshAccounts = useCallback(async () => {
     const [data, threads, pending, oauthStatus] = await Promise.all([
       api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts(),
@@ -115,6 +123,7 @@ export default function AccountsPage() {
       const connected = params.get("connected")
       const reason = params.get("reason")
       const threadsConnected = params.get("threads_connected")
+      const xConnected = params.get("x_connected")
       const oauthSession = params.get("oauth_session")
       if (oauthSession) {
         const session = await fetchApi("/auth/oauth-session", {
@@ -146,7 +155,16 @@ export default function AccountsPage() {
           : reason === "threads_account_conflict"
             ? "Essa conta Threads já está vinculada a outro usuário do InstaCommand. Entre no cadastro que a conectou primeiro."
             : "A conexão Threads falhou. Verifique a configuração do app Threads, as permissões autorizadas e tente novamente.")
-      if ((connected || threadsConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
+      if (xConnected === "1") toast.success("Conta do X conectada com sucesso")
+      if (xConnected === "0") toast.error(reason === "x_denied"
+        ? "Você cancelou ou o X recusou a autorização. Nenhuma conta foi vinculada."
+        : reason === "x_account_conflict"
+          ? "Essa conta do X já está vinculada a outro usuário do InstaCommand."
+          : reason === "x_callback_missing_code"
+            ? "O X não retornou o código de autorização. Confira a Callback URL configurada no app do X."
+            : "A conexão com o X falhou. Confira se o app do X tem permissão de leitura e escrita e tente novamente.")
+      if (xConnected === "1") void queryClient.invalidateQueries({ queryKey: ["x-accounts"] })
+      if ((connected || threadsConnected || xConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
 
       await refreshAccounts()
       if (connected === "1" || connected === "pending" || threadsConnected === "1") {
@@ -305,6 +323,11 @@ export default function AccountsPage() {
               <span className="min-w-0 flex-1"><span className="block font-bold text-slate-900">Threads</span><span className="mt-1 block text-xs leading-5 text-slate-500">Entre com o Threads e escolha o perfil que deseja vincular ao workspace.</span></span>
               <ArrowRight size={18} className="shrink-0 text-indigo-600" />
             </button>
+            <button type="button" onClick={connectX} className="flex items-center gap-4 rounded-2xl border border-slate-200 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50/60">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-white"><SiX size={18} color="white" /></span>
+              <span className="min-w-0 flex-1"><span className="block font-bold text-slate-900">X (Twitter)</span><span className="mt-1 block text-xs leading-5 text-slate-500">Entre com o X e autorize publicar e ler as métricas do perfil.</span></span>
+              <ArrowRight size={18} className="shrink-0 text-indigo-600" />
+            </button>
           </div>
           <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">Selecione apenas as contas e Páginas que deseja gerenciar. Se uma opção não estiver disponível, confira seu acesso a ela no Meta Business.</div>
         </DialogContent>
@@ -334,6 +357,8 @@ export default function AccountsPage() {
         {threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-semibold">A conexão automática ainda não está pronta</p><p className="mt-1">O administrador do InstaCommand precisa concluir a configuração do Threads uma vez no servidor. Você não precisa criar aplicativo, copiar ID ou colar token.</p></div>}
         {threadsAccounts.length > 0 && <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">{threadsAccounts.map((account) => <div key={account.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5"><span className="text-sm font-semibold text-slate-800">@{account.username}</span><div className="flex items-center gap-2"><Badge variant="success">Ativo</Badge><Button variant="ghost" size="icon" title={`Desconectar @${account.username}`} onClick={() => disconnectThreads(account)} disabled={disconnectingThreadId === account.id} className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={14}/></Button></div></div>)}</div>}
       </Card>
+
+      <XAccountsCard onConnect={connectX} />
     </div>
   )
 }

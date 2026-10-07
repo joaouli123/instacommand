@@ -15,6 +15,9 @@ const envSchema = z.object({
   THREADS_APP_ID: z.string().optional(),
   THREADS_APP_SECRET: z.string().optional(),
   THREADS_REDIRECT_URI: z.string().optional(),
+  X_CLIENT_ID: z.string().optional(),
+  X_CLIENT_SECRET: z.string().optional(),
+  X_REDIRECT_URI: z.string().optional(),
   // Legacy names remain supported so existing Coolify variables keep working.
   FB_APP_ID: z.string().optional(),
   FB_APP_SECRET: z.string().optional(),
@@ -61,6 +64,7 @@ export const env = {
     // FB_LOGIN_CONFIG_ID is set, permissions come from that Meta configuration.
     'business_management,instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
   THREADS_REDIRECT_URI: parsed.THREADS_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/threads/callback`,
+  X_REDIRECT_URI: parsed.X_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/x/callback`,
   MEDIA_PUBLIC_URL: parsed.MEDIA_PUBLIC_URL || `${parsed.BACKEND_URL.replace(/\/$/, '')}/uploads`,
   CORS_ORIGINS: parsed.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
 };
