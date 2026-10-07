@@ -218,7 +218,7 @@ export default function CalendarPage() {
             return (
               <div 
                 key={i} 
-              className={`group relative flex min-h-[72px] flex-col justify-between p-1 transition-colors hover:bg-indigo-50/20 sm:min-h-[110px] sm:p-2 ${
+              className={`group relative flex min-h-[84px] flex-col justify-between p-1 transition-colors hover:bg-indigo-50/20 sm:min-h-[110px] sm:p-2 ${
                   !isCurrentMonth ? 'bg-slate-50/60 opacity-40' : 'bg-white'
                 } ${isToday ? 'bg-indigo-50/30' : ''}`}
               >
@@ -240,7 +240,7 @@ export default function CalendarPage() {
                 </div>
 
                 {/* Event Pills */}
-                <div className="space-y-1.5 overflow-hidden">
+                <div className="space-y-1.5 sm:overflow-hidden">
                   {dayEvents?.map((event, idx) => (
                     <div 
                       key={idx}
@@ -251,10 +251,10 @@ export default function CalendarPage() {
                       aria-label={`${event.type} (${(event.post.platforms || []).map(platformLabel).join(", ")}), ${event.time}: ${event.title}`}
                       title={`${event.type} · ${event.time} · ${event.title}`}
                       style={{ background: platformBackground(event.post.platforms) }}
-                      className={`relative mx-auto flex min-h-8 min-w-8 w-fit cursor-pointer items-center justify-center rounded-lg p-1 text-[11px] font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 sm:mx-0 sm:w-full sm:flex-col sm:items-stretch sm:gap-0.5 sm:p-1.5 ${event.status === 'draft' ? 'opacity-75' : ''}`}
+                      className={`relative mx-auto flex min-h-6 min-w-6 w-fit sm:min-h-8 sm:min-w-8 cursor-pointer items-center justify-center rounded-lg p-1 text-[11px] font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 sm:mx-0 sm:w-full sm:flex-col sm:items-stretch sm:gap-0.5 sm:p-1.5 ${event.status === 'draft' ? 'opacity-75' : ''}`}
                     >
-                      {(() => { const Icon = STATUS_ICON[event.status]; return <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full shadow-sm ring-1 ring-white sm:hidden" style={{ background: platformBackground(event.post.platforms) }} aria-hidden><Icon size={9} color="white" /></span> })()}
-                      {event.post.platforms?.length ? <PlatformIcons platforms={event.post.platforms.slice(0, 1)} size={14} color="white" className="sm:hidden" /> : <span className="mx-auto block h-2 w-2 rounded-full bg-white sm:hidden" />}
+                      {(() => { const Icon = STATUS_ICON[event.status]; return <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full shadow-sm ring-1 ring-white sm:hidden" style={{ background: platformBackground(event.post.platforms) }} aria-hidden><Icon size={8} color="white" /></span> })()}
+                      {event.post.platforms?.length ? <PlatformIcons platforms={event.post.platforms.slice(0, 1)} size={12} color="white" className="sm:hidden" /> : <span className="mx-auto block h-2 w-2 rounded-full bg-white sm:hidden" />}
                       <div className="hidden min-w-0 items-center justify-between gap-1 sm:flex">
                         <span className="flex min-w-0 items-center gap-1"><PlatformIcons platforms={event.post.platforms} size={11} color="white" /><span className="truncate font-bold">{event.type}</span></span>
                         <span className="flex shrink-0 items-center gap-1 text-[9px] text-white/90">{event.time}{(() => { const Icon = STATUS_ICON[event.status]; return <Icon size={10} color="white" aria-label={STATUS_LABEL[event.status]} /> })()}</span>
