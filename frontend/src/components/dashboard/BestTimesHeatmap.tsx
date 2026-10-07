@@ -1,4 +1,4 @@
-import { Clock3, Trophy } from "lucide-react"
+import { Clock3 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
@@ -8,7 +8,8 @@ const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 const normalize = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().slice(0, 3)
 const dayIndex = (day: string) => DAYS.findIndex((name) => normalize(name) === normalize(day))
 const hour = (value: number) => `${String(value).padStart(2, "0")}h`
-const MEDALS = ["bg-amber-100 text-amber-800", "bg-slate-200 text-slate-700", "bg-orange-100 text-orange-800"]
+// Same indigo scale as the heatmap: the best slot is the strongest shade.
+const RANKS = ["bg-indigo-600 text-white", "bg-indigo-100 text-indigo-700", "bg-indigo-50 text-indigo-600"]
 
 /**
  * Day × hour heatmap of average interactions per post published in that slot.
@@ -23,8 +24,8 @@ export function BestTimesHeatmap({ items }: { items: BestTime[] }) {
   return <Card className="p-5">
     <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Clock3 size={17} /></span><div><h3 className="section-title">Melhores horários para publicar</h3><p className="section-subtitle">Média de interações por post, pelo dia e hora em que foi publicado (horário de São Paulo).</p></div></div>
     {!items.length ? <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">Ainda não há amostra suficiente para calcular horários.</p> : <>
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">{top.map((item, index) => <div key={`${item.day}-${item.hour}`} className={cn("flex items-center gap-3 rounded-xl border p-3", index === 0 ? "border-amber-200 bg-amber-50/50" : "border-slate-200")}>
-        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold", MEDALS[index])}>{index === 0 ? <Trophy size={16} /> : `${index + 1}º`}</span>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">{top.map((item, index) => <div key={`${item.day}-${item.hour}`} className={cn("flex items-center gap-3 rounded-xl border p-3", index === 0 ? "border-indigo-200 bg-indigo-50/40" : "border-slate-200")}>
+        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold", RANKS[index])}>{index + 1}º</span>
         <div className="min-w-0"><p className="text-sm font-bold text-slate-900">{item.day}, {hour(item.hour)}</p><p className="text-xs text-slate-500">{Math.round(item.averageInteractions).toLocaleString("pt-BR")} interações/post · {item.posts} {item.posts === 1 ? "post" : "posts"}</p></div>
       </div>)}</div>
 
