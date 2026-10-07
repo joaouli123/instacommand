@@ -119,5 +119,11 @@ select {
   .report-paper { border: 0 !important; box-shadow: none !important; padding: 0 !important; max-width: none !important; }
   .report-section { break-inside: auto; }
   .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+  /* Tables never scroll on paper: they shrink to fit the page width. */
+  .report-paper .overflow-x-auto { overflow: visible !important; }
+  .report-paper table { width: 100% !important; table-layout: auto; font-size: 9px; }
+  .report-paper th, .report-paper td { padding: 5px 6px !important; }
+  .report-paper [class*="min-w-"] { min-width: 0 !important; }
+  .report-paper td .h-12 { width: 34px !important; height: 34px !important; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
