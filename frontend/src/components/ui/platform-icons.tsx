@@ -10,19 +10,21 @@ const PLATFORMS = {
 type KnownPlatform = keyof typeof PLATFORMS
 const isKnown = (value: string): value is KnownPlatform => value in PLATFORMS
 
-/** Brand colors used as backgrounds (Instagram keeps its gradient). */
+/** Brand tones used as backgrounds: Instagram pink, Facebook blue, Threads black. */
 const BRAND_STOPS: Record<KnownPlatform, string[]> = {
-  INSTAGRAM: ["#833AB4", "#E1306C", "#F56040"],
-  FACEBOOK: ["#0866FF", "#0866FF"],
-  THREADS: ["#262626", "#000000"],
+  INSTAGRAM: ["#F0407A", "#D6246E"],
+  FACEBOOK: ["#2B7BFF", "#0866FF"],
+  THREADS: ["#2A2A2A", "#000000"],
 }
 
-/** CSS background in the post's network colors; several networks blend side by side. */
+/**
+ * CSS background in the tone of the post's network. With several networks the
+ * first one sets the color (blending them looked muddy); the icons show the rest.
+ */
 export const platformBackground = (platforms?: string[] | null) => {
-  const known = (platforms || []).filter(isKnown)
-  if (!known.length) return "#4F46E5"
-  const stops = known.length === 1 ? BRAND_STOPS[known[0]] : known.map((platform) => BRAND_STOPS[platform][Math.floor(BRAND_STOPS[platform].length / 2)])
-  return `linear-gradient(120deg, ${stops.join(", ")})`
+  const first = (platforms || []).find(isKnown)
+  if (!first) return "#4F46E5"
+  return `linear-gradient(120deg, ${BRAND_STOPS[first].join(", ")})`
 }
 
 export const platformLabel = (platform: string) => isKnown(platform) ? PLATFORMS[platform].label : platform
