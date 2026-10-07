@@ -216,7 +216,25 @@ export async function getProfilePeriodInsights(igUserId: string, token: string, 
   };
 }
 
-type ProfileReport = Awaited<ReturnType<typeof getProfilePeriodInsights>>;
+type PeriodInsights = Awaited<ReturnType<typeof getProfilePeriodInsights>>;
+type ProfileReport = PeriodInsights & { previous: Pick<PeriodInsights, 'period' | 'metrics' | 'followers' | 'frequency' | 'engagementRate'> | null };
+
+/**
+ * Current window plus the window of the same length right before it, so the
+ * report can show "vs. período anterior". The previous totals are only
+ * attached when Meta returned them; a failure there never hides the current data.
+ */
+export async function getProfileReportWithComparison(igUserId: string, token: string, requestedDays = 30, now = new Date()): Promise<ProfileReport> {
+  const days = Math.min(requestedDays, 30);
+  const [current, previous] = await Promise.all([
+    getProfilePeriodInsights(igUserId, token, requestedDays, now),
+    getProfilePeriodInsights(igUserId, token, days, new Date(now.getTime() - days * 86400000)).catch(() => null),
+  ]);
+  return {
+    ...current,
+    previous: previous?.available ? { period: previous.period, metrics: previous.metrics, followers: previous.followers, frequency: previous.frequency, engagementRate: previous.engagementRate } : null,
+  };
+}
 const profileReports = new Map<string, { expires: number; promise: Promise<ProfileReport> }>();
 
 // Ownership is checked by the route before this cache can be consulted. OAuth
@@ -230,7 +248,7 @@ export function getInstagramProfileReport(account: { id: string; igUserId: strin
   if (profileReports.size >= 200) profileReports.delete(profileReports.keys().next().value!);
   const entry = { expires: Date.now() + 300_000, promise: Promise.resolve(null as unknown as ProfileReport) };
   entry.promise = getDecryptedToken(account.id)
-    .then(token => getProfilePeriodInsights(account.igUserId, token, days))
+    .then(token => getProfileReportWithComparison(account.igUserId, token, days))
     .then(report => { if (!report.available) entry.expires = Date.now() + 30_000; return report; })
     .catch(error => { if (profileReports.get(key) === entry) profileReports.delete(key); throw error; });
   profileReports.set(key, entry);

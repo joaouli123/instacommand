@@ -96,3 +96,16 @@ test('engaged demographics uses the current rolling-month parameter; followers k
     assert.ok(calls.every(({ params }) => params.timeframe === (audience === 'engaged' ? 'this_month' : 'last_30_days')));
   }
 });
+test('the report compares with the window of the same length right before it', async () => {
+  const { getProfileReportWithComparison } = require('../dist/services/instagram/insights.service');
+  const end = now.getTime() / 1000;
+  behavior = ({ until }) => ({ data: [field('reach', until === end ? 1000 : 800), field('accounts_engaged', 50)] });
+  calls.length = 0;
+  const report = await getProfileReportWithComparison('owned', 'fixture', 7, now);
+  assert.equal(report.metrics.reach, 1000);
+  assert.equal(report.previous.metrics.reach, 800);
+  assert.equal(report.previous.period.until, new Date((end - 7 * 86400) * 1000).toISOString());
+  // A previous window Meta cannot answer is omitted, never shown as zero.
+  behavior = ({ until }) => ({ data: until === end ? [field('reach', 1000)] : [] });
+  assert.equal((await getProfileReportWithComparison('owned', 'fixture', 7, now)).previous, null);
+});

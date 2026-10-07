@@ -257,8 +257,11 @@ export function InstagramAnalytics() {
   const currentAccount = accounts.find((account) => account.id === accountId)
   const profileWindow = instagramProfileWindow(profileReport, Number(period))
   const profileMetrics = profileReport?.metrics
+  const previousMetrics = profileReport?.previous?.metrics
+  const vs = (key: keyof NonNullable<typeof profileMetrics>) => ({ current: profileMetrics?.[key], previous: previousMetrics?.[key] })
+  const followerNet = profileReport?.followers.net
   const profileNotice = <div className="space-y-1 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 text-xs leading-relaxed text-slate-600">
-    <p className="font-semibold text-slate-800">Resumo do perfil · {profileWindow.label.toLowerCase()}</p>
+    <p className="font-semibold text-slate-800">Resumo do perfil · {profileWindow.label.toLowerCase()}{profileReport?.previous && <span className="font-normal text-slate-500"> · comparado aos {profileReport.previous.period.days} dias anteriores (<span className="font-semibold text-emerald-700">▲ subiu</span> / <span className="font-semibold text-rose-700">▼ caiu</span>)</span>}</p>
     {Number(period) > 30 && <p>{profileWindow.notice}</p>}
     {!profileReport?.available && <p role="status" className="font-medium text-amber-800">{profileReport?.message || "Não foi possível consultar os totais do perfil. Os dados das publicações continuam disponíveis; tente atualizar mais tarde."}</p>}
     <details><summary className="cursor-pointer">Sobre esses números</summary><div className="mt-2 space-y-1">
@@ -314,18 +317,18 @@ export function InstagramAnalytics() {
       <TabsContent value="visao" className="space-y-5">
         {profileNotice}
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
-          <Stat label="Seguidores atuais" value={formatNumber(dashboard?.followers)} detail={followerLatestDate ? `Coleta de ${formatDate(followerLatestDate)}` : "Total retornado pela Meta"} icon={Users} />
-          <MetricCard label="Alcance" value={profileMetrics?.reach} detail={`${profileWindow.label} · contas únicas estimadas`} accent/>
-          <MetricCard label="Visualizações" value={profileMetrics?.views} detail={profileWindow.label} accent/>
-          <MetricCard label="Interações no perfil" value={profileMetrics?.interactions} detail={`${profileWindow.label} · total informado pelo Instagram`}/>
-          <MetricCard label="Contas engajadas" value={profileMetrics?.accountsEngaged} detail={`${profileWindow.label} · pessoas que interagiram`}/>
-          <MetricCard label="Taxa de engajamento" value={formatPercent(profileReport?.engagementRate)} detail="Contas engajadas ÷ contas alcançadas, na mesma janela"/>
-          <MetricCard label="Frequência" value={profileReport?.frequency == null ? null : profileReport.frequency.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} detail="Visualizações ÷ contas alcançadas, na mesma janela"/>
-          <MetricCard label="Toques em links do perfil" value={profileMetrics?.profileLinkTaps} detail={profileWindow.label}/>
+          <MetricCard label="Seguidores atuais" value={formatNumber(dashboard?.followers)} detail={followerLatestDate ? `Coleta de ${formatDate(followerLatestDate)}` : "Total retornado pela Meta"} compare={{ current: dashboard?.followers, previous: dashboard?.followers != null && followerNet != null ? dashboard.followers - followerNet : null }}/>
+          <MetricCard label="Alcance" value={profileMetrics?.reach} detail={`${profileWindow.label} · contas únicas estimadas`} accent compare={vs("reach")}/>
+          <MetricCard label="Visualizações" value={profileMetrics?.views} detail={profileWindow.label} accent compare={vs("views")}/>
+          <MetricCard label="Interações no perfil" value={profileMetrics?.interactions} detail={`${profileWindow.label} · total informado pelo Instagram`} compare={vs("interactions")}/>
+          <MetricCard label="Contas engajadas" value={profileMetrics?.accountsEngaged} detail={`${profileWindow.label} · pessoas que interagiram`} compare={vs("accountsEngaged")}/>
+          <MetricCard label="Taxa de engajamento" value={formatPercent(profileReport?.engagementRate)} detail="Contas engajadas ÷ contas alcançadas, na mesma janela" compare={{ current: profileReport?.engagementRate, previous: profileReport?.previous?.engagementRate, format: (value) => formatPercent(value) }}/>
+          <MetricCard label="Frequência" value={profileReport?.frequency == null ? null : profileReport.frequency.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} detail="Visualizações ÷ contas alcançadas, na mesma janela" compare={{ current: profileReport?.frequency, previous: profileReport?.previous?.frequency, format: (value) => value.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) }}/>
+          <MetricCard label="Toques em links do perfil" value={profileMetrics?.profileLinkTaps} detail={profileWindow.label} compare={vs("profileLinkTaps")}/>
           {([
             ["likes", "Curtidas"], ["comments", "Comentários"], ["shares", "Compartilhamentos"],
             ["saves", "Salvos"], ["replies", "Respostas"], ["reposts", "Republicações"],
-          ] as const).map(([key, label]) => <MetricCard key={key} label={label} value={profileMetrics?.[key]} detail={profileWindow.label}/>)}
+          ] as const).map(([key, label]) => <MetricCard key={key} label={label} value={profileMetrics?.[key]} detail={profileWindow.label} compare={vs(key)}/>)}
         </div>
         <div className="grid gap-3 sm:grid-cols-2"><MetricCard label="Interações nos posts selecionados" value={dashboard?.interactions} detail={`Posts publicados nos últimos ${period} dias · contadores acumulados até a coleta${dashboard?.interactionsPartial ? " · soma parcial" : ""}`}/><MetricCard label="Taxa média por publicação" value={formatPercent(dashboard?.engagementRate)} detail="Média das taxas disponíveis dos posts selecionados. Não é a taxa do perfil acima."/></div>
         <ReportChart key={`reach-${accountId}-${period}`} title="Alcance diário" description={`${profileWindow.label} · contas únicas estimadas por dia, consultadas no Instagram. Semanal e mensal mostram o último dia disponível; o total único do período está no card de alcance.`} rows={(profileReport?.dailyReach || []).map(point => ({ date: point.date, reach: point.value }))} series={[{ key: "reach", label: "Contas alcançadas por dia", color: "#4f46e5", aggregation: "last" }]} filename="instagram-alcance-diario"/>

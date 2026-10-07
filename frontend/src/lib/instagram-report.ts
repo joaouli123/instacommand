@@ -8,6 +8,20 @@ export type InstagramProfileReport = {
   frequency: number | null
   engagementRate: number | null
   message?: string
+  /** Same-length window right before this one; null when Meta did not return it. */
+  previous?: Pick<InstagramProfileReport, "period" | "metrics" | "followers" | "frequency" | "engagementRate"> | null
+}
+
+export type PeriodChange = { direction: "up" | "down" | "flat"; percent: number | null }
+
+/** Variation against the previous period; null when either side is missing. */
+export function periodChange(current: number | null | undefined, previous: number | null | undefined): PeriodChange | null {
+  if (current == null || previous == null || !Number.isFinite(current) || !Number.isFinite(previous)) return null
+  if (current === previous) return { direction: "flat", percent: 0 }
+  // From zero there is no meaningful percentage, only the direction.
+  if (previous === 0) return { direction: current > 0 ? "up" : "down", percent: null }
+  const percent = (current - previous) / Math.abs(previous) * 100
+  return { direction: percent > 0 ? "up" : "down", percent }
 }
 
 export function instagramProfileWindow(report: InstagramProfileReport | null, requestedDays: number) {
