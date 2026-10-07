@@ -170,7 +170,7 @@ export function PublicShareView({ token }: { token: string }) {
     </main>
 
     <Dialog open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>
-      <DialogContent aria-label="Publicação" className="bottom-0 top-auto max-h-[94dvh] w-full max-w-5xl translate-y-0 rounded-b-none p-0 sm:bottom-auto sm:top-[50%] sm:w-[calc(100%-2rem)] sm:translate-y-[-50%] sm:rounded-2xl sm:p-0">
+      <DialogContent aria-label="Publicação" className="bottom-0 top-auto max-h-[92dvh] w-full max-w-5xl translate-y-0 overflow-hidden rounded-b-none p-0 sm:bottom-auto sm:top-[50%] sm:w-[calc(100%-2rem)] sm:translate-y-[-50%] sm:rounded-2xl sm:p-0">
         {selected && <PostDetail key={selected.id} token={token} post={selected} account={accounts.get(selected.accountKey)} comments={commentsByPost.get(selected.id) || []} onComment={addComment} />}
       </DialogContent>
     </Dialog>
@@ -313,8 +313,9 @@ function PostDetail({ token, post, account, comments, onComment }: { token: stri
     setHighlight(comment.id)
   }
 
-  return <div className="grid max-h-[94dvh] min-h-0 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:grid-rows-1">
-    <div className="min-w-0 overflow-y-auto border-b border-slate-100 bg-slate-50/60 p-3 sm:p-5 md:border-b-0 md:border-r">
+  // Phone: one scroll for preview, caption and comments, with the form pinned at the bottom. Desktop: two columns, each scrolling.
+  return <div className="max-h-[92dvh] overflow-y-auto overscroll-contain md:grid md:max-h-[90dvh] md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:overflow-hidden">
+    <div className="relative z-0 min-w-0 overflow-hidden border-b border-slate-100 bg-slate-50/60 p-3 sm:p-5 md:max-h-[90dvh] md:overflow-y-auto md:border-b-0 md:border-r">
       <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-300 sm:hidden" />
       <div className="mb-3 flex flex-wrap items-center gap-2 pr-10">
         <StatusBadge status={post.status} />
@@ -325,11 +326,11 @@ function PostDetail({ token, post, account, comments, onComment }: { token: stri
         <button type="button" role="tab" aria-selected={tab === "annotate"} onClick={() => setTab("annotate")} className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold", tab === "annotate" ? "bg-slate-900 text-white" : "text-slate-600")}><MapPin size={13} />Marcar na mídia{pinned.length ? ` (${pinned.length})` : ""}</button>
       </div>}
       {tab === "preview" || !hasMedia
-        ? <PostPreviewPanel post={post} account={account ? { igUsername: account.igUsername, pageName: account.pageName, igProfilePicUrl: account.igProfilePicUrl } : undefined} threadsAccount={post.threadsAccount || undefined} xAccount={post.xAccount || undefined} />
+        ? <div className="mx-auto max-w-[300px] md:max-w-none"><PostPreviewPanel post={post} account={account ? { igUsername: account.igUsername, pageName: account.pageName, igProfilePicUrl: account.igProfilePicUrl } : undefined} threadsAccount={post.threadsAccount || undefined} xAccount={post.xAccount || undefined} /></div>
         : <Annotator post={post} mediaIndex={mediaIndex} setMediaIndex={(index) => { setMediaIndex(index); setPending(null) }} pins={pinned} pinNumbers={pinNumbers} pending={pending} setPending={setPending} highlight={highlight} setHighlight={setHighlight} />}
     </div>
-    <div className="flex min-h-0 min-w-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+    <div className="relative z-10 flex min-w-0 flex-col bg-white md:max-h-[90dvh] md:min-h-0">
+      <div className="p-4 sm:p-5 md:min-h-0 md:flex-1 md:overflow-y-auto">
         <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">{FORMAT_LABEL[post.mediaType] || "Feed"} · {post.platforms.map(platformLabel).join(", ")}</p>
         <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-700 ring-1 ring-slate-200">{captionAsPublished(post.caption, post.hashtags) || <span className="text-slate-400">Sem legenda.</span>}</p>
         <h3 className="mt-5 flex items-center gap-1.5 text-sm font-bold text-slate-900"><MessageCircle size={15} />Observações {roots.length ? `(${roots.length})` : ""}</h3>
@@ -369,9 +370,9 @@ function Annotator({ post, mediaIndex, setMediaIndex, pins, pinNumbers, pending,
     <div className="flex justify-center rounded-2xl bg-slate-900/90 p-2">
       <div className="relative inline-block max-w-full cursor-crosshair select-none" onClick={place}>
         {isVideoUrl(src)
-          ? <video src={src} muted playsInline loop autoPlay className="block max-h-[52dvh] max-w-full rounded-lg md:max-h-[60dvh]" />
+          ? <video src={src} muted playsInline loop autoPlay className="block max-h-[45dvh] max-w-full rounded-lg md:max-h-[60dvh]" />
           // eslint-disable-next-line @next/next/no-img-element
-          : <img src={src} alt={`Mídia ${mediaIndex + 1}`} draggable={false} className="block max-h-[52dvh] max-w-full rounded-lg md:max-h-[60dvh]" />}
+          : <img src={src} alt={`Mídia ${mediaIndex + 1}`} draggable={false} className="block max-h-[45dvh] max-w-full rounded-lg md:max-h-[60dvh]" />}
         {pins.filter((pin) => (pin.mediaIndex ?? 0) === mediaIndex).map((pin) => <button key={pin.id} type="button" onClick={(event) => { event.stopPropagation(); setHighlight(highlight === pin.id ? null : pin.id) }}
           className={cn("absolute flex h-7 w-7 -translate-x-1/2 -translate-y-full items-center justify-center rounded-full rounded-bl-none text-xs font-bold text-white shadow-lg ring-2 ring-white transition", highlight === pin.id ? "scale-125 bg-amber-500" : pin.resolved ? "bg-slate-400" : "bg-amber-500/90")}
           style={{ left: `${pin.x}%`, top: `${pin.y}%`, transformOrigin: "bottom left" }} aria-label={`Observação ${pinNumbers.get(pin.id)}`}>{pinNumbers.get(pin.id)}</button>)}
@@ -422,7 +423,7 @@ function CommentForm({ token, postId, pending, clearPending, onComment, hasMedia
     }
   }
 
-  return <form onSubmit={submit} className="border-t border-slate-100 bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4">
+  return <form onSubmit={submit} className="sticky bottom-0 z-20 border-t border-slate-100 bg-white p-3 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4">
     {pending && <p className="mb-2 flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2 py-1.5 text-xs font-medium text-indigo-700"><MapPin size={12} />Marcador na mídia {pending.mediaIndex + 1}<button type="button" onClick={clearPending} className="ml-auto flex h-5 w-5 items-center justify-center rounded hover:bg-indigo-100" aria-label="Remover marcador"><CloseIcon size={12} /></button></p>}
     <div className="flex gap-2">
       {(body.trim() || name) && <input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} placeholder="Seu nome" autoComplete="name" className="h-9 w-32 shrink-0 rounded-lg border border-slate-200 px-2 text-sm focus:border-indigo-500 focus:outline-none sm:w-40" aria-label="Seu nome" />}
