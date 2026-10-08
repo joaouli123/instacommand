@@ -6,7 +6,7 @@ import { ConflictError } from '../../utils/errors';
 import { verifyFacebookPageLink } from './facebook-link.service';
 import { assertPostReady } from '../post-readiness';
 import { normalizeMediaUrl } from '../../utils/public-media';
-import { InstagramAdvancedSettings } from './advanced-settings';
+import { InstagramAdvancedSettings, validateInstagramAdvancedSettings } from './advanced-settings';
 import { mediaPreviewUrl } from '../../utils/meta-media';
 
 const prisma = new PrismaClient();
@@ -40,6 +40,12 @@ export const createMediaContainer = async (
     params.media_type = 'REELS';
     params.video_url = mediaUrls[0];
     if (collaborators) params.collaborators = collaborators;
+    if (settings) {
+      if (settings.shareToFeed === false) params.share_to_feed = false;
+      if (settings.coverUrl) params.cover_url = normalizeMediaUrl(settings.coverUrl);
+      else if (typeof settings.thumbOffset === 'number') params.thumb_offset = settings.thumbOffset;
+      if (settings.trialGraduation) params.trial_params = { graduation_strategy: settings.trialGraduation };
+    }
   } else if (mediaType === 'STORY') {
     params.media_type = 'STORIES';
     if (mediaUrls[0]?.match(/\.(mp4|mov)(\?|$)/i)) params.video_url = mediaUrls[0];
@@ -65,6 +71,9 @@ export const createMediaContainer = async (
     params.children = childrenContainers.join(',');
     if (collaborators) params.collaborators = collaborators;
   }
+
+  // Location: IMAGE, REEL and the carousel parent container (never Stories).
+  if (settings?.locationId && mediaType !== 'STORY') params.location_id = settings.locationId;
 
   const response = await graphPost(`/${igUserId}/media`, token, params);
   return response.id;
@@ -255,7 +264,11 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
     if (platforms.includes('INSTAGRAM')) {
       try {
         const token = await getDecryptedToken(post.accountId);
-        const settings = (post.advancedSettings || null) as InstagramAdvancedSettings | null;
+        // Re-validate stored options against the current media type so a
+        // draft edited elsewhere never sends a parameter Meta would reject.
+        const settings: InstagramAdvancedSettings | null = post.advancedSettings
+          ? validateInstagramAdvancedSettings(post.advancedSettings, post.mediaType, post.mediaUrls.length)
+          : null;
         if (settings?.firstComment?.trim() || settings?.disableComments) {
           let permissions: string[];
           try {

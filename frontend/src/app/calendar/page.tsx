@@ -46,6 +46,12 @@ type CalendarPost = {
     firstComment?: string
     disableComments?: boolean
     userTags?: Array<{ username: string }>
+    locationId?: string | null
+    locationName?: string | null
+    shareToFeed?: boolean
+    coverUrl?: string | null
+    thumbOffset?: number | null
+    trialGraduation?: "MANUAL" | "SS_PERFORMANCE" | null
   } | null
   publishedPost?: {
     publishResults?: Record<string, { id?: string }> | null
@@ -278,14 +284,20 @@ export default function CalendarPage() {
 function PostContentDetails({ post }: { post: CalendarPost }) {
   const caption = captionAsPublished(post.caption, post.hashtags)
   const settings = post.advancedSettings || {}
+  const isReel = post.mediaType === "REEL"
   const extras = [
+    settings.locationId ? { label: "Localização", value: settings.locationName || `Página ${settings.locationId}` } : null,
+    isReel && settings.shareToFeed === false ? { label: "Feed", value: "Só na aba Reels (não aparece no feed)" } : null,
+    isReel && settings.coverUrl ? { label: "Capa", value: "Imagem enviada" } : null,
+    isReel && !settings.coverUrl && typeof settings.thumbOffset === "number" ? { label: "Capa", value: `Quadro em ${(settings.thumbOffset / 1000).toFixed(1)} s do vídeo` } : null,
+    isReel && settings.trialGraduation ? { label: "Reel de teste", value: settings.trialGraduation === "MANUAL" ? "Só para não seguidores — liberar aos seguidores manualmente" : "Só para não seguidores — liberar automaticamente se for bem" } : null,
     settings.firstComment?.trim() ? { label: "Primeiro comentário", value: settings.firstComment.trim() } : null,
     settings.collaborators?.length ? { label: "Colaboradores", value: settings.collaborators.map((user) => `@${user}`).join(", ") } : null,
     settings.userTags?.length ? { label: "Pessoas marcadas", value: Array.from(new Set(settings.userTags.map((tag) => `@${tag.username}`))).join(", ") } : null,
     settings.altTexts?.some((text) => text?.trim()) ? { label: "Texto alternativo", value: settings.altTexts.map((text, index) => text?.trim() ? `${index + 1}. ${text.trim()}` : null).filter(Boolean).join("\n") } : null,
     settings.disableComments ? { label: "Comentários", value: "Desativados no Instagram" } : null,
     post.instagramAudioTitle ? { label: "Música", value: [post.instagramAudioTitle, post.instagramAudioArtist].filter(Boolean).join(" — ") } : null,
-    post.isAiGenerated ? { label: "Rótulo", value: "Conteúdo gerado por IA" } : null,
+    post.isAiGenerated ? { label: "Rótulo", value: "Feito com IA" } : null,
   ].filter((item): item is { label: string; value: string } => Boolean(item))
 
   return <div className="space-y-3">

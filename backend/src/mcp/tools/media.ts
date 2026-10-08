@@ -74,4 +74,17 @@ export const mediaTools = [
     },
     handler: async ({ accountId, type, query }, { api }) => api.get('/posts/instagram-audio', { accountId, type, q: query }),
   }),
+  defineTool({
+    name: 'locations_search',
+    title: 'Buscar localização do Instagram',
+    category: 'media',
+    scopes: ['read'],
+    description: 'Busca locais (Páginas do Facebook com endereço) para usar em advancedSettings.locationId de create_post/update_post. Aceita também um ID ou link de Página. Se a Meta não liberar a busca (unavailable=true), peça ao usuário o link da Página do local.',
+    inputSchema: {
+      accountId: accountIdSchema,
+      query: z.string().min(2).max(100).describe('Nome do local (ex.: "Parque Ibirapuera") ou ID/link da Página do Facebook.'),
+    },
+    annotations: READ_LIVE,
+    handler: async ({ accountId, query }, { api }) => api.get('/posts/locations', { accountId, q: query }),
+  }),
 ];

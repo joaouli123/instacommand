@@ -61,14 +61,18 @@ require.cache[require.resolve('../dist/services/instagram/auth.service')] = { ex
   },
 } };
 require.cache[require.resolve('../dist/services/notifications.service')] = { exports: { notifyPublishFailure: async () => {} } };
-require.cache[require.resolve('../dist/utils/errors')] = { exports: { ConflictError: class ConflictError extends Error {} } };
+require.cache[require.resolve('../dist/utils/errors')] = { exports: { ConflictError: class ConflictError extends Error {}, ValidationError: class ValidationError extends Error {} } };
 require.cache[require.resolve('../dist/services/instagram/facebook-link.service')] = { exports: { verifyFacebookPageLink: async () => {} } };
 require.cache[require.resolve('../dist/services/post-readiness')] = { exports: { assertPostReady: () => {} } };
 require.cache[require.resolve('../dist/utils/public-media')] = { exports: { normalizeMediaUrl: value => value } };
 
 const { publishPost } = require('../dist/services/instagram/publish.service');
 
+const baseSettings = { ...post.advancedSettings };
 beforeEach(() => {
+  post.mediaType = 'IMAGE';
+  post.mediaUrls = ['https://media.example.test/image.jpg'];
+  post.advancedSettings = { ...baseSettings };
   graphWrites.length = 0;
   grantedPermissions = ['instagram_manage_comments'];
   permissionLookupFails = false;
@@ -109,4 +113,57 @@ test('fails closed without uploading when Meta permission status cannot be check
 
   assert.equal(graphWrites.length, 0);
   assert.equal(postStatus, 'FAILED');
+});
+
+const containerWrites = () => graphWrites.filter(write => write.path === '/ig-user-1/media');
+
+test('sends location_id on a single image container', async () => {
+  post.advancedSettings = { locationId: '110970792260960', locationName: 'Parque Ibirapuera' };
+  await publishPost('scheduled-1');
+  assert.equal(containerWrites()[0].params.location_id, '110970792260960');
+});
+
+test('sends location only on the carousel parent container', async () => {
+  post.mediaType = 'CAROUSEL';
+  post.mediaUrls = ['https://media.example.test/a.jpg', 'https://media.example.test/b.jpg'];
+  post.advancedSettings = { locationId: '110970792260960' };
+  await publishPost('scheduled-1');
+  const writes = containerWrites();
+  assert.equal(writes.length, 3);
+  assert.equal(writes[0].params.location_id, undefined);
+  assert.equal(writes[1].params.location_id, undefined);
+  assert.equal(writes[2].params.media_type, 'CAROUSEL');
+  assert.equal(writes[2].params.location_id, '110970792260960');
+});
+
+test('sends Reel options: share_to_feed, cover_url, trial_params and location', async () => {
+  post.mediaType = 'REEL';
+  post.mediaUrls = ['https://media.example.test/video.mp4'];
+  post.advancedSettings = { locationId: '110970792260960', shareToFeed: false, coverUrl: 'https://media.example.test/cover.jpg', trialGraduation: 'MANUAL' };
+  await publishPost('scheduled-1');
+  const params = containerWrites()[0].params;
+  assert.equal(params.media_type, 'REELS');
+  assert.equal(params.share_to_feed, false);
+  assert.equal(params.cover_url, 'https://media.example.test/cover.jpg');
+  assert.equal(params.thumb_offset, undefined);
+  assert.deepEqual(params.trial_params, { graduation_strategy: 'MANUAL' });
+  assert.equal(params.location_id, '110970792260960');
+});
+
+test('sends thumb_offset when the Reel cover is a video frame and omits share_to_feed by default', async () => {
+  post.mediaType = 'REEL';
+  post.mediaUrls = ['https://media.example.test/video.mp4'];
+  post.advancedSettings = { thumbOffset: 2500 };
+  await publishPost('scheduled-1');
+  const params = containerWrites()[0].params;
+  assert.equal(params.thumb_offset, 2500);
+  assert.equal('share_to_feed' in params, false);
+  assert.equal('trial_params' in params, false);
+});
+
+test('refuses stored Reel options on a Story before contacting Instagram', async () => {
+  post.mediaType = 'STORY';
+  post.advancedSettings = { shareToFeed: false };
+  await assert.rejects(() => publishPost('scheduled-1'), /só valem para Reels/);
+  assert.equal(containerWrites().length, 0);
 });

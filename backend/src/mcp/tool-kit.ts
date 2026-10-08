@@ -100,7 +100,13 @@ export const advancedSettingsSchema = z.object({
     y: z.number().min(0).max(1).describe('Posição vertical de 0 (topo) a 1 (base).'),
     mediaIndex: z.number().int().min(0).max(9).describe('Índice da mídia em mediaUrls (0 = primeira).'),
   })).max(20).optional().describe('Pessoas marcadas na imagem (IMAGE ou CAROUSEL no Instagram).'),
-}).describe('Opções avançadas do Instagram.');
+  locationId: z.string().max(300).nullable().optional().describe('Localização (location_id): ID de uma Página do Facebook com endereço, de locations_search, ou o link da Página. IMAGE, CAROUSEL ou REEL; não vale para STORY.'),
+  locationName: z.string().max(200).nullable().optional().describe('Nome do local, só para exibição (ex.: "Parque Ibirapuera, São Paulo").'),
+  shareToFeed: z.boolean().optional().describe('Somente REEL: mostrar o Reel também no feed/grade do perfil (share_to_feed). Padrão true.'),
+  coverUrl: z.string().url().max(2000).nullable().optional().describe('Somente REEL: URL pública de uma imagem para a capa (cover_url). Use import_media_from_url antes. Não combine com thumbOffset.'),
+  thumbOffset: z.number().int().min(0).max(900000).nullable().optional().describe('Somente REEL: quadro do vídeo usado como capa, em milissegundos (thumb_offset). Ignorado se coverUrl for usado.'),
+  trialGraduation: z.enum(['MANUAL', 'SS_PERFORMANCE']).nullable().optional().describe('Somente REEL: publica como Reel de teste, mostrado primeiro só a não seguidores (trial_params). MANUAL = você decide no app se vai para os seguidores; SS_PERFORMANCE = o Instagram promove automaticamente se for bem.'),
+}).describe('Opções avançadas do Instagram. Em update_post, envie o objeto completo (substitui o anterior).');
 
 export const instagramAudioSchema = z.object({
   id: z.string().regex(/^\d{1,30}$/).describe('ID da faixa retornado por search_instagram_audio.'),

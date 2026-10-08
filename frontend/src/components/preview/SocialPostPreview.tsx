@@ -55,6 +55,8 @@ export type SocialPreviewProps = {
   onSelectMedia: (index: number) => void
   caption: string
   hashtags: string[]
+  /** Instagram location chosen in the advanced options (shown under the username). */
+  locationName?: string | null
 }
 
 export function PreviewMedia({ media, emptyMessage, className = "", backgroundClassName = "bg-[#eef1f4]", preserveSourceRatio = false, aspectRatioOverride, onSwipe, fill = false }: { media: MediaItem | null; emptyMessage: string; className?: string; backgroundClassName?: string; preserveSourceRatio?: boolean; aspectRatioOverride?: string; onSwipe?: (direction: -1 | 1) => void; fill?: boolean }) {
@@ -265,7 +267,7 @@ function XPostPreview({ account, caption, hashtags, mediaItems, postType }: { ac
   </article>
 }
 
-export function SocialPostPreview({ postType, previewPlatform, selectedAccount, threadsAccount, xAccount, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags }: SocialPreviewProps) {
+export function SocialPostPreview({ postType, previewPlatform, selectedAccount, threadsAccount, xAccount, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags, locationName }: SocialPreviewProps) {
   if (previewPlatform === "X") return <XPostPreview account={xAccount} caption={caption} hashtags={hashtags} mediaItems={mediaItems} postType={postType} />
   const isInstagram = previewPlatform === "INSTAGRAM"
   const isFacebook = previewPlatform === "FACEBOOK"
@@ -338,6 +340,7 @@ export function SocialPostPreview({ postType, previewPlatform, selectedAccount, 
       </nav>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent px-3 pb-3 pt-12 text-white">
         <div className="flex items-center gap-1.5"><PreviewAvatar src={accountPhoto} name={username} ring compact /><p className="truncate text-[10px] font-semibold">@{selectedAccount?.igUsername || "sua_conta"}</p><span className="rounded border border-white/80 px-1.5 py-0.5 text-[9px] font-semibold">Seguir</span></div>
+        {locationName && <p className="mt-1 truncate text-[9px] text-white/90">{locationName}</p>}
         <p className="mt-1.5 line-clamp-2 break-words pr-8 text-[10px] leading-[14px]">{allCaption || "Sua legenda aparecerá aqui."}</p>
       </div>
     </article>
@@ -400,7 +403,7 @@ export function SocialPostPreview({ postType, previewPlatform, selectedAccount, 
   return <article data-preview={postType === "CAROUSEL" ? "instagram-carousel" : "instagram-feed"} aria-label={postType === "CAROUSEL" ? "Prévia de carrossel do Instagram" : "Prévia de publicação do Instagram"} className="w-full max-w-[390px] overflow-hidden rounded-[10px] border border-[#dbdbdb] bg-white text-[#0f1419] shadow-sm">
     <header className="flex items-center gap-2.5 px-3 py-3">
       <PreviewAvatar src={accountPhoto} name={username} ring />
-      <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{username}</p><p className="truncate text-[11px] leading-4 text-[#737373]">São Paulo, Brasil</p></div>
+      <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{username}</p>{locationName && <p className="truncate text-[11px] leading-4 text-[#737373]">{locationName}</p>}</div>
       <RiMore2Line size={22} className="text-[#262626]" />
     </header>
     <div className="relative">

@@ -38,6 +38,7 @@ const printJson = (value: unknown) => stdout(JSON.stringify(value, null, 2));
 const BOOLEAN_FLAGS = new Set([
   'json', 'yes', 'help', 'version', 'schedule', 'draft', 'queue', 'wait', 'ai-generated', 'all',
   'disable-comments', 'enable-comments', 'replies', 'stdin', 'no-ai-generated', 'clear-audio',
+  'ai-label', 'no-ai-label', 'no-feed', 'feed', 'no-location', 'no-cover',
 ]);
 const SHORT_FLAGS: Record<string, string> = { h: 'help', y: 'yes', v: 'version', j: 'json' };
 
@@ -427,19 +428,80 @@ function inferMediaType(media: string[], platforms: string[]) {
   return /\.(mp4|mov)(\?|$)/i.test(media[0]) ? 'REEL' : 'IMAGE';
 }
 
-function advancedSettingsFromFlags(flags: Flags) {
+/** Parses "--tag @user:x:y[:index]" (x/y from 0 to 1, index 0 = first media). */
+export function parseUserTag(value: string) {
+  const [username, x, y, index = '0'] = value.split(':').map((part) => part.trim());
+  const tag = { username: (username || '').replace(/^@/, ''), x: Number(x), y: Number(y), mediaIndex: Number(index) };
+  if (!tag.username || x === undefined || y === undefined || !Number.isFinite(tag.x) || !Number.isFinite(tag.y) || !Number.isInteger(tag.mediaIndex)) {
+    throw usageError(`Marcação inválida: "${value}". Use --tag "@usuario:0.5:0.5[:indice]".`);
+  }
+  return tag;
+}
+
+const TRIAL_REEL_VALUES: Record<string, string | null> = { manual: 'MANUAL', auto: 'SS_PERFORMANCE', ss_performance: 'SS_PERFORMANCE', off: null, none: null };
+
+/** Flags that change Instagram advanced options, merged over `current` (an update keeps untouched options). */
+export async function advancedSettingsFromFlags(
+  flags: Flags,
+  current: Record<string, unknown> | null = null,
+  searchLocation?: (query: string) => Promise<{ id: string; name: string } | null>,
+) {
   const settings: Record<string, unknown> = {};
-  const alt = flagRepeat(flags, 'alt');
+  const alt = [...flagRepeat(flags, 'alt'), ...flagRepeat(flags, 'alt-text')];
   if (alt.length) settings.altTexts = alt;
-  const collaborators = flagList(flags, 'collaborators');
+  const collaborators = [...flagList(flags, 'collaborators'), ...flagRepeat(flags, 'collaborator')];
   if (collaborators.length) settings.collaborators = collaborators.map((user) => user.replace(/^@/, ''));
   const firstComment = flagString(flags, 'first-comment');
   if (firstComment !== undefined) settings.firstComment = firstComment.replace(/\\n/g, '\n');
   if (flagBool(flags, 'disable-comments')) settings.disableComments = true;
-  return Object.keys(settings).length ? settings : undefined;
+  if (flagBool(flags, 'enable-comments')) settings.disableComments = false;
+  const tags = flagRepeat(flags, 'tag');
+  if (tags.length) settings.userTags = tags.map(parseUserTag);
+
+  const locationSearch = flagString(flags, 'location-search');
+  const location = flagString(flags, 'location');
+  if (flagBool(flags, 'no-location')) { settings.locationId = null; settings.locationName = null; }
+  else if (location) {
+    settings.locationId = location;
+    settings.locationName = flagString(flags, 'location-name') ?? null;
+  } else if (locationSearch) {
+    if (!searchLocation) throw usageError('--location-search precisa de uma conta do Instagram.');
+    const found = await searchLocation(locationSearch);
+    if (!found) throw new CliError(`Nenhum local encontrado para "${locationSearch}". Use --location <ID ou link da Página do Facebook>.`, 1);
+    stderr(`Localização: ${found.name} (${found.id})`);
+    settings.locationId = found.id;
+    settings.locationName = found.name;
+  }
+
+  if (flagBool(flags, 'no-feed')) settings.shareToFeed = false;
+  if (flagBool(flags, 'feed')) settings.shareToFeed = true;
+  const coverUrl = flagString(flags, 'cover-url');
+  if (coverUrl) { settings.coverUrl = coverUrl; settings.thumbOffset = null; }
+  const thumbOffset = flagString(flags, 'thumb-offset');
+  if (thumbOffset !== undefined) {
+    const value = Number(thumbOffset);
+    if (!Number.isInteger(value) || value < 0) throw usageError('--thumb-offset deve ser o tempo do quadro em milissegundos (ex.: 1500).');
+    settings.thumbOffset = value;
+    settings.coverUrl = null;
+  }
+  if (flagBool(flags, 'no-cover')) { settings.coverUrl = null; settings.thumbOffset = null; }
+  const trial = flagString(flags, 'trial-reel');
+  if (trial !== undefined) {
+    const key = trial.toLowerCase();
+    if (!(key in TRIAL_REEL_VALUES)) throw usageError('--trial-reel aceita manual, auto ou off.');
+    settings.trialGraduation = TRIAL_REEL_VALUES[key];
+  }
+  if (!Object.keys(settings).length) return undefined;
+  return { ...(current ?? {}), ...settings };
 }
 
-async function postArgsFromFlags(ctx: Context, flags: Flags, mode: 'create' | 'update') {
+async function findLocation(ctx: Context, accountId: string | undefined, flags: Flags, query: string) {
+  const result = await callTool(ctx, 'locations_search', { accountId: accountId ?? await resolveAccount(ctx, flagString(flags, 'account'), 'instagram', true), query });
+  if (result?.unavailable) throw new CliError(result.message || 'A busca de locais não está disponível.', 1);
+  return (result?.items?.[0] as { id: string; name: string } | undefined) ?? null;
+}
+
+async function postArgsFromFlags(ctx: Context, flags: Flags, mode: 'create' | 'update', postId?: string, postAccountId?: string) {
   const args: Record<string, unknown> = {};
   const platformsFlag = flagList(flags, 'platforms');
   const platforms = platformsFlag.length ? parsePlatforms(platformsFlag) : mode === 'create' ? ['INSTAGRAM'] : undefined;
@@ -470,13 +532,19 @@ async function postArgsFromFlags(ctx: Context, flags: Flags, mode: 'create' | 'u
   if (hashtags.length) args.hashtags = hashtags.map((tag) => tag.replace(/^#/, ''));
   const at = flagString(flags, 'at');
   if (at) args.scheduledFor = parseDateTimeArg(at);
-  if (flagBool(flags, 'ai-generated')) args.isAiGenerated = true;
-  if (flagBool(flags, 'no-ai-generated')) args.isAiGenerated = false;
+  if (flagBool(flags, 'ai-generated') || flagBool(flags, 'ai-label')) args.isAiGenerated = true;
+  if (flagBool(flags, 'no-ai-generated') || flagBool(flags, 'no-ai-label')) args.isAiGenerated = false;
   const audioId = flagString(flags, 'audio-id');
   if (audioId) args.instagramAudio = { id: audioId, ...(flagString(flags, 'audio-title') ? { title: flagString(flags, 'audio-title') } : {}) };
   if (flagBool(flags, 'clear-audio')) args.instagramAudio = null;
-  const advanced = advancedSettingsFromFlags(flags);
-  if (advanced) args.advancedSettings = advanced;
+  const advanced = await advancedSettingsFromFlags(flags, null, (query) => findLocation(ctx, (args.accountId as string | undefined) ?? postAccountId, flags, query));
+  if (advanced) {
+    // update_post replaces the whole advancedSettings object: keep what the post already has.
+    if (mode === 'update' && postId) {
+      const existing = await callTool(ctx, 'get_post', { postId });
+      args.advancedSettings = { ...(existing?.advancedSettings ?? {}), ...advanced };
+    } else args.advancedSettings = advanced;
+  }
   return args;
 }
 
@@ -611,7 +679,13 @@ Publicações
   posts create [--account A] [--media arquivo|url ...] [--type IMAGE|CAROUSEL|REEL|STORY|TEXT]
                [--caption T | --caption-file F] [--hashtags a,b] [--platforms instagram,facebook,threads,x]
                [--threads-account A] [--x-account A] [--at "2026-10-10 18:30"] [--schedule] [--first-comment T]
-               [--collaborators a,b] [--alt T ...] [--disable-comments] [--ai-generated] [--audio-id ID]
+               [--audio-id ID]
+     Instagram: [--ai-label | --no-ai-label]  (rótulo "Feito com IA")
+                [--location <ID ou link da Página> [--location-name N] | --location-search "nome" | --no-location]
+                [--alt-text T ...] [--collaborator @a ...] [--first-comment T] [--disable-comments | --enable-comments]
+                [--tag "@usuario:x:y[:indice]" ...]  (x/y de 0 a 1; fotos e carrosséis)
+     Reels:     [--no-feed | --feed] [--cover-url URL | --thumb-offset MS | --no-cover] [--trial-reel manual|auto|off]
+  posts locations <nome> [--account A]       Busca locais para usar em --location
   posts update <id> [mesmas opções]
   posts schedule <id> --at <data>
   posts unschedule <id>
@@ -814,13 +888,24 @@ async function commandPosts(ctx: Context, positionals: string[], flags: Flags) {
     const result = await callTool(ctx, 'create_post', args);
     return output(ctx, result, () => { printPost(result.post); stdout(`\n${result.next}`); });
   }
+  if (action === 'locations') {
+    const query = positionals.slice(1).join(' ').trim();
+    if (!query) throw usageError('Informe o nome do local: instacommand posts locations "Parque Ibirapuera"');
+    const accountId = await resolveAccount(ctx, flagString(flags, 'account'), 'instagram', true);
+    const result = await callTool(ctx, 'locations_search', { accountId, query });
+    return output(ctx, result, () => {
+      if (result.message) stdout(result.message);
+      for (const item of result.items || []) stdout(`${item.id}  ${item.name}${item.city ? ` — ${[item.city, item.state, item.country].filter(Boolean).join(', ')}` : ''}`);
+    });
+  }
   if (!id) throw usageError(`Informe o ID da publicação: instacommand posts ${action} <id>`);
   if (action === 'get') {
     const post = await callTool(ctx, 'get_post', { postId: id });
     return output(ctx, post, () => printPost(post));
   }
   if (action === 'update') {
-    const args = await postArgsFromFlags(ctx, flags, 'update');
+    const existing = flagString(flags, 'location-search') ? await callTool(ctx, 'get_post', { postId: id }) : null;
+    const args = await postArgsFromFlags(ctx, flags, 'update', id, existing?.accountId);
     if (flagBool(flags, 'schedule')) args.status = 'SCHEDULED';
     if (flagBool(flags, 'draft')) args.status = 'DRAFT';
     const result = await callTool(ctx, 'update_post', { postId: id, ...args });

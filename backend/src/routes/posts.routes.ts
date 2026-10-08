@@ -24,7 +24,8 @@ import { publicMediaBase, normalizeMediaUrl } from '../utils/public-media';
 import { publicMetaMessage } from '../utils/public-meta-message';
 import { graphGet } from '../utils/instagram-api';
 import { getDecryptedToken } from '../services/instagram/auth.service';
-import { validateInstagramAdvancedSettings } from '../services/instagram/advanced-settings';
+import { hasInstagramAdvancedOptions, validateInstagramAdvancedSettings } from '../services/instagram/advanced-settings';
+import { searchInstagramLocations } from '../services/instagram/locations.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -122,9 +123,7 @@ router.post('/', async (req: any, res, next) => {
       return res.status(400).json({ error: 'Um carrossel precisa ter entre 2 e 10 mídias.' });
     }
     const normalizedAdvancedSettings = validateInstagramAdvancedSettings(advancedSettings, mediaType, mediaUrls.length);
-    const hasInstagramAdvancedSettings = normalizedAdvancedSettings.firstComment || normalizedAdvancedSettings.disableComments
-      || normalizedAdvancedSettings.collaborators.length || normalizedAdvancedSettings.userTags.length
-      || normalizedAdvancedSettings.altTexts.some(Boolean);
+    const hasInstagramAdvancedSettings = hasInstagramAdvancedOptions(normalizedAdvancedSettings);
     if (hasInstagramAdvancedSettings && !normalizedPlatforms.includes('INSTAGRAM')) {
       return res.status(400).json({ error: 'As configurações avançadas selecionadas valem para publicações no Instagram.' });
     }
@@ -239,6 +238,21 @@ router.get('/instagram-audio', async (req: any, res, next) => {
   }
 });
 
+router.get('/locations', async (req: any, res, next) => {
+  try {
+    const accountId = String(req.query.accountId || '');
+    const query = String(req.query.q || '').trim();
+    if (!accountId) return res.status(400).json({ error: 'Selecione uma conta do Instagram.' });
+    if (query.length < 2 || query.length > 100) return res.status(400).json({ error: 'Digite de 2 a 100 caracteres para buscar um local.' });
+    const account = await prisma.instagramAccount.findFirst({ where: { id: accountId, userId: req.user.id, isActive: true } });
+    if (!account) return res.status(404).json({ error: 'A conta do Instagram selecionada não está ativa.' });
+    const token = await getDecryptedToken(account.id);
+    res.json(await searchInstagramLocations(token, query));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', async (req: any, res, next) => {
   try {
     const post = await prisma.scheduledPost.findFirst({
@@ -312,10 +326,12 @@ router.patch('/:id', async (req: any, res, next) => {
     const nextCaption = caption ?? post.caption;
     const nextAdvancedSettings = advancedSettings === undefined ? undefined
       : validateInstagramAdvancedSettings(advancedSettings, nextMediaType, nextMediaUrls.length);
+    // A format/media change must not leave stored options Instagram would reject.
+    if (advancedSettings === undefined && post.advancedSettings && (mediaType !== undefined || mediaUrls !== undefined)) {
+      validateInstagramAdvancedSettings(post.advancedSettings, nextMediaType, nextMediaUrls.length);
+    }
     if (nextAdvancedSettings) {
-      const hasInstagramAdvancedSettings = nextAdvancedSettings.firstComment || nextAdvancedSettings.disableComments
-        || nextAdvancedSettings.collaborators.length || nextAdvancedSettings.userTags.length
-        || nextAdvancedSettings.altTexts.some(Boolean);
+      const hasInstagramAdvancedSettings = hasInstagramAdvancedOptions(nextAdvancedSettings);
       if (hasInstagramAdvancedSettings && !nextPlatforms.includes('INSTAGRAM')) {
         return res.status(400).json({ error: 'As configurações avançadas selecionadas valem para publicações no Instagram.' });
       }

@@ -10,7 +10,7 @@ import {
   Heart, MessageCircle, Bookmark, Share2, MoreHorizontal,
   Layers, Video, Image as ImageIcon, Sparkles, Crop, Ruler, FileImage, HardDrive,
   Copy, Timer, BadgeCheck, Scaling,
-  Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search
+  Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search, Loader2
 } from "lucide-react"
 import { SiInstagram, SiFacebook, SiThreads, SiX } from "@icons-pack/react-simple-icons"
 import twitterText from "twitter-text"
@@ -92,9 +92,24 @@ type XAccount = { id: string; username: string; name?: string | null }
 type AiPlanItem = { day: string; format: string; topic: string; hook: string; cta: string; suggestedTime: string }
 type InstagramAudioTrack = { id: string; title: string; audioType?: string; durationInMs?: number | null; artist?: string | null; creatorUsername?: string | null; coverUrl?: string | null; previewUrl?: string | null; previewLink?: string | null }
 type InstagramUserTag = { username: string; x: number; y: number; mediaIndex: number }
-type InstagramAdvancedSettings = { altTexts: string[]; collaborators: string[]; firstComment: string; disableComments: boolean; userTags: InstagramUserTag[] }
+type InstagramTrialGraduation = "MANUAL" | "SS_PERFORMANCE"
+type InstagramAdvancedSettings = {
+  altTexts: string[]; collaborators: string[]; firstComment: string; disableComments: boolean; userTags: InstagramUserTag[]
+  locationId: string | null; locationName: string | null
+  shareToFeed: boolean; coverUrl: string | null; thumbOffset: number | null; trialGraduation: InstagramTrialGraduation | null
+}
+type InstagramLocation = { id: string; name: string; city: string | null; state: string | null; country: string | null; street: string | null; verified: boolean }
+const reelDefaults = { shareToFeed: true, coverUrl: null, thumbOffset: null, trialGraduation: null } as const
+/** Accepts a numeric Page ID or a facebook.com link and returns the numeric ID. */
+const parseLocationInput = (value: string) => {
+  const text = value.trim()
+  if (/^\d{5,25}$/.test(text)) return text
+  const match = text.match(/facebook\.com\/(?:[^?#]*?[-/])?(\d{5,25})(?:[/?#]|$)/i) || text.match(/[?&](?:id|place_id|page_id)=(\d{5,25})/i)
+  return match ? match[1] : null
+}
+const formatLocationPlace = (location: InstagramLocation) => [location.city, location.state, location.country].filter(Boolean).join(", ")
 type PublishOutcome = { succeeded: string[]; failed: Array<{ platform: string; message: string }>; warnings: Array<{ platform: string; message: string }> }
-const emptyInstagramAdvancedSettings = (): InstagramAdvancedSettings => ({ altTexts: [], collaborators: [], firstComment: "", disableComments: false, userTags: [] })
+const emptyInstagramAdvancedSettings = (): InstagramAdvancedSettings => ({ altTexts: [], collaborators: [], firstComment: "", disableComments: false, userTags: [], locationId: null, locationName: null, ...reelDefaults })
 
 const normalizeHashtag = (value: string) => value.replace(/^#+/, "").trim()
 const isVideoFile = (file: Pick<File, "type" | "name">) => file.type.toLowerCase().startsWith("video/") || /\.(mp4|m4v|mov|webm|ogv|ogg)$/i.test(file.name)
@@ -144,6 +159,14 @@ export default function ComposerPage() {
   const [advancedSettings, setAdvancedSettings] = useState<InstagramAdvancedSettings>(emptyInstagramAdvancedSettings)
   const [collaboratorInput, setCollaboratorInput] = useState("")
   const [personTagInput, setPersonTagInput] = useState("")
+  const [locationQuery, setLocationQuery] = useState("")
+  const [locationResults, setLocationResults] = useState<InstagramLocation[]>([])
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [locationMessage, setLocationMessage] = useState<string | null>(null)
+  const [locationSearchUnavailable, setLocationSearchUnavailable] = useState(false)
+  const [coverUploading, setCoverUploading] = useState(false)
+  const [reelDurationMs, setReelDurationMs] = useState(0)
+  const reelFrameRef = useRef<HTMLVideoElement | null>(null)
   const [audioType, setAudioType] = useState<"music" | "original_sound">("music")
   const [audioSearchQuery, setAudioSearchQuery] = useState("")
   const [audioTracks, setAudioTracks] = useState<InstagramAudioTrack[]>([])
@@ -355,13 +378,13 @@ export default function ComposerPage() {
     if (destinationsChanged) setPlatforms(nextPlatforms)
     setPostType(nextType)
     if (!['FEED', 'CAROUSEL', 'REEL'].includes(nextType)) {
-      setAdvancedSettings(current => ({ ...current, collaborators: [], firstComment: "", disableComments: false, userTags: [], altTexts: [] }))
+      setAdvancedSettings(current => ({ ...current, collaborators: [], firstComment: "", disableComments: false, userTags: [], altTexts: [], locationId: null, locationName: null, ...reelDefaults }))
     } else if (nextType === 'REEL') {
       setAdvancedSettings(current => ({ ...current, userTags: [], altTexts: [] }))
     } else if (nextType === 'CAROUSEL') {
-      setAdvancedSettings(current => ({ ...current, altTexts: [], userTags: [] }))
+      setAdvancedSettings(current => ({ ...current, altTexts: [], userTags: [], ...reelDefaults }))
     } else if (nextType === 'FEED') {
-      setAdvancedSettings(current => ({ ...current, altTexts: [], userTags: [] }))
+      setAdvancedSettings(current => ({ ...current, altTexts: [], userTags: [], ...reelDefaults }))
     }
     if (nextType !== "REEL") {
       setSelectedAudioTrack(null)
@@ -527,6 +550,52 @@ export default function ComposerPage() {
     } catch {
       setPreviewingAudioId(null)
       toast.error("Não foi possível reproduzir a prévia dessa faixa.")
+    }
+  }
+
+  const searchLocations = async () => {
+    const query = locationQuery.trim()
+    if (query.length < 2) { toast.error("Digite pelo menos 2 letras do local."); return }
+    if (!accountId) { toast.error("Selecione uma conta do Instagram."); return }
+    setLocationLoading(true); setLocationMessage(null)
+    try {
+      const response = await api.searchInstagramLocations(accountId, query) as { items?: InstagramLocation[]; unavailable?: boolean; message?: string | null }
+      setLocationResults(response.items || [])
+      setLocationSearchUnavailable(response.unavailable === true)
+      setLocationMessage(response.message || null)
+    } catch (error) {
+      setLocationResults([])
+      setLocationMessage(error instanceof Error ? error.message : "Não foi possível buscar locais agora.")
+    } finally {
+      setLocationLoading(false)
+    }
+  }
+
+  const chooseLocation = (location: InstagramLocation) => {
+    const place = formatLocationPlace(location)
+    setAdvancedSettings(current => ({ ...current, locationId: location.id, locationName: place ? `${location.name}, ${place}` : location.name }))
+    setLocationResults([]); setLocationQuery(""); setLocationMessage(null)
+  }
+
+  const applyManualLocation = () => {
+    const id = parseLocationInput(locationQuery)
+    if (!id) { toast.error("Cole o ID numérico ou o link da Página do Facebook do local."); return }
+    setAdvancedSettings(current => ({ ...current, locationId: id, locationName: current.locationId === id ? current.locationName : `Local ${id}` }))
+    setLocationResults([]); setLocationQuery(""); setLocationMessage(null)
+  }
+
+  const uploadReelCover = async (file: File | undefined) => {
+    if (!file) return
+    if (!file.type.startsWith("image/")) { toast.error("A capa precisa ser uma imagem (JPG ou PNG)."); return }
+    setCoverUploading(true)
+    try {
+      const response = await api.uploadMedia([file]) as { urls: string[] }
+      if (!response.urls?.[0]) throw new Error("O envio da capa não retornou um link.")
+      setAdvancedSettings(current => ({ ...current, coverUrl: response.urls[0], thumbOffset: null }))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar a capa.")
+    } finally {
+      setCoverUploading(false)
     }
   }
 
@@ -1196,8 +1265,46 @@ export default function ComposerPage() {
               {platforms.includes("INSTAGRAM") ? <>
                 <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
                   <input type="checkbox" checked={isAiGenerated} onChange={(event) => setIsAiGenerated(event.target.checked)} className="mt-0.5 h-4 w-4 accent-indigo-600" />
-                  <span className="min-w-0"><span className="block text-sm font-semibold text-slate-800">Conteúdo gerado ou alterado por IA</span><span className="mt-1 block text-xs leading-5 text-slate-500">Marca a publicação do Instagram com o aviso de IA. Usar IA apenas para escrever a legenda não exige esta marcação.</span></span>
+                  <span className="min-w-0"><span className="block text-sm font-semibold text-slate-800">Rótulo &quot;Feito com IA&quot;</span><span className="mt-1 block text-xs leading-5 text-slate-500">Marca a publicação do Instagram como conteúdo gerado ou alterado por IA. Usar IA apenas para escrever a legenda não exige esta marcação.</span></span>
                 </label>
+
+                {(postType === "FEED" || postType === "CAROUSEL" || postType === "REEL") ? <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="instagram-location-heading">
+                  <div><h3 id="instagram-location-heading" className="text-sm font-semibold text-slate-800">Localização</h3><p className="mt-1 text-xs leading-5 text-slate-500">Busque o local pelo nome. O Instagram usa Páginas do Facebook com endereço como locais; se a busca não estiver liberada, cole o link ou o ID da Página do local.</p></div>
+                  {advancedSettings.locationId && <div className="flex flex-wrap items-center gap-2"><span className="inline-flex max-w-full items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-800"><span className="truncate">{advancedSettings.locationName || `Local ${advancedSettings.locationId}`}</span><button type="button" onClick={() => setAdvancedSettings(current => ({ ...current, locationId: null, locationName: null }))} aria-label="Remover localização" className="rounded-full px-1 text-indigo-500 hover:bg-indigo-100">×</button></span></div>}
+                  <div className="flex flex-col gap-2 sm:flex-row"><Input aria-label="Buscar local ou colar link da Página" value={locationQuery} maxLength={300} onChange={(event) => setLocationQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (parseLocationInput(locationQuery)) applyManualLocation(); else void searchLocations() } }} placeholder="Ex.: Parque Ibirapuera ou facebook.com/…" className="h-10 min-w-0 rounded-lg text-sm" /><Button type="button" variant="outline" onClick={() => parseLocationInput(locationQuery) ? applyManualLocation() : void searchLocations()} disabled={locationLoading || locationQuery.trim().length < 2} className="h-10 shrink-0 border-indigo-200 text-indigo-700">{locationLoading ? <Loader2 size={15} className="animate-spin" /> : parseLocationInput(locationQuery) ? "Usar este ID" : "Buscar"}</Button></div>
+                  {locationMessage && <p role="status" className={`rounded-lg px-3 py-2 text-[11px] leading-4 ${locationSearchUnavailable ? "border border-amber-200 bg-amber-50 text-amber-900" : "bg-slate-50 text-slate-600"}`}>{locationMessage}</p>}
+                  {locationResults.length > 0 && <ul className="max-h-60 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200" aria-label="Locais encontrados">{locationResults.map(location => <li key={location.id}><button type="button" onClick={() => chooseLocation(location)} className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-indigo-50"><span className="text-sm font-medium text-slate-800">{location.name}{location.verified ? " ✓" : ""}</span>{(formatLocationPlace(location) || location.street) && <span className="text-[11px] text-slate-500">{[location.street, formatLocationPlace(location)].filter(Boolean).join(" · ")}</span>}</button></li>)}</ul>}
+                </section> : <p className="rounded-xl border border-slate-200 bg-slate-100/70 p-3 text-[11px] leading-4 text-slate-500">Localização não está disponível para Stories pela API do Instagram.</p>}
+
+                {postType === "REEL" && <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="instagram-reel-options-heading">
+                  <div><h3 id="instagram-reel-options-heading" className="text-sm font-semibold text-slate-800">Opções do Reel</h3><p className="mt-1 text-xs leading-5 text-slate-500">Capa, exibição no feed e Reel de teste.</p></div>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-slate-50 p-3"><input type="checkbox" checked={advancedSettings.shareToFeed} onChange={(event) => setAdvancedSettings(current => ({ ...current, shareToFeed: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-indigo-600" /><span><span className="block text-xs font-semibold text-slate-800">Mostrar também no feed</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">Desmarcado, o Reel aparece só na aba Reels do perfil.</span></span></label>
+                  <div className="space-y-2 rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs font-semibold text-slate-800">Capa</p>
+                    <div className="flex flex-wrap gap-2 text-xs" role="radiogroup" aria-label="Tipo de capa do Reel">
+                      {([["auto", "Automática"], ["frame", "Quadro do vídeo"]] as const).map(([mode, label]) => {
+                        const currentMode = advancedSettings.thumbOffset !== null ? "frame" : "auto"
+                        return <button key={mode} type="button" role="radio" aria-checked={currentMode === mode && !advancedSettings.coverUrl} onClick={() => setAdvancedSettings(current => ({ ...current, coverUrl: null, thumbOffset: mode === "frame" ? (current.thumbOffset ?? 0) : null }))} className={`rounded-full border px-3 py-1.5 font-medium ${currentMode === mode && !advancedSettings.coverUrl ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-white text-slate-600"}`}>{label}</button>
+                      })}
+                    </div>
+                    {advancedSettings.thumbOffset !== null && !advancedSettings.coverUrl && (activeMedia?.kind === "video" ? <div className="space-y-2">
+                      <video ref={reelFrameRef} src={activeMedia.src} muted playsInline preload="metadata" onLoadedMetadata={(event) => { setReelDurationMs(Math.floor(event.currentTarget.duration * 1000) || 0); event.currentTarget.currentTime = (advancedSettings.thumbOffset || 0) / 1000 }} className="mx-auto max-h-56 rounded-lg bg-black" aria-label="Quadro escolhido para a capa" />
+                      <label className="block text-[11px] text-slate-600">Quadro em {((advancedSettings.thumbOffset || 0) / 1000).toFixed(1)} s
+                        <input type="range" min={0} max={Math.max(reelDurationMs, 1000)} step={100} value={advancedSettings.thumbOffset || 0} onChange={(event) => { const value = Number(event.target.value); setAdvancedSettings(current => ({ ...current, thumbOffset: value })); if (reelFrameRef.current) reelFrameRef.current.currentTime = value / 1000 }} className="mt-1 w-full accent-indigo-600" />
+                      </label>
+                    </div> : <p className="text-[11px] text-slate-500">Adicione o vídeo do Reel para escolher o quadro.</p>)}
+                    {advancedSettings.coverUrl && <div className="flex items-center gap-3"><img src={advancedSettings.coverUrl || ""} alt="Capa escolhida para o Reel" className="h-24 w-[54px] rounded-md object-cover" /><button type="button" onClick={() => setAdvancedSettings(current => ({ ...current, coverUrl: null }))} className="text-xs text-slate-500 underline">Remover capa</button></div>}
+                    {!advancedSettings.coverUrl && advancedSettings.thumbOffset === null && <label className="inline-flex cursor-pointer items-center gap-2 text-[11px] text-indigo-700">{coverUploading ? <Loader2 size={13} className="animate-spin" /> : null}<span className="underline">Enviar imagem de capa</span><input type="file" accept="image/jpeg,image/png" className="sr-only" disabled={coverUploading} onChange={(event) => { void uploadReelCover(event.target.files?.[0]); event.target.value = "" }} /></label>}
+                    <p className="text-[10px] leading-4 text-slate-400">Automática: o Instagram escolhe o quadro. Ou envie uma imagem própria; ela substitui o quadro. A imagem de capa é recomendada em 9:16 (1080×1920).</p>
+                  </div>
+                  <label className="block rounded-lg bg-slate-50 p-3 text-xs"><span className="block font-semibold text-slate-800">Reel de teste — mostrar só para não seguidores</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">O Instagram mostra o Reel primeiro para quem não segue a conta. Depois ele pode ir para os seguidores manualmente (no app) ou automaticamente se for bem.</span>
+                    <select value={advancedSettings.trialGraduation || ""} onChange={(event) => { const value = (event.target.value || null) as InstagramTrialGraduation | null; setAdvancedSettings(current => ({ ...current, trialGraduation: value })) }} className="mt-2 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-800">
+                      <option value="">Não, publicar normalmente</option>
+                      <option value="MANUAL">Sim — eu decido no app quando mostrar aos seguidores</option>
+                      <option value="SS_PERFORMANCE">Sim — mostrar aos seguidores automaticamente se for bem</option>
+                    </select>
+                  </label>
+                </section>}
 
                 {(postType === "FEED" || postType === "CAROUSEL" || postType === "REEL") && <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="instagram-collaborators-heading">
                   <div><h3 id="instagram-collaborators-heading" className="text-sm font-semibold text-slate-800">Colaboradores</h3><p className="mt-1 text-xs leading-5 text-slate-500">Convide até 3 perfis para aparecerem como coautores. A Meta pode exigir que cada perfil aceite o convite.</p></div>
@@ -1223,10 +1330,10 @@ export default function ComposerPage() {
                   <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-slate-50 p-3"><input type="checkbox" checked={advancedSettings.disableComments} onChange={(event) => setAdvancedSettings(current => ({ ...current, disableComments: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-indigo-600" /><span><span className="block text-xs font-semibold text-slate-800">Desativar comentários depois de publicar</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">O primeiro comentário, se preenchido, será enviado antes de fechar os comentários.</span></span></label>
                 </section>}
 
-                <section className="grid gap-2 sm:grid-cols-3" aria-label="Recursos avançados que ainda não estão liberados">
+                <section className="grid gap-2 sm:grid-cols-3" aria-label="Recursos do app do Instagram que a API não oferece">
                   <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-3"><p className="text-xs font-semibold text-slate-700">Parceria paga</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Ainda não disponível nesta conexão Meta. O post não será marcado como parceria sem essa liberação.</p></div>
                   <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-3"><p className="text-xs font-semibold text-slate-700">Produtos da loja</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Ainda não há um seletor ligado ao catálogo nesta tela; nenhum produto será marcado.</p></div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-3"><p className="text-xs font-semibold text-slate-700">Localização</p><p className="mt-1 text-[11px] leading-4 text-slate-500">A busca de locais ainda não está ligada à conta; o post sai sem localização.</p></div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-3"><p className="text-xs font-semibold text-slate-700">Ocultar curtidas, filtros e figurinhas</p><p className="mt-1 text-[11px] leading-4 text-slate-500">A API oficial do Instagram não oferece essas opções; ajuste no app depois de publicar.</p></div>
                 </section>
               </> : <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600">Selecione Instagram para configurar os recursos avançados desta publicação.</p>}
 
@@ -1300,6 +1407,7 @@ export default function ComposerPage() {
               onSelectMedia={setActiveMediaIndex}
               caption={caption}
               hashtags={hashtags}
+              locationName={platforms.includes("INSTAGRAM") ? advancedSettings.locationName : null}
             />
           </div>
           <p className="mt-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">A prévia segue a estrutura visual da rede e do formato escolhidos. A aparência final pode variar conforme as atualizações do aplicativo.</p>
