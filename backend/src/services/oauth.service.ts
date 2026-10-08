@@ -1,3 +1,4 @@
+import { getPrisma } from '../lib/prisma';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { PrismaClient, type OAuthClient } from '@prisma/client';
@@ -8,7 +9,7 @@ import { API_SCOPE_DETAILS, API_SCOPES, isApiScope, normalizeScopes, type ApiSco
 import { generateSecret, hashSecret, safeEqualHex, tokenDisplayPrefix } from './api-tokens.service';
 import { readLimitedBody, safeGet } from '../utils/safe-fetch';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 export const REFRESH_TOKEN_TTL_DAYS = 30;

@@ -1,10 +1,11 @@
+import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { publishQueue, reschedulePost, cancelScheduledPost } from '../services/scheduler.service';
-import { PrismaClient } from '@prisma/client';
+
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 router.use(authenticate);
 

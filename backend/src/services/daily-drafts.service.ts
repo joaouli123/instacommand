@@ -1,10 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../lib/prisma';
+
 import { createHash } from 'crypto';
 import { z } from 'zod';
 import { dailyPlanSchema } from './ai-output';
 import { NotFoundError } from '../utils/errors';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 export const dailyDraftRequestSchema = z.object({
   requestId: z.string().uuid(), accountId: z.string().uuid(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), plan: dailyPlanSchema,

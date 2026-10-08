@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../../lib/prisma';
+
 import { graphGet, graphGetAllWithStatus } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
 import { MediaType } from '@prisma/client';
@@ -7,7 +8,7 @@ import { analyticsDays, publicationPeriod } from '../analytics-period';
 import { receivedMetrics, aggregateMetrics } from '../metric-availability';
 import { mediaPreviewUrl } from '../../utils/meta-media';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 type InsightItem = {
   name?: string;

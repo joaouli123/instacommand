@@ -2,12 +2,18 @@
 import Link from "next/link"
 import { FileText } from "lucide-react"
 import { SiFacebook, SiInstagram, SiThreads, SiX } from "@icons-pack/react-simple-icons"
-import { XReport } from "@/components/dashboard/XReport"
-
+import dynamic from "next/dynamic"
 import { PageHeader } from "@/components/layout/PageHeader"
-import { FacebookReport } from "@/components/dashboard/FacebookReport"
-import { InstagramAnalytics } from "@/components/dashboard/InstagramAnalytics"
-import { ThreadsReport } from "@/components/dashboard/ThreadsReport"
+
+// Each network's report (and recharts) ships in its own chunk; only the tab the
+// user opens is downloaded.
+function TabPlaceholder() {
+  return <div aria-hidden className="h-96 w-full animate-pulse rounded-xl border border-slate-200 bg-white" />
+}
+const InstagramAnalytics = dynamic(() => import("@/components/dashboard/InstagramAnalytics").then((m) => m.InstagramAnalytics), { ssr: false, loading: TabPlaceholder })
+const FacebookReport = dynamic(() => import("@/components/dashboard/FacebookReport").then((m) => m.FacebookReport), { ssr: false, loading: TabPlaceholder })
+const ThreadsReport = dynamic(() => import("@/components/dashboard/ThreadsReport").then((m) => m.ThreadsReport), { ssr: false, loading: TabPlaceholder })
+const XReport = dynamic(() => import("@/components/dashboard/XReport").then((m) => m.XReport), { ssr: false, loading: TabPlaceholder })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function AnalyticsPage() {

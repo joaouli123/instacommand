@@ -2,7 +2,10 @@
 
 import { FormEvent, useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
+import dynamic from "next/dynamic"
+
+// recharts loads only when a competitor with history is opened.
+const FollowersHistoryChart = dynamic(() => import("@/components/competitors/FollowersHistoryChart").then((m) => m.FollowersHistoryChart), { ssr: false })
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -145,7 +148,7 @@ export default function CompetitorsPage() {
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="p-5 lg:col-span-2">
               <div className="flex items-start justify-between gap-3"><div><h3 className="section-title">Crescimento de @{selected.igUsername}</h3><p className="text-xs text-slate-500">Seguidores por coleta (diária, automática).</p></div>{(() => { const growth = followerGrowth(selected.history); return growth && <Badge variant="secondary" className={growth.diff >= 0 ? "text-emerald-700" : "text-rose-700"}>{growth.diff >= 0 ? "+" : ""}{growth.diff.toLocaleString("pt-BR")} em {growth.days} d</Badge> })()}</div>
-              {selected.history.length >= 2 ? <div className="mt-4 h-48"><ResponsiveContainer width="100%" height="100%"><LineChart data={selected.history.map((item) => ({ date: new Date(item.collectedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), followers: item.followers }))} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} /><XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} width={56} domain={["dataMin", "dataMax"]} tickFormatter={(value: number) => compact(value)} /><Tooltip formatter={(value) => [Number(value).toLocaleString("pt-BR"), "Seguidores"]} /><Line type="monotone" dataKey="followers" stroke="#4f46e5" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div>
+              {selected.history.length >= 2 ? <div className="mt-4 h-48"><FollowersHistoryChart compact={compact} data={selected.history.map((item) => ({ date: new Date(item.collectedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), followers: item.followers }))} /></div>
                 : <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">O gráfico aparece a partir da segunda coleta (a coleta automática roda uma vez por dia).</p>}
             </Card>
             <Card className="p-5">

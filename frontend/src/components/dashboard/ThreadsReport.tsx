@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card'
 import { AlertCircle, Download, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { CompareContext, CompareToggle, MetricCard, useComparePreference } from './MetricCard'
-import { ReportChart } from './ReportChart'
+import { ReportChart } from './LazyCharts'
 import { ReportPublications } from './ReportPublications'
 import { ChartRow, downloadReport, reportDay } from '@/lib/report-chart'
 

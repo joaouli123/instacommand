@@ -1,10 +1,11 @@
+import { getPrisma } from '../../lib/prisma';
 import { env } from '../../config/env';
 import { graphGet, graphGetAll } from '../../utils/instagram-api';
-import { PrismaClient } from '@prisma/client';
+
 import crypto from 'crypto';
 import { AppError } from '../../utils/errors';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 const algorithm = 'aes-256-cbc';
 const key = crypto.createHash('sha256').update(env.ENCRYPTION_KEY).digest();

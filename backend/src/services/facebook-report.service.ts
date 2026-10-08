@@ -1,10 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../lib/prisma';
+
 import { getDecryptedToken } from './instagram/auth.service';
 import { verifyFacebookPageLink } from './instagram/facebook-link.service';
 import { graphGet } from '../utils/instagram-api';
 import { analyticsDays } from './analytics-period';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 const count = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 type DailyPoint = { date: string; value: number };
 const dailyPoints = (metric: any, since: string, until: string): DailyPoint[] => {

@@ -1,8 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../lib/prisma';
+
 import { publishQueue, schedulePost } from './scheduler.service';
 import { notifyPublishFailure } from './notifications.service';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 // A publication still "PROCESSING" after this long was interrupted (e.g. the
 // container restarted mid-send). Video processing at Meta can take minutes.

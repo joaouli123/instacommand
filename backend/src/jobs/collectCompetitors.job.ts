@@ -1,9 +1,10 @@
+import { getPrisma } from '../lib/prisma';
 import { Worker } from 'bullmq';
 import { redisConnection } from '../config/redis';
-import { PrismaClient } from '@prisma/client';
+
 import { collectCompetitorData } from '../services/instagram/discovery.service';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export const setupCollectCompetitorsWorker = () => {
   const worker = new Worker('collect-competitors', async job => {

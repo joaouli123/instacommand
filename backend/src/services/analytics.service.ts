@@ -1,8 +1,9 @@
-import { MediaType, PrismaClient } from '@prisma/client';
+import { getPrisma } from '../lib/prisma';
+import { MediaType } from '@prisma/client';
 import { analyticsDays, publicationPeriod } from './analytics-period';
 import { metricValue, aggregateMetrics, normalizedMetrics } from './metric-availability';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export const getDashboardStats = async (accountId: string, days = 30, now = new Date()) => {
   const account = await prisma.instagramAccount.findUnique({
@@ -22,9 +23,16 @@ export const getDashboardStats = async (accountId: string, days = 30, now = new 
 
   if (!account) throw new Error('Account not found');
 
-  const pendingPostsCount = await prisma.scheduledPost.count({
-    where: { accountId, status: 'SCHEDULED' }
-  });
+  // Independent reads run together instead of one after another.
+  const [pendingPostsCount, previousPosts, followerComparison] = await Promise.all([
+    prisma.scheduledPost.count({ where: { accountId, status: 'SCHEDULED' } }),
+    // Posts published in the same-length window right before, already stored (no Meta call).
+    days <= 90 ? prisma.publishedPost.findMany({
+      where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days, new Date(now.getTime() - days * 86_400_000)) },
+      include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
+    }) : Promise.resolve(null),
+    getFollowerComparison(accountId, days, now).catch(() => null),
+  ]);
 
   const latestInsight = account.profileInsights[0];
   const previousInsight = account.profileInsights[1];
@@ -33,13 +41,7 @@ export const getDashboardStats = async (accountId: string, days = 30, now = new 
     ? latestInsight.followers - previousInsight.followers
     : null;
   const totals = aggregateMetrics(account.publishedPosts.map(post => post.insights[0] || {}));
-  // Posts published in the same-length window right before, already stored (no Meta call).
-  const previousPosts = days <= 90 ? await prisma.publishedPost.findMany({
-    where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days, new Date(now.getTime() - days * 86_400_000)) },
-    include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
-  }) : null;
   const previousTotals = previousPosts ? aggregateMetrics(previousPosts.map(post => post.insights[0] || {})) : null;
-  const followerComparison = await getFollowerComparison(accountId, days, now).catch(() => null);
 
   return {
     followers: latestInsight?.followers ?? account.igFollowersCount,

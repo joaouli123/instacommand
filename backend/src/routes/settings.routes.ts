@@ -1,11 +1,12 @@
+import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getMetaCredentialStatus, saveMetaCredentials, getThreadsCredentialStatus, saveThreadsCredentials, getAiCredentialStatus, saveAiCredentials } from '../services/instagram/auth.service';
-import { PrismaClient } from '@prisma/client';
+
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 const metaCredentialsSchema = z.object({
   appId: z.string().trim().min(1, 'Informe o App ID').max(100),

@@ -1,11 +1,12 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../../lib/prisma';
+
 import { graphGet, graphPost, graphDelete } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
 import { AppError, NotFoundError, ValidationError } from '../../utils/errors';
 import { mediaPreviewUrl } from '../../utils/meta-media';
 import { classifyIntent, CommentIntent, findOwnerReply, summarizeComments } from '../../utils/community-insights';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 type CommunityComment = {
   id: string;

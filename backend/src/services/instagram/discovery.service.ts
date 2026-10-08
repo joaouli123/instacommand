@@ -1,10 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../../lib/prisma';
+
 import { graphGet } from '../../utils/instagram-api';
 import { getDecryptedToken } from './auth.service';
 import { AppError, ConflictError, InstagramApiError, NotFoundError, ValidationError } from '../../utils/errors';
 import { formatBreakdown, postingFrequency } from './content-ranking';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export const getCompetitorProfile = async (igUserId: string, competitorUsername: string, token: string) => {
   const fields = 'business_discovery.username(' + competitorUsername + '){username,website,name,ig_id,id,profile_picture_url,biography,follows_count,followers_count,media_count}';

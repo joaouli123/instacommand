@@ -1,8 +1,9 @@
+import { getPrisma } from '../lib/prisma';
 import { Queue } from 'bullmq';
 import { redisConnection } from '../config/redis';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+
+const prisma = getPrisma();
 
 export const publishQueue = new Queue('publish-post', { connection: redisConnection });
 export const insightsQueue = new Queue('collect-insights', { connection: redisConnection });

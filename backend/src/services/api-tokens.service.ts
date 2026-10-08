@@ -1,10 +1,11 @@
+import { getPrisma } from '../lib/prisma';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { PrismaClient } from '@prisma/client';
+
 import { z } from 'zod';
 import { API_SCOPES, normalizeScopes, type ApiScope } from './api-scopes';
 import { NotFoundError, ValidationError } from '../utils/errors';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 const PREFIXES = { personal: 'ic_pat_', oauthAccess: 'ic_oat_', oauthRefresh: 'ic_ort_', oauthCode: 'ic_oac_' } as const;
 type SecretKind = keyof typeof PREFIXES;

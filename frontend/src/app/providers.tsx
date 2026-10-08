@@ -14,7 +14,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
     defaultOptions: {
       queries: {
         staleTime: 60 * 1000,
+        // Keep answers around while the user moves between pages so going back
+        // to a report renders instantly from cache.
+        gcTime: 10 * 60 * 1000,
         refetchOnWindowFocus: false,
+        // Most endpoints proxy Meta/X; the default of three retries with backoff
+        // made a failing report spin for ~7s and multiplied provider calls.
+        retry: 1,
       },
     },
   }))

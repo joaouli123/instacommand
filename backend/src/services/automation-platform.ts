@@ -1,11 +1,12 @@
-import { AutomationPlatform, PrismaClient } from '@prisma/client';
+import { getPrisma } from '../lib/prisma';
+import { AutomationPlatform } from '@prisma/client';
 import { getDecryptedThreadsToken, getDecryptedToken, getInstagramGrantedPermissions, getThreadsCredentials } from './instagram/auth.service';
 import { verifyFacebookPageLink } from './instagram/facebook-link.service';
 import { graphPost } from '../utils/instagram-api';
 import { AppError, NotFoundError, ValidationError } from '../utils/errors';
 import { setTimeout as delay } from 'node:timers/promises';
 
-export const automationDb = new PrismaClient();
+export const automationDb = getPrisma();
 export type Platform = AutomationPlatform;
 export type AutomationAccount = { id: string; userId: string; platform: Platform; externalId: string; username: string; pageId?: string; igUserId?: string };
 /** Networks where automations only answer publicly and new items are collected by polling. */

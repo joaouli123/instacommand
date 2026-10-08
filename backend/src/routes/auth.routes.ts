@@ -1,7 +1,8 @@
+import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
 import { getOAuthUrl, handleOAuthCallback, getThreadsOAuthUrl, handleThreadsOAuthCallback } from '../services/instagram/auth.service';
 import { authenticate, verifyAuthToken } from '../middleware/auth';
-import { PrismaClient } from '@prisma/client';
+
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { env } from '../config/env';
@@ -10,7 +11,7 @@ import { syncAccountsInBackground } from '../services/account-sync.service';
 import { createXAuthorization, handleXCallback, readXState } from '../services/x.service';
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 type OAuthPurpose = 'meta' | 'threads';
 

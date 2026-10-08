@@ -551,6 +551,8 @@ model ScheduledPost {
   @@index([status, scheduledFor])
   @@index([threadsAccountId])
   @@index([xAccountId])
+  @@index([userId, scheduledFor])
+  @@index([accountId, scheduledFor])
 }
 
 model PublishedPost {
@@ -575,6 +577,7 @@ model PublishedPost {
 
   @@index([accountId])
   @@index([accountId, instagramDeletedAt])
+  @@index([accountId, publishedAt])
 }
 
 model PostInsight {
@@ -595,6 +598,7 @@ model PostInsight {
   post PublishedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])
+  @@index([postId, collectedAt])
 }
 
 model ProfileInsight {
@@ -619,6 +623,7 @@ model ProfileInsight {
   account InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
+  @@index([accountId, collectedAt])
 }
 
 enum DemographicType {
@@ -639,6 +644,7 @@ model AudienceDemographic {
   account InstagramAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
+  @@index([accountId, collectedAt])
 }
 
 model Competitor {
@@ -674,6 +680,7 @@ model CompetitorInsight {
   competitor Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
 
   @@index([competitorId])
+  @@index([competitorId, collectedAt])
 }
 
 model HashtagSearch {

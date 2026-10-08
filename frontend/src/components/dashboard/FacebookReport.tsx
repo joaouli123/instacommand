@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { facebookHistoryRows, getObservedInteractions, rankFacebookPosts, type FacebookAudienceHistory } from '@/lib/facebook-report'
 import { ChartRow, downloadReport, reportDay, reportFormat } from '@/lib/report-chart'
 import { CompareContext, CompareToggle, MetricCard, useComparePreference } from './MetricCard'
-import { ReportChart } from './ReportChart'
+import { ReportChart } from './LazyCharts'
 import { ReportPublications } from './ReportPublications'
 import { ReportAccessNotice } from './ReportAccessNotice'
 
@@ -26,7 +26,7 @@ export function FacebookReport() {
   const [selected, setSelected] = useState('')
   const [comparing, setComparing] = useComparePreference()
   const [days, setDays] = useState(30)
-  const accountsQuery = useQuery({ queryKey: ['facebook-linked-accounts'], queryFn: api.getAccounts })
+  const accountsQuery = useQuery({ queryKey: ['accounts'], queryFn: api.getAccounts })
   const accounts = ((accountsQuery.data || []) as Array<{ id: string; igUsername: string; pageId: string; pageName: string | null }>).filter(a => a.pageId)
   const accountId = accounts.some(a => a.id === selected) ? selected : accounts[0]?.id || ''
   const query = useQuery<Report>({ queryKey: ['facebook-report', accountId, days], enabled: !!accountId,

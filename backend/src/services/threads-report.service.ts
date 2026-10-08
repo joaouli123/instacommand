@@ -1,7 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../lib/prisma';
+
 import { getDecryptedThreadsToken } from './instagram/auth.service';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 type Metric = { value: number | null; daily: Array<{ date: string; value: number }>; available: boolean };
 
 export function parseThreadsMetric(item: any, cumulative = false, since?: number, until?: number, totalMatchesPeriod = false): Metric {

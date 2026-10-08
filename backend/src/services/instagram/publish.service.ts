@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../../lib/prisma';
+
 import { graphPost, graphGet, graphDelete as apiDelete } from '../../utils/instagram-api';
 import { getDecryptedToken, getDecryptedThreadsToken, getInstagramGrantedPermissions } from './auth.service';
 import { notifyPublishFailure } from '../notifications.service';
@@ -18,7 +19,7 @@ const publishFailure = (error: unknown) => {
   return error instanceof Error ? error.message : 'falha desconhecida';
 };
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export const createMediaContainer = async (
   igUserId: string,

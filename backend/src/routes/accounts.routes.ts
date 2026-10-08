@@ -1,12 +1,14 @@
+import { getPrisma } from '../lib/prisma';
+import { invalidateCached } from '../utils/ttl-cache';
 import { Router } from 'express';
 import { getConnectedAccounts, getPendingConnectedAccounts, selectConnectedAccounts, disconnectAccount, getConnectedThreadsAccounts, disconnectThreadsAccount } from '../services/instagram/auth.service';
 import { isAccountSyncRunning, syncAccountOnce } from '../services/account-sync.service';
 import { authenticate } from '../middleware/auth';
 import { disconnectXAccount, getConnectedXAccounts, isXConfigured } from '../services/x.service';
-import { PrismaClient } from '@prisma/client';
+
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 router.use(authenticate);
 
@@ -121,6 +123,8 @@ router.post('/:id/sync', async (req: any, res, next) => {
     if (!account) return res.status(404).json({ error: 'Account not found' });
 
     const sync = await syncAccountOnce(account.id);
+    // Fresh numbers were just imported; drop cached provider reports for this account.
+    invalidateCached(account.id);
     res.json({ message: 'Account synced', sync });
   } catch (error) {
     next(error);

@@ -1,12 +1,13 @@
+import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { decideConsent, describeConsentRequest, OAuthError } from '../services/oauth.service';
 
 // Consent decisions require the browser session of the signed-in workspace.
 // API tokens are rejected for /api/oauth/* by the scope policy.
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 router.use(authenticate);
 
 const sendError = (res: any, error: unknown, next: (error: unknown) => void) => {

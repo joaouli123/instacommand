@@ -1,12 +1,13 @@
+import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { addCompetitor, removeCompetitor, collectCompetitorData, normalizeCompetitorInsight } from '../services/instagram/discovery.service';
-import { PrismaClient } from '@prisma/client';
+
 import { calculateCompetitorMetrics } from '../services/instagram/discovery.service';
 import { formatBreakdown, normalizePost, postingFrequency, rankPosts } from '../services/instagram/content-ranking';
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 router.use(authenticate);
 

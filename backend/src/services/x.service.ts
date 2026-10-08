@@ -1,12 +1,13 @@
+import { getPrisma } from '../lib/prisma';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+
 import { env } from '../config/env';
 import { AppError } from '../utils/errors';
 import { decryptSecret, encryptSecret } from './instagram/auth.service';
 import { readLimitedBody, safeGet } from '../utils/safe-fetch';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export const X_API = 'https://api.x.com';
 export const X_AUTHORIZE_URL = 'https://x.com/i/oauth2/authorize';

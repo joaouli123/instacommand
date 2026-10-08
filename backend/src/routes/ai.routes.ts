@@ -1,5 +1,6 @@
+import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { generateAiContent } from '../services/ai.service';
@@ -10,7 +11,7 @@ import { MAX_AI_IMAGE_BYTES, validateAiImages } from '../services/ai-images';
 import { aiProfileSelect, buildAiProfileContext } from '../services/ai-profile-context';
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 const requestSchema = z.object({
   mode: z.enum(['caption', 'plan', 'daily', 'audit', 'reply']),

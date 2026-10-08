@@ -16,7 +16,8 @@ import { ChangeBadge } from "@/components/dashboard/MetricCard"
 import { MediaPreview } from "@/components/dashboard/MediaPreview"
 import { periodChange, type InstagramProfileReport } from "@/lib/instagram-report"
 import { cn } from "@/lib/utils"
-import { clip, dataSource, downloadReportPdf, thumbnail, type PdfReport, type PdfSection } from "@/lib/report-pdf"
+import { clip, dataSource } from "@/lib/report-text"
+import type { PdfReport, PdfSection } from "@/lib/report-pdf"
 import toast from "react-hot-toast"
 
 type Num = number | null | undefined
@@ -107,6 +108,8 @@ export default function ReportPage() {
     if (!handle || exporting) return
     setExporting(true)
     try {
+      // The PDF builder (jsPDF, autotable, react-dom/server) loads only on click.
+      const { downloadReportPdf, thumbnail } = await import("@/lib/report-pdf")
       const order = (["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).filter((key) => networks[key] && drafts.current[key])
       const sections: PdfSection[] = await Promise.all(order.map(async (key) => {
         const draft = drafts.current[key]

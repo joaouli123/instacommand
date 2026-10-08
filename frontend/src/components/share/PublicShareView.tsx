@@ -70,7 +70,7 @@ function Thumb({ post, className }: { post: PublicPost; className?: string }) {
   if (!src) return <div className={cn("flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400", className)}><FileText size={20} /></div>
   if (isVideoUrl(src)) return <video src={`${src}#t=0.5`} muted playsInline preload="metadata" className={cn("object-cover", className)} />
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" loading="lazy" className={cn("object-cover", className)} />
+  return <img src={src} alt="" loading="lazy" decoding="async" className={cn("object-cover", className)} />
 }
 
 export function PublicShareView({ token }: { token: string }) {
@@ -382,7 +382,7 @@ function Annotator({ post, mediaIndex, setMediaIndex, pins, pinNumbers, pending,
     </div>
     {post.mediaUrls.length > 1 && <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
       {post.mediaUrls.map((url, index) => <button key={url + index} type="button" onClick={() => setMediaIndex(index)} aria-label={`Mídia ${index + 1}`} className={cn("relative h-14 w-14 shrink-0 overflow-hidden rounded-lg ring-2", index === mediaIndex ? "ring-indigo-600" : "ring-transparent opacity-70")}>
-        {isVideoUrl(url) ? <video src={`${url}#t=0.5`} muted preload="metadata" className="h-full w-full object-cover" /> : /* eslint-disable-next-line @next/next/no-img-element */ <img src={url} alt="" className="h-full w-full object-cover" />}
+        {isVideoUrl(url) ? <video src={`${url}#t=0.5`} muted preload="metadata" className="h-full w-full object-cover" /> : /* eslint-disable-next-line @next/next/no-img-element */ <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
         {pins.some((pin) => (pin.mediaIndex ?? 0) === index) && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-1 ring-white" />}
       </button>)}
     </div>}

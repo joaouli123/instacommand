@@ -48,6 +48,16 @@ export function createApp() {
   app.use(helmet());
   app.use(morgan('dev'));
   app.use(compression());
+  // Slow-request log for diagnosis: only requests over 1s, path without query
+  // string so tokens and personal data never reach the logs.
+  app.use((req, res, next) => {
+    const started = process.hrtime.bigint();
+    res.on('finish', () => {
+      const ms = Number(process.hrtime.bigint() - started) / 1e6;
+      if (ms > 1000) console.warn(`[slow] ${req.method} ${req.originalUrl.split('?')[0]} ${res.statusCode} ${Math.round(ms)}ms`);
+    });
+    next();
+  });
   app.use(cookieParser());
 
   // MCP clients (ChatGPT, Claude, Cursor...) call these with bearer tokens or
@@ -92,7 +102,9 @@ export function createApp() {
   });
 
   // Static files (uploads)
-  app.use('/uploads', express.static(uploadDir, { setHeaders: publicMediaHeaders }));
+  // Upload filenames are unique per file, so browsers and the proxy may keep
+  // them for a long time instead of revalidating every thumbnail.
+  app.use('/uploads', express.static(uploadDir, { maxAge: '30d', immutable: true, setHeaders: publicMediaHeaders }));
 
   // Coolify and reverse proxies use this endpoint to determine if the API is ready.
   app.get('/health', (_req, res) => {

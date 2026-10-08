@@ -1,5 +1,5 @@
 "use client"
-import { ReportChart } from "./ReportChart"
+import { ReportChart } from "./LazyCharts"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 type Point = { date: string; engagement: number | null; interactions: number | null }

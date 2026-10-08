@@ -14,11 +14,14 @@ import { api } from "@/lib/api"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 import toast from "react-hot-toast"
 import { useQuery } from "@tanstack/react-query"
-import { PostPreviewPanel } from "@/components/calendar/PostPreviewPanel"
+import dynamic from "next/dynamic"
 import { captionAsPublished } from "@/lib/caption"
 import { PlatformChip, PlatformIcons, platformBackground, platformLabel } from "@/components/ui/platform-icons"
 import { ShareClientButton } from "@/components/share/ShareClientDialog"
 import { ClientCommentsPanel } from "@/components/share/ClientCommentsPanel"
+
+// The post preview (and twitter-text) is only needed when a post is opened.
+const PostPreviewPanel = dynamic(() => import("@/components/calendar/PostPreviewPanel").then((m) => m.PostPreviewPanel), { ssr: false })
 
 // Status is shown with small white icons so the card keeps only the network's own color.
 const STATUS_ICON = { published: CheckCircle2, scheduled: Clock, draft: PencilLine, failed: AlertTriangle } as const

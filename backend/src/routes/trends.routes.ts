@@ -1,11 +1,12 @@
+import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { searchHashtag, saveHashtagSearch, getSavedHashtags, getTrendFeed, hashtagSuggestions } from '../services/trends.service';
 import { parsePeriodDays, parseRankFormat, parseRankSort } from '../services/instagram/content-ranking';
-import { PrismaClient } from '@prisma/client';
+
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 router.use(authenticate);
 

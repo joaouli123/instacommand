@@ -1,7 +1,8 @@
+import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth';
-import { PrismaClient, MediaType, PostStatus } from '@prisma/client';
+import { MediaType, PostStatus } from '@prisma/client';
 import { schedulePost, cancelScheduledPost } from '../services/scheduler.service';
 import { publishPost, deleteFacebookPost, deleteThreadsPost } from '../services/instagram/publish.service';
 import path from 'path';
@@ -28,7 +29,7 @@ import { hasInstagramAdvancedOptions, validateInstagramAdvancedSettings } from '
 import { searchInstagramLocations } from '../services/instagram/locations.service';
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

@@ -1,10 +1,11 @@
+import { getPrisma } from '../lib/prisma';
 import { Worker } from 'bullmq';
 import { redisConnection } from '../config/redis';
-import { PrismaClient } from '@prisma/client';
+
 import { saveProfileSnapshot, savePostInsights } from '../services/instagram/insights.service';
 import { createWeeklyReportNotification } from '../services/notifications.service';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 const refreshWindowMs: Record<string, number> = {
   '15m': 15 * 60 * 1000,

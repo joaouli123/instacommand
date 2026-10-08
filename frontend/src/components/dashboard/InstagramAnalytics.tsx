@@ -15,6 +15,7 @@ import { FormatPerformance, Recommendations } from "./FormatPerformance"
 import { BestTimesHeatmap } from "./BestTimesHeatmap"
 import { ReportAccessNotice } from "./ReportAccessNotice"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
+import { useQueryClient } from "@tanstack/react-query"
 import { api, fetchApi } from "@/lib/api"
 import { instagramCountryLabel, instagramFollowerCards, instagramProfileWindow, type InstagramProfileReport } from "@/lib/instagram-report"
 import { Badge } from "@/components/ui/badge"
@@ -112,6 +113,17 @@ export function InstagramAnalytics() {
   const rankRequests = useRef({ STORY: 0, REEL: 0, FEED: 0 })
   const [syncing, setSyncing] = useState(false)
   const { accounts: activeAccounts, accountId: activeAccountId, isLoading: accountsLoading, setActiveAccount } = useActiveAccount()
+  const queryClient = useQueryClient()
+  // Each analytics endpoint is cached for a minute in the shared query cache, so
+  // switching tabs, periods back and forth, or remounting the page reuses the
+  // answers instead of firing the dozen Meta-backed requests again.
+  // Superseded loads are ignored by request id rather than aborted, so a finished
+  // response still lands in the cache for the next visit.
+  const cachedGet = useCallback((url: string) => queryClient.fetchQuery({
+    queryKey: ["instagram-analytics", url],
+    queryFn: () => fetchApi(url),
+    staleTime: 60_000,
+  }), [queryClient])
 
   const loadRanking = useCallback(async (id: string, days: number, type: TopGroup, metric: RankMetric) => {
     const version = latestRequest.current
@@ -119,7 +131,7 @@ export function InstagramAnalytics() {
     const current = () => version === latestRequest.current && rankingId === rankRequests.current[type]
     setRankingLoading((state) => ({ ...state, [type]: true }))
     try {
-      const result = await fetchApi(`/analytics/${encodeURIComponent(id)}/top-posts?days=${days}&mediaType=${type}&sortBy=${metric}`) as { data?: AnalyticsPost[] }
+      const result = await cachedGet(`/analytics/${encodeURIComponent(id)}/top-posts?days=${days}&mediaType=${type}&sortBy=${metric}`) as { data?: AnalyticsPost[] }
       if (!current()) return
       setRankings((state) => ({ ...state, [type]: result.data || [] }))
       setRankMetrics((state) => ({ ...state, [type]: metric }))
@@ -127,13 +139,13 @@ export function InstagramAnalytics() {
       if (!current()) return
       setRankings((state) => ({ ...state, [type]: [] }))
     } finally { if (current()) setRankingLoading((state) => ({ ...state, [type]: false })) }
-  }, [])
+  }, [cachedGet])
 
   const loadAudience = useCallback(async (id: string, type: "followers" | "engaged") => {
     const version = latestRequest.current
     setLoadingAudience(true)
     try {
-      const result = await fetchApi(`/analytics/${encodeURIComponent(id)}/audience?audience=${type}`) as AudiencePayload
+      const result = await cachedGet(`/analytics/${encodeURIComponent(id)}/audience?audience=${type}`) as AudiencePayload
       if (version !== latestRequest.current) return
       setAudience(result)
       setAudienceType(type)
@@ -141,14 +153,14 @@ export function InstagramAnalytics() {
       if (version !== latestRequest.current) return
       setAudience({ available: false, data: [], message: loadError instanceof Error ? loadError.message : "Não foi possível consultar a audiência." })
     } finally { if (version === latestRequest.current) setLoadingAudience(false) }
-  }, [])
+  }, [cachedGet])
 
   const loadAnalytics = useCallback(async (id: string, days: number, page = 1) => {
     const requestId = ++latestRequest.current
     controller.current?.abort()
     const request = new AbortController()
     controller.current = request
-    const get = (path: string) => fetchApi(`/analytics/${encodeURIComponent(id)}/${path}`, { signal: request.signal })
+    const get = (path: string) => cachedGet(`/analytics/${encodeURIComponent(id)}/${path}`)
     setRankingLoading({ STORY: false, REEL: false, FEED: false })
     setRankMetrics({ STORY: "views", REEL: "views", FEED: "interactions" })
     setLoadingAudience(false)
@@ -203,11 +215,11 @@ export function InstagramAnalytics() {
       if (requestId !== latestRequest.current) return
       setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os dados reais da conta.")
     } finally { if (requestId === latestRequest.current) setLoading(false) }
-  }, [])
+  }, [cachedGet])
+
+  useEffect(() => { setAccounts((activeAccounts || []) as Account[]) }, [activeAccounts])
 
   useEffect(() => {
-    const nextAccounts = (activeAccounts || []) as Account[]
-    setAccounts(nextAccounts)
     if (!activeAccountId) {
       if (!accountsLoading) setLoading(false)
       return
@@ -217,7 +229,9 @@ export function InstagramAnalytics() {
     return () => { latestRequest.current += 1; controller.current?.abort() }
   // The active-account hook is the single source of truth for the global selector.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAccountId, activeAccounts, accountsLoading])
+  // Only the selected account matters here: the accounts list gets a new array on
+  // every background refresh, which used to re-run all twelve analytics requests.
+  }, [activeAccountId, accountsLoading])
 
   useEffect(() => {
     if (section === "demografia" && accountId && !loading) void loadAudience(accountId, audienceType)
@@ -231,6 +245,7 @@ export function InstagramAnalytics() {
     setSyncing(true); setError("")
     try {
       await api.syncAccount(accountId)
+      await queryClient.invalidateQueries({ queryKey: ["instagram-analytics"] })
       const refreshed = await api.getAccounts() as Account[]
       if (version !== latestRequest.current) return
       setAccounts(refreshed)

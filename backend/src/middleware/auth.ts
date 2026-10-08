@@ -1,13 +1,14 @@
+import { getPrisma } from '../lib/prisma';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+
 import { env } from '../config/env';
 import { AppError, ForbiddenError, UnauthorizedError } from '../utils/errors';
 import { isApiTokenFormat, verifyApiToken } from '../services/api-tokens.service';
 import { API_SCOPE_DETAILS, requiredScopeFor, resolvePostRequirement, type ApiScope } from '../services/api-scopes';
 import { isTrustedMcpProxyRequest } from '../mcp/proxy-trust';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export type RequestAuth =
   | { kind: 'session' }

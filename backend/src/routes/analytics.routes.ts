@@ -1,3 +1,4 @@
+import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { 
@@ -10,7 +11,7 @@ import {
 } from '../services/analytics.service';
 import { getAudienceDemographics, getBestTimeToPost, getContentTypeAnalysis, getInstagramProfileReport } from '../services/instagram/insights.service';
 import { getDecryptedToken, getInstagramGrantedPermissions } from '../services/instagram/auth.service';
-import { PrismaClient } from '@prisma/client';
+
 import { MediaType } from '@prisma/client';
 import { InstagramApiError } from '../utils/errors';
 import { getFacebookReport } from '../services/facebook-report.service';
@@ -18,9 +19,13 @@ import { getThreadsReport } from '../services/threads-report.service';
 import { analyticsDays } from '../services/analytics-period';
 import { readLimitedBody, safeGet } from '../utils/safe-fetch';
 import { detectMediaSignature } from '../utils/media-signature';
+import { cached } from '../utils/ttl-cache';
+
+// Provider-backed reports are reused for a few minutes per user/account/period.
+const REPORT_TTL_MS = 5 * 60_000;
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 // Meta CDN hosts that serve post thumbnails; nothing else is proxied.
 export const isMetaCdnHost = (host: string) => /(^|\.)(cdninstagram\.com|fbcdn\.net)$/i.test(host);
@@ -69,13 +74,16 @@ router.get('/networks/threads/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);
   if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
   try {
-    const now = Date.now();
-    // The window of the same length right before, for "vs. período anterior"; never blocks the current report.
-    // Current report first; the previous window only after it, to avoid a burst of provider calls.
-    const report = await getThreadsReport(req.user.id, req.params.accountId, days, now);
-    const previous = report ? await getThreadsReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null) : null;
-    if (!report) return res.status(404).json({ error: 'Conta do Threads não encontrada.' });
-    return res.json({ ...report, previous: previous ? { period: previous.period, metrics: previous.metrics, posts: previous.contentAvailable ? previous.posts.length : null } : null });
+    const body = await cached(`threads:${req.user.id}:${req.params.accountId}:${days}`, REPORT_TTL_MS, async () => {
+      const now = Date.now();
+      // The window of the same length right before, for "vs. período anterior"; never blocks the current report.
+      // Current report first; the previous window only after it, to avoid a burst of provider calls.
+      const report = await getThreadsReport(req.user.id, req.params.accountId, days, now);
+      const previous = report ? await getThreadsReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null) : null;
+      return report ? { ...report, previous: previous ? { period: previous.period, metrics: previous.metrics, posts: previous.contentAvailable ? previous.posts.length : null } : null } : null;
+    }, { refresh: req.query.refresh === '1', keep: Boolean });
+    if (!body) return res.status(404).json({ error: 'Conta do Threads não encontrada.' });
+    return res.json(body);
   } catch (error) { next(error); }
 });
 
@@ -83,12 +91,15 @@ router.get('/networks/facebook/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);
   if (![7, 30, 90, 365, 730].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
   try {
-    const now = Date.now();
-    const report = await getFacebookReport(req.user.id, req.params.accountId, days, now);
-    // Comparing 1–2 years would page through years of posts; only up to 90 days is compared.
-    const previous = report && days <= 90 ? await getFacebookReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null) : null;
-    if (!report) return res.status(404).json({ error: 'Conta não encontrada.' });
-    return res.json({ ...report, previous: previous ? { period: previous.period, mediaViews: previous.insights.mediaViews, totals: previous.totals, posts: previous.contentAvailable ? previous.posts.length : null } : null });
+    const body = await cached(`facebook:${req.user.id}:${req.params.accountId}:${days}`, REPORT_TTL_MS, async () => {
+      const now = Date.now();
+      const report = await getFacebookReport(req.user.id, req.params.accountId, days, now);
+      // Comparing 1–2 years would page through years of posts; only up to 90 days is compared.
+      const previous = report && days <= 90 ? await getFacebookReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null) : null;
+      return report ? { ...report, previous: previous ? { period: previous.period, mediaViews: previous.insights.mediaViews, totals: previous.totals, posts: previous.contentAvailable ? previous.posts.length : null } : null } : null;
+    }, { refresh: req.query.refresh === '1', keep: Boolean });
+    if (!body) return res.status(404).json({ error: 'Conta não encontrada.' });
+    return res.json(body);
   } catch (error) { next(error); }
 });
 
@@ -169,9 +180,13 @@ router.get('/:accountId/posts', async (req, res, next) => {
 
 router.get('/:accountId/audience', async (req: any, res, next) => {
   try {
-    const token = await getDecryptedToken(req.params.accountId);
     const audience = req.query.audience === 'engaged' ? 'engaged' : 'followers';
-    const data = await getAudienceDemographics(req.account.igUserId, token, audience);
+    // Demographics are 30-day aggregates; a sync or reconnect changes the revision part of the key.
+    const revision = `${req.account.updatedAt?.getTime?.() ?? ''}:${req.account.lastSyncAt?.getTime?.() ?? ''}`;
+    const data = await cached(`audience:${req.params.accountId}:${revision}:${audience}`, 15 * 60_000, async () => {
+      const token = await getDecryptedToken(req.params.accountId);
+      return getAudienceDemographics(req.account.igUserId, token, audience);
+    }, { refresh: req.query.refresh === '1', keep: (rows) => rows.length > 0 });
     res.json({
       available: data.length > 0,
       audience,

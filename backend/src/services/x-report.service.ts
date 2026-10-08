@@ -1,7 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../lib/prisma';
+
 import { getXAccessToken, xRequest } from './x.service';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export type XPostMetrics = { impressions: number | null; likes: number; replies: number; reposts: number; quotes: number; bookmarks: number; urlClicks: number | null; profileClicks: number | null };
 export type XReportPost = { id: string; text: string; createdAt: string; url: string; image: string | null; metrics: XPostMetrics; engagement: number };
