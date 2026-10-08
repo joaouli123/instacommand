@@ -9,6 +9,8 @@ export type MetricCompare = {
   previous: number | null | undefined
   /** How to print the previous value (rates, decimals); defaults to the report number format. */
   format?: (value: number) => string
+  /** Metrics where going up is bad (e.g. unfollows): up is red, down is green. */
+  inverted?: boolean
 }
 
 /** Lets a report turn every "vs. período anterior" badge on or off at once. */
@@ -49,15 +51,22 @@ export function MetricCard({ label, value, detail, accent = false, compare }: { 
     <h3 className="text-xs font-medium leading-snug text-slate-600 sm:text-sm">{label}</h3>
     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
       <p className="break-words text-2xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-[28px]">{typeof value === 'string' ? value : reportFormat(value)}</p>
-      {change && <ChangeBadge direction={change.direction} percent={change.percent} />}
+      {change && <ChangeBadge direction={change.direction} percent={change.percent} inverted={compare?.inverted} />}
+      {compare && comparing && !change && compare.previous == null && compare.current != null && <NoHistoryBadge />}
     </div>
     {change && compare?.previous != null && <p className="mt-1 text-[11px] font-medium text-slate-500 sm:text-xs">{compare.format ? compare.format(compare.previous) : reportFormat(compare.previous)} no período anterior</p>}
     {(detail || missing) && <p className="mt-1 text-[11px] leading-relaxed text-slate-500 sm:text-xs">{detail || 'Não fornecido pela rede'}</p>}
   </Card>
 }
 
-export function ChangeBadge({ direction, percent }: { direction: 'up' | 'down' | 'flat'; percent: number | null }) {
-  const tone = direction === 'up' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : direction === 'down' ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-slate-100 text-slate-600 ring-slate-200'
+export function NoHistoryBadge() {
+  return <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-500 ring-1 ring-inset ring-slate-200" title="sem histórico do período anterior" aria-label="sem histórico do período anterior">—</span>
+}
+
+export function ChangeBadge({ direction, percent, inverted = false }: { direction: 'up' | 'down' | 'flat'; percent: number | null; inverted?: boolean }) {
+  const good = inverted ? direction === 'down' : direction === 'up'
+  const bad = inverted ? direction === 'up' : direction === 'down'
+  const tone = good ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : bad ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-slate-100 text-slate-600 ring-slate-200'
   const arrow = direction === 'up' ? '▲' : direction === 'down' ? '▼' : '='
   const text = percent == null ? 'novo' : `${percent > 0 ? '+' : ''}${percent.toLocaleString('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: Math.abs(percent) < 10 ? 1 : 0 })}%`
   return <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums ring-1 ring-inset ${tone}`} title="Comparado ao período anterior de mesma duração">{arrow} {text}</span>

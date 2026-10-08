@@ -1,10 +1,10 @@
 import { MediaType, PrismaClient } from '@prisma/client';
-import { publicationPeriod } from './analytics-period';
+import { analyticsDays, publicationPeriod } from './analytics-period';
 import { metricValue, aggregateMetrics, normalizedMetrics } from './metric-availability';
 
 const prisma = new PrismaClient();
 
-export const getDashboardStats = async (accountId: string, days = 30) => {
+export const getDashboardStats = async (accountId: string, days = 30, now = new Date()) => {
   const account = await prisma.instagramAccount.findUnique({
     where: { id: accountId },
     include: {
@@ -13,7 +13,7 @@ export const getDashboardStats = async (accountId: string, days = 30) => {
         take: 2,
       },
       publishedPosts: {
-        where: { igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days) },
+        where: { igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days, now) },
         include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
         orderBy: { publishedAt: 'desc' },
       },
@@ -33,6 +33,13 @@ export const getDashboardStats = async (accountId: string, days = 30) => {
     ? latestInsight.followers - previousInsight.followers
     : null;
   const totals = aggregateMetrics(account.publishedPosts.map(post => post.insights[0] || {}));
+  // Posts published in the same-length window right before, already stored (no Meta call).
+  const previousPosts = days <= 90 ? await prisma.publishedPost.findMany({
+    where: { accountId, igMediaId: { not: null }, instagramDeletedAt: null, publishedAt: publicationPeriod(days, new Date(now.getTime() - days * 86_400_000)) },
+    include: { insights: { orderBy: { collectedAt: 'desc' }, take: 1 } },
+  }) : null;
+  const previousTotals = previousPosts ? aggregateMetrics(previousPosts.map(post => post.insights[0] || {})) : null;
+  const followerComparison = await getFollowerComparison(accountId, days, now).catch(() => null);
 
   return {
     followers: latestInsight?.followers ?? account.igFollowersCount,
@@ -49,6 +56,12 @@ export const getDashboardStats = async (accountId: string, days = 30) => {
     profileCollectedAt: latestInsight?.collectedAt ?? null,
     pendingPosts: pendingPostsCount,
     engagementRate: totals.engagement === null ? null : Number(totals.engagement?.toFixed(2)),
+    followerPeriod: followerComparison?.current ?? null,
+    previous: previousTotals ? {
+      interactions: previousPosts!.length ? previousTotals.interactions : null,
+      engagementRate: previousTotals.engagement == null ? null : Number(previousTotals.engagement.toFixed(2)),
+      followers: followerComparison?.previous ?? null,
+    } : null,
   };
 };
 
@@ -72,8 +85,46 @@ const previousDay = (day: string) => {
   return new Date(Date.UTC(year, month - 1, date - 1)).toISOString().slice(0, 10);
 };
 
-export const getGrowthData = async (accountId: string, days = 30, now = new Date()): Promise<GrowthPoint[]> => {
-  const period = publicationPeriod(days, now);
+export const getGrowthData = async (accountId: string, days = 30, now = new Date()): Promise<GrowthPoint[]> =>
+  loadGrowth(accountId, publicationPeriod(days, now), now);
+
+export type FollowerWindow = { since: string; until: string; start: number | null; end: number | null; net: number | null; gained: number | null; lost: number | null };
+
+const sumKnown = (values: Array<number | null>) => { const known = values.filter((v): v is number => v !== null); return known.length ? known.reduce((a, b) => a + b, 0) : null; };
+
+/** Net change and daily follows/unfollows of one window, from stored points only (null when there is no history). */
+export const summarizeFollowerWindow = (points: GrowthPoint[], since: string, until: string): FollowerWindow => {
+  const inside = points.filter((p) => p.date >= since && p.date <= until);
+  const totals = inside.filter((p) => p.followers !== null);
+  const start = totals[0]?.followers ?? null;
+  const end = totals.at(-1)?.followers ?? null;
+  return { since, until, start, end, net: totals.length > 1 ? end! - start! : null,
+    gained: sumKnown(inside.map((p) => p.followsGained)), lost: sumKnown(inside.map((p) => p.followsLost)) };
+};
+
+const shiftDay = (day: string, delta: number) => { const [y, m, d] = day.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10); };
+
+/**
+ * Follower growth in the period and in the same-length period right before it,
+ * read from one stored series (snapshots + Meta daily rows), so no Meta call.
+ * Long ranges (over 90 days) are not compared, like the other reports.
+ */
+export const getFollowerComparison = async (accountId: string, days = 30, now = new Date()) => {
+  analyticsDays(days);
+  const until = saoPauloDay(now);
+  const since = saoPauloDay(new Date(now.getTime() - days * 86_400_000));
+  if (days > 90) {
+    return { current: summarizeFollowerWindow(await getGrowthData(accountId, days, now), since, until), previous: null };
+  }
+  const points = await loadGrowth(accountId, { gte: new Date(now.getTime() - 2 * days * 86_400_000), lte: now }, now);
+  const previousUntil = shiftDay(since, -1);
+  const previousSince = saoPauloDay(new Date(now.getTime() - 2 * days * 86_400_000));
+  const previous = summarizeFollowerWindow(points, previousSince, previousUntil);
+  const current = summarizeFollowerWindow(points, since, until);
+  return { current, previous };
+};
+
+const loadGrowth = async (accountId: string, period: { gte: Date; lte: Date }, now: Date): Promise<GrowthPoint[]> => {
   const startDay = saoPauloDay(period.gte);
   const today = saoPauloDay(now);
   const [insights, dailyRows, account] = await Promise.all([

@@ -9,7 +9,7 @@ import {
   AlertCircle, Bookmark, Heart,
   MessageCircle, RefreshCw, Share2, TrendingUp, Users,
 } from "lucide-react"
-import { CompareContext, CompareToggle, MetricCard, useComparePreference } from "./MetricCard"
+import { CompareContext, CompareToggle, MetricCard, useComparePreference, type MetricCompare } from "./MetricCard"
 import { ReportChart } from "./ReportChart"
 import { FormatPerformance, Recommendations } from "./FormatPerformance"
 import { BestTimesHeatmap } from "./BestTimesHeatmap"
@@ -30,7 +30,11 @@ type Dashboard = {
   reach: number | null; views: number | null; impressions: number | null
   accountsEngaged?: number | null; profileLinkTaps?: number | null
   interactions: number | null; interactionsPartial?: boolean; engagementRate?: number | null; pendingPosts: number
+  followerPeriod?: FollowerWindow | null
+  /** Same-length window right before, from stored data; null for 12/24 months. */
+  previous?: { interactions: number | null; engagementRate: number | null; followers: FollowerWindow | null } | null
 }
+type FollowerWindow = { since: string; until: string; start: number | null; end: number | null; net: number | null; gained: number | null; lost: number | null }
 type FollowerSnapshot = { date: string; followers: number | null; followersEstimated?: boolean; followsGained?: number | null; followsLost?: number | null; reach: number | null; views: number | null; accountsEngaged?: number | null; interactions: number | null }
 type TimelineItem = { date: string; likes: number | null; comments: number | null; saves: number | null; shares: number | null; reach: number | null; impressions: number | null; engagement: number | null; posts: number; interactions: number | null }
 type Insight = { likes?: number | null; comments?: number | null; saves?: number | null; shares?: number | null; reach?: number | null; views?: number | null; engagement?: number | null; collectedAt?: string }
@@ -263,6 +267,8 @@ export function InstagramAnalytics() {
   const previousMetrics = profileReport?.previous?.metrics
   const vs = (key: keyof NonNullable<typeof profileMetrics>) => ({ current: profileMetrics?.[key], previous: previousMetrics?.[key] })
   const followerNet = profileReport?.followers.net
+  // Previous window from the stored follower series (snapshots + Meta daily rows).
+  const storedFollowers = dashboard?.previous?.followers ?? null
   const profileNotice = <div className="space-y-1 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 text-xs leading-relaxed text-slate-600">
     <p className="font-semibold text-slate-800">Resumo do perfil · {profileWindow.label.toLowerCase()}{comparing && profileReport?.previous && <span className="font-normal text-slate-500"> · comparado aos {profileReport.previous.period.days} dias anteriores (<span className="font-semibold text-emerald-700">▲ subiu</span> / <span className="font-semibold text-rose-700">▼ caiu</span>)</span>}</p>
     {Number(period) > 30 && <p>{profileWindow.notice}</p>}
@@ -335,7 +341,7 @@ export function InstagramAnalytics() {
             ["saves", "Salvos"], ["replies", "Respostas"], ["reposts", "Republicações"],
           ] as const).map(([key, label]) => <MetricCard key={key} label={label} value={profileMetrics?.[key]} detail={profileWindow.label} compare={vs(key)}/>)}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2"><MetricCard label="Interações nos posts selecionados" value={dashboard?.interactions} detail={`Posts publicados nos últimos ${period} dias · contadores acumulados até a coleta${dashboard?.interactionsPartial ? " · soma parcial" : ""}`}/><MetricCard label="Taxa média por publicação" value={formatPercent(dashboard?.engagementRate)} detail="Média das taxas disponíveis dos posts selecionados. Não é a taxa do perfil acima."/></div>
+        <div className="grid gap-3 sm:grid-cols-2"><MetricCard label="Interações nos posts selecionados" value={dashboard?.interactions} detail={`Posts publicados nos últimos ${period} dias · contadores acumulados até a coleta${dashboard?.interactionsPartial ? " · soma parcial" : ""}`} compare={{ current: dashboard?.interactions, previous: dashboard?.previous?.interactions }}/><MetricCard label="Taxa média por publicação" value={formatPercent(dashboard?.engagementRate)} detail="Média das taxas disponíveis dos posts selecionados. Não é a taxa do perfil acima." compare={{ current: dashboard?.engagementRate, previous: dashboard?.previous?.engagementRate, format: (value) => formatPercent(value) }}/></div>
         <ReportChart key={`reach-${accountId}-${period}`} title="Alcance diário" description={`${profileWindow.label} · contas únicas estimadas por dia, consultadas no Instagram. Semanal e mensal mostram o último dia disponível; o total único do período está no card de alcance.`} rows={(profileReport?.dailyReach || []).map(point => ({ date: point.date, reach: point.value }))} series={[{ key: "reach", label: "Contas alcançadas por dia", color: "#4f46e5", aggregation: "last" }]} filename="instagram-alcance-diario"/>
         <div className="grid gap-5 xl:grid-cols-2">
           <ReportChart key={`profile-${accountId}-${period}`} title="Perfil dia a dia" description="Valores de cada dia informados pelo Instagram (a Meta disponibiliza os últimos 30 dias; o InstaCommand guarda cada dia a partir daí). Semanal e mensal mostram o último dia disponível." rows={profileHistory} series={[{ key: "alcance", label: "Alcance", color: "#4f46e5", aggregation: "last" }, { key: "visualizacoes", label: "Visualizações", color: "#0284c7", aggregation: "last" }, { key: "engajadas", label: "Contas engajadas", color: "#0d9488", aggregation: "last" }, { key: "interacoes", label: "Interações", color: "#d97706", aggregation: "last" }]} defaultKeys={["alcance", "visualizacoes"]} filename="instagram-perfil-diario"/>
@@ -347,9 +353,12 @@ export function InstagramAnalytics() {
       </TabsContent>
 
       <TabsContent value="seguidores" className="space-y-5">
+        <CompareContext.Provider value={comparing}>
+        <CompareToggle value={comparing} onChange={toggleComparing} />
         {profileNotice}
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">{instagramFollowerCards(profileReport).map(card => <MetricCard key={card.label} {...card} detail={`${profileWindow.label} · informado pelo Instagram`} accent/>)}</div>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3"><Stat label="Seguidores no início" value={formatNumber(followerPoints[0]?.followers)} detail={followerPoints[0] ? `${formatDate(followerPoints[0].date)}${followerPoints[0].followersEstimated ? " · estimado" : ""}` : "Sem dado no início"} icon={Users}/><Stat label="Seguidores atuais" value={formatNumber(followerPoints.at(-1)?.followers ?? dashboard?.followers)} detail={followerPoints.at(-1) ? formatDate(followerPoints.at(-1)!.date) : "Total mais recente"} icon={Users}/><Stat label="Variação líquida" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail="Entre o primeiro e o último dia com total disponível" icon={TrendingUp}/></div>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">{instagramFollowerCards(profileReport).map((card, index) => { const key = (["gained", "lost", "net"] as const)[index]; const before = profileReport?.previous ? profileReport.previous.followers[key] : storedFollowers?.[key] ?? null; return <MetricCard key={card.label} {...card} detail={`${profileWindow.label} · informado pelo Instagram`} accent compare={{ current: card.value, previous: before, inverted: key === "lost" }}/> })}</div>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3"><Stat label="Seguidores no início" value={formatNumber(followerPoints[0]?.followers)} detail={followerPoints[0] ? `${formatDate(followerPoints[0].date)}${followerPoints[0].followersEstimated ? " · estimado" : ""}` : "Sem dado no início"} icon={Users} compare={{ current: followerPoints[0]?.followers, previous: storedFollowers?.start }}/><Stat label="Seguidores atuais" value={formatNumber(followerPoints.at(-1)?.followers ?? dashboard?.followers)} detail={followerPoints.at(-1) ? formatDate(followerPoints.at(-1)!.date) : "Total mais recente"} icon={Users} compare={{ current: followerPoints.at(-1)?.followers ?? dashboard?.followers, previous: storedFollowers?.end }}/><Stat label="Variação líquida" value={periodNetGrowth == null ? "—" : `${periodNetGrowth > 0 ? "+" : ""}${formatNumber(periodNetGrowth)}`} detail="Entre o primeiro e o último dia com total disponível" icon={TrendingUp} compare={{ current: periodNetGrowth, previous: storedFollowers?.net, format: (value) => `${value > 0 ? "+" : ""}${formatNumber(value)}` }}/></div>
+        </CompareContext.Provider>
         <ReportChart key={`followers-${accountId}-${period}`} title="Evolução de seguidores" description={`Total ao fim de cada dia, semana ou mês.${estimatedFollowerDays ? ` ${estimatedFollowerDays} dia(s) anteriores às coletas do InstaCommand foram calculados a partir dos ganhos e perdas diários informados pela Meta (disponíveis para os últimos 30 dias e contas com 100+ seguidores).` : ""} Datas sem dado permanecem sem valor.`} rows={followerChart} series={[{ key: "followers", label: "Seguidores", color: "#4f46e5", aggregation: "last" }]} filename="instagram-seguidores" fitToData/>
         <ReportChart key={`growth-${accountId}-${period}`} title="Ganhos e perdas por dia" description="Contas que passaram a seguir e que deixaram de seguir em cada dia, segundo a Meta (não disponível para contas com menos de 100 seguidores)." rows={followerChart} series={[{ key: "novos", label: "Novos seguidores", color: "#0d9488" }, { key: "saidas", label: "Deixaram de seguir", color: "#e11d48" }, { key: "saldo", label: "Saldo do dia", color: "#4f46e5" }]} defaultKeys={["novos", "saidas"]} kind="bar" filename="instagram-ganhos-e-perdas"/>
       </TabsContent>
@@ -375,8 +384,8 @@ export function InstagramAnalytics() {
   </div>
 }
 
-function Stat({ label, value, detail, icon: Icon }: { label: string; value: string; detail: string; icon: typeof Users }) {
-  return <MetricCard label={label} value={value} detail={detail}/>
+function Stat({ label, value, detail, compare }: { label: string; value: string; detail: string; icon: typeof Users; compare?: MetricCompare }) {
+  return <MetricCard label={label} value={value} detail={detail} compare={compare}/>
 }
 
 function ChartHeading({ title, subtitle }: { title: string; subtitle?: string }) {

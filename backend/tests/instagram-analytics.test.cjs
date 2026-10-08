@@ -57,7 +57,8 @@ test('all post-based reports filter the chosen period and counts use identical b
   await analytics.getTopPosts('account', 5, 'likes', 7);
   await insights.getBestTimeToPost('account', 7);
   await insights.getContentTypeAnalysis('account', 7);
-  for (const [kind, args] of calls) {
+  // Follower-series reads (snapshots, account total) are not post queries.
+  for (const [kind, args] of calls.filter(([kind, args]) => kind !== 'growth' && (kind !== 'account' || args.include))) {
     const where = kind === 'account' ? args.include.publishedPosts.where : args.where;
     assert.equal(+where.publishedAt.lte - +where.publishedAt.gte, 7 * 86400000);
     assert.deepEqual(where.igMediaId, { not: null });

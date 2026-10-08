@@ -93,7 +93,7 @@ export function XReport() {
       <CompareToggle value={comparing} onChange={setComparing} />
       <CompareContext.Provider value={comparing}>
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
-          <MetricCard label="Seguidores" value={report.followers} detail="Total atual" accent />
+          <MetricCard label="Seguidores" value={report.followers} detail="Total atual" accent compare={{ current: report.followers, previous: null }} />
           {X_METRICS.map(({ key, label }) => <MetricCard key={key} label={label} value={report.totals[key]} detail={key === 'impressions' && report.totals.impressions == null ? 'O X não informou para estes posts' : key === 'posts' ? 'No período selecionado' : 'Soma dos posts do período'} compare={{ current: report.totals[key], previous: previous?.totals?.[key] ?? null }} />)}
           <MetricCard label="Taxa de engajamento" value={report.engagementRate == null ? null : `${report.engagementRate.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`} detail="Engajamentos ÷ visualizações" compare={{ current: report.engagementRate, previous: previous?.engagementRate, format: (v) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%` }} />
         </div>
