@@ -26,10 +26,10 @@ const publicMessage = (message: string) => {
   return message;
 };
 
-const metaGraphPublicMessage = (error: InstagramApiError) => {
+export const metaGraphPublicMessage = (error: InstagramApiError) => {
   const code = error.metaCode === undefined ? '' : ` (código Meta ${error.metaCode}${error.metaSubcode === undefined ? '' : `/${error.metaSubcode}`})`;
   const reference = error.fbtraceId ? ` Referência: ${error.fbtraceId}.` : '';
-  const diagnostic = error.metaCode === 3 && error.metaMessage ? ` Detalhe informado pela Meta: ${error.metaMessage}` : '';
+  const diagnostic = error.metaMessage ? ` Detalhe informado pela Meta: ${error.metaMessage}` : '';
 
   if (error.metaCode === 10 || error.metaCode === 200) {
     return `A Meta recusou a operação por permissão ou configuração do app.${code}${reference}`;

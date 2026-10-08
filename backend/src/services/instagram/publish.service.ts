@@ -9,6 +9,15 @@ import { normalizeMediaUrl } from '../../utils/public-media';
 import { InstagramAdvancedSettings, validateInstagramAdvancedSettings } from './advanced-settings';
 import { mediaPreviewUrl } from '../../utils/meta-media';
 
+/** Keeps Meta's code and reason in the post's error, so a refusal can be acted on. */
+const publishFailure = (error: unknown) => {
+  if (error && typeof error === 'object' && ('metaCode' in error || 'fbtraceId' in error)) {
+    const { metaGraphPublicMessage } = require('../../middleware/errorHandler') as typeof import('../../middleware/errorHandler');
+    return metaGraphPublicMessage(error as Parameters<typeof metaGraphPublicMessage>[0]);
+  }
+  return error instanceof Error ? error.message : 'falha desconhecida';
+};
+
 const prisma = new PrismaClient();
 
 export const createMediaContainer = async (
@@ -310,7 +319,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_type,media_url,thumbnail_url' }).catch(() => ({}));
         results.INSTAGRAM = { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaPreviewUrl(mediaDetails), advancedWarnings };
       } catch (error) {
-        errors.push(`Instagram: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+        errors.push(`Instagram: ${publishFailure(error)}`);
       }
     }
 
@@ -320,7 +329,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         const facebookPostId = await publishFacebookPost(post, token);
         results.FACEBOOK = { id: facebookPostId };
       } catch (error) {
-        errors.push(`Facebook: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+        errors.push(`Facebook: ${publishFailure(error)}`);
       }
     }
 

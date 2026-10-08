@@ -68,7 +68,8 @@ const requestGraph = async (
         metaSubcode: typeof metaError.error_subcode === 'number' ? metaError.error_subcode : undefined,
         metaType: typeof metaError.type === 'string' ? metaError.type : undefined,
         fbtraceId: typeof metaError.fbtrace_id === 'string' ? metaError.fbtrace_id : undefined,
-        metaMessage: normalizedPath.endsWith('/subscribed_apps') ? safeMetaDiagnostic(metaError.message) : undefined,
+        // Sanitized (no tokens or long ids): without Meta's own reason, failures can't be diagnosed.
+        metaMessage: safeMetaDiagnostic(metaError.message),
       };
       console.warn('Meta Graph API rejected a request:', {
         endpoint: normalizedPath.replace(/^\/\d+(?=\/|$)/, '/:id'),
