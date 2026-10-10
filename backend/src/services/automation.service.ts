@@ -198,6 +198,15 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
     }
     const update = (data: Parameters<typeof prisma.automationExecution.update>[0]['data']) => prisma.automationExecution.update({ where: { id: execution.id }, data });
     if (!isComment && !validMessageWindow(event.timestamp)) { await update({ status: 'BLOCKED', error: 'Mensagem sem horário válido ou fora da janela de 24 horas.' }); return; }
+    // Message webhooks carry only the sender id; resolve the name so the inbox shows who wrote.
+    if (!isComment && !event.senderUsername && event.senderId && (platform === 'INSTAGRAM' || platform === 'FACEBOOK')) {
+      try {
+        const { graphGet } = require('../utils/instagram-api') as typeof import('../utils/instagram-api');
+        const profile = await graphGet(`/${event.senderId}`, await getDecryptedToken(account.id), { fields: platform === 'INSTAGRAM' ? 'username,name' : 'name' });
+        const name = profile?.username || profile?.name;
+        if (typeof name === 'string' && name) { event = { ...event, senderUsername: name }; await update({ senderUsername: name }); }
+      } catch { /* name is cosmetic; the message is processed either way */ }
+    }
     let conversation = await prisma.automationConversation.upsert({ where: { scopeKey: key },
       create: { ...scope, userId: account.userId, scopeKey: key, senderId: event.senderId!, senderUsername: event.senderUsername,
         kind: isComment ? 'PUBLIC' : 'DIRECT', rootMediaId: isComment ? event.mediaId || event.commentId : null, lastInboundAt: execution.eventAt },
