@@ -25,7 +25,9 @@ export default function AutomationsPage() {
   const [threadId, setThreadId] = useState("")
   const threads = useQuery({ queryKey: ["threads-accounts"], queryFn: () => api.getThreadsAccounts() as Promise<Array<{ id: string; username: string }>> })
   const selectedThread = threads.data?.find((account) => account.id === threadId) || threads.data?.[0]
-  const xAccounts = useQuery({ queryKey: ["x-accounts"], queryFn: () => api.getXAccounts() as Promise<Array<{ id: string; username: string }>> })
+  // Same cache entry as the Accounts page, which stores the whole { configured, accounts } payload.
+  const xQuery = useQuery({ queryKey: ["x-accounts"], queryFn: () => api.getXAccounts() as Promise<{ accounts?: Array<{ id: string; username: string }> }> })
+  const xAccounts = { data: xQuery.data?.accounts, isLoading: xQuery.isLoading }
   const [xId, setXId] = useState("")
   const selectedX = xAccounts.data?.find((account) => account.id === xId) || xAccounts.data?.[0]
   const accountId = platform === "THREADS" ? selectedThread?.id : platform === "X" ? selectedX?.id : activeAccount?.id
