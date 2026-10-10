@@ -9,7 +9,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Public legal documents must remain accessible without an authenticated workspace.
   // The OAuth consent screen also renders without the workspace chrome.
-  const isPublicPage = ["/login", "/politica-de-privacidade", "/termos-de-servico", "/exclusao-de-dados", "/oauth/authorize"].includes(pathname)
+  const isPublicPage = [
+    "/login",
+    "/politica-de-privacidade", "/termos-de-servico", "/exclusao-de-dados",
+    "/privacy-policy", "/terms-of-service", "/data-deletion",
+    "/oauth/authorize",
+  ].includes(pathname)
     // Client share links are opened by people without an account.
     || pathname.startsWith("/share/")
   if (isPublicPage) {
