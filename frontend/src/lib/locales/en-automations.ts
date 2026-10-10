@@ -1,5 +1,10 @@
 /** PT → EN UI strings (automations). Keys are the exact Portuguese text passed to t(). */
 export const EN_AUTOMATIONS: Record<string, string> = {
+  "Aguardando sua resposta": "Waiting for your reply",
+  "Responda esta mensagem": "Reply to this message",
+  "Nenhuma regra respondeu: aguardando resposta manual.": "No automatic rule answered this message — it is waiting for your reply.",
+  "Conversa reservada para atendimento humano.": "Conversation reserved for a human agent.",
+  "Nenhuma regra ativa correspondeu ao evento.": "No active rule matched this event.",
   // Page header and network picker
   "Atendimento automático": "Automated replies",
   "Automações": "Automations",
