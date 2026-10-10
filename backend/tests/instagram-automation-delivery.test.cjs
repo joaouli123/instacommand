@@ -253,7 +253,8 @@ test('existing keyword rules do not silently become catch-all conversations', as
   await processInstagramAutomationEvent({ ...dm(), text: 'teste ia' });
   await processInstagramAutomationEvent({ ...dm(), eventKey: 'next', text: 'Tudo bem?' });
   assert.equal(aiCalls.length, 1);
-  assert.equal(executions[1].status, 'SKIPPED');
+  // Unanswered by any rule: it waits for a manual reply instead of being answered automatically.
+  assert.equal(executions[1].status, 'NEEDS_REVIEW');
 });
 
 test('stop and human requests pause future sends, even ready-made replies', async () => {

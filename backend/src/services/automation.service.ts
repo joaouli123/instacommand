@@ -219,7 +219,8 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
     const direct = candidates.filter(rule => hasKeywordMatch(rule, event.text || '')).sort((a, b) => Number(b.trigger.endsWith('_KEYWORD')) - Number(a.trigger.endsWith('_KEYWORD')));
     const continuation = !isComment && execution.eventAt.getTime() - previousInboundAt.getTime() < 24 * 3600_000 && candidates.find(rule => rule.id === conversation.continuationRuleId && rule.continueConversation && rule.replyMode === 'AI');
     const rule = direct.find(rule => rule.trigger.endsWith('_KEYWORD')) || continuation || direct[0];
-    if (!rule) { await update({ status: 'SKIPPED', error: 'Nenhuma regra ativa correspondeu ao evento.' }); return; }
+    // A direct message no rule answers waits in the inbox for a person to reply from the app.
+    if (!rule) { await update(isComment ? { status: 'SKIPPED', error: 'Nenhuma regra ativa correspondeu ao evento.' } : { status: 'NEEDS_REVIEW', error: 'Nenhuma regra respondeu: aguardando resposta manual.' }); return; }
     await update({ status: 'PROCESSING', automationId: rule.id });
     let scopes: string[];
     try { scopes = await automationPermissions(account); }

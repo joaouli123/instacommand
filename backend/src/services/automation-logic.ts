@@ -13,7 +13,7 @@ export const matchesEvent = (trigger: AutomationTrigger, eventType: AutomationTr
 export const conversationIntent = (text: string): 'STOPPED' | 'HUMAN' | null => {
   const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[.!?]+$/g, '');
   if (/^(stop|parar|pare|cancelar mensagens|sair|nao me envie mais mensagens|nao quero mais mensagens|pare de responder)$/.test(normalized)) return 'STOPPED';
-  if (/\b(atendente|atendimento humano|falar com (uma pessoa|alguem|um humano)|quero uma pessoa)\b/.test(normalized)) return 'HUMAN';
+  if (/\b(atendente|atendimento humano|falar com (uma pessoa|alguem|um humano)|quero uma pessoa|talk to (a human|a person|someone)|human agent|real person)\b/.test(normalized)) return 'HUMAN';
   return null;
 };
 
