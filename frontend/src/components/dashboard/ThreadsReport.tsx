@@ -11,7 +11,7 @@ import { CompareContext, CompareToggle, MetricCard, useComparePreference } from 
 import { ReportChart } from './LazyCharts'
 import { ReportPublications } from './ReportPublications'
 import { ChartRow, downloadReport, reportDay } from '@/lib/report-chart'
-import { useLang, useT } from '@/lib/i18n'
+import { useLang, useT, withAuthLocale } from '@/lib/i18n'
 
 type Metric = { value: number | null; available: boolean; daily: Array<{ date: string; value: number }> }
 type Report = {
@@ -68,7 +68,7 @@ export function ThreadsReport() {
     setConnecting(true)
     try {
       const result = await fetchApi('/auth/threads/url') as { url: string }
-      authWindow.location.replace(result.url)
+      authWindow.location.replace(withAuthLocale(result.url))
     } catch (error) { authWindow.close(); toast.error(error instanceof Error ? error.message : t('Não foi possível abrir a autorização')) }
     finally { setConnecting(false) }
   }

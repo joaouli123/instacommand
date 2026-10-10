@@ -13,7 +13,7 @@ import { announceAccountsConnected, notifySameTabAccountsConnected, subscribeAcc
 import { ScreenshotAnalysis } from "@/components/dashboard/ScreenshotAnalysis"
 import { ProfileAudit, type AiAudit } from "@/components/dashboard/ProfileAudit"
 import { AvatarImage } from "@/components/ui/avatar-image"
-import { tr, useLang, useT } from "@/lib/i18n"
+import { tr, useLang, useT, withAuthLocale } from "@/lib/i18n"
 
 type ConnectedAccount = {
   id: string
@@ -70,7 +70,7 @@ export default function AccountsPage() {
     try {
       const result = await fetchApi(path) as { url?: string }
       if (!result.url) throw new Error(t("A Meta não disponibilizou o endereço de autorização"))
-      authWindow.location.replace(result.url)
+      authWindow.location.replace(withAuthLocale(result.url))
     } catch (error) {
       authWindow.close()
       toast.error(error instanceof Error ? error.message : t("Não foi possível iniciar a conexão"))

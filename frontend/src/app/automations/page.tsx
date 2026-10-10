@@ -10,7 +10,7 @@ import { useActiveAccount } from "@/hooks/useActiveAccount"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { useLang, useT } from "@/lib/i18n"
+import { useLang, useT, withAuthLocale } from "@/lib/i18n"
 import { formatDate, NETWORKS, NetworkBadge, type Platform, type Workspace } from "@/components/automations/shared"
 import { RulesPanel } from "@/components/automations/RulesPanel"
 import { ConversationsPanel } from "@/components/automations/ConversationsPanel"
@@ -87,7 +87,7 @@ function AutomationWorkspace({ accountId, username, platform }: { accountId: str
     if (!popup) return toast.error(t("Permita pop-ups para autorizar sem sair desta página."))
     popup.opener = null
     popup.document.body.textContent = t("Abrindo autorização segura do Threads…")
-    try { const response = await fetchApi("/auth/threads/url?automations=1") as { url: string }; popup.location.replace(response.url) }
+    try { const response = await fetchApi("/auth/threads/url?automations=1") as { url: string }; popup.location.replace(withAuthLocale(response.url)) }
     catch (error) { popup.close(); toast.error(error instanceof Error ? error.message : t("Não foi possível abrir a autorização.")) }
   }
 
