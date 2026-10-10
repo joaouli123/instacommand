@@ -1,4 +1,6 @@
-export type ChartRow = { date: string; [key: string]: string | number | null }
+import { currentLocale, tr } from './i18n'
+
+export type ChartRow ={ date: string; [key: string]: string | number | null }
 export type ChartSeries = { key: string; label: string; color: string; aggregation?: 'sum' | 'last' }
 export type ChartInterval = 'day' | 'week' | 'month'
 
@@ -62,6 +64,7 @@ export function downloadReport(rows: unknown[][], filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export const reportFormat = (value: number | null | undefined) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
-export const reportDate = (date: string) => new Date(`${date.slice(0, 10)}T12:00:00Z`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' })
-export const mediaLabel = (value: string | null) => ({ IMAGE: 'Foto', VIDEO: 'Vídeo', REEL: 'Reel', STORY: 'Story', CAROUSEL: 'Carrossel', CAROUSEL_ALBUM: 'Carrossel', TEXT_POST: 'Texto', REPOST_FACADE: 'Republicação' }[value || ''] || 'Publicação')
+// Formatters run during render, so they follow the current UI language.
+export const reportFormat = (value: number | null | undefined) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString(currentLocale(), { maximumFractionDigits: 2 })
+export const reportDate = (date: string) => new Date(`${date.slice(0, 10)}T12:00:00Z`).toLocaleDateString(currentLocale(), { day: '2-digit', month: 'short', timeZone: 'UTC' })
+export const mediaLabel = (value: string | null) => tr(({ IMAGE: 'Foto', VIDEO: 'Vídeo', REEL: 'Reel', STORY: 'Story', CAROUSEL: 'Carrossel', CAROUSEL_ALBUM: 'Carrossel', TEXT_POST: 'Texto', REPOST_FACADE: 'Republicação' } as Record<string, string>)[value || ''] || 'Publicação')

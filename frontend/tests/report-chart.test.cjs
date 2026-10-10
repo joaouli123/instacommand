@@ -6,7 +6,9 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const source = fs.readFileSync(path.join(__dirname, '../src/lib/report-chart.ts'), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const context = { exports: {}, Intl, Date }; vm.runInNewContext(compiled, context);
+// report-chart reads the UI language from ./i18n; the default language is Portuguese.
+const i18nStub = { currentLocale: () => 'pt-BR', tr: (text) => text };
+const context = { exports: {}, Intl, Date, require: (id) => { if (id === './i18n') return i18nStub; throw new Error(`Unexpected import ${id}`); } }; vm.runInNewContext(compiled, context);
 const { groupChartRows, fillChartGaps, reportDay, reportCsv, mediaLabel, reportFormat } = context.exports;
 const plain = value => JSON.parse(JSON.stringify(value));
 const series = [{ key: 'views', aggregation: 'sum' }, { key: 'followers', aggregation: 'last' }];

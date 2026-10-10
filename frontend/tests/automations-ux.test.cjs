@@ -13,9 +13,13 @@ const compile = (file, stubs) => {
   return loaded.exports;
 };
 const icon = () => null;
+// The UI defaults to Portuguese: the i18n stub returns the source text with placeholders filled.
+const ptText = (text, vars) => text.replace(/\{(\w+)\}/g, (match, key) => (vars && key in vars ? String(vars[key]) : match));
+const i18nStub = { tr: ptText, useT: () => ptText, currentLocale: () => 'pt-BR', getLang: () => 'pt' };
 const shared = compile('components/automations/shared.tsx', {
   '@icons-pack/react-simple-icons': { SiInstagram: icon, SiMessenger: icon, SiThreads: icon },
   '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+  '@/lib/i18n': i18nStub,
 });
 
 test('each network only offers the channels Meta actually allows', () => {

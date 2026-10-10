@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { ImageOff, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isVideoUrl } from "@/lib/media"
+import { useT } from "@/lib/i18n"
 
 /**
  * Still preview of Instagram media. Meta CDN links expire after a few days and
@@ -19,6 +20,7 @@ export function MediaPreview({ src, isVideo, asVideo, className, fallback = "Pr√
   className?: string
   fallback?: string
 }) {
+  const t = useT()
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
   useEffect(() => { setFailed(false); setLoaded(false) }, [src])
@@ -26,7 +28,7 @@ export function MediaPreview({ src, isVideo, asVideo, className, fallback = "Pr√
   if (!src || failed) {
     return <div className={cn("flex h-full w-full flex-col items-center justify-center gap-1 bg-slate-100 px-2 text-center text-[11px] text-slate-400", className)}>
       <ImageOff size={18} aria-hidden />
-      <span>{fallback}</span>
+      <span>{fallback ? t(fallback) : fallback}</span>
     </div>
   }
 

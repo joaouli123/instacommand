@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import type { User } from "@/types"
 import { AvatarImage } from "@/components/ui/avatar-image"
+import { LanguageSwitch, useLang, useT } from "@/lib/i18n"
 
 type NotificationItem = {
   id: string
@@ -28,7 +29,9 @@ type NotificationItem = {
 
 export function Header() {
   const pathname = usePathname()
-  
+  const t = useT()
+  const { locale } = useLang()
+
   const titles: Record<string, { title: string; subtitle: string }> = {
     '/': { title: 'Dashboard', subtitle: 'Visão unificada das suas contas e métricas principais' },
     '/composer': { title: 'Criar publicação', subtitle: 'Crie, visualize e agende para Instagram, Facebook, Threads e X' },
@@ -81,24 +84,25 @@ export function Header() {
     <header className="sticky top-0 z-20 flex h-14 min-w-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/95 px-3 shadow-sm backdrop-blur-md sm:h-16 sm:px-6 md:h-[72px] md:px-8">
       <div className="min-w-0 flex-1">
         {/* The page itself carries the title; the bar only says where you are. */}
-        <p className="truncate text-sm font-semibold text-slate-700"><span className="hidden text-slate-400 sm:inline">InstaCommand <span aria-hidden>/</span> </span>{current.title}</p>
+        <p className="truncate text-sm font-semibold text-slate-700"><span className="hidden text-slate-400 sm:inline">InstaCommand <span aria-hidden>/</span> </span>{t(current.title)}</p>
       </div>
       
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+        <LanguageSwitch compact className="hidden sm:inline-flex lg:hidden" />
         {/* Account Switcher Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button aria-label={activeAccount ? `Conta ativa @${activeAccount.igUsername}` : 'Selecionar conta'} className="flex h-10 min-w-0 max-w-[36vw] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-2 text-sm font-medium text-slate-800 shadow-xs transition-all hover:bg-slate-100/80 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:max-w-48 sm:gap-2.5 sm:px-3 xl:max-w-64">
+            <button aria-label={activeAccount ? t('Conta ativa @{username}', { username: activeAccount.igUsername }) : t('Selecionar conta')} className="flex h-10 min-w-0 max-w-[36vw] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-2 text-sm font-medium text-slate-800 shadow-xs transition-all hover:bg-slate-100/80 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:max-w-48 sm:gap-2.5 sm:px-3 xl:max-w-64">
               <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 p-[1.5px] shrink-0 overflow-hidden">
                 <AvatarImage src={activeAccount?.igProfilePicUrl} className="h-full w-full rounded-full object-cover" fallback={<div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-indigo-700">{activeAccount?.igUsername?.substring(0, 1).toUpperCase() || "?"}</div>} />
               </div>
-              <span className="min-w-0 truncate text-[11px] font-semibold tracking-tight sm:text-xs">{isLoading ? "Carregando..." : activeAccount ? `@${activeAccount.igUsername}` : currentUser?.name || "Seu workspace"}</span>
+              <span className="min-w-0 truncate text-[11px] font-semibold tracking-tight sm:text-xs">{isLoading ? t("Carregando...") : activeAccount ? `@${activeAccount.igUsername}` : currentUser?.name || t("Seu workspace")}</span>
               <ChevronDown size={14} className="shrink-0 text-slate-400" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-white border-slate-200 shadow-lg rounded-xl p-1.5">
             <DropdownMenuLabel className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 py-1.5">
-              Alternar conta Instagram
+              {t('Alternar conta Instagram')}
             </DropdownMenuLabel>
             {accounts.map(acc => (
               <DropdownMenuItem
@@ -117,11 +121,11 @@ export function Header() {
                 )}
               </DropdownMenuItem>
             ))}
-            {!accounts.length && <DropdownMenuItem disabled className="text-xs text-slate-500">Nenhuma conta ativa</DropdownMenuItem>}
+            {!accounts.length && <DropdownMenuItem disabled className="text-xs text-slate-500">{t("Nenhuma conta ativa")}</DropdownMenuItem>}
             <DropdownMenuSeparator className="bg-slate-100 my-1" />
             <DropdownMenuItem asChild>
               <Link href="/accounts" className="text-xs text-indigo-600 font-semibold px-2.5 py-2 block hover:bg-indigo-50 rounded-lg">
-                Gerenciar todas as contas
+                {t('Gerenciar todas as contas')}
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -132,8 +136,8 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <button
               className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 p-2 text-slate-500 shadow-xs transition-colors hover:bg-slate-100 hover:text-slate-800"
-              title="Notificações"
-              aria-label="Notificações"
+              title={t("Notificações")}
+              aria-label={t("Notificações")}
             >
               <Bell size={18} />
               {unreadCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-4 text-white ring-2 ring-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}
@@ -141,26 +145,26 @@ export function Header() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[min(24rem,calc(100vw-2rem))] bg-white p-1.5 shadow-lg">
             <div className="flex items-center justify-between px-2.5 py-2">
-              <DropdownMenuLabel className="p-0 text-xs font-bold uppercase tracking-wider text-slate-400">Notificações</DropdownMenuLabel>
-              {unreadCount > 0 && <button type="button" onClick={markAllNotificationsRead} className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800">Marcar todas como lidas</button>}
+              <DropdownMenuLabel className="p-0 text-xs font-bold uppercase tracking-wider text-slate-400">{t("Notificações")}</DropdownMenuLabel>
+              {unreadCount > 0 && <button type="button" onClick={markAllNotificationsRead} className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800">{t("Marcar todas como lidas")}</button>}
             </div>
             <DropdownMenuSeparator className="bg-slate-100" />
             <div className="max-h-80 overflow-y-auto">
               {notifications.length ? notifications.map((notification) => (
                 <DropdownMenuItem key={notification.id} onClick={() => openNotification(notification)} className={`mb-1 cursor-pointer items-start gap-2 rounded-lg px-2.5 py-2.5 ${notification.readAt ? "" : "bg-indigo-50/70"}`}>
                   <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${notification.readAt ? "bg-slate-200" : "bg-indigo-600"}`} />
-                  <span className="min-w-0"><span className="block text-xs font-bold text-slate-800">{notification.title}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{notification.message}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(notification.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span></span>
+                  <span className="min-w-0"><span className="block text-xs font-bold text-slate-800">{notification.title}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{notification.message}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(notification.createdAt).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" })}</span></span>
                 </DropdownMenuItem>
-              )) : <p className="px-3 py-8 text-center text-xs text-slate-500">Tudo em dia. Nenhuma notificação.</p>}
+              )) : <p className="px-3 py-8 text-center text-xs text-slate-500">{t("Tudo em dia. Nenhuma notificação.")}</p>}
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
 
         {/* Quick Post Action */}
         <Button asChild size="sm" className="h-10 gap-1.5 rounded-xl bg-indigo-600 px-2.5 font-semibold text-white shadow-xs shadow-indigo-200 hover:bg-indigo-700 sm:px-3.5">
-          <Link href="/composer" aria-label="Nova publicação">
+          <Link href="/composer" aria-label={t("Nova publicação")}>
             <Plus size={16} />
-            <span className="hidden sm:inline">Nova Publicação</span>
+            <span className="hidden sm:inline">{t("Nova Publicação")}</span>
           </Link>
         </Button>
       </div>

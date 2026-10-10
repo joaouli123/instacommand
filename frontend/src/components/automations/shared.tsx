@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from "react"
 import { SiInstagram, SiMessenger, SiThreads, SiX } from "@icons-pack/react-simple-icons"
 import { cn } from "@/lib/utils"
+import { currentLocale, tr } from "@/lib/i18n"
 
 export type Platform = "INSTAGRAM" | "FACEBOOK" | "THREADS" | "X"
 export type Trigger = "COMMENT_ANY" | "COMMENT_KEYWORD" | "MESSAGE_ANY" | "MESSAGE_KEYWORD"
@@ -63,8 +64,8 @@ export const blankAgent: Agent = { enabled: false, autoSend: false, tone: "Human
 export const blankRule = (platform: Platform): RuleDraft => ({ name: "", trigger: platform === "THREADS" || platform === "X" ? "COMMENT_KEYWORD" : "MESSAGE_KEYWORD", keywords: [], replyMode: "TEMPLATE", publicCommentReply: "", privateCommentReply: "", directMessageReply: "", continueConversation: false })
 
 export const inputClass = "mt-1.5 w-full min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100"
-export const formatDate = (value?: string | null) => value ? new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "Ainda não houve"
-export const contactName = (value: { id: string; senderId?: string | null; senderUsername?: string | null }) => value.senderUsername ? `@${value.senderUsername}` : `Contato ${(value.senderId || value.id).slice(-4)}`
+export const formatDate = (value?: string | null) => value ? new Date(value).toLocaleString(currentLocale(), { dateStyle: "short", timeStyle: "short" }) : tr("Ainda não houve")
+export const contactName = (value: { id: string; senderId?: string | null; senderUsername?: string | null }) => value.senderUsername ? `@${value.senderUsername}` : tr("Contato {id}", { id: (value.senderId || value.id).slice(-4) })
 
 export function Field({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return <label className="block text-xs font-semibold text-slate-700">{title}{children}{hint && <span className="mt-1 block text-[11px] font-normal leading-4 text-slate-500">{hint}</span>}</label>

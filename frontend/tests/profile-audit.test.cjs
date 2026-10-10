@@ -10,6 +10,8 @@ const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/com
 const context = { exports: {}, require: name => {
   if (name === '@/components/ui/button') return { Button: ({ children, onClick, type }) => React.createElement('button', { onClick, type }, children) };
   if (name === '@/components/ui/card') return { Card: ({ children }) => React.createElement('section', null, children) };
+  // The UI defaults to Portuguese: t() returns the source text with placeholders filled.
+  if (name === '@/lib/i18n') return { useT: () => (text, vars) => text.replace(/\{(\w+)\}/g, (match, key) => (vars && key in vars ? String(vars[key]) : match)) };
   return require(name);
 } };
 vm.runInNewContext(code, context);

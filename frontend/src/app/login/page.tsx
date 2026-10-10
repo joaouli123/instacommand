@@ -9,9 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Lock, Mail, ArrowRight, ShieldCheck, Instagram, UserRound } from "lucide-react"
 import toast from "react-hot-toast"
 import { BACKEND_ORIGIN } from "@/lib/config"
+import { LanguageSwitch, useT } from "@/lib/i18n"
 
 export default function LoginPage() {
   const router = useRouter()
+  const t = useT()
   const [mode, setMode] = useState<"login" | "register">("login")
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -34,12 +36,12 @@ export default function LoginPage() {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.token) {
-        throw new Error(data.error || data.message || "Não foi possível entrar na plataforma")
+        throw new Error(t(data.error || data.message || "Não foi possível entrar na plataforma"))
       }
 
       localStorage.setItem("instacommand_token", data.token)
       if (data.user) localStorage.setItem("instacommand_user", JSON.stringify(data.user))
-      toast.success(mode === "register" ? "Workspace criado com sucesso!" : `Bem-vindo, ${data.user?.name || "de volta"}!`)
+      toast.success(mode === "register" ? t("Workspace criado com sucesso!") : data.user?.name ? t("Bem-vindo, {name}!", { name: data.user.name }) : t("Bem-vindo de volta!"))
 
       const next = typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).get("next") || "/"
@@ -49,7 +51,7 @@ export default function LoginPage() {
         ? `${destination.pathname}${destination.search}${destination.hash}`
         : "/")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Não foi possível concluir o acesso")
+      toast.error(err instanceof Error ? err.message : t("Não foi possível concluir o acesso"))
     } finally {
       setLoading(false)
     }
@@ -60,71 +62,72 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute left-1/4 top-1/4 h-96 w-96 rounded-full bg-indigo-200/40 blur-[120px]" />
       <div className="pointer-events-none absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-pink-200/30 blur-[120px]" />
 
+      <LanguageSwitch compact className="absolute right-4 top-4 z-20" />
       <Card className="relative z-10 flex w-full max-w-md flex-col rounded-2xl border border-slate-200/90 bg-white/95 p-8 shadow-xl backdrop-blur-md">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 text-white shadow-md">
             <Instagram size={24} strokeWidth={2.4} />
           </div>
           <h1 className="mb-1 text-2xl font-extrabold tracking-tight text-slate-900">InstaCommand</h1>
-          <p className="text-xs text-slate-500">Seu workspace para gerenciar todas as redes</p>
+          <p className="text-xs text-slate-500">{t("Seu workspace para gerenciar todas as redes")}</p>
         </div>
 
         <div className="mb-6 flex rounded-xl bg-slate-100 p-1 text-sm font-semibold">
           <button type="button" onClick={() => setMode("login")} className={`flex-1 rounded-lg px-3 py-2 transition ${mode === "login" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500"}`}>
-            Entrar
+            {t("Entrar")}
           </button>
           <button type="button" onClick={() => setMode("register")} className={`flex-1 rounded-lg px-3 py-2 transition ${mode === "register" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500"}`}>
-            Criar conta
+            {t("Criar conta")}
           </button>
         </div>
 
         <div className="mb-6 flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
           <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-          <span>Suas contas sociais ficam isoladas no seu workspace.</span>
+          <span>{t("Suas contas sociais ficam isoladas no seu workspace.")}</span>
         </div>
 
         <form onSubmit={handleSubmit} className="mb-5 space-y-4">
           {mode === "register" && (
             <div>
-              <Label className="mb-1.5 block text-xs font-semibold text-slate-700">Nome</Label>
+              <Label className="mb-1.5 block text-xs font-semibold text-slate-700">{t("Nome")}</Label>
               <div className="relative">
                 <UserRound className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-                <Input type="text" value={name} onChange={(event) => setName(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder="Seu nome" required />
+                <Input type="text" value={name} onChange={(event) => setName(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder={t("Seu nome")} required />
               </div>
             </div>
           )}
 
           <div>
-            <Label className="mb-1.5 block text-xs font-semibold text-slate-700">E-mail</Label>
+            <Label className="mb-1.5 block text-xs font-semibold text-slate-700">{t("E-mail")}</Label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-              <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder="voce@empresa.com" required />
+              <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder={t("voce@empresa.com")} required />
             </div>
           </div>
 
           <div>
-            <Label className="mb-1.5 block text-xs font-semibold text-slate-700">Senha</Label>
+            <Label className="mb-1.5 block text-xs font-semibold text-slate-700">{t("Senha")}</Label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder="Mínimo de 8 caracteres" minLength={8} required />
+              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder={t("Mínimo de 8 caracteres")} minLength={8} required />
             </div>
           </div>
 
           <Button type="submit" disabled={loading} className="h-11 w-full rounded-xl bg-indigo-600 text-sm font-semibold text-white shadow-xs transition-all hover:bg-indigo-700">
-            {loading ? "Aguarde..." : mode === "register" ? "Criar meu workspace" : "Entrar na plataforma"}
+            {loading ? t("Aguarde...") : mode === "register" ? t("Criar meu workspace") : t("Entrar na plataforma")}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </form>
 
         <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-3 text-center text-xs leading-5 text-indigo-800">
-          Entre primeiro no seu workspace. Depois, em <strong>Contas</strong>, clique em <strong>Adicionar conta</strong> para conectar Instagram, Facebook, Threads e X com a autorização oficial da Meta.
+          {t("Entre primeiro no seu workspace. Depois, em")} <strong>{t("Contas")}</strong>, {t("clique em")} <strong>{t("Adicionar conta")}</strong> {t("para conectar Instagram, Facebook, Threads e X com a autorização oficial da Meta.")}
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-slate-400">Cada cliente conecta e administra somente as próprias contas.</p>
-        <nav aria-label="Informações legais" className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-[11px] text-slate-500">
-          <a href="/politica-de-privacidade" className="underline underline-offset-2 hover:text-indigo-600">Política de Privacidade</a>
-          <a href="/termos-de-servico" className="underline underline-offset-2 hover:text-indigo-600">Termos de Serviço</a>
-          <a href="/exclusao-de-dados" className="underline underline-offset-2 hover:text-indigo-600">Exclusão de dados</a>
+        <p className="mt-6 text-center text-[11px] text-slate-400">{t("Cada cliente conecta e administra somente as próprias contas.")}</p>
+        <nav aria-label={t("Informações legais")} className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-[11px] text-slate-500">
+          <a href="/politica-de-privacidade" className="underline underline-offset-2 hover:text-indigo-600">{t("Política de Privacidade")}</a>
+          <a href="/termos-de-servico" className="underline underline-offset-2 hover:text-indigo-600">{t("Termos de Serviço")}</a>
+          <a href="/exclusao-de-dados" className="underline underline-offset-2 hover:text-indigo-600">{t("Exclusão de dados")}</a>
         </nav>
       </Card>
     </div>

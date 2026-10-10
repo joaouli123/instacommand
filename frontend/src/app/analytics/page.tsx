@@ -15,12 +15,14 @@ const FacebookReport = dynamic(() => import("@/components/dashboard/FacebookRepo
 const ThreadsReport = dynamic(() => import("@/components/dashboard/ThreadsReport").then((m) => m.ThreadsReport), { ssr: false, loading: TabPlaceholder })
 const XReport = dynamic(() => import("@/components/dashboard/XReport").then((m) => m.XReport), { ssr: false, loading: TabPlaceholder })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useT } from "@/lib/i18n"
 
 export default function AnalyticsPage() {
+  const t = useT()
   return <div className="space-y-6 animate-fade-in">
-    <PageHeader eyebrow="Desempenho" title="Relatórios" description="Métricas, público e conteúdos do Instagram, Facebook, Threads e X." actions={<Link href="/report" className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"><FileText size={16} />Gerar relatório em PDF</Link>} />
+    <PageHeader eyebrow={t("Desempenho")} title={t("Relatórios")} description={t("Métricas, público e conteúdos do Instagram, Facebook, Threads e X.")} actions={<Link href="/report" className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"><FileText size={16} />{t("Gerar relatório em PDF")}</Link>} />
     <Tabs defaultValue="instagram" className="space-y-6">
-    <TabsList aria-label="Rede social do relatório" className="grid h-10 w-full grid-cols-4">
+    <TabsList aria-label={t("Rede social do relatório")}className="grid h-10 w-full grid-cols-4">
       <TabsTrigger value="instagram" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiInstagram size={14} color="currentColor" aria-hidden />Instagram</TabsTrigger>
       <TabsTrigger value="facebook" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiFacebook size={14} color="currentColor" aria-hidden />Facebook</TabsTrigger>
       <TabsTrigger value="threads" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiThreads size={14} color="currentColor" aria-hidden />Threads</TabsTrigger>

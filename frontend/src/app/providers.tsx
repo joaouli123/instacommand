@@ -5,6 +5,7 @@ import toast, { Toaster } from 'react-hot-toast'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { SAME_TAB_EVENT, subscribeAccountsConnected } from '@/lib/oauth-broadcast'
+import { LanguageProvider, tr } from '@/lib/i18n'
 
 const SYNC_POLL_MS = 3000
 const SYNC_WATCH_LIMIT_MS = 3 * 60_000
@@ -48,7 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         }
         if (disposed) return
         await queryClient.invalidateQueries()
-        if (sawSync) toast.success('Publicações e métricas da conta sincronizadas.')
+        if (sawSync) toast.success(tr('Publicações e métricas da conta sincronizadas.'))
       } finally {
         watching = false
       }
@@ -64,6 +65,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [queryClient])
 
   return (
+    <LanguageProvider>
     <QueryClientProvider client={queryClient}>
       {children}
       <Toaster
@@ -75,5 +77,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         }}
       />
     </QueryClientProvider>
+    </LanguageProvider>
   )
 }
