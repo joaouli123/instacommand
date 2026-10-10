@@ -15,13 +15,22 @@ const FacebookReport = dynamic(() => import("@/components/dashboard/FacebookRepo
 const ThreadsReport = dynamic(() => import("@/components/dashboard/ThreadsReport").then((m) => m.ThreadsReport), { ssr: false, loading: TabPlaceholder })
 const XReport = dynamic(() => import("@/components/dashboard/XReport").then((m) => m.XReport), { ssr: false, loading: TabPlaceholder })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useEffect, useState } from "react"
 import { useT } from "@/lib/i18n"
+
+const TABS = ["instagram", "facebook", "threads", "x"]
 
 export default function AnalyticsPage() {
   const t = useT()
+  // ?tab=threads opens a network directly (links from Accounts point here).
+  const [tab, setTab] = useState("instagram")
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab")
+    if (requested && TABS.includes(requested)) setTab(requested)
+  }, [])
   return <div className="space-y-6 animate-fade-in">
     <PageHeader eyebrow={t("Desempenho")} title={t("Relatórios")} description={t("Métricas, público e conteúdos do Instagram, Facebook, Threads e X.")} actions={<Link href="/report" className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"><FileText size={16} />{t("Gerar relatório em PDF")}</Link>} />
-    <Tabs defaultValue="instagram" className="space-y-6">
+    <Tabs value={tab} onValueChange={setTab} className="space-y-6">
     <TabsList aria-label={t("Rede social do relatório")}className="grid h-10 w-full grid-cols-4">
       <TabsTrigger value="instagram" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiInstagram size={14} color="currentColor" aria-hidden />Instagram</TabsTrigger>
       <TabsTrigger value="facebook" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiFacebook size={14} color="currentColor" aria-hidden />Facebook</TabsTrigger>
