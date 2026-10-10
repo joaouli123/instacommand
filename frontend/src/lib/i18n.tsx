@@ -47,7 +47,7 @@ function translate(lang: Lang, pt: string, vars?: TranslateVars) {
 export const tr: Translate = (pt, vars) => translate(currentLang, pt, vars)
 export const getLang = () => currentLang
 /** Meta and Threads login pages follow a locale parameter; keep them in the app language. */
-export const withAuthLocale = (url: string) => currentLang === "en" ? url + (url.includes("?") ? "&" : "?") + "locale=en_US" : url
+export const withAuthLocale = (url: string) => currentLang === "en" ? url + (url.includes("?") ? "&" : "?") + "locale=en_US&hl=en" : url
 /** BCP 47 locale for Intl / toLocaleString. */
 export const localeFor = (lang: Lang) => (lang === "en" ? "en-US" : "pt-BR")
 export const currentLocale = () => localeFor(currentLang)
