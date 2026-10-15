@@ -103,8 +103,14 @@ export default function CalendarPage() {
 
   const eventsByDay = useMemo(() => {
     const result: Record<number, Array<{ title: string; time: string; type: string; status: 'published' | 'scheduled' | 'draft' | 'failed'; post: CalendarPost }>> = {}
-    Array.from(posts).sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor)).forEach((post) => {
-      const date = new Date(post.scheduledFor)
+    Array.from(posts).sort((a, b) => {
+      const aDate = a.status === 'PUBLISHED' ? a.publishedPost?.publishedAt || a.scheduledFor : a.scheduledFor
+      const bDate = b.status === 'PUBLISHED' ? b.publishedPost?.publishedAt || b.scheduledFor : b.scheduledFor
+      return aDate.localeCompare(bDate)
+    }).forEach((post) => {
+      // Once published, place the item on the day it actually went live rather
+      // than leaving it on its original planned date.
+      const date = new Date(post.status === 'PUBLISHED' ? post.publishedPost?.publishedAt || post.scheduledFor : post.scheduledFor)
       if (date.getFullYear() !== monthDate.getFullYear() || date.getMonth() !== monthDate.getMonth()) return
       const status = post.status === 'PUBLISHED' ? 'published' : post.status === 'SCHEDULED' ? 'scheduled' : post.status === 'FAILED' ? 'failed' : 'draft'
       const type = post.mediaType === 'CAROUSEL' ? 'Carrossel' : post.mediaType === 'REEL' ? 'Reel' : post.mediaType === 'STORY' ? 'Story' : post.mediaType === 'TEXT' ? 'Texto' : 'Feed'
@@ -181,10 +187,10 @@ export default function CalendarPage() {
            />
            <div className="min-w-0 space-y-4">
              <div className="pr-8"><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Detalhes da publicação</p><h3 className="mt-1 break-words text-xl font-bold text-slate-900">{selectedPost.caption?.split("\n")[0] || "Publicação sem legenda"}</h3></div>
-             <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Formato</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.mediaType === "CAROUSEL" ? "Carrossel" : selectedPost.mediaType === "REEL" ? "Reel" : selectedPost.mediaType === "STORY" ? "Story" : selectedPost.mediaType === "TEXT" ? "Texto" : "Feed"}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Status</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.status === "SCHEDULED" ? "Agendado" : selectedPost.status === "PUBLISHED" ? "Publicado" : selectedPost.status === "FAILED" ? "Falhou" : "Rascunho"}</p></div></div>
+             <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Formato</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.mediaType === "CAROUSEL" ? "Carrossel" : selectedPost.mediaType === "REEL" ? "Reel" : selectedPost.mediaType === "STORY" ? "Story" : selectedPost.mediaType === "TEXT" ? "Texto" : "Feed"}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Status</p><p className="mt-1 flex items-center gap-1.5 font-semibold text-slate-700">{selectedPost.status === "PUBLISHED" && <CheckCircle2 size={14} className="text-slate-500" aria-hidden />}{selectedPost.status === "SCHEDULED" ? "Agendado" : selectedPost.status === "PUBLISHED" ? "Publicado" : selectedPost.status === "FAILED" ? "Falhou" : "Rascunho"}</p></div></div>
              <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Redes selecionadas</p><div className="mt-2 flex flex-wrap gap-2">{(selectedPost.platforms || []).map((platform) => <PlatformChip key={platform} platform={platform} />)}</div></div>
              {selectedPost.publishedPost?.publishResults && <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Resultado real</p><div className="mt-2 space-y-1 text-xs text-slate-600">{Object.entries(selectedPost.publishedPost.publishResults).map(([platform, result]) => <p key={platform} className="flex items-center gap-1.5"><PlatformIcons platforms={[platform]} size={12} /><span className="font-semibold">{platformLabel(platform)}:</span> publicado{result.id ? ` · ID ${result.id}` : ""}</p>)}</div></div>}
-            <p className="text-sm text-slate-600">{new Date(selectedPost.scheduledFor).toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "short" })}</p>
+            <p className="text-sm text-slate-600">{selectedPost.status === "PUBLISHED" ? "Publicado em " : "Agendado para "}{new Date(selectedPost.status === "PUBLISHED" ? selectedPost.publishedPost?.publishedAt || selectedPost.scheduledFor : selectedPost.scheduledFor).toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "short" })}</p>
             <PostContentDetails post={selectedPost} />
             <ClientCommentsPanel postId={selectedPost.id} />
             {selectedPost.errorMessage && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-700">{selectedPost.errorMessage}</p>}
@@ -255,18 +261,18 @@ export default function CalendarPage() {
                       role="button"
                       tabIndex={0}
                       onKeyDown={(keyboardEvent) => { if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") { keyboardEvent.preventDefault(); setSelectedPost(event.post) } }}
-                      aria-label={`${event.type} (${(event.post.platforms || []).map(platformLabel).join(", ")}), ${event.time}: ${event.title}`}
-                      title={`${event.type} · ${event.time} · ${event.title}`}
-                      style={{ background: platformBackground(event.post.platforms) }}
-                      className={`relative mx-auto flex min-h-6 min-w-6 w-fit sm:min-h-8 sm:min-w-8 cursor-pointer items-center justify-center rounded-lg p-1 text-[11px] font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 sm:mx-0 sm:w-full sm:flex-col sm:items-stretch sm:gap-0.5 sm:p-1.5 ${event.status === 'draft' ? 'opacity-75' : ''}`}
+                      aria-label={`${event.status === 'published' ? 'Publicado' : STATUS_LABEL[event.status]} · ${event.type} (${(event.post.platforms || []).map(platformLabel).join(", ")}), ${event.time}: ${event.title}`}
+                      title={`${STATUS_LABEL[event.status]} · ${event.type} · ${event.time} · ${event.title}`}
+                      style={event.status === 'published' ? undefined : { background: platformBackground(event.post.platforms) }}
+                      className={`relative mx-auto flex min-h-6 min-w-6 w-fit sm:min-h-8 sm:min-w-8 cursor-pointer items-center justify-center rounded-lg p-1 text-[11px] font-semibold transition-all hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 sm:mx-0 sm:w-full sm:flex-col sm:items-stretch sm:gap-0.5 sm:p-1.5 ${event.status === 'published' ? 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200 shadow-none' : 'text-white shadow-sm'} ${event.status === 'draft' ? 'opacity-75' : ''}`}
                     >
-                      {(() => { const Icon = STATUS_ICON[event.status]; return <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full shadow-sm ring-1 ring-white sm:hidden" style={{ background: platformBackground(event.post.platforms) }} aria-hidden><Icon size={8} color="white" /></span> })()}
-                      {event.post.platforms?.length ? <PlatformIcons platforms={event.post.platforms.slice(0, 1)} size={12} color="white" className="sm:hidden" /> : <span className="mx-auto block h-2 w-2 rounded-full bg-white sm:hidden" />}
+                      {(() => { const Icon = STATUS_ICON[event.status]; return <span className={`absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full shadow-sm ring-1 ring-white sm:hidden ${event.status === 'published' ? 'bg-white' : ''}`} style={event.status === 'published' ? undefined : { background: platformBackground(event.post.platforms) }} aria-hidden><Icon size={8} color={event.status === 'published' ? '#64748b' : 'white'} /></span> })()}
+                      {event.post.platforms?.length ? <PlatformIcons platforms={event.post.platforms.slice(0, 1)} size={12} color={event.status === 'published' ? '#64748b' : 'white'} className="sm:hidden" /> : <span className={`mx-auto block h-2 w-2 rounded-full ${event.status === 'published' ? 'bg-slate-400' : 'bg-white'} sm:hidden`} />}
                       <div className="hidden min-w-0 items-center justify-between gap-1 sm:flex">
-                        <span className="flex min-w-0 items-center gap-1"><PlatformIcons platforms={event.post.platforms} size={11} color="white" /><span className="truncate font-bold">{event.type}</span></span>
-                        <span className="flex shrink-0 items-center gap-1 text-[9px] text-white/90">{event.time}{(() => { const Icon = STATUS_ICON[event.status]; return <Icon size={10} color="white" aria-label={STATUS_LABEL[event.status]} /> })()}</span>
+                        <span className="flex min-w-0 items-center gap-1"><PlatformIcons platforms={event.post.platforms} size={11} color={event.status === 'published' ? '#64748b' : 'white'} /><span className="truncate font-bold">{event.type}</span></span>
+                        <span className={`flex shrink-0 items-center gap-1 text-[9px] ${event.status === 'published' ? 'text-slate-500' : 'text-white/90'}`}>{event.time}{(() => { const Icon = STATUS_ICON[event.status]; return <Icon size={10} aria-label={STATUS_LABEL[event.status]} /> })()}{event.status === 'published' && <span>Publicado</span>}</span>
                       </div>
-                      <span className="hidden truncate text-[10px] font-normal text-white/90 sm:block">{event.title}</span>
+                      <span className={`hidden truncate text-[10px] font-normal sm:block ${event.status === 'published' ? 'text-slate-500' : 'text-white/90'}`}>{event.title}</span>
                     </div>
                   ))}
                 </div>

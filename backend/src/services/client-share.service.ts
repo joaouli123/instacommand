@@ -237,7 +237,7 @@ export function toPublicPost(post: any, link: Pick<ShareLinkRecord, 'platforms'>
     caption: post.caption || '',
     hashtags: Array.isArray(post.hashtags) ? post.hashtags : [],
     platforms,
-    scheduledAt: post.publishedPost?.publishedAt || post.scheduledFor,
+    scheduledAt: status === 'PUBLISHED' ? post.publishedPost?.publishedAt || post.scheduledFor : post.scheduledFor,
     status,
     threadsAccount: post.threadsAccount ? { username: post.threadsAccount.username } : null,
     xAccount: post.xAccount ? { username: post.xAccount.username, name: post.xAccount.name || null, profilePicUrl: post.xAccount.profilePicUrl || null } : null,
@@ -259,7 +259,13 @@ export async function getPublicSchedule(token: unknown, query: { from?: unknown;
   if (to.getTime() - from.getTime() > SHARE_RANGE_MAX_DAYS * 86_400_000) to = new Date(from.getTime() + SHARE_RANGE_MAX_DAYS * 86_400_000);
 
   const posts = await db().scheduledPost.findMany({
-    where: { ...postWhereForLink(link), scheduledFor: { gte: from, lte: to } } as any,
+    where: {
+      ...postWhereForLink(link),
+      OR: [
+        { scheduledFor: { gte: from, lte: to } },
+        { status: 'PUBLISHED', publishedPost: { is: { publishedAt: { gte: from, lte: to } } } },
+      ],
+    } as any,
     orderBy: { scheduledFor: 'asc' },
     take: 500,
     select: {

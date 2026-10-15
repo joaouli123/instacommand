@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 require.cache[require.resolve('../dist/config/env')] = { exports: { env: { FRONTEND_URL: 'https://app.example.test/' } } };
 
 const now = Date.now();
-let links, posts, comments, created;
+let links, posts, comments, created, scheduleQuery;
 const fake = {
   clientShareLink: {
     findUnique: async ({ where }) => links.find((link) => link.tokenHash === where.tokenHash) || null,
@@ -12,7 +12,7 @@ const fake = {
     create: async ({ data }) => { const link = { id: 'link-new', createdAt: new Date(), revokedAt: null, ...data }; links.push(link); return link; },
   },
   scheduledPost: {
-    findMany: async ({ where }) => posts.filter((post) => post.userId === where.userId && where.status.in.includes(post.status)),
+    findMany: async (query) => { scheduleQuery = query; return posts.filter((post) => post.userId === query.where.userId && query.where.status.in.includes(post.status)); },
     findFirst: async ({ where }) => posts.find((post) => post.id === where.id && post.userId === where.userId && where.status.in.includes(post.status)) || null,
   },
   postClientComment: {
@@ -28,11 +28,13 @@ const share = require('../dist/services/client-share.service');
 const token = share.generateShareToken();
 beforeEach(() => {
   created = [];
+  scheduleQuery = null;
   comments = [];
   links = [{ id: 'link-1', userId: 'owner', tokenHash: share.hashShareToken(token), tokenPrefix: share.tokenPrefixOf(token), name: 'Cliente', accountIds: [], platforms: [], includeDrafts: false, expiresAt: null, revokedAt: null, createdAt: new Date() }];
   posts = [
     { id: 'p1', userId: 'owner', accountId: 'acc-1', status: 'SCHEDULED', mediaType: 'IMAGE', mediaUrls: ['https://cdn.test/a.jpg', 'javascript:alert(1)'], caption: 'Oi', hashtags: [], platforms: ['INSTAGRAM'], scheduledFor: new Date(now + 86_400_000), errorMessage: 'secret failure', editorialBrief: { internal: true }, advancedSettings: { x: 1 },
       account: { igUsername: 'marca', igName: 'Marca', pageName: 'Pagina', igProfilePicUrl: 'https://cdn.test/p.jpg', pageAccessToken: 'TOKEN-SECRET' }, threadsAccount: null, xAccount: null, publishedPost: null },
+    { id: 'p-published', userId: 'owner', accountId: 'acc-1', status: 'PUBLISHED', mediaType: 'IMAGE', mediaUrls: [], caption: 'Já saiu', hashtags: [], platforms: ['INSTAGRAM'], scheduledFor: new Date(now - 120 * 86_400_000), publishedPost: { publishedAt: new Date(now - 2 * 60 * 60_000) }, account: { igUsername: 'marca', igName: 'Marca', pageName: 'Pagina', igProfilePicUrl: null }, threadsAccount: null, xAccount: null },
     { id: 'p2', userId: 'owner', accountId: 'acc-1', status: 'DRAFT', mediaType: 'IMAGE', mediaUrls: [], caption: 'draft', hashtags: [], platforms: ['INSTAGRAM'], scheduledFor: new Date(now), account: null },
   ];
 });
@@ -73,16 +75,20 @@ test('expired or revoked links are refused', async () => {
 
 test('public payload whitelists fields and hides drafts unless allowed', async () => {
   const payload = await share.getPublicSchedule(token);
+  assert.ok(scheduleQuery.where.OR.some((condition) => condition.publishedPost?.is?.publishedAt?.gte instanceof Date), 'the shared timeline must include posts that went live in the selected period even if the planned date was older');
   const text = JSON.stringify(payload);
   for (const secret of ['TOKEN-SECRET', 'secret failure', 'internal', 'owner', 'tokenHash', 'link-1', 'acc-1', 'javascript:', share.hashShareToken(token), token]) {
     assert.equal(text.includes(secret), false, `leaked ${secret}`);
   }
-  assert.deepEqual(payload.posts.map((post) => post.id), ['p1']);
+  assert.deepEqual(payload.posts.map((post) => post.id), ['p1', 'p-published']);
+  const published = payload.posts.find((post) => post.id === 'p-published');
+  assert.equal(published.status, 'PUBLISHED');
+  assert.equal(new Date(published.scheduledAt).toISOString(), posts.find((post) => post.id === 'p-published').publishedPost.publishedAt.toISOString(), 'the client link should show when it actually went live, not its old planned date');
   assert.deepEqual(Object.keys(payload.posts[0]).sort(), ['accountKey', 'caption', 'hashtags', 'id', 'mediaType', 'mediaUrls', 'platforms', 'scheduledAt', 'status', 'thumbnailUrl', 'threadsAccount', 'xAccount'].sort());
   assert.equal(payload.accounts[0].igUsername, 'marca');
   assert.equal(payload.posts[0].accountKey, payload.accounts[0].key);
   links[0].includeDrafts = true;
-  assert.deepEqual((await share.getPublicSchedule(token)).posts.map((post) => post.id), ['p1', 'p2']);
+  assert.deepEqual((await share.getPublicSchedule(token)).posts.map((post) => post.id), ['p1', 'p-published', 'p2']);
 });
 
 test('comment validation limits length, name and pin coordinates', async () => {

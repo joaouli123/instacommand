@@ -32,7 +32,7 @@ type PendingPin = { mediaIndex: number; x: number; y: number }
 
 const STATUS = {
   SCHEDULED: { label: "Agendado", Icon: Clock, className: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
-  PUBLISHED: { label: "Publicado", Icon: CheckCircle2, className: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+  PUBLISHED: { label: "Publicado", Icon: CheckCircle2, className: "bg-slate-100 text-slate-600 ring-slate-200" },
   DRAFT: { label: "Rascunho", Icon: PencilLine, className: "bg-slate-100 text-slate-600 ring-slate-200" },
 } as const
 const NETWORKS = ["INSTAGRAM", "FACEBOOK", "THREADS", "X"]
@@ -77,6 +77,7 @@ export function PublicShareView({ token }: { token: string }) {
   const [data, setData] = useState<Payload | null>(null)
   const [error, setError] = useState<{ message: string; status?: number } | null>(null)
   const [view, setView] = useState<"list" | "month">("list")
+  const [showPublished, setShowPublished] = useState(false)
   const [networks, setNetworks] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [monthDate, setMonthDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
@@ -96,7 +97,9 @@ export function PublicShareView({ token }: { token: string }) {
 
   const accounts = useMemo(() => new Map((data?.accounts || []).map((account) => [account.key, account])), [data])
   const availableNetworks = useMemo(() => NETWORKS.filter((network) => data?.posts.some((post) => post.platforms.includes(network))), [data])
-  const posts = useMemo(() => (data?.posts || []).filter((post) => !networks.length || post.platforms.some((platform) => networks.includes(platform))), [data, networks])
+  const posts = useMemo(() => (data?.posts || [])
+    .filter((post) => !networks.length || post.platforms.some((platform) => networks.includes(platform)))
+    .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt)), [data, networks])
   const commentsByPost = useMemo(() => {
     const map = new Map<string, ClientComment[]>()
     data?.comments.forEach((comment) => map.set(comment.postId, [...(map.get(comment.postId) || []), comment]))
@@ -111,6 +114,8 @@ export function PublicShareView({ token }: { token: string }) {
 
   const brand = data.accounts[0]
   const counts = { SCHEDULED: posts.filter((post) => post.status === "SCHEDULED").length, PUBLISHED: posts.filter((post) => post.status === "PUBLISHED").length, DRAFT: posts.filter((post) => post.status === "DRAFT").length }
+  const upcomingPosts = posts.filter((post) => post.status !== "PUBLISHED")
+  const publishedPosts = posts.filter((post) => post.status === "PUBLISHED").slice().reverse()
 
   return <div className="min-h-dvh bg-[#f6f7fb] pb-[calc(2rem+env(safe-area-inset-bottom))]">
     <header className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white">
@@ -130,7 +135,7 @@ export function PublicShareView({ token }: { token: string }) {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Calendário de conteúdo</p>
           <h1 className="mt-1 text-2xl font-bold leading-tight sm:text-3xl">{data.link.name}</h1>
-          <p className="mt-1 max-w-xl text-sm text-white/80">Veja tudo o que será publicado. Toque em um post para ver a prévia e deixar suas observações.</p>
+          <p className="mt-1 max-w-xl text-sm text-white/80">Acompanhe as próximas publicações. O que já foi ao ar fica guardado no arquivo de publicados.</p>
         </div>
       </div>
     </header>
@@ -161,10 +166,23 @@ export function PublicShareView({ token }: { token: string }) {
             </button>
           })}
         </div>}
+        {counts.PUBLISHED > 0 && <button type="button" aria-expanded={showPublished} aria-controls={view === "list" ? "published-archive" : undefined} onClick={() => setShowPublished((current) => !current)}
+          className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ring-1 transition", showPublished ? "bg-slate-700 text-white ring-slate-700" : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50")}>
+          <CheckCircle2 size={13} />{showPublished ? "Ocultar publicados" : "Ver publicados"}<span className={cn("rounded-full px-1.5 py-0.5 text-[10px]", showPublished ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600")}>{counts.PUBLISHED}</span>
+        </button>}
       </div>
 
-      {view === "list" ? <Timeline posts={posts} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} />
-        : <MonthGrid posts={posts} monthDate={monthDate} setMonthDate={setMonthDate} selectedDay={selectedDay} setSelectedDay={setSelectedDay} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} />}
+      {view === "list" ? <>
+        {upcomingPosts.length ? <Timeline posts={upcomingPosts} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} /> : counts.PUBLISHED ? <div className="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200/70"><CheckCircle2 className="mx-auto text-slate-400" size={30} /><p className="mt-2 font-semibold text-slate-800">Tudo publicado por enquanto</p><p className="mt-1 text-sm text-slate-500">O histórico continua disponível em “Ver publicados”.</p></div> : <Timeline posts={upcomingPosts} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} />}
+        {counts.PUBLISHED > 0 && <section id="published-archive" aria-labelledby="published-archive-title" hidden={!showPublished} className="scroll-mt-20 space-y-3">
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-slate-600"><CheckCircle2 size={16} /></span>
+            <div className="min-w-0"><h2 id="published-archive-title" className="text-sm font-bold text-slate-800">Já publicados</h2><p className="text-xs text-slate-500">Histórico das publicações concluídas</p></div>
+            <span className="ml-auto rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-600">{counts.PUBLISHED}</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">{publishedPosts.map((post) => <PostCard key={post.id} post={post} account={accounts.get(post.accountKey)} commentCount={(commentsByPost.get(post.id) || []).filter((comment) => !comment.parentId).length} onOpen={() => setSelectedId(post.id)} />)}</div>
+        </section>}
+      </> : <MonthGrid posts={showPublished ? posts : upcomingPosts} monthDate={monthDate} setMonthDate={setMonthDate} selectedDay={selectedDay} setSelectedDay={setSelectedDay} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} />}
 
       <p className="pt-4 text-center text-[11px] text-slate-400">Link somente leitura{data.link.expiresAt ? ` · válido até ${new Date(data.link.expiresAt).toLocaleDateString("pt-BR")}` : ""} · InstaCommand</p>
     </main>
@@ -178,14 +196,15 @@ export function PublicShareView({ token }: { token: string }) {
 }
 
 function PostCard({ post, account, commentCount, onOpen }: { post: PublicPost; account?: PublicAccount; commentCount: number; onOpen: () => void }) {
-  return <button type="button" onClick={onOpen} className="group flex w-full min-w-0 gap-3 rounded-2xl bg-white p-2.5 text-left shadow-sm ring-1 ring-slate-200/70 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:p-3">
+  const published = post.status === "PUBLISHED"
+  return <button type="button" onClick={onOpen} className={cn("group flex w-full min-w-0 gap-3 rounded-2xl p-2.5 text-left shadow-sm ring-1 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:p-3", published ? "bg-slate-50 ring-slate-200" : "bg-white ring-slate-200/70")}>
     <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-xl sm:h-28 sm:w-24">
       <Thumb post={post} className="h-full w-full" />
       {post.mediaUrls.length > 1 && <span className="absolute right-1 top-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white">1/{post.mediaUrls.length}</span>}
     </div>
     <div className="flex min-w-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-sm font-bold text-slate-900">{timeOf(post.scheduledAt)}</span>
+        <span className="text-sm font-bold text-slate-700">{published ? `Publicado às ${timeOf(post.scheduledAt)}` : timeOf(post.scheduledAt)}</span>
         <StatusBadge status={post.status} />
       </div>
       <p className="mt-1 line-clamp-2 break-words text-sm text-slate-700">{post.caption || <span className="text-slate-400">Sem legenda</span>}</p>
@@ -275,13 +294,13 @@ function MonthGrid({ posts, monthDate, setMonthDate, selectedDay, setSelectedDay
             <span className={cn("mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold sm:mx-0", key === todayKey ? "bg-indigo-600 text-white" : inMonth ? "text-slate-700" : "")}>{date.getDate()}</span>
             {items.length > 0 && <>
               <div className="hidden min-w-0 flex-col gap-1 sm:flex">
-                {items.slice(0, 2).map((post) => <span key={post.id} className={cn("flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-[10px] font-semibold text-white", post.status === "DRAFT" && "opacity-70")} style={{ background: platformBackground(post.platforms) }}>
-                  <PlatformIcons platforms={post.platforms.slice(0, 1)} size={9} color="white" /><span className="truncate">{timeOf(post.scheduledAt)} {post.caption.split("\n")[0]}</span>
+                {items.slice(0, 2).map((post) => <span key={post.id} className={cn("flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-[10px] font-semibold", post.status === "PUBLISHED" ? "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200" : "text-white", post.status === "DRAFT" && "opacity-70")} style={post.status === "PUBLISHED" ? undefined : { background: platformBackground(post.platforms) }}>
+                  {post.status === "PUBLISHED" ? <CheckCircle2 size={10} className="shrink-0 text-slate-500" aria-label="Publicado" /> : <PlatformIcons platforms={post.platforms.slice(0, 1)} size={9} color="white" />}<span className="truncate">{timeOf(post.scheduledAt)} {post.caption.split("\n")[0]}</span>
                 </span>)}
                 {items.length > 2 && <span className="text-[10px] font-semibold text-slate-500">+{items.length - 2}</span>}
               </div>
               <div className="flex flex-wrap justify-center gap-0.5 sm:hidden">
-                {items.slice(0, 4).map((post) => <span key={post.id} className="h-1.5 w-1.5 rounded-full" style={{ background: platformBackground(post.platforms) }} />)}
+                {items.slice(0, 4).map((post) => <span key={post.id} className={cn("h-1.5 w-1.5 rounded-full", post.status === "PUBLISHED" ? "bg-slate-400" : "")} style={post.status === "PUBLISHED" ? undefined : { background: platformBackground(post.platforms) }} />)}
               </div>
             </>}
           </button>
@@ -319,7 +338,7 @@ function PostDetail({ token, post, account, comments, onComment }: { token: stri
       <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-300 sm:hidden" />
       <div className="mb-3 flex flex-wrap items-center gap-2 pr-10">
         <StatusBadge status={post.status} />
-        <span className="text-xs font-medium text-slate-600">{capitalize(new Date(post.scheduledAt).toLocaleString("pt-BR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</span>
+        <span className="text-xs font-medium text-slate-600">{post.status === "PUBLISHED" ? "Publicado em " : "Previsto para "}{capitalize(new Date(post.scheduledAt).toLocaleString("pt-BR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</span>
       </div>
       {hasMedia && <div className="mb-3 inline-flex rounded-xl bg-white p-1 ring-1 ring-slate-200" role="tablist">
         <button type="button" role="tab" aria-selected={tab === "preview"} onClick={() => setTab("preview")} className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold", tab === "preview" ? "bg-slate-900 text-white" : "text-slate-600")}><Eye size={13} />Prévia na rede</button>
@@ -445,8 +464,8 @@ function CommentForm({ token, postId, pending, clearPending, onComment, hasMedia
 function EmptyState() {
   return <div className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200/70">
     <CalendarDays className="mx-auto text-slate-300" size={36} />
-    <p className="mt-3 font-semibold text-slate-800">Nada por aqui ainda</p>
-    <p className="mt-1 text-sm text-slate-500">Quando novos posts forem agendados, eles aparecem neste link automaticamente.</p>
+    <p className="mt-3 font-semibold text-slate-800">Nenhuma publicação futura</p>
+    <p className="mt-1 text-sm text-slate-500">Quando novos posts forem agendados, eles aparecerão aqui. As publicações concluídas ficam em “Ver publicados”.</p>
   </div>
 }
 
