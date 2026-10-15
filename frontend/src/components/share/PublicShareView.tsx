@@ -208,7 +208,7 @@ function PostCard({ post, account, commentCount, onOpen }: { post: PublicPost; a
       </div>
       <p className="mt-1 line-clamp-2 break-words text-sm text-slate-700">{post.caption || <span className="text-slate-400">Sem legenda</span>}</p>
       <div className="mt-auto flex items-center gap-2 pt-2 text-[11px] text-slate-500">
-        <span className="flex h-5 items-center gap-1 rounded-md px-1.5 text-white" style={{ background: platformBackground(post.platforms) }}><PlatformIcons platforms={post.platforms} size={10} color="white" /></span>
+        <span className={cn("flex h-5 items-center gap-1 rounded-md px-1.5", published ? "bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200" : "text-white")} style={published ? undefined : { background: platformBackground(post.platforms) }}><PlatformIcons platforms={post.platforms} size={10} color={published ? "#64748b" : "white"} />{published && <CheckCircle2 size={10} aria-label="Publicado" />}</span>
         <span>{FORMAT_LABEL[post.mediaType] || "Feed"}</span>
         {account && <span className="hidden truncate sm:inline">· @{account.igUsername}</span>}
         {commentCount > 0 && <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800"><MessageCircle size={11} />{commentCount}</span>}
