@@ -44,6 +44,7 @@ test('shared client calendar visibly marks published posts and displays the actu
   assert.match(share, /const \[showPublished, setShowPublished\] = useState\(false\)/);
   assert.match(share, /const upcomingPosts = posts\.filter\(\(post\) => post\.status !== "PUBLISHED"\)/);
   assert.match(share, /"Ver publicados"/);
-  assert.match(share, /id="published-archive"[\s\S]*?hidden=\{!showPublished\}/);
+  assert.match(share, /showPublished \? <section id="published-archive"/);
+  assert.match(share, /showPublished && view === "list" \? "Ver próximos"/);
   assert.match(share, /<h2 id="published-archive-title"[^>]*>Já publicados<\/h2>/);
 });

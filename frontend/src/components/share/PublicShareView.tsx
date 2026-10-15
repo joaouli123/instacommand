@@ -168,20 +168,19 @@ export function PublicShareView({ token }: { token: string }) {
         </div>}
         {counts.PUBLISHED > 0 && <button type="button" aria-expanded={showPublished} aria-controls={view === "list" ? "published-archive" : undefined} onClick={() => setShowPublished((current) => !current)}
           className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ring-1 transition", showPublished ? "bg-slate-700 text-white ring-slate-700" : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50")}>
-          <CheckCircle2 size={13} />{showPublished ? "Ocultar publicados" : "Ver publicados"}<span className={cn("rounded-full px-1.5 py-0.5 text-[10px]", showPublished ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600")}>{counts.PUBLISHED}</span>
+          <CheckCircle2 size={13} />{showPublished && view === "list" ? "Ver próximos" : showPublished ? "Ocultar publicados" : "Ver publicados"}<span className={cn("rounded-full px-1.5 py-0.5 text-[10px]", showPublished ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600")}>{counts.PUBLISHED}</span>
         </button>}
       </div>
 
       {view === "list" ? <>
-        {upcomingPosts.length ? <Timeline posts={upcomingPosts} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} /> : counts.PUBLISHED ? <div className="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200/70"><CheckCircle2 className="mx-auto text-slate-400" size={30} /><p className="mt-2 font-semibold text-slate-800">Tudo publicado por enquanto</p><p className="mt-1 text-sm text-slate-500">O histórico continua disponível em “Ver publicados”.</p></div> : <Timeline posts={upcomingPosts} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} />}
-        {counts.PUBLISHED > 0 && <section id="published-archive" aria-labelledby="published-archive-title" hidden={!showPublished} className="scroll-mt-20 space-y-3">
+        {showPublished ? <section id="published-archive" aria-labelledby="published-archive-title" className="scroll-mt-20 space-y-3">
           <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-slate-600"><CheckCircle2 size={16} /></span>
             <div className="min-w-0"><h2 id="published-archive-title" className="text-sm font-bold text-slate-800">Já publicados</h2><p className="text-xs text-slate-500">Histórico das publicações concluídas</p></div>
             <span className="ml-auto rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-600">{counts.PUBLISHED}</span>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">{publishedPosts.map((post) => <PostCard key={post.id} post={post} account={accounts.get(post.accountKey)} commentCount={(commentsByPost.get(post.id) || []).filter((comment) => !comment.parentId).length} onOpen={() => setSelectedId(post.id)} />)}</div>
-        </section>}
+        </section> : upcomingPosts.length ? <Timeline posts={upcomingPosts} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} /> : counts.PUBLISHED ? <div className="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200/70"><CheckCircle2 className="mx-auto text-slate-400" size={30} /><p className="mt-2 font-semibold text-slate-800">Tudo publicado por enquanto</p><p className="mt-1 text-sm text-slate-500">O histórico continua disponível em “Ver publicados”.</p></div> : <Timeline posts={upcomingPosts} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} />}
       </> : <MonthGrid posts={showPublished ? posts : upcomingPosts} monthDate={monthDate} setMonthDate={setMonthDate} selectedDay={selectedDay} setSelectedDay={setSelectedDay} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} />}
 
       <p className="pt-4 text-center text-[11px] text-slate-400">Link somente leitura{data.link.expiresAt ? ` · válido até ${new Date(data.link.expiresAt).toLocaleDateString("pt-BR")}` : ""} · InstaCommand</p>
