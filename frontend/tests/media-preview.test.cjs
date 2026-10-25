@@ -19,9 +19,10 @@ test('every Instagram media preview uses MediaPreview instead of a raw <img>', (
   const component = read('components/dashboard/MediaPreview.tsx');
   assert.match(component, /onError=\{\(\) => setFailed\(true\)\}/);
   assert.match(component, /<video /);
-  for (const file of ['app/page.tsx', 'components/dashboard/InstagramAnalytics.tsx', 'app/trends/page.tsx']) {
+  for (const file of ['app/page.tsx', 'components/dashboard/InstagramAnalytics.tsx', 'components/dashboard/ReferencePostCard.tsx']) {
     const source = read(file);
     assert.match(source, /<MediaPreview /, file);
     assert.doesNotMatch(source, /<img src=\{post\.igMediaUrl\}|<img src=\{item\.media_url/, file);
   }
+  assert.match(read('app/trends/page.tsx'), /<ReferencePostCard /);
 });
