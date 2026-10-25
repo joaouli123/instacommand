@@ -28,6 +28,7 @@ const post = {
 };
 
 const prisma = {
+  instagramAccount: { findUnique: async () => ({ isActive: true, userId: 'user-1' }) },
   scheduledPost: {
     findUnique: async () => ({ ...post, mediaUrls: [...post.mediaUrls] }),
     updateMany: async () => ({ count: 1 }),

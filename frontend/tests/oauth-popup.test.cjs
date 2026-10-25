@@ -64,3 +64,11 @@ test('failed account reads show a retry state without claiming accounts were dis
   assert.match(accountsPage, /refreshAccounts\(\)\.catch\(\(\) => undefined\)\.finally\(\(\) => setLoading\(false\)\)/);
   assert.doesNotMatch(accountsPage, /Insights ainda não liberado no app Meta/);
 });
+
+test('previously inactive Meta assets are never selected automatically, including on refresh', () => {
+  assert.doesNotMatch(accountsPage, /setSelectedPendingIds\(pendingList\.map/);
+  assert.match(accountsPage, /setSelectedPendingIds\(\(current\) => current\.filter\(/);
+  const confirmation = accountsPage.slice(accountsPage.indexOf('const finishPendingSelection'));
+  assert.match(confirmation, /queryClient\.setQueryData\(\["accounts"\], result\.accounts/);
+  assert.match(confirmation, /refreshAccounts\(\)\.catch/);
+});

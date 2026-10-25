@@ -2,7 +2,7 @@ import { getPrisma } from '../lib/prisma';
 import { invalidateCached } from '../utils/ttl-cache';
 import { Router } from 'express';
 import { getConnectedAccounts, getPendingConnectedAccounts, selectConnectedAccounts, disconnectAccount, getConnectedThreadsAccounts, disconnectThreadsAccount } from '../services/instagram/auth.service';
-import { isAccountSyncRunning, syncAccountOnce } from '../services/account-sync.service';
+import { isAccountSyncRunning, syncAccountOnce, syncAccountsInBackground } from '../services/account-sync.service';
 import { authenticate } from '../middleware/auth';
 import { disconnectXAccount, getConnectedXAccounts, isXConfigured } from '../services/x.service';
 
@@ -53,7 +53,9 @@ router.post('/select', async (req: any, res, next) => {
       ? req.body.accountIds.filter((id: unknown): id is string => typeof id === 'string')
       : [];
     if (accountIds.length > 100) return res.status(400).json({ error: 'Selecione no máximo 100 contas.' });
-    res.json({ message: 'Contas selecionadas com sucesso', accounts: await selectConnectedAccounts(req.user.id, accountIds) });
+    const accounts = await selectConnectedAccounts(req.user.id, accountIds);
+    syncAccountsInBackground(accounts.filter((account) => accountIds.includes(account.id)).map((account) => account.id));
+    res.json({ message: 'Contas selecionadas com sucesso', accounts });
   } catch (error) {
     next(error);
   }

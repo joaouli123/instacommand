@@ -22,6 +22,19 @@ const publishFailure = (error: unknown) => {
 
 const prisma = getPrisma();
 
+// A queued job can outlive the connection that originally authorized it.
+// Re-read connection state at delivery time, not just when scheduling the post.
+const assertConnectedForPublish = async (network: 'instagram' | 'threads', accountId: string | null, userId: string) => {
+  const account = accountId
+    ? network === 'instagram'
+      ? await prisma.instagramAccount.findUnique({ where: { id: accountId }, select: { isActive: true, userId: true } })
+      : await prisma.threadsAccount.findUnique({ where: { id: accountId }, select: { isActive: true, userId: true } })
+    : null;
+  if (!account?.isActive || account.userId !== userId) {
+    throw new Error(`A conta do ${network === 'instagram' ? 'Instagram/Facebook' : 'Threads'} está desconectada. Reconecte a conta antes de publicar.`);
+  }
+};
+
 export const createMediaContainer = async (
   igUserId: string,
   token: string,
@@ -284,6 +297,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
 
     if (platforms.includes('INSTAGRAM')) {
       try {
+        await assertConnectedForPublish('instagram', post.accountId, post.userId);
         const token = await getDecryptedToken(post.accountId);
         // Re-validate stored options against the current media type so a
         // draft edited elsewhere never sends a parameter Meta would reject.
@@ -310,6 +324,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         });
         const isReady = await checkContainerStatus(containerId, token);
         if (!isReady) throw new Error('A mídia não foi processada pelo Instagram.');
+        await assertConnectedForPublish('instagram', post.accountId, post.userId);
         const igMediaId = await publishContainer(post.account.igUserId, containerId, token);
         const advancedWarnings: string[] = [];
         if (settings?.firstComment?.trim()) {
@@ -337,6 +352,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
 
     if (platforms.includes('FACEBOOK')) {
       try {
+        await assertConnectedForPublish('instagram', post.accountId, post.userId);
         const token = await getDecryptedToken(post.accountId);
         const facebookPostId = await publishFacebookPost(post, token);
         results.FACEBOOK = { id: facebookPostId };
@@ -348,6 +364,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
     if (platforms.includes('THREADS')) {
       try {
         if (!post.threadsAccount) throw new Error('Conecte uma conta do Threads antes de publicar.');
+        await assertConnectedForPublish('threads', post.threadsAccount.id, post.userId);
         const token = await getDecryptedThreadsToken(post.threadsAccount.id);
         const threadsPostId = await publishThreadsPost(post, token);
         results.THREADS = { id: threadsPostId };

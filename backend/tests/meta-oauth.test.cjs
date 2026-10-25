@@ -61,15 +61,36 @@ test('reconnection keeps an active account active and uses upsert', async () => 
   assert.equal(accounts[0].isActive, true);
   assert.equal(accounts[0].selectionPending, false);
 });
-test('reconnecting a disconnected or still-pending account reactivates it without a second selection', async () => {
+test('previously shared disconnected or pending profiles require an explicit in-app selection', async () => {
   for (const state of [{ isActive: false, selectionPending: false }, { isActive: false, selectionPending: true }]) {
     owners.ig1 = { userId: 'current', ...state };
     writes = [];
     const accounts = await handleOAuthCallback('test-code', 'current');
-    assert.equal(writes[0].update.isActive, true);
-    assert.equal(writes[0].update.selectionPending, false);
-    assert.equal(accounts[0].isActive, true);
+    assert.equal(writes[0].update.isActive, false);
+    assert.equal(writes[0].update.selectionPending, true);
+    assert.equal(accounts[0].isActive, false);
+    assert.equal(accounts[0].selectionPending, true);
   }
+});
+
+test('renewing an active profile does not reactivate another inactive asset returned by Meta', async () => {
+  owners.ig1 = { userId: 'current', isActive: true, selectionPending: false };
+  owners.ig2 = { userId: 'current', isActive: false, selectionPending: true };
+  pages.push({ id: 'page2', name: 'Previously shared Page', ig: 'ig2' });
+  const accounts = await handleOAuthCallback('test-code', 'current');
+  assert.deepEqual(accounts.map(a => [a.igUserId, a.isActive, a.selectionPending]), [
+    ['ig1', true, false], ['ig2', false, true],
+  ]);
+});
+
+test('portfolio fallback discovery also preserves a previously inactive profile', async () => {
+  pages = [];
+  portfolio = [{ id: 'ig2', username: 'previous_profile' }];
+  owners.ig2 = { userId: 'current', isActive: false, selectionPending: false };
+  const accounts = await handleOAuthCallback('test-code', 'current');
+  assert.equal(accounts[0].isActive, false);
+  assert.equal(accounts[0].selectionPending, true);
+  assert.equal(accounts[0].pageId, '');
 });
 test('another workspace produces a conflict, never a false missing-profile result', async () => {
   owners.ig1 = { userId: 'other', isActive: true, selectionPending: false };

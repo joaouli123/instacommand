@@ -115,7 +115,7 @@ export default function AccountsPage() {
     setThreadsOAuthStatus(oauthStatus as ThreadsOAuthStatus | null)
     const pendingList = pending as ConnectedAccount[]
     setPendingAccounts(pendingList)
-    setSelectedPendingIds(pendingList.map((account) => account.id))
+    setSelectedPendingIds((current) => current.filter((id) => pendingList.some((account) => account.id === id)))
     queryClient.setQueryData(["accounts"], data)
   }, [queryClient])
 
@@ -249,8 +249,10 @@ export default function AccountsPage() {
     try {
       const result = await api.selectAccounts(accountIds) as { accounts?: ConnectedAccount[] }
       setAccounts(result.accounts || [])
+      queryClient.setQueryData(["accounts"], result.accounts || [])
       setPendingAccounts([])
       setSelectedPendingIds([])
+      void refreshAccounts().catch(() => undefined)
       toast.success(accountIds.length ? t("{count} conta(s) vinculada(s) com sucesso", { count: accountIds.length }) : t("Seleção descartada"))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("Não foi possível salvar sua seleção"))

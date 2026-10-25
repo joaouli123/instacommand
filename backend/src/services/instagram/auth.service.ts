@@ -402,7 +402,7 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
 
     const existingAccount = await prisma.instagramAccount.findUnique({
       where: { igUserId: igId },
-      select: { userId: true },
+      select: { userId: true, isActive: true },
     });
     if (existingAccount && existingAccount.userId !== userId) {
       // One account owned by another customer must not block the rest of
@@ -411,11 +411,11 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
       return;
     }
 
-    // Meta's own authorization dialog is where the person picks which Pages
-    // and Instagram accounts to share. Everything returned here was chosen
-    // there, so it becomes active immediately (including a reconnection of an
-    // account that was disconnected) instead of waiting for a second choice
-    // inside InstaCommand.
+    // Meta can return previously shared assets as well as the current selection.
+    // Refreshing one profile must not reactivate another profile that the owner
+    // disconnected or left pending. Require an explicit in-app choice for those
+    // existing inactive rows; new profiles and active connections stay seamless.
+    const needsSelection = existingAccount?.isActive === false;
     const account = await prisma.instagramAccount.upsert({
       where: { igUserId: igId },
       update: {
@@ -429,8 +429,8 @@ export const handleOAuthCallback = async (code: string, userId: string) => {
         pageId: page?.id || '',
         pageName: page?.name || null,
         pageAccessToken: encryptedToken,
-        isActive: true,
-        selectionPending: false,
+        isActive: !needsSelection,
+        selectionPending: needsSelection,
         userId,
       },
       create: {
@@ -567,7 +567,7 @@ export const selectConnectedAccounts = async (userId: string, accountIds: string
 export const disconnectAccount = async (accountId: string, userId: string) => {
   return prisma.instagramAccount.update({
     where: { id: accountId, userId },
-    data: { isActive: false },
+    data: { isActive: false, selectionPending: false },
   });
 };
 

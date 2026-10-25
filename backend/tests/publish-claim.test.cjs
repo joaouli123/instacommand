@@ -3,9 +3,11 @@ const assert = require('node:assert/strict');
 require.cache[require.resolve('../dist/config/env')] = { exports: { env: {
   MEDIA_PUBLIC_URL: 'https://media.example.test/uploads', FRONTEND_URL: 'https://app.example.test',
 } } };
-let row, claims, writes, updates, publishedRows, failEnrichment;
+let row, claims, writes, updates, publishedRows, failEnrichment, connectedAccount, disconnectDuringProcessing;
 const clone = value => structuredClone(value);
 require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: class {
+  instagramAccount = { findUnique: async () => clone(connectedAccount) };
+  threadsAccount = { findUnique: async () => clone(connectedAccount) };
   scheduledPost = {
     findUnique: async () => clone(row),
     updateMany: async ({ where, data }) => {
@@ -24,6 +26,7 @@ require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: cl
 require.cache[require.resolve('../dist/utils/instagram-api')] = { exports: {
   graphPost: async (path) => { writes.push(path); return { id: path.endsWith('/media_publish') ? 'remote-post' : 'container' }; },
   graphGet: async (path) => {
+    if (path === '/container' && disconnectDuringProcessing) connectedAccount.isActive = false;
     if (path === '/remote-post' && failEnrichment) throw new Error('enrichment unavailable');
     return { status_code: 'FINISHED', permalink: 'https://example.test/post' };
   },
@@ -33,9 +36,37 @@ require.cache[require.resolve('../dist/services/notifications.service')] = { exp
 const { publishPost } = require('../dist/services/instagram/publish.service');
 beforeEach(() => {
   claims = 0; writes = []; updates = []; publishedRows = []; failEnrichment = false;
+  connectedAccount = { isActive: true, userId: 'user' }; disconnectDuringProcessing = false;
   row = { id: 'post', status: 'SCHEDULED', updatedAt: new Date('2026-01-01'), scheduledFor: new Date(Date.now() - 60_000),
     accountId: 'account', userId: 'user', account: { igUserId: 'ig' }, mediaType: 'IMAGE',
     mediaUrls: ['https://example.test/image.jpg'], caption: 'Fixture', platforms: ['INSTAGRAM'] };
+});
+
+test('disconnected accounts block Instagram, Facebook and Threads queue deliveries without remote writes', async () => {
+  for (const platform of ['INSTAGRAM', 'FACEBOOK', 'THREADS']) {
+    row.status = 'SCHEDULED'; row.platforms = [platform]; row.threadsAccount = { id: 'threads' };
+    connectedAccount.isActive = false;
+    await assert.rejects(publishPost('post', {}), /está desconectada/);
+    assert.equal(row.status, 'FAILED');
+    assert.deepEqual(writes, []);
+    assert.deepEqual(publishedRows, []);
+  }
+});
+
+test('a missing or foreign workspace connection cannot publish a queued post', async () => {
+  for (const connection of [null, { isActive: true, userId: 'another-workspace' }]) {
+    row.status = 'SCHEDULED'; connectedAccount = connection;
+    await assert.rejects(publishPost('post', {}), /está desconectada/);
+    assert.deepEqual(writes, []);
+  }
+});
+
+test('disconnecting while Instagram processes media prevents the final publication', async () => {
+  disconnectDuringProcessing = true;
+  await assert.rejects(publishPost('post', {}), /está desconectada/);
+  assert.deepEqual(writes, ['/ig/media']);
+  assert.deepEqual(publishedRows, []);
+  assert.equal(row.status, 'FAILED');
 });
 test('queued drafts, failed, processing and published items never make remote writes', async () => {
   for (const status of ['DRAFT', 'FAILED', 'PROCESSING', 'PUBLISHED']) {

@@ -199,10 +199,10 @@ router.get('/facebook/callback', async (req, res) => {
     const accounts = await handleOAuthCallback(code, user.id);
     // Import profile, posts and metrics now instead of waiting for the
     // scheduled collector; the redirect does not wait for it.
-    syncAccountsInBackground(accounts.map((account: any) => account.id));
+    syncAccountsInBackground(accounts.filter((account: any) => account.isActive).map((account: any) => account.id));
     const oauthSession = createOAuthSessionHandoff(user.id);
     const destination = accounts.length > 0
-      ? `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=1&oauth_session=${encodeURIComponent(oauthSession)}`
+      ? `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=${accounts.some((account: any) => account.selectionPending) ? 'pending' : '1'}&oauth_session=${encodeURIComponent(oauthSession)}`
       : `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=no_professional_instagram&oauth_session=${encodeURIComponent(oauthSession)}`;
     return res.redirect(destination);
   } catch (error) {
