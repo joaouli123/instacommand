@@ -5,7 +5,7 @@ import { getAiCredentials, getDecryptedToken } from './instagram/auth.service';
 import { verifyFacebookPageLink } from './instagram/facebook-link.service';
 import { graphPost } from '../utils/instagram-api';
 import { ConflictError, NotFoundError, ValidationError } from '../utils/errors';
-import { buildConversationHistory, conversationIntent, hasKeywordMatch, matchesEvent, validMessageWindow } from './automation-logic';
+import { automationAiFailureReason, buildConversationHistory, conversationIntent, hasKeywordMatch, matchesEvent, validMessageWindow } from './automation-logic';
 import { accountScope, automationDb as prisma, automationPermissions, ownedAutomationAccount, permissionCapabilities, sendAutomationResponse, ThreadsAutomationError, type Platform, isPublicReplyPlatform, replyLimit } from './automation-platform';
 import { conversationKey, withConversationLock } from './automation-lock';
 
@@ -260,7 +260,7 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
         if (generated.shouldEscalate) { await handoff(`Revisão humana recomendada: ${generated.reason}`, agent.fallback); return; }
         if (!agent.autoSend) { await handoff('Resposta gerada. Envio automático desativado: revise antes de enviar.', response); return; }
         if ([...response].length > replyLimit(platform)) { await handoff('A resposta gerada ultrapassou o limite desta rede. Revise o texto.', response.slice(0, 1000)); return; }
-      } catch { await handoff('A IA não gerou uma resposta segura. Revise manualmente.'); return; }
+      } catch (error) { await handoff(automationAiFailureReason(error)); return; }
     }
     if (!response) { await update({ status: 'SKIPPED', error: 'Esta regra não tem uma resposta configurada.' }); return; }
     let publicReplySent = false, privateReplySent = false;

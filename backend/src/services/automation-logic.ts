@@ -10,6 +10,22 @@ export const hasKeywordMatch = (rule: AutomationRuleMatch, text: string) => {
 export const matchesEvent = (trigger: AutomationTrigger, eventType: AutomationTrigger) =>
   trigger.startsWith('COMMENT_') === eventType.startsWith('COMMENT_');
 
+// Only return fixed, actionable messages. Provider errors can contain request
+// URLs, credentials or input; never copy them into a conversation/history.
+export const automationAiFailureReason = (error: unknown): string => {
+  const status = error && typeof error === 'object' && 'statusCode' in error ? error.statusCode : null;
+  const message = error instanceof Error ? error.message : '';
+  if (status === 400 && /model[\s\S]*(?:no longer available|not found|not supported|deprecated|retired)/i.test(message)) {
+    return 'O modelo de IA configurado não está disponível para esta conta. Confira o modelo em Configurações > Inteligência artificial. Nenhuma resposta foi enviada.';
+  }
+  if (status === 429) return 'O provedor de IA atingiu o limite de uso. Confira a cota disponível. Nenhuma resposta foi enviada; revise manualmente.';
+  if (status === 400 || status === 401 || status === 403 || status === 503) {
+    return 'O provedor recusou a configuração da IA. Confira a chave e o modelo em Configurações > Inteligência artificial. Nenhuma resposta foi enviada.';
+  }
+  if (status === 504) return 'A IA demorou demais para responder. Nenhuma resposta foi enviada; revise manualmente.';
+  return 'A IA não gerou uma resposta segura. Revise manualmente.';
+};
+
 export const conversationIntent = (text: string): 'STOPPED' | 'HUMAN' | null => {
   const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[.!?]+$/g, '');
   if (/^(stop|parar|pare|cancelar mensagens|sair|nao me envie mais mensagens|nao quero mais mensagens|pare de responder)$/.test(normalized)) return 'STOPPED';
