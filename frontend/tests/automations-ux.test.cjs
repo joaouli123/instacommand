@@ -73,7 +73,7 @@ test('the calendar shows the official network icons on each post', () => {
   assert.equal(icons.PlatformIcons({ platforms: ['OTHER'] }), null);
 });
 
-test('calendar cards use the network colors with white icons', () => {
+test('unpublished calendar cards use network colors; published cards stay archived gray', () => {
   const icons = compile('components/ui/platform-icons.tsx', {
     '@icons-pack/react-simple-icons': { SiInstagram: icon, SiFacebook: icon, SiThreads: icon },
     '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
@@ -87,8 +87,8 @@ test('calendar cards use the network colors with white icons', () => {
   assert.doesNotMatch(read('app/calendar/page.tsx'), /bg-amber-400|bg-emerald-400|ring-rose-500/);
   assert.equal(icons.platformBackground([]), '#4F46E5');
   const calendar = read('app/calendar/page.tsx');
-  assert.match(calendar, /style=\{\{ background: platformBackground\(event\.post\.platforms\) \}\}/);
-  assert.match(calendar, /color="white"/);
+  assert.match(calendar, /event\.status === 'published' \? undefined : \{ background: platformBackground\(event\.post\.platforms\) \}/);
+  assert.match(calendar, /event\.status === 'published' \? '#64748b' : 'white'/);
 });
 
 test('the dashboard queue shows a thumbnail before the format and caption', () => {

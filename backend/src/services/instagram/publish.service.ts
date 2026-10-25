@@ -9,6 +9,7 @@ import { assertPostReady } from '../post-readiness';
 import { normalizeMediaUrl } from '../../utils/public-media';
 import { InstagramAdvancedSettings, validateInstagramAdvancedSettings } from './advanced-settings';
 import { mediaPreviewUrl } from '../../utils/meta-media';
+import { LATE_PUBLISH_WINDOW_MS, MISSED_SCHEDULE_MESSAGE } from '../../utils/publish-timing';
 
 /** Keeps Meta's code and reason in the post's error, so a refusal can be acted on. */
 const publishFailure = (error: unknown) => {
@@ -241,6 +242,16 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
   // or a newer schedule. Legacy jobs have no date, but must still be due.
   if (trigger && (post.status !== 'SCHEDULED' || post.scheduledFor > new Date()
     || (trigger.scheduledFor !== undefined && post.scheduledFor.toISOString() !== trigger.scheduledFor))) {
+    return null;
+  }
+  // Enforce the late-send limit at the delivery boundary as well: an old queue
+  // entry can be claimed before the periodic reconciler sees the restored queue.
+  if (trigger && Date.now() - post.scheduledFor.getTime() > LATE_PUBLISH_WINDOW_MS) {
+    const expired = await prisma.scheduledPost.updateMany({
+      where: { id: post.id, status: 'SCHEDULED', updatedAt: post.updatedAt },
+      data: { status: 'FAILED', errorMessage: MISSED_SCHEDULE_MESSAGE },
+    });
+    if (expired.count) await notifyPublishFailure(post.userId, post.id, MISSED_SCHEDULE_MESSAGE).catch(() => undefined);
     return null;
   }
   if (post.status === 'PUBLISHED') {

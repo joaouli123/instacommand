@@ -67,6 +67,16 @@ test('a job that failed before the post recorded it surfaces the reason', async 
   assert.equal(posts[0].status, 'FAILED');
   assert.match(posts[0].errorMessage, /carrossel/);
 });
+test('restored queue entries do not bypass the late publication limit', async () => {
+  const states = ['waiting', 'delayed', 'active'];
+  posts = states.map((state) => post(state, 'SCHEDULED', { scheduledFor: minutes(-60 * 24) }));
+  jobs = Object.fromEntries(states.map((state) => [state, { state }]));
+  const summary = await reconcileScheduledPosts(NOW);
+  assert.equal(summary.missed, 3);
+  assert.equal(posts.every((item) => item.status === 'FAILED'), true);
+  assert.equal(notified.length, 3);
+  assert.deepEqual(added, []);
+});
 
 test('re-scheduling replaces a finished job instead of being silently ignored', async () => {
   jobs = { retry: { state: 'failed' } };

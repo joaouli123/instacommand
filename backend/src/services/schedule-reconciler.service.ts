@@ -2,17 +2,18 @@ import { getPrisma } from '../lib/prisma';
 
 import { publishQueue, schedulePost } from './scheduler.service';
 import { notifyPublishFailure } from './notifications.service';
+import { LATE_PUBLISH_WINDOW_MS, MISSED_SCHEDULE_MESSAGE } from '../utils/publish-timing';
+
+export { LATE_PUBLISH_WINDOW_MS } from '../utils/publish-timing';
 
 const prisma = getPrisma();
 
 // A publication still "PROCESSING" after this long was interrupted (e.g. the
 // container restarted mid-send). Video processing at Meta can take minutes.
 export const STALE_PROCESSING_MS = 20 * 60_000;
-// A scheduled post whose queue entry vanished is published late only within this window.
-export const LATE_PUBLISH_WINDOW_MS = 6 * 60 * 60_000;
 
 const INTERRUPTED = 'A publicação foi interrompida durante o envio (o servidor reiniciou). Confira nas redes se ela foi ao ar antes de tentar novamente.';
-const MISSED = 'O horário agendado passou sem que a publicação fosse enviada. Revise e agende novamente.';
+const MISSED = MISSED_SCHEDULE_MESSAGE;
 
 async function failOnce(post: { id: string; userId: string; status: string; updatedAt: Date }, message: string) {
   // Conditional on the state we saw, so it never overwrites a concurrent change.
@@ -44,6 +45,13 @@ export async function reconcileScheduledPosts(now = new Date()) {
     select: { id: true, userId: true, status: true, updatedAt: true, scheduledFor: true },
   });
   for (const post of scheduled) {
+    // Existing delayed/waiting entries can also be old after Redis recovery.
+    // The conditional write cannot overwrite a worker that already claimed it.
+    const overdue = now.getTime() - post.scheduledFor.getTime();
+    if (overdue > LATE_PUBLISH_WINDOW_MS) {
+      if (await failOnce(post, MISSED)) summary.missed++;
+      continue;
+    }
     const job = await publishQueue.getJob(post.id);
     const state = job ? await job.getState() : null;
     if (state && ['delayed', 'waiting', 'active', 'waiting-children', 'prioritized'].includes(state)) continue;
@@ -51,11 +59,6 @@ export async function reconcileScheduledPosts(now = new Date()) {
     if (state === 'failed') {
       // The job ran and threw before the post could record it (e.g. validation).
       if (await failOnce(post, job?.failedReason ? `A publicação não pôde ser enviada: ${job.failedReason}` : MISSED)) summary.failedInQueue++;
-      continue;
-    }
-    const overdue = now.getTime() - post.scheduledFor.getTime();
-    if (overdue > LATE_PUBLISH_WINDOW_MS) {
-      if (await failOnce(post, MISSED)) summary.missed++;
       continue;
     }
     // Missing (lost queue) or finished without effect: queue it again.

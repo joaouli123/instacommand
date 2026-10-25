@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { Plus, RefreshCw, Trash2, CheckCircle2, Users, Activity, Instagram, AtSign, Sparkles, ArrowRight } from "lucide-react"
+import { Plus, RefreshCw, Trash2, CheckCircle2, Users, Activity, Instagram, AtSign, Sparkles, ArrowRight, AlertCircle } from "lucide-react"
 import toast from "react-hot-toast"
 import { fetchApi, api } from "@/lib/api"
 import { announceAccountsConnected, notifySameTabAccountsConnected, subscribeAccountsConnected } from "@/lib/oauth-broadcast"
@@ -43,6 +43,7 @@ export default function AccountsPage() {
   const [threadsAccounts, setThreadsAccounts] = useState<ConnectedThreadsAccount[]>([])
   const [threadsOAuthStatus, setThreadsOAuthStatus] = useState<ThreadsOAuthStatus | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [auditLoadingId, setAuditLoadingId] = useState<string | null>(null)
   const [audit, setAudit] = useState<AiAudit | null>(null)
@@ -104,8 +105,12 @@ export default function AccountsPage() {
     const [data, threads, pending, oauthStatus] = await Promise.all([
       api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts(),
       api.getThreadsOAuthStatus().catch(() => null),
-    ])
+    ]).catch((error) => {
+      setLoadError(true)
+      throw error
+    })
     setAccounts(data as ConnectedAccount[])
+    setLoadError(false)
     setThreadsAccounts(threads as ConnectedThreadsAccount[])
     setThreadsOAuthStatus(oauthStatus as ThreadsOAuthStatus | null)
     const pendingList = pending as ConnectedAccount[]
@@ -230,7 +235,7 @@ export default function AccountsPage() {
         : result.sync?.mediaSnapshotComplete === false
           ? ` ${t("Leitura parcial da Meta; os posts antigos foram mantidos por segurança.")}`
           : ""
-      const insightsMessage = ` ${result.sync?.profileInsightsAvailable ? t("métricas de perfil atualizadas.") : t("perfil atualizado; Insights ainda não liberado no app Meta.")}`
+      const insightsMessage = ` ${result.sync?.profileInsightsAvailable ? t("métricas de perfil atualizadas.") : t("perfil atualizado; algumas métricas não estão disponíveis para esta conexão. Confira os detalhes em Analytics.")}`
       toast.success(`${t("{count} publicações encontradas.", { count: importedMedia })}${mediaMessage}${insightsMessage}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("Não foi possível sincronizar esta conta"))
@@ -296,6 +301,20 @@ export default function AccountsPage() {
     } finally {
       setDisconnectingThreadId(null)
     }
+  }
+
+  if (loadError && accounts.length === 0 && threadsAccounts.length === 0) {
+    return <div className="space-y-6 animate-fade-in">
+      <div className="page-header"><h1 className="page-title">{t("Contas conectadas")}</h1></div>
+      <Card role="alert" className="flex flex-col items-start gap-4 border-amber-200 bg-amber-50/60 p-5">
+        <AlertCircle size={24} className="text-amber-700" aria-hidden />
+        <div><h2 className="font-semibold text-slate-900">{t("Não foi possível carregar suas contas")}</h2><p className="mt-1 text-sm leading-6 text-slate-600">{t("Suas conexões continuam salvas. Atualize a lista para tentar novamente.")}</p></div>
+        <Button variant="outline" disabled={loading} onClick={() => {
+          setLoading(true)
+          void refreshAccounts().catch(() => undefined).finally(() => setLoading(false))
+        }} className="gap-2"><RefreshCw size={16} className={loading ? "animate-spin" : ""} />{loading ? t("Atualizando...") : t("Tentar novamente")}</Button>
+      </Card>
+    </div>
   }
 
   return (

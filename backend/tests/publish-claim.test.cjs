@@ -33,7 +33,7 @@ require.cache[require.resolve('../dist/services/notifications.service')] = { exp
 const { publishPost } = require('../dist/services/instagram/publish.service');
 beforeEach(() => {
   claims = 0; writes = []; updates = []; publishedRows = []; failEnrichment = false;
-  row = { id: 'post', status: 'SCHEDULED', updatedAt: new Date('2026-01-01'), scheduledFor: new Date('2026-01-01'),
+  row = { id: 'post', status: 'SCHEDULED', updatedAt: new Date('2026-01-01'), scheduledFor: new Date(Date.now() - 60_000),
     accountId: 'account', userId: 'user', account: { igUserId: 'ig' }, mediaType: 'IMAGE',
     mediaUrls: ['https://example.test/image.jpg'], caption: 'Fixture', platforms: ['INSTAGRAM'] };
 });
@@ -59,6 +59,20 @@ test('two simultaneous manual sends have only one owner and one remote publish',
   assert.equal(writes.filter(x => x.endsWith('/media_publish')).length, 1);
   assert.equal(publishedRows.length, 1);
   assert.equal(updates.some(x => x.status === 'FAILED'), false);
+});
+test('an expired queue entry is flagged without any remote publication', async () => {
+  row.scheduledFor = new Date(Date.now() - 24 * 60 * 60_000);
+  assert.equal(await publishPost('post', { scheduledFor: row.scheduledFor.toISOString() }), null);
+  assert.equal(row.status, 'FAILED');
+  assert.match(row.errorMessage, /horário agendado passou/);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(publishedRows, []);
+  assert.equal(await publishPost('post', {}), null);
+  assert.deepEqual(writes, []);
+});
+test('an explicit manual send remains possible for an old schedule', async () => {
+  row.scheduledFor = new Date(Date.now() - 24 * 60 * 60_000);
+  assert.equal((await publishPost('post')).igMediaId, 'remote-post');
 });
 test('duplicate queue deliveries skip the losing claim without resetting winner', async () => {
   const results = await Promise.all([publishPost('post', {}), publishPost('post', {})]);

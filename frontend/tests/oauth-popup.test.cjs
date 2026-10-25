@@ -47,11 +47,20 @@ test('a lone tab (same-tab redirect or mobile) is never told to close itself', a
 
 test('wiring: popup opens synchronously, connection refreshes every screen and follows the first sync', () => {
   assert.match(accountsPage, /window\.open\("about:blank", "_blank"\)/);
-  assert.match(accountsPage, /authWindow\.location\.replace\(result\.url\)/);
+  assert.match(accountsPage, /authWindow\.location\.replace\(withAuthLocale\(result\.url\)\)/);
   assert.match(accountsPage, /announceAccountsConnected\(\)/);
   assert.match(accountsPage, /notifySameTabAccountsConnected\(\)/);
   assert.match(accountsPage, /window\.close\(\)/);
   assert.match(providers, /subscribeAccountsConnected\(/);
   assert.match(providers, /queryClient\.invalidateQueries\(\)/);
   assert.match(providers, /account\.syncing/);
+});
+
+test('failed account reads show a retry state without claiming accounts were disconnected', () => {
+  assert.match(accountsPage, /setLoadError\(true\)/);
+  assert.match(accountsPage, /setLoadError\(false\)/);
+  assert.match(accountsPage, /if \(loadError && accounts\.length === 0 && threadsAccounts\.length === 0\)/);
+  assert.match(accountsPage, /Suas conexões continuam salvas/);
+  assert.match(accountsPage, /refreshAccounts\(\)\.catch\(\(\) => undefined\)\.finally\(\(\) => setLoading\(false\)\)/);
+  assert.doesNotMatch(accountsPage, /Insights ainda não liberado no app Meta/);
 });
