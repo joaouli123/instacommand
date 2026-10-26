@@ -11,7 +11,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'InstaCommand | UX Code — Gestão de redes sociais',
+  title: 'UX Code Social — Gestão de redes sociais',
   description: 'Produto independente da UX Code para agendamento, relatórios e gestão de interações de contas sociais autorizadas. Não é o Instagram nem um produto da Meta.',
 }
 

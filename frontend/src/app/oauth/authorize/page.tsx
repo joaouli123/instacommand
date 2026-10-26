@@ -67,7 +67,7 @@ export default function OAuthAuthorizePage() {
 
         {details && (
           <>
-            <h1 className="mt-6 text-center text-xl font-bold tracking-tight text-slate-900"><span className="text-indigo-700">{details.client.name}</span> quer acessar seu InstaCommand</h1>
+            <h1 className="mt-6 text-center text-xl font-bold tracking-tight text-slate-900"><span className="text-indigo-700">{details.client.name}</span> quer acessar seu UX Code Social</h1>
             {details.user && <p className="mt-2 text-center text-xs text-slate-500">Workspace: <strong className="text-slate-700">{details.user.name}</strong> ({details.user.email})</p>}
 
             <div className="mt-5 space-y-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
@@ -103,7 +103,7 @@ export default function OAuthAuthorizePage() {
                 <ShieldCheck size={15} />{submitting === "approve" ? "Autorizando…" : "Autorizar"}
               </Button>
             </div>
-            <p className="mt-5 text-center text-[11px] leading-4 text-slate-400">Você pode desconectar este aplicativo a qualquer momento em MCP e CLI › Tokens. O InstaCommand nunca compartilha suas senhas.</p>
+            <p className="mt-5 text-center text-[11px] leading-4 text-slate-400">Você pode desconectar este aplicativo a qualquer momento em MCP e CLI › Tokens. O UX Code Social nunca compartilha suas senhas.</p>
           </>
         )}
       </Card>

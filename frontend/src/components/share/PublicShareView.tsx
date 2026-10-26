@@ -183,7 +183,7 @@ export function PublicShareView({ token }: { token: string }) {
         </section> : upcomingPosts.length ? <Timeline posts={upcomingPosts} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} /> : counts.PUBLISHED ? <div className="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200/70"><CheckCircle2 className="mx-auto text-slate-400" size={30} /><p className="mt-2 font-semibold text-slate-800">Tudo publicado por enquanto</p><p className="mt-1 text-sm text-slate-500">O histórico continua disponível em “Ver publicados”.</p></div> : <Timeline posts={upcomingPosts} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} />}
       </> : <MonthGrid posts={showPublished ? posts : upcomingPosts} monthDate={monthDate} setMonthDate={setMonthDate} selectedDay={selectedDay} setSelectedDay={setSelectedDay} accounts={accounts} commentsByPost={commentsByPost} onOpen={setSelectedId} />}
 
-      <p className="pt-4 text-center text-[11px] text-slate-400">Link somente leitura{data.link.expiresAt ? ` · válido até ${new Date(data.link.expiresAt).toLocaleDateString("pt-BR")}` : ""} · InstaCommand</p>
+      <p className="pt-4 text-center text-[11px] text-slate-400">Link somente leitura{data.link.expiresAt ? ` · válido até ${new Date(data.link.expiresAt).toLocaleDateString("pt-BR")}` : ""} · UX Code Social</p>
     </main>
 
     <Dialog open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>

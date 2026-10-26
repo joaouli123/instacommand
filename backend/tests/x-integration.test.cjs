@@ -120,7 +120,7 @@ test('GET /accounts/x is declared before the /:id route that would swallow it', 
   assert.ok(source.indexOf("router.delete('/x/:id'") < source.indexOf("router.delete('/:id'"));
 });
 
-test('X connection problems never answer 401, which would sign the user out of InstaCommand', () => {
+test('X connection problems never answer 401, which would sign the user out of UX Code Social', () => {
   const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '../src/services/x.service.ts'), 'utf8');
   assert.doesNotMatch(source, /AppError\([^)]*,\s*401\)/);
   assert.doesNotMatch(source, /\?\s*401\s*:/);

@@ -9,7 +9,7 @@ export const workspaceTools = [
     name: 'get_profile',
     title: 'Perfil conectado',
     category: 'workspace',
-    description: 'Retorna o usuário do InstaCommand dono desta conexão (id estável, nome e e-mail).',
+    description: 'Retorna o usuário do UX Code Social dono desta conexão (id estável, nome e e-mail).',
     scopes: ['read'],
     annotations: READ,
     inputSchema: {},

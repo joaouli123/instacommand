@@ -9,7 +9,7 @@ import { DEFAULT_TIMEZONE, isPlainObject, type ToolContext, type ToolDefinition 
 
 export const MCP_SERVER_VERSION = '1.0.0';
 
-export const MCP_INSTRUCTIONS = `Você está conectado ao InstaCommand, plataforma de gestão de Instagram, Facebook (Página vinculada a cada conta do Instagram) e Threads.
+export const MCP_INSTRUCTIONS = `Você está conectado ao UX Code Social, plataforma de gestão de Instagram, Facebook (Página vinculada a cada conta do Instagram) e Threads.
 
 Fluxo recomendado:
 1. Comece com get_workspace_overview: ele traz os IDs das contas (accountId e threadsAccountId), as permissões deste token e o fuso padrão (${DEFAULT_TIMEZONE}).
@@ -28,7 +28,7 @@ const insufficientScopeResult = (missing: ApiScope[]) => {
   const labels = missing.map((scope) => `"${scope}" (${API_SCOPE_DETAILS[scope].label})`).join(' e ');
   return {
     isError: true,
-    content: [{ type: 'text' as const, text: `Esta conexão não tem a permissão ${labels} necessária para esta ferramenta. Peça ao usuário para reconectar o InstaCommand concedendo essa permissão (ou criar um token com ela na página MCP e CLI).` }],
+    content: [{ type: 'text' as const, text: `Esta conexão não tem a permissão ${labels} necessária para esta ferramenta. Peça ao usuário para reconectar o UX Code Social concedendo essa permissão (ou criar um token com ela na página MCP e CLI).` }],
     // ChatGPT reads this to offer re-authorization with the missing scope.
     _meta: { 'mcp/www_authenticate': [`Bearer resource_metadata="${protectedResourceMetadataUrl()}", error="insufficient_scope", scope="${missing.join(' ')}", error_description="Permissão ${missing.join(', ')} necessária"`] },
   };
@@ -62,7 +62,7 @@ export async function runTool(tool: ToolDefinition, args: any, context: ToolCont
 /** A new server per request: the transport is stateless and every request carries its own token. */
 export function createMcpServer(context: ToolContext) {
   const server = new McpServer(
-    { name: 'instacommand', title: 'InstaCommand', version: MCP_SERVER_VERSION },
+    { name: 'instacommand', title: 'UX Code Social', version: MCP_SERVER_VERSION },
     { instructions: MCP_INSTRUCTIONS, capabilities: { tools: {}, prompts: {} } },
   );
 
@@ -81,7 +81,7 @@ export function createMcpServer(context: ToolContext) {
     description: 'Monta e salva como rascunhos um plano de publicações para os próximos 7 dias.',
     argsSchema: { tema: z.string().optional().describe('Tema ou campanha da semana'), conta: z.string().optional().describe('@usuário da conta, se houver várias') },
   }, ({ tema, conta }) => ({
-    messages: [{ role: 'user', content: { type: 'text', text: `Use o InstaCommand para planejar minha próxima semana de conteúdo${conta ? ` da conta @${conta}` : ''}${tema ? ` com o tema "${tema}"` : ''}. Comece com get_workspace_overview e get_instagram_analytics (best_times e content_types), proponha 1 post por dia com formato, horário, legenda e hashtags, e só crie os rascunhos (create_post DRAFT) depois que eu aprovar. Não agende nada sem minha confirmação.` } }],
+    messages: [{ role: 'user', content: { type: 'text', text: `Use o UX Code Social para planejar minha próxima semana de conteúdo${conta ? ` da conta @${conta}` : ''}${tema ? ` com o tema "${tema}"` : ''}. Comece com get_workspace_overview e get_instagram_analytics (best_times e content_types), proponha 1 post por dia com formato, horário, legenda e hashtags, e só crie os rascunhos (create_post DRAFT) depois que eu aprovar. Não agende nada sem minha confirmação.` } }],
   }));
 
   server.registerPrompt('publicar_post', {
@@ -89,7 +89,7 @@ export function createMcpServer(context: ToolContext) {
     description: 'Guia o fluxo completo: mídia, legenda, revisão, agendamento ou publicação.',
     argsSchema: { briefing: z.string().describe('O que o post deve comunicar'), midia: z.string().optional().describe('URL da imagem ou vídeo') },
   }, ({ briefing, midia }) => ({
-    messages: [{ role: 'user', content: { type: 'text', text: `Quero criar um post no InstaCommand sobre: ${briefing}.${midia ? ` Use esta mídia: ${midia}.` : ''} Importe a mídia, escreva a legenda e as hashtags, crie como rascunho e me mostre o resumo final (redes, formato, legenda como será publicada e horário). Pergunte se devo agendar ou publicar agora.` } }],
+    messages: [{ role: 'user', content: { type: 'text', text: `Quero criar um post no UX Code Social sobre: ${briefing}.${midia ? ` Use esta mídia: ${midia}.` : ''} Importe a mídia, escreva a legenda e as hashtags, crie como rascunho e me mostre o resumo final (redes, formato, legenda como será publicada e horário). Pergunte se devo agendar ou publicar agora.` } }],
   }));
 
   server.registerPrompt('responder_comentarios', {
@@ -97,7 +97,7 @@ export function createMcpServer(context: ToolContext) {
     description: 'Lê os comentários recentes e sugere respostas para aprovação.',
     argsSchema: { tom: z.string().optional().describe('Tom das respostas') },
   }, ({ tom }) => ({
-    messages: [{ role: 'user', content: { type: 'text', text: `Leia os comentários recentes das minhas publicações no InstaCommand (list_comments), agrupe os que precisam de resposta e sugira respostas${tom ? ` em tom ${tom}` : ''}. Só publique cada resposta (reply_to_comment) depois que eu aprovar.` } }],
+    messages: [{ role: 'user', content: { type: 'text', text: `Leia os comentários recentes das minhas publicações no UX Code Social (list_comments), agrupe os que precisam de resposta e sugira respostas${tom ? ` em tom ${tom}` : ''}. Só publique cada resposta (reply_to_comment) depois que eu aprovar.` } }],
   }));
 
   server.registerPrompt('relatorio_desempenho', {
@@ -105,7 +105,7 @@ export function createMcpServer(context: ToolContext) {
     description: 'Resume o desempenho das redes no período e recomenda próximos passos.',
     argsSchema: { dias: z.string().optional().describe('Período: 7, 30 ou 90') },
   }, ({ dias }) => ({
-    messages: [{ role: 'user', content: { type: 'text', text: `Gere um relatório de desempenho dos últimos ${dias || '30'} dias com os dados reais do InstaCommand: get_instagram_analytics (dashboard, top_posts, best_times, content_types) e get_network_report para Facebook e Threads quando conectados. Destaque o que funcionou, o que não funcionou e 5 ações concretas. Não invente métricas indisponíveis.` } }],
+    messages: [{ role: 'user', content: { type: 'text', text: `Gere um relatório de desempenho dos últimos ${dias || '30'} dias com os dados reais do UX Code Social: get_instagram_analytics (dashboard, top_posts, best_times, content_types) e get_network_report para Facebook e Threads quando conectados. Destaque o que funcionou, o que não funcionou e 5 ações concretas. Não invente métricas indisponíveis.` } }],
   }));
 
   return server;

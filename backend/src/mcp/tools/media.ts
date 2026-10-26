@@ -23,7 +23,7 @@ export const mediaTools = [
     name: 'import_media_from_url',
     title: 'Importar mídia por URL',
     category: 'media',
-    description: `Baixa imagens ou vídeos de URLs públicas e diretas (ex.: imagem gerada por IA, arquivo em um CDN) para o armazenamento público do InstaCommand e devolve as URLs a usar em mediaUrls. Aceita ${SUPPORTED_MEDIA_DESCRIPTION}, até 100 MB cada. Links de páginas (Google Drive, Dropbox com visualizador) não funcionam: use o link direto do arquivo. A ordem das URLs retornadas segue a ordem enviada.`,
+    description: `Baixa imagens ou vídeos de URLs públicas e diretas (ex.: imagem gerada por IA, arquivo em um CDN) para o armazenamento público do UX Code Social e devolve as URLs a usar em mediaUrls. Aceita ${SUPPORTED_MEDIA_DESCRIPTION}, até 100 MB cada. Links de páginas (Google Drive, Dropbox com visualizador) não funcionam: use o link direto do arquivo. A ordem das URLs retornadas segue a ordem enviada.`,
     scopes: ['write'],
     annotations: { ...WRITE, openWorldHint: true },
     inputSchema: { urls: z.array(z.string().url().max(2048)).min(1).max(10).describe('URLs http(s) diretas das mídias, na ordem desejada no post.') },

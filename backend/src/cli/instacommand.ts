@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /*
- * InstaCommand CLI: manage Instagram, Facebook and Threads from the terminal,
+ * UX Code Social CLI: manage Instagram, Facebook and Threads from the terminal,
  * and bridge any local MCP client (Claude Desktop, Cursor, Codex...) to the
- * InstaCommand MCP server with `instacommand mcp`.
+ * UX Code Social MCP server with `instacommand mcp`.
  *
  * Single file with zero dependencies (Node.js 18+) so it can be downloaded
  * from the server and run with `node instacommand.cjs`. Do not import project
@@ -586,7 +586,7 @@ export function parseToolArgs(positionals: string[], flags: Flags): Record<strin
 const LOCAL_UPLOAD_TOOL = {
   name: 'upload_local_media',
   title: 'Enviar arquivos locais',
-  description: 'Envia imagens e vídeos deste computador para o InstaCommand e devolve URLs públicas para usar em mediaUrls (create_post/update_post). Aceita JPG, PNG, WebP, GIF, MP4 e MOV, até 100 MB cada, no máximo 10 por vez. A ordem das URLs segue a ordem dos caminhos.',
+  description: 'Envia imagens e vídeos deste computador para o UX Code Social e devolve URLs públicas para usar em mediaUrls (create_post/update_post). Aceita JPG, PNG, WebP, GIF, MP4 e MOV, até 100 MB cada, no máximo 10 por vez. A ordem das URLs segue a ordem dos caminhos.',
   inputSchema: {
     type: 'object',
     properties: { paths: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 10, description: 'Caminhos absolutos (ou relativos à pasta de trabalho) dos arquivos.' } },
@@ -650,7 +650,7 @@ async function runBridge(ctx: Context) {
 
 // ---------------------------------------------------------------- commands
 
-const HELP = `InstaCommand CLI ${VERSION} — gerencie Instagram, Facebook e Threads pelo terminal.
+const HELP = `UX Code Social CLI ${VERSION} — gerencie Instagram, Facebook e Threads pelo terminal.
 
 Uso: instacommand <comando> [opções]
 
@@ -722,7 +722,7 @@ async function commandLogin(flags: Flags) {
   if (!token && flagBool(flags, 'stdin')) token = await readStdin();
   if (!token) {
     if (!process.stdin.isTTY) throw usageError('Informe --token ou use --stdin.');
-    stderr('Crie um token pessoal no InstaCommand, na página "MCP e CLI" do menu lateral.');
+    stderr('Crie um token pessoal no UX Code Social, na página "MCP e CLI" do menu lateral.');
     token = await prompt('Cole o token (ic_pat_...): ', true);
   }
   if (!/^ic_pat_[A-Za-z0-9_-]{43}$/.test(token)) throw new CliError('Formato de token inválido. Use um token pessoal (ic_pat_...) criado na página MCP e CLI.');

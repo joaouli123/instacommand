@@ -125,7 +125,7 @@ function AutomationWorkspace({ accountId, username, platform }: { accountId: str
             <p className={cn("mt-0.5 text-xs leading-5", ready ? "text-emerald-800" : "text-amber-900")}>
               {ready ? (activeRules ? t("{count} regra(s) ativa(s). Última atividade: {date}.", { count: activeRules, date: formatDate(status.activity.lastEventProcessedAt) }) : t("Crie e ative uma regra para começar a responder."))
                 : problem ? problem
-                : !permissionOk ? (platform === "X" ? t("Reconecte a conta do X em Contas para liberar leitura e publicação de respostas.") : platform === "THREADS" ? t("Autorize o InstaCommand a responder comentários no Threads.") : t("A Meta ainda não liberou as permissões de comentários/mensagens para esta conta. Reconecte a conta em Contas depois da liberação."))
+                : !permissionOk ? (platform === "X" ? t("Reconecte a conta do X em Contas para liberar leitura e publicação de respostas.") : platform === "THREADS" ? t("Autorize o UX Code Social a responder comentários no Threads.") : t("A Meta ainda não liberou as permissões de comentários/mensagens para esta conta. Reconecte a conta em Contas depois da liberação."))
                 : t("Ative o recebimento de comentários e mensagens desta conta.")}
             </p>
           </div>

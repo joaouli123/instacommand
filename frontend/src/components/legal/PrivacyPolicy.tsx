@@ -3,8 +3,8 @@ import { LegalDocument, legalLinkClass, legalPaths, type LegalLang } from "./Leg
 // Portuguese text: original content of /politica-de-privacidade, unchanged.
 const ptBody = <>
     <section>
-      <h2>1. Quem opera o InstaCommand</h2>
-      <p>O InstaCommand é operado pela UX Code Desenvolvimento Web (CNPJ 66.650.579/0001-46), com endereço comercial em Curitiba/PR. Para dúvidas ou solicitações sobre dados pessoais, use o canal de contato indicado no final desta página. Esta política se aplica ao site e ao serviço InstaCommand.</p>
+      <h2>1. Quem opera o UX Code Social</h2>
+      <p>O UX Code Social é operado pela UX Code Desenvolvimento Web (CNPJ 66.650.579/0001-46), com endereço comercial em Curitiba/PR. Para dúvidas ou solicitações sobre dados pessoais, use o canal de contato indicado no final desta página. Esta política se aplica ao site e ao serviço UX Code Social.</p>
     </section>
 
     <section>
@@ -32,7 +32,7 @@ const ptBody = <>
 
     <section>
       <h2>5. Compartilhamento e operadores técnicos</h2>
-      <p>Compartilhamos dados somente quando necessário para prestar o serviço: com Meta/Instagram/Facebook/Threads para realizar as operações que você autorizou; com o provedor de IA escolhido quando você solicita um recurso de IA; e com fornecedores de infraestrutura que hospedam ou processam o banco de dados, arquivos e filas técnicas do InstaCommand. Esses fornecedores recebem os dados necessários à sua função e podem estar sujeitos a políticas próprias.</p>
+      <p>Compartilhamos dados somente quando necessário para prestar o serviço: com Meta/Instagram/Facebook/Threads para realizar as operações que você autorizou; com o provedor de IA escolhido quando você solicita um recurso de IA; e com fornecedores de infraestrutura que hospedam ou processam o banco de dados, arquivos e filas técnicas do UX Code Social. Esses fornecedores recebem os dados necessários à sua função e podem estar sujeitos a políticas próprias.</p>
       <p>Não vendemos dados pessoais. Não publicamos conteúdo por conta própria: qualquer publicação ou resposta automatizada depende de uma ação/configuração da conta e da disponibilidade e autorização concedida pelas plataformas.</p>
     </section>
 
@@ -44,7 +44,7 @@ const ptBody = <>
 
     <section>
       <h2>7. Seus direitos e contato</h2>
-      <p>Nos termos da legislação aplicável, incluindo a LGPD, você pode solicitar confirmação de tratamento, acesso, correção, informação sobre compartilhamento, oposição quando cabível e eliminação ou anonimização de dados. Para fazer um pedido, use o canal da UX Code indicado abaixo e informe o e-mail do workspace e o assunto “Privacidade — InstaCommand”. Podemos pedir informações razoáveis para confirmar que o pedido é seu. Não envie senhas nem tokens.</p>
+      <p>Nos termos da legislação aplicável, incluindo a LGPD, você pode solicitar confirmação de tratamento, acesso, correção, informação sobre compartilhamento, oposição quando cabível e eliminação ou anonimização de dados. Para fazer um pedido, use o canal da UX Code indicado abaixo e informe o e-mail do workspace e o assunto “Privacidade — UX Code Social”. Podemos pedir informações razoáveis para confirmar que o pedido é seu. Não envie senhas nem tokens.</p>
     </section>
 
     <section>
@@ -56,8 +56,8 @@ const ptBody = <>
 // English translation of the same content.
 const enBody = (primary: LegalLang) => <>
     <section>
-      <h2>1. Who operates InstaCommand</h2>
-      <p>InstaCommand is operated by UX Code Desenvolvimento Web (Brazilian company registration CNPJ 66.650.579/0001-46), with a business address in Curitiba, Paraná, Brazil. For questions or requests about personal data, use the contact channel listed at the end of this page. This policy applies to the InstaCommand website and service.</p>
+      <h2>1. Who operates UX Code Social</h2>
+      <p>UX Code Social is operated by UX Code Desenvolvimento Web (Brazilian company registration CNPJ 66.650.579/0001-46), with a business address in Curitiba, Paraná, Brazil. For questions or requests about personal data, use the contact channel listed at the end of this page. This policy applies to the UX Code Social website and service.</p>
     </section>
 
     <section>
@@ -85,7 +85,7 @@ const enBody = (primary: LegalLang) => <>
 
     <section>
       <h2>5. Sharing and technical service providers</h2>
-      <p>We share data only when necessary to provide the service: with Meta/Instagram/Facebook/Threads to perform the operations you authorized; with the AI provider you chose when you request an AI feature; and with infrastructure providers that host or process InstaCommand&apos;s database, files, and technical queues. These providers receive the data required for their function and may be subject to their own policies.</p>
+      <p>We share data only when necessary to provide the service: with Meta/Instagram/Facebook/Threads to perform the operations you authorized; with the AI provider you chose when you request an AI feature; and with infrastructure providers that host or process UX Code Social&apos;s database, files, and technical queues. These providers receive the data required for their function and may be subject to their own policies.</p>
       <p>We do not sell personal data. We do not publish content on our own initiative: any post or automated reply depends on an action or configuration made in the account and on the availability and authorization granted by the platforms.</p>
     </section>
 
@@ -97,7 +97,7 @@ const enBody = (primary: LegalLang) => <>
 
     <section>
       <h2>7. Your rights and contact</h2>
-      <p>Under applicable law, including the Brazilian General Data Protection Law (LGPD), you may request confirmation of processing, access, correction, information about sharing, objection where applicable, and deletion or anonymization of data. To make a request, use the UX Code channel listed below and provide your workspace email address and the subject “Privacy — InstaCommand” (“Privacidade — InstaCommand”). We may ask for reasonable information to confirm that the request is yours. Do not send passwords or tokens.</p>
+      <p>Under applicable law, including the Brazilian General Data Protection Law (LGPD), you may request confirmation of processing, access, correction, information about sharing, objection where applicable, and deletion or anonymization of data. To make a request, use the UX Code channel listed below and provide your workspace email address and the subject “Privacy — UX Code Social” (“Privacidade — UX Code Social”). We may ask for reasonable information to confirm that the request is yours. Do not send passwords or tokens.</p>
     </section>
 
     <section>
@@ -110,7 +110,7 @@ export function PrivacyPolicyDocument({ primary }: { primary: LegalLang }) {
   return <LegalDocument
     doc="privacy"
     primary={primary}
-    pt={{ title: "Política de Privacidade", description: "Explicamos de forma direta quais informações são usadas para operar o InstaCommand e como exercer seus direitos de privacidade.", body: ptBody }}
-    en={{ title: "Privacy Policy", description: "A straightforward explanation of which information is used to operate InstaCommand and how to exercise your privacy rights.", body: enBody(primary) }}
+    pt={{ title: "Política de Privacidade", description: "Explicamos de forma direta quais informações são usadas para operar o UX Code Social e como exercer seus direitos de privacidade.", body: ptBody }}
+    en={{ title: "Privacy Policy", description: "A straightforward explanation of which information is used to operate UX Code Social and how to exercise your privacy rights.", body: enBody(primary) }}
   />
 }

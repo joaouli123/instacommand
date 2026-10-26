@@ -47,7 +47,7 @@ export function Header() {
     '/accounts': { title: 'Contas', subtitle: 'Gerencie seus perfis do Instagram, Facebook, Threads e X' }
   }
 
-  const current = titles[pathname] || { title: 'InstaCommand', subtitle: 'Gestão de redes sociais · UX Code' }
+  const current = titles[pathname] || { title: 'UX Code Social', subtitle: 'Gestão de redes sociais · UX Code' }
 
   const { accounts, activeAccount, setActiveAccount, isLoading } = useActiveAccount()
   const userQuery = useQuery<User>({
@@ -84,7 +84,7 @@ export function Header() {
     <header className="sticky top-0 z-20 flex h-14 min-w-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/95 px-3 shadow-sm backdrop-blur-md sm:h-16 sm:px-6 md:h-[72px] md:px-8">
       <div className="min-w-0 flex-1">
         {/* The page itself carries the title; the bar only says where you are. */}
-        <p className="truncate text-sm font-semibold text-slate-700"><span className="hidden text-slate-400 sm:inline">InstaCommand <span aria-hidden>/</span> </span>{t(current.title)}</p>
+        <p className="truncate text-sm font-semibold text-slate-700"><span className="hidden text-slate-400 sm:inline">UX Code Social <span aria-hidden>/</span> </span>{t(current.title)}</p>
       </div>
       
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">

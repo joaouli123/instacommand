@@ -96,7 +96,7 @@ async function authenticateApiToken(req: AuthRequest, secret: string) {
   } else {
     scope = requirement.scope;
   }
-  if (scope === 'session') throw new ForbiddenError('Tokens de API não podem gerenciar credenciais. Use o painel do InstaCommand.');
+  if (scope === 'session') throw new ForbiddenError('Tokens de API não podem gerenciar credenciais. Use o painel do UX Code Social.');
   if (!token.scopes.includes(scope)) throw insufficientScope(scope);
 
   req.user = { id: token.userId, email: token.email };

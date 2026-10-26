@@ -45,13 +45,13 @@ export type ToolDefinition<Shape extends ZodRawShape = ZodRawShape> = {
 
 export const defineTool = <Shape extends ZodRawShape>(definition: ToolDefinition<Shape>) => definition as unknown as ToolDefinition;
 
-/** Reads InstaCommand data only. */
+/** Reads UX Code Social data only. */
 export const READ: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 /** Reads live data from Meta/Threads. */
 export const READ_LIVE: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
-/** Changes InstaCommand data without touching the social networks. */
+/** Changes UX Code Social data without touching the social networks. */
 export const WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
-/** Changes InstaCommand data idempotently (settings, merges). */
+/** Changes UX Code Social data idempotently (settings, merges). */
 export const WRITE_IDEMPOTENT: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 /** Creates something public or contacts an external service. */
 export const EXTERNAL: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
@@ -66,10 +66,10 @@ export const POST_STATUSES = ['DRAFT', 'SCHEDULED', 'PROCESSING', 'PUBLISHED', '
 export const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
 
 export const accountIdSchema = z.string().uuid()
-  .describe('ID interno da conta do Instagram no InstaCommand (campo "id" de list_accounts). Não é o @usuário nem o ID da Meta.');
+  .describe('ID interno da conta do Instagram no UX Code Social (campo "id" de list_accounts). Não é o @usuário nem o ID da Meta.');
 export const threadsAccountIdSchema = z.string().uuid().describe('ID interno da conta do Threads (campo "id" em threads de list_accounts).');
 export const xAccountIdSchema = z.string().uuid().describe('ID interno da conta do X (campo "id" em x de list_accounts).');
-export const postIdSchema = z.string().uuid().describe('ID da publicação no InstaCommand (campo "id" de list_posts).');
+export const postIdSchema = z.string().uuid().describe('ID da publicação no UX Code Social (campo "id" de list_posts).');
 
 const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 export const dateTimeSchema = z.string()

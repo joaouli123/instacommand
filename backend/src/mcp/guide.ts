@@ -27,7 +27,7 @@ export const PUBLISHING_GUIDE = {
     caption: 'Até 2.200 caracteres (Instagram). No Threads, texto final de até 500 caracteres; no X, até 280.',
     hashtags: 'Até 30 no campo hashtags (recomendado 3 a 8), sem o símbolo #.',
     media: 'Até 10 mídias por post, 100 MB por arquivo. Formatos: JPG, PNG, WebP, GIF, MP4, MOV. Para Instagram, prefira JPG e vídeo MP4 (H.264/AAC); Reels e Stories em 9:16.',
-    mediaUrls: 'Sempre passe as mídias por import_media_from_url ou upload_media_base64: as redes baixam o arquivo de uma URL pública e o InstaCommand reconhece vídeos pela extensão .mp4/.mov que essas ferramentas garantem.',
+    mediaUrls: 'Sempre passe as mídias por import_media_from_url ou upload_media_base64: as redes baixam o arquivo de uma URL pública e o UX Code Social reconhece vídeos pela extensão .mp4/.mov que essas ferramentas garantem.',
   },
   hashtags: 'As hashtags do campo hashtags são acrescentadas ao final da legenda (após uma linha em branco) no momento de agendar ou publicar — o mesmo comportamento do compositor. Hashtags já escritas na legenda não são duplicadas. Rascunhos guardam legenda e hashtags separadas.',
   scheduling: [
@@ -52,7 +52,7 @@ export const PUBLISHING_GUIDE = {
     notSupportedByApi: 'A API oficial não oferece: ocultar curtidas, marcar produtos sem loja aprovada, enquetes/figurinhas de Stories, filtros, edição de capa no grade, legendas automáticas e lembretes; a música só vem da busca search_instagram_audio.',
     instagramAudio: 'Música da biblioteca do Instagram, somente em REEL publicado no Instagram. Busque com search_instagram_audio.',
   },
-  deletion: 'A API oficial do Instagram não permite excluir mídia já publicada: delete_post remove do InstaCommand e tenta excluir no Facebook, no Threads e no X; o post do Instagram precisa ser apagado no app.',
+  deletion: 'A API oficial do Instagram não permite excluir mídia já publicada: delete_post remove do UX Code Social e tenta excluir no Facebook, no Threads e no X; o post do Instagram precisa ser apagado no app.',
   safety: [
     'Peça confirmação explícita antes de publicar agora, agendar, excluir, responder comentários, enviar mensagens ou desconectar contas.',
     'Conectar contas exige que o usuário abra o link de autorização da Meta, do Threads ou do X no navegador.',

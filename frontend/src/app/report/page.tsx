@@ -127,7 +127,7 @@ export default function ReportPage() {
         title: `Relatório de @${handle}`, subtitle: "Análise de desempenho", initial: clip(handle, 1).toUpperCase() || "R",
         avatar: account?.igProfilePicUrl ? await thumbnail(account.igProfilePicUrl, 200) : null,
         period: `Dados de ${date(since)} a ${date(until)}${compare ? `, comparados com o período de ${date(prevSince)} a ${date(since)}` : ""}.`,
-        sections, footer: `Gerado pelo InstaCommand em ${new Date().toLocaleString("pt-BR")} · ${source} · "—" = dado não fornecido pela rede`,
+        sections, footer: `Gerado pelo UX Code Social em ${new Date().toLocaleString("pt-BR")} · ${source} · "—" = dado não fornecido pela rede`,
       }
       await downloadReportPdf(report, `relatorio-${handle}-${since.toISOString().slice(0, 10)}-a-${until.toISOString().slice(0, 10)}.pdf`)
     }
@@ -168,7 +168,7 @@ export default function ReportPage() {
       {networks.THREADS && threadsId && <ThreadsSection data={th.data} loading={th.isLoading} failed={th.isError} compare={compare} />}
       {networks.X && xId && <XSection data={xr.data} loading={xr.isLoading} failed={xr.isError} compare={compare} />}
 
-      <p data-pdf-block className="mt-10 bg-white text-center text-[11px] text-slate-400">Gerado pelo InstaCommand em {new Date().toLocaleString("pt-BR")} · {source}. “—” indica dado não fornecido pela rede.</p>
+      <p data-pdf-block className="mt-10 bg-white text-center text-[11px] text-slate-400">Gerado pelo UX Code Social em {new Date().toLocaleString("pt-BR")} · {source}. “—” indica dado não fornecido pela rede.</p>
     </article>
     </PdfRegistry.Provider>
   </div>

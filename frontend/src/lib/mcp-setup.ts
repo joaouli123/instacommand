@@ -24,11 +24,11 @@ export function buildClientGuides({ mcpUrl, cliUrl, apiOrigin }: SetupUrls, toke
       id: 'chatgpt',
       name: 'ChatGPT',
       auth: 'OAuth',
-      summary: 'Sem token: você só autoriza o acesso numa tela do InstaCommand.',
+      summary: 'Sem token: você só autoriza o acesso numa tela do UX Code Social.',
       steps: [
         { text: 'No ChatGPT (web), abra Configurações › Aplicativos e conectores › Avançado e ative o Modo desenvolvedor.' },
-        { text: 'Clique em Criar, dê o nome “InstaCommand”, cole a URL abaixo e escolha a autenticação OAuth (deixe Client ID e Secret em branco):', code: mcpUrl, language: 'text' },
-        { text: 'Clique em Criar, entre no InstaCommand na janela que abrir e clique em Autorizar. Depois é só ativar o InstaCommand no botão “+” da conversa.' },
+        { text: 'Clique em Criar, dê o nome “UX Code Social”, cole a URL abaixo e escolha a autenticação OAuth (deixe Client ID e Secret em branco):', code: mcpUrl, language: 'text' },
+        { text: 'Clique em Criar, entre no UX Code Social na janela que abrir e clique em Autorizar. Depois é só ativar o UX Code Social no botão “+” da conversa.' },
       ],
       note: 'Requer um plano do ChatGPT com conectores personalizados. Os nomes dos menus podem variar conforme a versão.',
     },
@@ -39,8 +39,8 @@ export function buildClientGuides({ mcpUrl, cliUrl, apiOrigin }: SetupUrls, toke
       summary: 'Sem token: funciona no site, no app do computador e no celular com a mesma conexão.',
       steps: [
         { text: 'No Claude, abra Configurações › Conectores › Adicionar conector personalizado.' },
-        { text: 'Dê o nome “InstaCommand”, cole a URL abaixo e clique em Adicionar:', code: mcpUrl, language: 'text' },
-        { text: 'Clique em Conectar, entre no InstaCommand e clique em Autorizar. Depois ative o InstaCommand no menu de ferramentas da conversa.' },
+        { text: 'Dê o nome “UX Code Social”, cole a URL abaixo e clique em Adicionar:', code: mcpUrl, language: 'text' },
+        { text: 'Clique em Conectar, entre no UX Code Social e clique em Autorizar. Depois ative o UX Code Social no menu de ferramentas da conversa.' },
       ],
       note: 'Em organizações, um proprietário pode precisar adicionar o conector antes. Para enviar arquivos do computador, veja “Claude Desktop (local)” em Outras IAs.',
     },
@@ -84,8 +84,8 @@ export function buildClientGuides({ mcpUrl, cliUrl, apiOrigin }: SetupUrls, toke
       auth: 'OAuth ou token',
       summary: 'Arquivo .vscode/mcp.json; o token é pedido uma vez e guardado com segurança pelo VS Code.',
       steps: [
-        { text: 'Crie .vscode/mcp.json:', code: json({ inputs: [{ type: 'promptString', id: 'instacommand-token', description: 'Token do InstaCommand', password: true }], servers: { instacommand: { type: 'http', url: mcpUrl, headers: { Authorization: 'Bearer ${input:instacommand-token}' } } } }), language: 'json' },
-        { text: 'Abra o chat do Copilot no modo Agente e habilite as ferramentas do InstaCommand.' },
+        { text: 'Crie .vscode/mcp.json:', code: json({ inputs: [{ type: 'promptString', id: 'instacommand-token', description: 'Token do UX Code Social', password: true }], servers: { instacommand: { type: 'http', url: mcpUrl, headers: { Authorization: 'Bearer ${input:instacommand-token}' } } } }), language: 'json' },
+        { text: 'Abra o chat do Copilot no modo Agente e habilite as ferramentas do UX Code Social.' },
       ],
     },
     {

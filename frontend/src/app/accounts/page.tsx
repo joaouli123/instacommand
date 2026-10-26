@@ -148,7 +148,7 @@ export default function AccountsPage() {
       if (connected === "0") toast.error(tr(reason === "no_professional_instagram"
         ? "Nenhuma conta Instagram elegível foi importada. Verifique na Meta o vínculo com a Página e o acesso concedido ao aplicativo."
         : reason === "account_workspace_conflict"
-          ? "A conta autorizada já está vinculada a outro cadastro do InstaCommand. Entre nesse cadastro ou solicite a transferência dos vínculos. Não é necessário converter o Instagram."
+          ? "A conta autorizada já está vinculada a outro cadastro do UX Code Social. Entre nesse cadastro ou solicite a transferência dos vínculos. Não é necessário converter o Instagram."
           : reason === "meta_denied"
           ? "A Meta cancelou ou bloqueou esta conexão. Nenhum token foi salvo."
           : "A Meta recusou a conexão. Revise a Página, o portfólio e as permissões do aplicativo."))
@@ -158,13 +158,13 @@ export default function AccountsPage() {
         : reason === "threads_callback_missing_code"
           ? "A Meta não retornou o código de autorização. Confira o endereço de retorno configurado no app Threads."
           : reason === "threads_account_conflict"
-            ? "Essa conta Threads já está vinculada a outro usuário do InstaCommand. Entre no cadastro que a conectou primeiro."
+            ? "Essa conta Threads já está vinculada a outro usuário do UX Code Social. Entre no cadastro que a conectou primeiro."
             : "A conexão Threads falhou. Verifique a configuração do app Threads, as permissões autorizadas e tente novamente."))
       if (xConnected === "1") toast.success(tr("Conta do X conectada com sucesso"))
       if (xConnected === "0") toast.error(tr(reason === "x_denied"
         ? "Você cancelou ou o X recusou a autorização. Nenhuma conta foi vinculada."
         : reason === "x_account_conflict"
-          ? "Essa conta do X já está vinculada a outro usuário do InstaCommand."
+          ? "Essa conta do X já está vinculada a outro usuário do UX Code Social."
           : reason === "x_callback_missing_code"
             ? "O X não retornou o código de autorização. Confira a Callback URL configurada no app do X."
             : "A conexão com o X falhou. Confira se o app do X tem permissão de leitura e escrita e tente novamente."))
@@ -322,7 +322,7 @@ export default function AccountsPage() {
 
       {handedOff && <Card className="flex items-start gap-3 border-emerald-200 bg-emerald-50/70 p-4">
         <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-600" />
-        <div><p className="font-semibold text-emerald-900">{t("Conexão concluída")}</p><p className="mt-0.5 text-sm text-emerald-800">{t("A aba original do InstaCommand já foi atualizada com a nova conta. Você pode fechar esta aba.")}</p></div>
+        <div><p className="font-semibold text-emerald-900">{t("Conexão concluída")}</p><p className="mt-0.5 text-sm text-emerald-800">{t("A aba original do UX Code Social já foi atualizada com a nova conta. Você pode fechar esta aba.")}</p></div>
       </Card>}
 
       <ScreenshotAnalysis />
@@ -375,7 +375,7 @@ export default function AccountsPage() {
           <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-white"><AtSign size={19} /></div><div><h3 className="section-title">Threads</h3><p className="text-sm text-slate-500">{threadsAccounts.length ? t("@{username} conectado", { username: threadsAccounts[0].username }) : t("Conecte um perfil para publicar e acompanhar os resultados.")}</p><p className="mt-1 text-xs text-slate-500">{t("Veja as publicações e métricas disponíveis em Analytics → Threads. Os dados dependem das permissões concedidas pela conta.")}</p></div></div>
           <Button variant={threadsAccounts.length ? "outline" : "secondary"} onClick={connectThreads} disabled={Boolean(threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured))} className="gap-2">{threadsAccounts.length ? t("Conectar outra conta") : threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) ? t("Conexão em configuração") : t("Entrar com Threads")}</Button>
         </div>
-        {threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-semibold">{t("A conexão automática ainda não está pronta")}</p><p className="mt-1">{t("O administrador do InstaCommand precisa concluir a configuração do Threads uma vez no servidor. Você não precisa criar aplicativo, copiar ID ou colar token.")}</p></div>}
+        {threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-semibold">{t("A conexão automática ainda não está pronta")}</p><p className="mt-1">{t("O administrador do UX Code Social precisa concluir a configuração do Threads uma vez no servidor. Você não precisa criar aplicativo, copiar ID ou colar token.")}</p></div>}
         {threadsAccounts.length > 0 && <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">{threadsAccounts.map((account) => <div key={account.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5"><span className="text-sm font-semibold text-slate-800">@{account.username}</span><div className="flex items-center gap-2"><Badge variant="success">{t("Ativo")}</Badge><Button variant="ghost" size="icon" title={t("Desconectar @{username}", { username: account.username })} onClick={() => disconnectThreads(account)} disabled={disconnectingThreadId === account.id} className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={14}/></Button></div></div>)}</div>}
       </Card>
 

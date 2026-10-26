@@ -152,7 +152,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
-      <div><p className="page-eyebrow">Workspace</p><h1 className="page-title">{t("Configurações")}</h1><p className="page-subtitle">{t("Conexões, inteligência artificial e como o InstaCommand avisa você.")}</p></div>
+      <div><p className="page-eyebrow">Workspace</p><h1 className="page-title">{t("Configurações")}</h1><p className="page-subtitle">{t("Conexões, inteligência artificial e como o UX Code Social avisa você.")}</p></div>
 
       <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Languages size={19} /></span><div><h3 className="section-title">{t("Idioma da interface")}</h3><p className="mt-0.5 text-xs leading-5 text-slate-500">{t("Escolha o idioma dos menus, botões e mensagens. Fica salvo neste navegador.")}</p></div></div>

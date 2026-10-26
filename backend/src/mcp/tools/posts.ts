@@ -304,7 +304,7 @@ export const postTools = [
     name: 'delete_post',
     title: 'Excluir publicação',
     category: 'posts',
-    description: 'Exclui a publicação do InstaCommand (cancela agendamento). Se já publicada, tenta excluir no Facebook e no Threads; o Instagram não permite excluir pela API (o usuário apaga no app). IRREVERSÍVEL: exige confirmação explícita.',
+    description: 'Exclui a publicação do UX Code Social (cancela agendamento). Se já publicada, tenta excluir no Facebook e no Threads; o Instagram não permite excluir pela API (o usuário apaga no app). IRREVERSÍVEL: exige confirmação explícita.',
     scopes: ['write'],
     annotations: DESTRUCTIVE,
     inputSchema: { postId: postIdSchema, confirm: confirmSchema },

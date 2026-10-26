@@ -28,9 +28,9 @@ const sendOAuthError = (res: Response, error: unknown) => {
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] as string);
 
-const errorPage = (message: string) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Autorização não concluída · InstaCommand</title>
+const errorPage = (message: string) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Autorização não concluída · UX Code Social</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;padding:16px}main{max-width:440px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;box-shadow:0 10px 30px rgba(15,23,42,.06)}h1{font-size:18px;margin:0 0 8px}p{font-size:14px;line-height:1.55;color:#475569;margin:0}</style></head>
-<body><main><h1>Não foi possível iniciar a autorização</h1><p>${escapeHtml(message)}</p><p style="margin-top:12px">Volte ao aplicativo (Claude, ChatGPT ou outro cliente MCP) e conecte o InstaCommand novamente.</p></main></body></html>`;
+<body><main><h1>Não foi possível iniciar a autorização</h1><p>${escapeHtml(message)}</p><p style="margin-top:12px">Volte ao aplicativo (Claude, ChatGPT ou outro cliente MCP) e conecte o UX Code Social novamente.</p></main></body></html>`;
 
 router.options(['/.well-known/*', '/oauth/register', '/oauth/token', '/oauth/revoke'], publicCors);
 

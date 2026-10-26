@@ -17,7 +17,7 @@ export const X_SCOPES = ['tweet.read', 'tweet.write', 'users.read', 'media.write
 export const X_TEXT_LIMIT = 280;
 export const X_MAX_IMAGES = 4;
 
-// Never answer 401 for X problems: the web app treats 401 as "InstaCommand session expired" and signs the user out.
+// Never answer 401 for X problems: the web app treats 401 as "UX Code Social session expired" and signs the user out.
 export const isXConfigured = () => Boolean(env.X_CLIENT_ID && env.X_CLIENT_SECRET);
 const requireConfig = () => {
   if (!isXConfigured()) throw new AppError('X_OAUTH_NOT_CONFIGURED', 503);

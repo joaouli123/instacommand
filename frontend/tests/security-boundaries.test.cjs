@@ -7,7 +7,7 @@ test('login identifies its own service and never presents the Instagram mark as 
   const login = fs.readFileSync(path.join(root, 'src/app/login/page.tsx'), 'utf8');
   assert.match(login, /UX Code Desenvolvimento Web/);
   assert.match(login, /Não use a senha do Instagram/);
-  assert.match(login, /Senha do InstaCommand/);
+  assert.match(login, /Senha do UX Code Social/);
   assert.match(login, /Não é o Instagram nem um produto da Meta/);
   assert.doesNotMatch(login, /<Instagram\b|<SiInstagram\b/);
 });

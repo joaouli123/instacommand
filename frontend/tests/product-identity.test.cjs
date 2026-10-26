@@ -20,6 +20,18 @@ test('all product entry points use the own-product mark, not Instagram identity'
   assert.doesNotMatch(read('components/brand/ProductMark.tsx'), /Instagram|SiInstagram/);
 });
 
+test('public identity avoids Instagram name fragments while preserving technical session and MCP identifiers', () => {
+  for (const file of ['app/login/page.tsx', 'app/layout.tsx', 'components/layout/Sidebar.tsx', 'components/brand/ProductOverview.tsx', 'components/legal/LegalDocument.tsx']) {
+    const source = read(file);
+    assert.ok(source.includes('UX Code Social'), file);
+    assert.doesNotMatch(source, /InstaCommand|Postgram/, file);
+  }
+  assert.ok(read('lib/browser-api-proxy.ts').includes('__Host-instacommand_session'));
+  assert.ok(read('lib/browser-api-proxy.ts').includes('X-Instacommand-Browser-Signature'));
+  assert.ok(read('lib/mcp-setup.ts').includes('instacommand-token'));
+  assert.ok(read('app/login/page.tsx').includes('/api/auth/login'));
+});
+
 test('public product information is bilingual, truthful and has no credential fields or private calls', () => {
   const overview = read('components/brand/ProductOverview.tsx');
   for (const expected of ['lang="pt-BR"', 'lang="en"', 'UX Code Desenvolvimento Web', '66.650.579/0001-46', 'not affiliated', 'Never enter your Instagram', 'https://uxcode.com.br/#contato', '/politica-de-privacidade', '/exclusao-de-dados']) assert.ok(overview.includes(expected), expected);
@@ -49,7 +61,7 @@ test('login redirects remain internal and malformed next values never break succ
 
 test('login safety warnings and field labels have English translations', () => {
   const { EN_COMMON } = load('lib/locales/en-common.ts');
-  for (const pt of ['Acesse somente com sua conta do InstaCommand. Não use a senha do Instagram, Facebook ou Threads.', 'E-mail da sua conta InstaCommand', 'Senha do InstaCommand', 'Senha da sua conta InstaCommand', 'Pelo menos 10 caracteres', 'Depois de entrar, acesse', 'para conectar suas redes. A autorização acontece nas páginas oficiais de cada plataforma; não pedimos suas senhas de redes sociais aqui.', 'Ferramenta independente da UX Code. Não é o Instagram nem um produto da Meta. Cada cliente administra somente as próprias contas.']) {
+  for (const pt of ['Acesse somente com sua conta do UX Code Social. Não use a senha do Instagram, Facebook ou Threads.', 'E-mail da sua conta UX Code Social', 'Senha do UX Code Social', 'Senha da sua conta UX Code Social', 'Pelo menos 10 caracteres', 'Depois de entrar, acesse', 'para conectar suas redes. A autorização acontece nas páginas oficiais de cada plataforma; não pedimos suas senhas de redes sociais aqui.', 'Ferramenta independente da UX Code. Não é o Instagram nem um produto da Meta. Cada cliente administra somente as próprias contas.']) {
     assert.equal(typeof EN_COMMON[pt], 'string', pt);
     assert.notEqual(EN_COMMON[pt], pt);
   }

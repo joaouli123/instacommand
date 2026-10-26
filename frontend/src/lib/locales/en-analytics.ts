@@ -200,7 +200,7 @@ export const EN_ANALYTICS: Record<string, string> = {
   "Não foi possível carregar as métricas.": "Couldn't load the metrics.",
   "Carregando métricas…": "Loading metrics…",
   "Evolução de seguidores": "Follower growth",
-  "Total ao fim de cada dia, semana ou mês. Antes das coletas do InstaCommand, calculado com os ganhos e perdas diários da Meta. Sem preencher dias ausentes com zero.": "Total at the end of each day, week or month. Before InstaCommand started syncing, it's calculated from Meta's daily gains and losses. Missing days aren't filled with zero.",
+  "Total ao fim de cada dia, semana ou mês. Antes das coletas do UX Code Social, calculado com os ganhos e perdas diários da Meta. Sem preencher dias ausentes com zero.": "Total at the end of each day, week or month. Before UX Code Social started syncing, it's calculated from Meta's daily gains and losses. Missing days aren't filled with zero.",
   "Interações nas publicações": "Post interactions",
   "Contadores conhecidos dos posts publicados em cada data, acumulados até a coleta. Totais podem ser parciais.": "Known counts for posts published on each date, accumulated up to the sync. Totals may be partial.",
 }

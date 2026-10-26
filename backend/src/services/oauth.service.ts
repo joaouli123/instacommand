@@ -551,6 +551,6 @@ export const protectedResourceMetadata = () => ({
   authorization_servers: [oauthIssuer()],
   scopes_supported: [...API_SCOPES],
   bearer_methods_supported: ['header'],
-  resource_name: 'InstaCommand',
+  resource_name: 'UX Code Social',
   resource_documentation: `${env.FRONTEND_URL.replace(/\/+$/, '')}/integrations`,
 });

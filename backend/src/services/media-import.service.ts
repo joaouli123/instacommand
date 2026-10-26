@@ -26,7 +26,7 @@ function alreadyHostedMedia(sourceUrl: string): ImportedMedia | null {
   const filename = decodeURIComponent(normalized.slice(base.length).split(/[?#]/)[0]);
   if (!/^[A-Za-z0-9._-]+$/.test(filename) || filename.startsWith('.')) return null;
   const filePath = path.join(uploadRoot(), filename);
-  if (!fs.existsSync(filePath)) throw new ValidationError('Esta mídia do InstaCommand não existe mais. Envie o arquivo novamente.');
+  if (!fs.existsSync(filePath)) throw new ValidationError('Esta mídia do UX Code Social não existe mais. Envie o arquivo novamente.');
   const head = Buffer.alloc(16);
   const fd = fs.openSync(filePath, 'r');
   try { fs.readSync(fd, head, 0, 16, 0); } finally { fs.closeSync(fd); }

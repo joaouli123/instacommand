@@ -58,7 +58,7 @@ export function Sidebar() {
             <ProductMark className="h-8 w-8 rounded-lg" />
             <div className="flex flex-col">
               <span className="text-base font-bold tracking-tight text-slate-900 leading-tight">
-                InstaCommand
+                UX Code Social
               </span>
               <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">
                 {t('Gestão Profissional')}

@@ -39,7 +39,7 @@ const challenge = (res: Response, invalid: boolean) => {
   ];
   res.status(401).set('WWW-Authenticate', parts.join(', ')).json({
     jsonrpc: '2.0',
-    error: { code: -32001, message: invalid ? 'Token inválido, expirado ou revogado. Conecte o InstaCommand novamente.' : 'Autenticação necessária.' },
+    error: { code: -32001, message: invalid ? 'Token inválido, expirado ou revogado. Conecte o UX Code Social novamente.' : 'Autenticação necessária.' },
     id: null,
   });
 };

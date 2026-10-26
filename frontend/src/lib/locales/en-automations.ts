@@ -46,7 +46,7 @@ export const EN_AUTOMATIONS: Record<string, string> = {
   "{count} regra(s) ativa(s). Última atividade: {date}.": "{count} active rule(s). Last activity: {date}.",
   "Crie e ative uma regra para começar a responder.": "Create and turn on a rule to start replying.",
   "Reconecte a conta do X em Contas para liberar leitura e publicação de respostas.": "Reconnect your X account in Accounts to allow reading mentions and posting replies.",
-  "Autorize o InstaCommand a responder comentários no Threads.": "Authorize InstaCommand to reply to comments on Threads.",
+  "Autorize o UX Code Social a responder comentários no Threads.": "Authorize UX Code Social to reply to comments on Threads.",
   "A Meta ainda não liberou as permissões de comentários/mensagens para esta conta. Reconecte a conta em Contas depois da liberação.": "Meta hasn't granted the comments/messaging permissions for this account yet. Reconnect the account in Accounts once they're granted.",
   "Ative o recebimento de comentários e mensagens desta conta.": "Turn on receiving comments and messages for this account.",
   "Menções verificadas agora.": "Mentions checked just now.",

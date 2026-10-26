@@ -4,7 +4,7 @@ import { LegalDocument, legalLinkClass, legalPaths, type LegalLang } from "./Leg
 const ptBody = <>
     <section>
       <h2>1. Aceitação e escopo</h2>
-      <p>Ao criar uma conta ou usar o InstaCommand, você concorda com estes termos e com a <a className="font-semibold text-indigo-600 underline underline-offset-2" href="/politica-de-privacidade">Política de Privacidade</a>. Se não concordar, não use o serviço. O InstaCommand oferece ferramentas para preparar, agendar e acompanhar conteúdo de contas profissionais conectadas.</p>
+      <p>Ao criar uma conta ou usar o UX Code Social, você concorda com estes termos e com a <a className="font-semibold text-indigo-600 underline underline-offset-2" href="/politica-de-privacidade">Política de Privacidade</a>. Se não concordar, não use o serviço. O UX Code Social oferece ferramentas para preparar, agendar e acompanhar conteúdo de contas profissionais conectadas.</p>
     </section>
 
     <section>
@@ -14,7 +14,7 @@ const ptBody = <>
 
     <section>
       <h2>3. Contas sociais e permissões</h2>
-      <p>Você só pode conectar contas e Páginas que administra ou para as quais tem autorização. Ao conectar uma plataforma, você autoriza o InstaCommand a usar os dados e executar as ações correspondentes às permissões que concedeu, conforme os recursos escolhidos. A conexão pode depender de aprovação da Meta, tipo de conta compatível, configuração correta e disponibilidade da API.</p>
+      <p>Você só pode conectar contas e Páginas que administra ou para as quais tem autorização. Ao conectar uma plataforma, você autoriza o UX Code Social a usar os dados e executar as ações correspondentes às permissões que concedeu, conforme os recursos escolhidos. A conexão pode depender de aprovação da Meta, tipo de conta compatível, configuração correta e disponibilidade da API.</p>
       <p>Seu uso também precisa cumprir os termos, padrões e limites do Instagram, Facebook, Threads e demais serviços conectados. Essas plataformas são operadas por terceiros e podem alterar ou interromper suas APIs, permissões, formatos ou regras sem controle da UX Code.</p>
     </section>
 
@@ -36,7 +36,7 @@ const ptBody = <>
 
     <section>
       <h2>7. Suspensão, encerramento e exclusão</h2>
-      <p>Podemos limitar ou suspender o acesso quando necessário para proteger o serviço, cumprir a lei ou responder a uso que viole estes termos. Você pode parar de usar o serviço e pedir a exclusão dos seus dados conforme as <a className="font-semibold text-indigo-600 underline underline-offset-2" href="/exclusao-de-dados">instruções de exclusão</a>. A remoção de dados do InstaCommand não apaga automaticamente conteúdos já publicados nas plataformas sociais.</p>
+      <p>Podemos limitar ou suspender o acesso quando necessário para proteger o serviço, cumprir a lei ou responder a uso que viole estes termos. Você pode parar de usar o serviço e pedir a exclusão dos seus dados conforme as <a className="font-semibold text-indigo-600 underline underline-offset-2" href="/exclusao-de-dados">instruções de exclusão</a>. A remoção de dados do UX Code Social não apaga automaticamente conteúdos já publicados nas plataformas sociais.</p>
     </section>
 
     <section>
@@ -49,7 +49,7 @@ const ptBody = <>
 const enBody = (primary: LegalLang) => <>
     <section>
       <h2>1. Acceptance and scope</h2>
-      <p>By creating an account or using InstaCommand, you agree to these terms and to the <a className={legalLinkClass} href={legalPaths.privacy[primary]}>Privacy Policy</a>. If you do not agree, do not use the service. InstaCommand provides tools to prepare, schedule, and monitor content for connected professional accounts.</p>
+      <p>By creating an account or using UX Code Social, you agree to these terms and to the <a className={legalLinkClass} href={legalPaths.privacy[primary]}>Privacy Policy</a>. If you do not agree, do not use the service. UX Code Social provides tools to prepare, schedule, and monitor content for connected professional accounts.</p>
     </section>
 
     <section>
@@ -59,7 +59,7 @@ const enBody = (primary: LegalLang) => <>
 
     <section>
       <h2>3. Social accounts and permissions</h2>
-      <p>You may only connect accounts and Pages that you manage or are authorized to use. When you connect a platform, you authorize InstaCommand to use the data and perform the actions corresponding to the permissions you granted, according to the features you choose. The connection may depend on Meta&apos;s approval, a compatible account type, correct configuration, and API availability.</p>
+      <p>You may only connect accounts and Pages that you manage or are authorized to use. When you connect a platform, you authorize UX Code Social to use the data and perform the actions corresponding to the permissions you granted, according to the features you choose. The connection may depend on Meta&apos;s approval, a compatible account type, correct configuration, and API availability.</p>
       <p>Your use must also comply with the terms, standards, and limits of Instagram, Facebook, Threads, and any other connected services. These platforms are operated by third parties and may change or discontinue their APIs, permissions, formats, or rules without UX Code having any control over them.</p>
     </section>
 
@@ -81,7 +81,7 @@ const enBody = (primary: LegalLang) => <>
 
     <section>
       <h2>7. Suspension, termination, and deletion</h2>
-      <p>We may limit or suspend access when necessary to protect the service, comply with the law, or respond to use that violates these terms. You may stop using the service and request deletion of your data by following the <a className={legalLinkClass} href={legalPaths.deletion[primary]}>data deletion instructions</a>. Removing data from InstaCommand does not automatically delete content already published on social platforms.</p>
+      <p>We may limit or suspend access when necessary to protect the service, comply with the law, or respond to use that violates these terms. You may stop using the service and request deletion of your data by following the <a className={legalLinkClass} href={legalPaths.deletion[primary]}>data deletion instructions</a>. Removing data from UX Code Social does not automatically delete content already published on social platforms.</p>
     </section>
 
     <section>
@@ -94,7 +94,7 @@ export function TermsOfServiceDocument({ primary }: { primary: LegalLang }) {
   return <LegalDocument
     doc="terms"
     primary={primary}
-    pt={{ title: "Termos de Serviço", description: "Estes termos explicam as condições para acessar e usar o InstaCommand, plataforma operada pela UX Code.", body: ptBody }}
-    en={{ title: "Terms of Service", description: "These terms explain the conditions for accessing and using InstaCommand, a platform operated by UX Code.", body: enBody(primary) }}
+    pt={{ title: "Termos de Serviço", description: "Estes termos explicam as condições para acessar e usar o UX Code Social, plataforma operada pela UX Code.", body: ptBody }}
+    en={{ title: "Terms of Service", description: "These terms explain the conditions for accessing and using UX Code Social, a platform operated by UX Code.", body: enBody(primary) }}
   />
 }

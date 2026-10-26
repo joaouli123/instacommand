@@ -6,7 +6,7 @@ export const EN_ACCOUNTS: Record<string, string> = {
   "Gerencie suas contas do Instagram, Facebook, Threads e X.": "Manage your Instagram, Facebook, Threads and X accounts.",
   "Adicionar conta": "Add account",
   "Conexão concluída": "Connection complete",
-  "A aba original do InstaCommand já foi atualizada com a nova conta. Você pode fechar esta aba.": "Your original InstaCommand tab has been updated with the new account. You can close this tab.",
+  "A aba original do UX Code Social já foi atualizada com a nova conta. Você pode fechar esta aba.": "Your original UX Code Social tab has been updated with the new account. You can close this tab.",
 
   // OAuth start
   "Permita pop-ups para conectar a conta sem sair desta página.": "Allow pop-ups to connect the account without leaving this page.",
@@ -21,17 +21,17 @@ export const EN_ACCOUNTS: Record<string, string> = {
   "Conta conectada. Importando publicações e métricas…": "Account connected. Importing posts and insights…",
   "A Meta encontrou contas profissionais. Escolha quais deseja vincular.": "Meta found professional accounts. Choose which ones to link.",
   "Nenhuma conta Instagram elegível foi importada. Verifique na Meta o vínculo com a Página e o acesso concedido ao aplicativo.": "No eligible Instagram account was imported. In Meta, check that the account is linked to a Facebook Page and that access was granted to the app.",
-  "A conta autorizada já está vinculada a outro cadastro do InstaCommand. Entre nesse cadastro ou solicite a transferência dos vínculos. Não é necessário converter o Instagram.": "The authorized account is already linked to another InstaCommand user. Sign in to that user or request a transfer of the links. You don't need to convert your Instagram account.",
+  "A conta autorizada já está vinculada a outro cadastro do UX Code Social. Entre nesse cadastro ou solicite a transferência dos vínculos. Não é necessário converter o Instagram.": "The authorized account is already linked to another UX Code Social user. Sign in to that user or request a transfer of the links. You don't need to convert your Instagram account.",
   "A Meta cancelou ou bloqueou esta conexão. Nenhum token foi salvo.": "Meta canceled or blocked this connection. No token was saved.",
   "A Meta recusou a conexão. Revise a Página, o portfólio e as permissões do aplicativo.": "Meta declined the connection. Review the Page, the business portfolio and the app permissions.",
   "Conta do Threads conectada com sucesso": "Threads account connected successfully",
   "Você cancelou ou a Meta recusou a autorização do Threads. Nenhuma conta foi vinculada.": "You canceled or Meta declined the Threads authorization. No account was linked.",
   "A Meta não retornou o código de autorização. Confira o endereço de retorno configurado no app Threads.": "Meta didn't return the authorization code. Check the redirect URL configured in the Threads app.",
-  "Essa conta Threads já está vinculada a outro usuário do InstaCommand. Entre no cadastro que a conectou primeiro.": "This Threads account is already linked to another InstaCommand user. Sign in to the user that connected it first.",
+  "Essa conta Threads já está vinculada a outro usuário do UX Code Social. Entre no cadastro que a conectou primeiro.": "This Threads account is already linked to another UX Code Social user. Sign in to the user that connected it first.",
   "A conexão Threads falhou. Verifique a configuração do app Threads, as permissões autorizadas e tente novamente.": "The Threads connection failed. Check the Threads app settings and the granted permissions, then try again.",
   "Conta do X conectada com sucesso": "X account connected successfully",
   "Você cancelou ou o X recusou a autorização. Nenhuma conta foi vinculada.": "You canceled or X declined the authorization. No account was linked.",
-  "Essa conta do X já está vinculada a outro usuário do InstaCommand.": "This X account is already linked to another InstaCommand user.",
+  "Essa conta do X já está vinculada a outro usuário do UX Code Social.": "This X account is already linked to another UX Code Social user.",
   "O X não retornou o código de autorização. Confira a Callback URL configurada no app do X.": "X didn't return the authorization code. Check the Callback URL configured in the X app.",
   "A conexão com o X falhou. Confira se o app do X tem permissão de leitura e escrita e tente novamente.": "The X connection failed. Make sure the X app has read and write permission, then try again.",
   "Entre na plataforma para carregar suas contas": "Sign in to load your accounts",
@@ -118,7 +118,7 @@ export const EN_ACCOUNTS: Record<string, string> = {
   "Conexão em configuração": "Connection being set up",
   "Entrar com Threads": "Log in with Threads",
   "A conexão automática ainda não está pronta": "Automatic connection isn't ready yet",
-  "O administrador do InstaCommand precisa concluir a configuração do Threads uma vez no servidor. Você não precisa criar aplicativo, copiar ID ou colar token.": "The InstaCommand administrator needs to complete the Threads setup once on the server. You don't need to create an app, copy an ID or paste a token.",
+  "O administrador do UX Code Social precisa concluir a configuração do Threads uma vez no servidor. Você não precisa criar aplicativo, copiar ID ou colar token.": "The UX Code Social administrator needs to complete the Threads setup once on the server. You don't need to create an app, copy an ID or paste a token.",
 
   // X card
   "Desconectar @{username} do X? Posts agendados para o X deixarão de ser publicados nessa conta.": "Disconnect @{username} from X? Posts scheduled for X will no longer be published to this account.",
