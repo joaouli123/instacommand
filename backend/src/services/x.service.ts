@@ -6,6 +6,7 @@ import { env } from '../config/env';
 import { AppError } from '../utils/errors';
 import { decryptSecret, encryptSecret } from './instagram/auth.service';
 import { readLimitedBody, safeGet } from '../utils/safe-fetch';
+import { consumeOAuthNonce } from '../utils/oauth-nonce';
 
 const prisma = getPrisma();
 
@@ -97,6 +98,8 @@ type XProfile = { id: string; username: string; name?: string; profile_image_url
 export async function handleXCallback(code: string, state: unknown) {
   const parsed = readXState(state);
   if (!parsed) throw new AppError('A autorização do X expirou. Tente conectar novamente.', 400);
+  const claims = jwt.verify(String(state), env.JWT_SECRET, { algorithms: ['HS256'] }) as { nonce?: string; exp?: number };
+  if (!await consumeOAuthNonce(claims, 'x')) throw new AppError('A autorização do X já foi utilizada ou expirou. Conecte novamente.', 400);
   const { redirectUri } = requireConfig();
   const tokens = await tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, code_verifier: parsed.verifier });
   const me = await xRequest<{ data: XProfile }>('/2/users/me?user.fields=profile_image_url,public_metrics,name,username', tokens.access_token);

@@ -9,6 +9,7 @@ import { env } from '../config/env';
 import { randomUUID } from 'node:crypto';
 import { rateLimit } from '../middleware/rateLimit';
 import { verifyMetaSignedRequest } from '../utils/meta-signed-request';
+import { consumeOAuthNonce } from '../utils/oauth-nonce';
 import { z } from 'zod';
 import { syncAccountsInBackground } from '../services/account-sync.service';
 import { createXAuthorization, handleXCallback, readXState } from '../services/x.service';
@@ -21,6 +22,8 @@ type OAuthPurpose = 'meta' | 'threads';
 type OAuthSessionHandoff = {
   sub?: string;
   purpose?: 'oauth_session';
+  nonce?: string;
+  exp?: number;
 };
 
 const normalizeEmail = (email: unknown) => String(email || '').trim().toLowerCase();
@@ -54,6 +57,7 @@ const getOAuthSessionUser = async (value: unknown) => {
   try {
     const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as OAuthSessionHandoff;
     if (payload.purpose !== 'oauth_session' || !payload.sub) return null;
+    if (!await consumeOAuthNonce(payload, 'oauth_session')) return null;
     return prisma.user.findUnique({ where: { id: payload.sub } });
   } catch {
     return null;
@@ -77,11 +81,12 @@ const createOAuthState = (userId: string, purpose: OAuthPurpose) => jwt.sign(
   { expiresIn: '10m' },
 );
 
-const getOAuthUserId = (value: unknown, purpose: OAuthPurpose) => {
+const getOAuthUserId = async (value: unknown, purpose: OAuthPurpose) => {
   if (typeof value !== 'string' || !value) return null;
   try {
-    const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: OAuthPurpose };
-    return payload.purpose === purpose && payload.sub ? payload.sub : null;
+    const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: OAuthPurpose; nonce?: string; exp?: number };
+    if (payload.purpose !== purpose || !payload.sub) return null;
+    return await consumeOAuthNonce(payload, purpose) ? payload.sub : null;
   } catch {
     return null;
   }
@@ -182,7 +187,7 @@ router.get('/facebook', async (req: any, res, next) => {
 
 // Meta callback: the signed state decides which user receives the connection.
 router.get('/facebook/callback', async (req, res) => {
-  const stateUserId = getOAuthUserId(req.query.state, 'meta');
+  const stateUserId = await getOAuthUserId(req.query.state, 'meta');
   if (!stateUserId) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
 
   try {
@@ -242,7 +247,7 @@ router.get('/threads', async (req: any, res, next) => {
 });
 
 router.get('/threads/callback', async (req, res) => {
-  const stateUserId = getOAuthUserId(req.query.state, 'threads');
+  const stateUserId = await getOAuthUserId(req.query.state, 'threads');
   if (!stateUserId) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
 
   try {

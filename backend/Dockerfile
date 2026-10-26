@@ -40,9 +40,11 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
 
 # Create uploads directory
-RUN mkdir -p /app/uploads
+RUN mkdir -p /app/uploads && chown node:node /app/uploads
+
+USER node
 
 EXPOSE 3001
 
 # Run migrations and start
-CMD ["sh", "-c", "npx prisma db execute --file prisma/upgrades/20260928_conversations.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/upgrades/20261007_x_automation.sql --schema prisma/schema.prisma && npx prisma db push && exec node dist/server.js"]
+CMD ["sh", "-c", "npx prisma db execute --file prisma/upgrades/20260928_conversations.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/upgrades/20261007_x_automation.sql --schema prisma/schema.prisma && npx prisma db push --skip-generate && exec node dist/server.js"]

@@ -42,7 +42,8 @@ test('rejects another workspace before decrypting or contacting Meta', async () 
 });
 test('permission failure preserves content without fabricating insights', async () => {
   responder = url => url.pathname.endsWith('threads_insights') ? { error: { code: 10 } }
-    : { data: [{ id: 'post', text: 'Hello', timestamp: new Date().toISOString(), permalink: 'https://www.threads.net/post/test' }] };
+    // Use the requested window, not a clock read after an asynchronous boundary.
+    : { data: [{ id: 'post', text: 'Hello', timestamp: new Date(Number(url.searchParams.get('until')) * 1000 - 1000).toISOString(), permalink: 'https://www.threads.net/post/test' }] };
   const report = await getThreadsReport('owner', 'account', 30);
   assert.equal(report.network, 'THREADS');
   assert.equal(report.posts.length, 1);
