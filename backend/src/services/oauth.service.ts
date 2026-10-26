@@ -249,7 +249,7 @@ export const signConsentRequest = (request: ConsentRequest) => jwt.sign({ typ: '
 export function verifyConsentRequest(token: unknown): ConsentRequest {
   if (typeof token !== 'string' || token.length > 8000) throw new OAuthError('invalid_request', 'Pedido de autorização inválido.');
   try {
-    const payload = jwt.verify(token, consentKey(), { audience: CONSENT_AUDIENCE, issuer: oauthIssuer() }) as Record<string, unknown>;
+    const payload = jwt.verify(token, consentKey(), { algorithms: ['HS256'], audience: CONSENT_AUDIENCE, issuer: oauthIssuer() }) as Record<string, unknown>;
     if (payload.typ !== 'oauth_consent' || typeof payload.cid !== 'string' || typeof payload.redirectUri !== 'string'
       || typeof payload.codeChallenge !== 'string' || typeof payload.resource !== 'string' || !Array.isArray(payload.scopes)) {
       throw new Error('shape');

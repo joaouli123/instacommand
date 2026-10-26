@@ -4,10 +4,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-instacommand}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-instacommand_secret}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD com uma senha exclusiva}
       POSTGRES_DB: ${DB_NAME:-instacommand}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -37,9 +37,9 @@ services:
     environment:
       NODE_ENV: production
       BACKEND_PORT: 3001
-      DATABASE_URL: ${DATABASE_URL:-postgresql://instacommand:instacommand_secret@postgres:5432/instacommand?schema=public}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${DB_USER:-instacommand}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-instacommand}?schema=public}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-before-production}
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET com um segredo exclusivo}
       META_APP_ID: ${META_APP_ID:-}
       META_APP_SECRET: ${META_APP_SECRET:-}
       META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v25.0}
@@ -58,8 +58,9 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-https://instagram.uxcode.com.br}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://instagram.uxcode.com.br}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
       FB_REDIRECT_URI: ${FB_REDIRECT_URI:-}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-this-encryption-key-before-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Defina ENCRYPTION_KEY sem trocar a chave existente}
       MEDIA_UPLOAD_DIR: /app/uploads
       MEDIA_PUBLIC_URL: ${MEDIA_PUBLIC_URL:-https://api-instacommand.179.198.98.63.sslip.io/uploads}
       WEBHOOK_VERIFY_TOKEN: ${WEBHOOK_VERIFY_TOKEN:-}
@@ -69,7 +70,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "${BACKEND_PORT:-3001}:3001"
+      - "127.0.0.1:${BACKEND_PORT:-3001}:3001"
     volumes:
       - uploads_data:/app/uploads
     healthcheck:

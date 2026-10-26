@@ -27,27 +27,28 @@ import { graphGet } from '../utils/instagram-api';
 import { getDecryptedToken } from '../services/instagram/auth.service';
 import { hasInstagramAdvancedOptions, validateInstagramAdvancedSettings } from '../services/instagram/advanced-settings';
 import { searchInstagramLocations } from '../services/instagram/locations.service';
+import { detectMediaSignature, SUPPORTED_MEDIA_DESCRIPTION } from '../utils/media-signature';
 
 const router = Router();
 const prisma = getPrisma();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = path.resolve(process.cwd(), process.env.MEDIA_UPLOAD_DIR || './uploads');
+    // Never serve an unvalidated file, even while it is still streaming.
+    const dir = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR, '.incoming');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const extension = path.extname(file.originalname).toLowerCase();
-    cb(null, `${Date.now()}-${crypto.randomUUID()}${extension}`);
+    cb(null, `${crypto.randomUUID()}.part`);
   }
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024, files: 10 },
+  limits: { fileSize: 100 * 1024 * 1024, files: 10, fields: 20, fieldSize: 64 * 1024, parts: 30 },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) return cb(null, true);
+    if (['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime'].includes(file.mimetype)) return cb(null, true);
     return cb(new Error('Apenas imagens e vídeos são aceitos.'));
   },
 });
@@ -573,14 +574,36 @@ router.post('/import-url', async (req: any, res, next) => {
   }
 });
 
-router.post('/upload', upload.array('files'), (req: any, res) => {
-  const files = Array.isArray(req.files) ? req.files : [];
-  if (!files.length) return res.status(400).json({ error: 'Nenhum arquivo foi enviado.' });
-  const publicBase = publicMediaBase();
-  const fileUrls = files.map((file: Express.Multer.File) => {
-    return `${publicBase}/${file.filename}`;
+router.post('/upload', (req: any, res, next) => {
+  upload.array('files')(req, res, async (uploadError) => {
+    if (uploadError) { res.status(400).json({ error: `Envie até 10 arquivos ${SUPPORTED_MEDIA_DESCRIPTION}, de no máximo 100 MB cada.` }); return; }
+    const files: Express.Multer.File[] = Array.isArray(req.files) ? req.files : [];
+    const paths = new Set(files.map((file) => file.path));
+    try {
+      if (!files.length) { res.status(400).json({ error: 'Nenhum arquivo foi enviado.' }); return; }
+      const detected = await Promise.all(files.map(async (file) => {
+        const handle = await fs.promises.open(file.path, 'r');
+        try {
+          const head = Buffer.alloc(16);
+          const { bytesRead } = await handle.read(head, 0, 16, 0);
+          const media = detectMediaSignature(head.subarray(0, bytesRead));
+          if (!media) throw new AppError(`Arquivo inválido. Use ${SUPPORTED_MEDIA_DESCRIPTION}.`, 400);
+          return media;
+        } finally { await handle.close(); }
+      }));
+      const urls: string[] = [];
+      for (const [index, file] of files.entries()) {
+        const filename = `${Date.now()}-${crypto.randomUUID()}${detected[index].extension}`;
+        const target = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR, filename);
+        await fs.promises.rename(file.path, target);
+        paths.delete(file.path); paths.add(target);
+        urls.push(`${publicMediaBase()}/${filename}`);
+      }
+      res.json({ urls });
+      paths.clear();
+    } catch (error) { next(error); }
+    finally { await Promise.all([...paths].map((file) => fs.promises.unlink(file).catch(() => undefined))); }
   });
-  res.json({ urls: fileUrls });
 });
 
 export default router;

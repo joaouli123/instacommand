@@ -45,7 +45,7 @@ router.get(['/.well-known/oauth-protected-resource', '/.well-known/oauth-protect
 });
 
 router.post('/oauth/register', publicCors, rateLimit({ name: 'oauth-register', windowMs: 60 * 60_000, max: 30, byAddressOnly: true }),
-  express.json({ limit: '32kb' }), async (req, res) => {
+  express.json({ limit: '32kb', inflate: false }), async (req, res) => {
     try {
       noStore(res);
       res.status(201).json(await registerClient(req.body));
@@ -69,7 +69,7 @@ router.get('/oauth/authorize', rateLimit({ name: 'oauth-authorize', windowMs: 60
   }
 });
 
-const tokenBody = [express.urlencoded({ extended: false, limit: '16kb' }), express.json({ limit: '16kb' })];
+const tokenBody = [express.urlencoded({ extended: false, limit: '16kb', inflate: false }), express.json({ limit: '16kb', inflate: false })];
 
 router.post('/oauth/token', publicCors, rateLimit({ name: 'oauth-token', windowMs: 60_000, max: 120, byAddressOnly: true }), ...tokenBody, async (req, res) => {
   try {

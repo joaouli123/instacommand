@@ -4,28 +4,11 @@ import { graphGet, graphGetAll } from '../../utils/instagram-api';
 
 import crypto from 'crypto';
 import { AppError } from '../../utils/errors';
+import { createSecretCipher } from '../../utils/secret-cipher';
 
 const prisma = getPrisma();
 
-const algorithm = 'aes-256-cbc';
-const key = crypto.createHash('sha256').update(env.ENCRYPTION_KEY).digest();
-
-function encrypt(text: string): string {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(algorithm, key, iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return `${iv.toString('hex')}:${encrypted}`;
-}
-
-function decrypt(text: string): string {
-  const [ivHex, encryptedHex] = text.split(':');
-  const iv = Buffer.from(ivHex, 'hex');
-  const decipher = crypto.createDecipheriv(algorithm, key, iv);
-  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
+const { encrypt, decrypt } = createSecretCipher(env.ENCRYPTION_KEY, env.ENCRYPTION_KEY_PREVIOUS);
 
 /** Shared with other integrations (X) that store tokens the same way. */
 export const encryptSecret = (text: string) => encrypt(text);

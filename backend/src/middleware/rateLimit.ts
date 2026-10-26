@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 import { RateLimitError } from '../utils/errors';
 
 const store = new Map<string, { count: number; resetTime: number }>();
+const MAX_BUCKETS = 20_000;
+let lastSweep = 0;
 
 type RateLimitOptions = {
   windowMs?: number;
@@ -22,16 +24,13 @@ const defaultOptions = {
 };
 
 const clientAddress = (req: Request) => {
-  const forwardedFor = req.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return `ip:${forwardedFor || req.ip || req.socket.remoteAddress || 'unknown'}`;
+  return `ip:${req.ip || req.socket.remoteAddress || 'unknown'}`;
 };
 
-// For public endpoints anyone can call (OAuth registration/authorization), the
-// caller controls the first X-Forwarded-For entries; the reverse proxy
-// (Traefik) appends the real client address last, so that one picks the bucket.
+// Express interprets forwarding headers using the configured trusted proxy hop.
+// Never pick an address directly from attacker-supplied X-Forwarded-For.
 const proxiedClientAddress = (req: Request) => {
-  const forwardedFor = req.get('x-forwarded-for')?.split(',').map((entry) => entry.trim()).filter(Boolean).pop();
-  return `ip:${forwardedFor || req.ip || req.socket.remoteAddress || 'unknown'}`;
+  return clientAddress(req);
 };
 
 const fingerprint = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 24);
@@ -55,14 +54,20 @@ export const rateLimit = (options: RateLimitOptions = {}) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const key = `${config.name}:${config.byAddressOnly ? proxiedClientAddress(req) : getClientKey(req)}`;
     const now = Date.now();
+    if (now - lastSweep > 60_000 || store.size >= MAX_BUCKETS) {
+      for (const [bucket, entry] of store) if (entry.resetTime <= now) store.delete(bucket);
+      lastSweep = now;
+    }
     const record = store.get(key);
 
     if (!record || record.resetTime < now) {
+      if (!record && store.size >= MAX_BUCKETS) return next(new RateLimitError('Muitas solicitações. Tente novamente em alguns minutos.'));
       store.set(key, { count: 1, resetTime: now + config.windowMs });
       return next();
     }
 
     if (record.count >= config.max) {
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil((record.resetTime - now) / 1000))));
       return next(new RateLimitError('Too many requests from this client, please try again later.'));
     }
 

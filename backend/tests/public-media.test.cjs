@@ -11,5 +11,8 @@ test('HTTPS frontend receives HTTPS upload URLs and legacy own URLs are repaired
 });
 test('cross-origin embedding is explicitly scoped to public file responses', () => {
   const headers = {}; publicMediaHeaders({ setHeader: (key, value) => headers[key] = value });
-  assert.deepEqual(headers, { 'Cross-Origin-Resource-Policy': 'cross-origin' });
+  assert.equal(headers['Cross-Origin-Resource-Policy'], 'cross-origin');
+  assert.equal(headers['X-Content-Type-Options'], 'nosniff');
+  assert.ok(headers['Content-Security-Policy'].startsWith('sandbox;'));
+  assert.equal(headers['Referrer-Policy'], 'no-referrer');
 });

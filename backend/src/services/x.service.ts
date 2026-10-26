@@ -45,7 +45,7 @@ export function createXAuthorization(userId: string) {
 export function readXState(state: unknown): { userId: string; verifier: string } | null {
   if (typeof state !== 'string' || !state) return null;
   try {
-    const payload = jwt.verify(state, env.JWT_SECRET) as { sub?: string; purpose?: string; v?: string };
+    const payload = jwt.verify(state, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: string; v?: string };
     if (payload.purpose !== 'x' || !payload.sub || !payload.v) return null;
     return { userId: payload.sub, verifier: decryptSecret(payload.v) };
   } catch { return null; }

@@ -16,4 +16,8 @@ export const publicMediaHeaders = (res: { setHeader: (name: string, value: strin
   // Only already-public upload files are embeddable by the separate frontend
   // and retrievable by Meta. Keep Helmet's default policy on API responses.
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Also contain legacy active-content uploads without deleting client files.
+  res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; media-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'");
+  res.setHeader('Referrer-Policy', 'no-referrer');
 };

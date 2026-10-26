@@ -13,7 +13,7 @@ const { asSessionPayload } = require('../dist/middleware/auth');
 const { isApiTokenFormat, generateSecret } = require('../dist/services/api-tokens.service');
 const { mergeHashtagsIntoCaption } = require('../dist/mcp/tool-kit');
 const { detectMediaSignature } = require('../dist/utils/media-signature');
-const { MCP_TOOLS } = require('../dist/mcp/catalog');
+const { MCP_TOOLS, toolCatalog } = require('../dist/mcp/catalog');
 const { embeddableApiUrl } = require('../dist/routes/downloads.routes');
 const cli = require('../dist/cli/instacommand');
 
@@ -205,4 +205,14 @@ test('tool catalog invariants', () => {
   for (const name of ['publish_post_now', 'delete_post', 'delete_comment', 'disconnect_account', 'delete_automation_rule']) {
     assert.ok('confirm' in MCP_TOOLS.find((tool) => tool.name === name).inputSchema, name);
   }
+});
+
+test('Zod 4 catalog preserves optional/defaulted parameters and public type labels', () => {
+  const tools = toolCatalog().tools;
+  const list = tools.find(tool => tool.name === 'list_posts');
+  assert.deepEqual(list.params.filter(p => p.name === 'limit').map(p => [p.required, p.type]), [[false, 'número']]);
+  assert.equal(list.params.find(p => p.name === 'accountId').required, false);
+  const create = tools.find(tool => tool.name === 'create_post');
+  assert.ok(create);
+  assert.ok(tools.every(tool => tool.params.every(param => typeof param.type === 'string' && param.type.length)));
 });

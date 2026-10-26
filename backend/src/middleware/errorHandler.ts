@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError, InstagramApiError } from '../utils/errors';
 import { ZodError } from 'zod';
 import { publicMetaMessage } from '../utils/public-meta-message';
+import { safeRequestPath } from './browser-origin';
 
 const publicMessage = (message: string) => {
   const normalized = message.toLowerCase();
@@ -49,6 +50,12 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
+  // Body-parser errors can contain the submitted body. Never log or echo it.
+  const parserError = err as Error & { type?: string };
+  if (parserError.type === 'entity.too.large') return res.status(413).json({ status: 'error', message: 'A solicitação ultrapassa o tamanho permitido.' });
+  if (parserError.type === 'entity.parse.failed') return res.status(400).json({ status: 'error', message: 'JSON inválido.' });
+  if (parserError.type === 'encoding.unsupported') return res.status(415).json({ status: 'error', message: 'Envie o conteúdo sem compressão.' });
+
   if (err instanceof AppError) {
     // A provider refusing its token is not our session expiring: never 401, or the app logs out.
     const status = err instanceof InstagramApiError && err.statusCode === 401 ? 400 : err.statusCode;
@@ -62,11 +69,11 @@ export const errorHandler = (
     return res.status(400).json({
       status: 'error',
       message: 'Validation error',
-      errors: err.errors,
+      errors: err.issues,
     });
   }
 
-  console.error('Unhandled error:', err);
+  console.error('Unhandled error', { method: req.method, path: safeRequestPath(req.originalUrl || '') });
 
   return res.status(500).json({
     status: 'error',

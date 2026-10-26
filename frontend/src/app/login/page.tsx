@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Lock, Mail, ArrowRight, ShieldCheck, Instagram, UserRound } from "lucide-react"
+import { Lock, Mail, ArrowRight, ShieldCheck, Command, UserRound } from "lucide-react"
 import toast from "react-hot-toast"
 import { BACKEND_ORIGIN } from "@/lib/config"
 import { LanguageSwitch, useT } from "@/lib/i18n"
@@ -65,11 +65,12 @@ export default function LoginPage() {
       <LanguageSwitch compact className="absolute right-4 top-4 z-20" />
       <Card className="relative z-10 flex w-full max-w-md flex-col rounded-2xl border border-slate-200/90 bg-white/95 p-8 shadow-xl backdrop-blur-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 text-white shadow-md">
-            <Instagram size={24} strokeWidth={2.4} />
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md" aria-hidden="true">
+            <Command size={24} strokeWidth={2.4} />
           </div>
           <h1 className="mb-1 text-2xl font-extrabold tracking-tight text-slate-900">InstaCommand</h1>
           <p className="text-xs text-slate-500">{t("Seu workspace para gerenciar todas as redes")}</p>
+          <p className="mt-2 text-xs font-medium text-slate-600">UX Code Desenvolvimento Web</p>
         </div>
 
         <div className="mb-6 flex rounded-xl bg-slate-100 p-1 text-sm font-semibold">
@@ -83,33 +84,33 @@ export default function LoginPage() {
 
         <div className="mb-6 flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
           <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-          <span>{t("Suas contas sociais ficam isoladas no seu workspace.")}</span>
+          <span>{t("Acesse somente com sua conta do InstaCommand. Não use a senha do Instagram, Facebook ou Threads.")}</span>
         </div>
 
         <form onSubmit={handleSubmit} className="mb-5 space-y-4">
           {mode === "register" && (
             <div>
-              <Label className="mb-1.5 block text-xs font-semibold text-slate-700">{t("Nome")}</Label>
+              <Label htmlFor="workspace-name" className="mb-1.5 block text-xs font-semibold text-slate-700">{t("Nome")}</Label>
               <div className="relative">
                 <UserRound className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-                <Input type="text" value={name} onChange={(event) => setName(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder={t("Seu nome")} required />
+                <Input id="workspace-name" type="text" autoComplete="name" maxLength={120} minLength={2} value={name} onChange={(event) => setName(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder={t("Seu nome")} required />
               </div>
             </div>
           )}
 
           <div>
-            <Label className="mb-1.5 block text-xs font-semibold text-slate-700">{t("E-mail")}</Label>
+            <Label htmlFor="workspace-email" className="mb-1.5 block text-xs font-semibold text-slate-700">{t("E-mail da sua conta InstaCommand")}</Label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-              <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder={t("voce@empresa.com")} required />
+              <Input id="workspace-email" type="email" autoComplete="username" maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder={t("voce@empresa.com")} required />
             </div>
           </div>
 
           <div>
-            <Label className="mb-1.5 block text-xs font-semibold text-slate-700">{t("Senha")}</Label>
+            <Label htmlFor="workspace-password" className="mb-1.5 block text-xs font-semibold text-slate-700">{t("Senha do InstaCommand")}</Label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder={t("Mínimo de 8 caracteres")} minLength={8} required />
+              <Input id="workspace-password" type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} maxLength={72} value={password} onChange={(event) => setPassword(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm text-slate-900" placeholder={mode === "register" ? t("Pelo menos 10 caracteres") : t("Senha da sua conta InstaCommand")} minLength={mode === "register" ? 10 : 1} required />
             </div>
           </div>
 
@@ -120,10 +121,10 @@ export default function LoginPage() {
         </form>
 
         <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-3 text-center text-xs leading-5 text-indigo-800">
-          {t("Entre primeiro no seu workspace. Depois, em")} <strong>{t("Contas")}</strong>, {t("clique em")} <strong>{t("Adicionar conta")}</strong> {t("para conectar Instagram, Facebook, Threads e X com a autorização oficial da Meta.")}
+          {t("Depois de entrar, acesse")} <strong>{t("Contas")}</strong> {t("para conectar suas redes. A autorização acontece nas páginas oficiais de cada plataforma; não pedimos suas senhas de redes sociais aqui.")}
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-slate-400">{t("Cada cliente conecta e administra somente as próprias contas.")}</p>
+        <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">{t("Ferramenta independente da UX Code. Não é o Instagram nem um produto da Meta. Cada cliente administra somente as próprias contas.")}</p>
         <nav aria-label={t("Informações legais")} className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-[11px] text-slate-500">
           <a href="/politica-de-privacidade" className="underline underline-offset-2 hover:text-indigo-600">{t("Política de Privacidade")}</a>
           <a href="/termos-de-servico" className="underline underline-offset-2 hover:text-indigo-600">{t("Termos de Serviço")}</a>

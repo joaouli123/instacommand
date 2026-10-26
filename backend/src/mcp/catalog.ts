@@ -38,9 +38,9 @@ const unwrap = (schema: ZodTypeAny): { inner: ZodTypeAny; required: boolean } =>
   let current = schema;
   let required = true;
   for (;;) {
-    if (current instanceof z.ZodOptional || current instanceof z.ZodNullable) { required = required && current instanceof z.ZodNullable; current = current.unwrap(); continue; }
-    if (current instanceof z.ZodDefault) { required = false; current = current._def.innerType; continue; }
-    if (current instanceof z.ZodEffects) { current = current.innerType(); continue; }
+    if (current instanceof z.ZodOptional || current instanceof z.ZodNullable) { required = required && current instanceof z.ZodNullable; current = current.unwrap() as ZodTypeAny; continue; }
+    if (current instanceof z.ZodDefault) { required = false; current = current.unwrap() as ZodTypeAny; continue; }
+    if (current instanceof z.ZodPipe) { current = current.in as ZodTypeAny; continue; }
     return { inner: current, required };
   }
 };
@@ -52,7 +52,7 @@ const typeLabel = (schema: ZodTypeAny): string => {
   if (schema instanceof z.ZodLiteral) return JSON.stringify(schema.value);
   if (schema instanceof z.ZodEnum) return (schema.options as string[]).join(' | ');
   if (schema instanceof z.ZodUnion) return (schema.options as ZodTypeAny[]).map((option) => typeLabel(unwrap(option).inner)).join(' | ');
-  if (schema instanceof z.ZodArray) return `lista de ${typeLabel(unwrap(schema.element).inner)}`;
+  if (schema instanceof z.ZodArray) return `lista de ${typeLabel(unwrap(schema.element as ZodTypeAny).inner)}`;
   if (schema instanceof z.ZodObject) return 'objeto';
   return 'valor';
 };

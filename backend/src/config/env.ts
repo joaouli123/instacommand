@@ -6,6 +6,7 @@ dotenv.config();
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   BACKEND_PORT: z.string().default('3001'),
+  TRUST_PROXY_HOPS: z.string().regex(/^[0-3]$/).default('1'),
   DATABASE_URL: z.string(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   JWT_SECRET: z.string().min(32).default('change-this-development-secret-32-chars'),
@@ -45,9 +46,25 @@ const envSchema = z.object({
   MEDIA_PUBLIC_URL: z.string().optional(),
   // 64 hex characters = 32 bytes for aes-256
   ENCRYPTION_KEY: z.string().min(32).default('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+  // Temporary, read-only compatibility during a coordinated key rotation.
+  ENCRYPTION_KEY_PREVIOUS: z.string().optional().refine(value => !value || value.length >= 32),
 });
 
-const parsed = envSchema.parse(process.env);
+export function validateEnvironment(source: NodeJS.ProcessEnv) {
+  const parsed = envSchema.parse(source);
+  if (parsed.NODE_ENV === 'production') {
+    const placeholders = /^(?:change[-_ ]|0123456789abcdef|test[-_ ])/i;
+    for (const name of ['JWT_SECRET', 'ENCRYPTION_KEY'] as const) {
+      if (!source[name] || placeholders.test(parsed[name])) throw new Error(`${name} precisa de um segredo próprio e seguro em produção.`);
+    }
+    if (parsed.CORS_ORIGINS.split(',').some((origin) => origin.trim() === '*')) throw new Error('CORS_ORIGINS não pode liberar todas as origens em produção.');
+    if (!parsed.FRONTEND_URL.startsWith('https://') || !parsed.BACKEND_URL.startsWith('https://') || parsed.COOKIE_SECURE !== 'true') {
+      throw new Error('Produção exige URLs HTTPS e COOKIE_SECURE=true.');
+    }
+  }
+  return parsed;
+}
+const parsed = validateEnvironment(process.env);
 
 export const env = {
   ...parsed,

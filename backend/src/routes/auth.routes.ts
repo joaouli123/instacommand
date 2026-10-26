@@ -7,6 +7,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { env } from '../config/env';
 import { randomUUID } from 'node:crypto';
+import { rateLimit } from '../middleware/rateLimit';
+import { verifyMetaSignedRequest } from '../utils/meta-signed-request';
+import { z } from 'zod';
 import { syncAccountsInBackground } from '../services/account-sync.service';
 import { createXAuthorization, handleXCallback, readXState } from '../services/x.service';
 
@@ -25,7 +28,8 @@ const normalizeEmail = (email: unknown) => String(email || '').trim().toLowerCas
 const sessionCookieOptions = {
   httpOnly: true,
   sameSite: 'lax' as const,
-  secure: env.COOKIE_SECURE === 'true',
+  secure: env.NODE_ENV === 'production' || env.COOKIE_SECURE === 'true',
+  path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
@@ -48,7 +52,7 @@ const createOAuthSessionHandoff = (userId: string) => jwt.sign(
 const getOAuthSessionUser = async (value: unknown) => {
   if (typeof value !== 'string' || !value) return null;
   try {
-    const payload = jwt.verify(value, env.JWT_SECRET) as OAuthSessionHandoff;
+    const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as OAuthSessionHandoff;
     if (payload.purpose !== 'oauth_session' || !payload.sub) return null;
     return prisma.user.findUnique({ where: { id: payload.sub } });
   } catch {
@@ -76,7 +80,7 @@ const createOAuthState = (userId: string, purpose: OAuthPurpose) => jwt.sign(
 const getOAuthUserId = (value: unknown, purpose: OAuthPurpose) => {
   if (typeof value !== 'string' || !value) return null;
   try {
-    const payload = jwt.verify(value, env.JWT_SECRET) as { sub?: string; purpose?: OAuthPurpose };
+    const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: OAuthPurpose };
     return payload.purpose === purpose && payload.sub ? payload.sub : null;
   } catch {
     return null;
@@ -91,21 +95,17 @@ const getPublicUser = (user: { id: string; email: string; name: string; avatarUr
 });
 
 // Public account creation for the future SaaS onboarding flow.
-router.post('/register', async (req, res, next) => {
-  try {
-    const email = normalizeEmail(req.body?.email);
-    const password = String(req.body?.password || '');
-    const name = String(req.body?.name || '').trim();
+const loginLimit = rateLimit({ name: 'login', windowMs: 15 * 60_000, max: 25, byAddressOnly: true });
+const registrationLimit = rateLimit({ name: 'registration', windowMs: 60 * 60_000, max: 10, byAddressOnly: true });
+const credentialsSchema = z.object({ email: z.string().trim().email().max(254), password: z.string().min(1).refine((value) => Buffer.byteLength(value, 'utf8') <= 72, 'A senha pode ter até 72 bytes.') });
+const registrationSchema = credentialsSchema.extend({ name: z.string().trim().min(2).max(120), password: credentialsSchema.shape.password.refine((value) => value.length >= 10, 'Use pelo menos 10 caracteres.') });
 
-    if (!email || !email.includes('@')) {
-      return res.status(400).json({ error: 'Informe um e-mail válido.' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'A senha precisa ter pelo menos 8 caracteres.' });
-    }
-    if (name.length < 2) {
-      return res.status(400).json({ error: 'Informe seu nome.' });
-    }
+router.post('/register', registrationLimit, async (req, res, next) => {
+  try {
+    const input = registrationSchema.parse(req.body);
+    const email = normalizeEmail(input.email);
+    const password = input.password;
+    const name = input.name;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -132,10 +132,11 @@ router.post('/register', async (req, res, next) => {
 });
 
 // Normal email/password login. No default user or fallback password is accepted.
-router.post('/login', async (req, res, next) => {
+router.post('/login', loginLimit, async (req, res, next) => {
   try {
-    const email = normalizeEmail(req.body?.email);
-    const password = String(req.body?.password || '');
+    const input = credentialsSchema.parse(req.body);
+    const email = normalizeEmail(input.email);
+    const password = input.password;
     const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
 
     if (!user?.password || !password || !(await bcrypt.compare(password, user.password))) {
@@ -206,7 +207,7 @@ router.get('/facebook/callback', async (req, res) => {
       : `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=no_professional_instagram&oauth_session=${encodeURIComponent(oauthSession)}`;
     return res.redirect(destination);
   } catch (error) {
-    console.error('Meta OAuth callback failed:', error);
+    console.error('Meta OAuth callback failed'); // provider errors may contain credentials
     const reason = error instanceof Error && error.message === 'META_ACCOUNT_WORKSPACE_CONFLICT'
       ? 'account_workspace_conflict'
       : 'meta_connection';
@@ -333,29 +334,37 @@ async function removeThreadsConnection(threadsUserId: string | undefined) {
 
 router.post('/threads/uninstall', async (req, res) => {
   try {
-    await removeThreadsConnection(String(req.body?.user_id || req.query.user_id || '') || undefined);
+    const secret = env.THREADS_APP_SECRET || env.FB_APP_SECRET;
+    if (!secret) return res.status(503).json({ error: 'Callback não configurado.' });
+    const userId = verifyMetaSignedRequest(req.body?.signed_request, secret);
+    if (!userId) return res.status(401).json({ error: 'Assinatura inválida.' });
+    await removeThreadsConnection(userId);
     return res.status(200).send('OK');
   } catch (error) {
-    console.error('Threads uninstall callback failed:', error);
+    console.error('Threads uninstall callback failed');
     return res.status(500).send('Unable to process uninstall callback');
   }
 });
 
 router.post('/threads/delete', async (req, res) => {
   try {
-    await removeThreadsConnection(String(req.body?.user_id || req.query.user_id || '') || undefined);
+    const secret = env.THREADS_APP_SECRET || env.FB_APP_SECRET;
+    if (!secret) return res.status(503).json({ error: 'Callback não configurado.' });
+    const userId = verifyMetaSignedRequest(req.body?.signed_request, secret);
+    if (!userId) return res.status(401).json({ error: 'Assinatura inválida.' });
+    await removeThreadsConnection(userId);
     return res.status(200).json({
       url: `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts`,
       confirmation_code: randomUUID(),
     });
   } catch (error) {
-    console.error('Threads data deletion callback failed:', error);
+    console.error('Threads data deletion callback failed');
     return res.status(500).json({ error: 'Unable to process data deletion request' });
   }
 });
 
 router.post('/logout', authenticate, (req, res) => {
-  res.clearCookie('instacommand_token');
+  res.clearCookie('instacommand_token', { path: '/', httpOnly: true, sameSite: 'lax', secure: env.NODE_ENV === 'production' || env.COOKIE_SECURE === 'true' });
   res.json({ message: 'Logged out successfully' });
 });
 

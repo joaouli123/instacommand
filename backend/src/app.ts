@@ -9,6 +9,7 @@ import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { rateLimit } from './middleware/rateLimit';
 import { publicMediaHeaders } from './utils/public-media';
+import { browserOriginGuard, safeRequestPath } from './middleware/browser-origin';
 
 // Routes
 import authRoutes from './routes/auth.routes';
@@ -33,8 +34,10 @@ import { ownerRouter as shareLinksRoutes, publicRouter as publicShareRoutes } fr
 
 export function createApp() {
   const app = express();
+  app.disable('x-powered-by');
+  // Only the configured reverse-proxy hop may supply the client address.
+  app.set('trust proxy', Number(env.TRUST_PROXY_HOPS));
   const uploadDir = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);
-  const allowAllOrigins = env.CORS_ORIGINS.includes('*');
   const allowedOrigins = new Set([
     ...env.CORS_ORIGINS.filter((origin) => origin !== '*').map((origin) => origin.replace(/\/$/, '')),
     env.FRONTEND_URL.replace(/\/$/, ''),
@@ -46,7 +49,7 @@ export function createApp() {
 
   // Middleware
   app.use(helmet());
-  app.use(morgan('dev'));
+  app.use(morgan((tokens, req, res) => `${tokens.method(req, res)} ${safeRequestPath(req.url || '')} ${tokens.status(req, res)} ${tokens['response-time'](req, res)} ms`));
   app.use(compression());
   // Slow-request log for diagnosis: only requests over 1s, path without query
   // string so tokens and personal data never reach the logs.
@@ -54,7 +57,7 @@ export function createApp() {
     const started = process.hrtime.bigint();
     res.on('finish', () => {
       const ms = Number(process.hrtime.bigint() - started) / 1e6;
-      if (ms > 1000) console.warn(`[slow] ${req.method} ${req.originalUrl.split('?')[0]} ${res.statusCode} ${Math.round(ms)}ms`);
+      if (ms > 1000) console.warn(`[slow] ${req.method} ${safeRequestPath(req.originalUrl)} ${res.statusCode} ${Math.round(ms)}ms`);
     });
     next();
   });
@@ -69,7 +72,7 @@ export function createApp() {
 
   app.use(cors({
     origin: (origin, callback) => {
-      if (!origin || allowAllOrigins || allowedOrigins.has(origin)) {
+      if (!origin || allowedOrigins.has(origin)) {
         // With credentials enabled, reflect the concrete origin instead of returning
         // `*`, which browsers reject during credentialed preflight requests.
         return callback(null, origin || true);
@@ -80,14 +83,15 @@ export function createApp() {
     },
     credentials: true,
   }));
-  app.use(express.json({ verify: (req, _res, buffer) => {
+  app.use(express.json({ limit: '100kb', inflate: false, verify: (req, _res, buffer) => {
     const request = req as express.Request & { rawBody?: Buffer };
     if (request.originalUrl.startsWith('/api/webhooks/')) request.rawBody = Buffer.from(buffer);
   } }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.urlencoded({ extended: false, limit: '32kb', parameterLimit: 100, inflate: false }));
   // Meta's signed webhooks have their own HMAC verification; keep provider
   // deliveries out of the per-client API budget so busy accounts don't drop events.
   app.use('/api/webhooks', instagramWebhookRoutes);
+  app.use('/api', browserOriginGuard(allowedOrigins));
   // Limit only API traffic. Health checks and uploaded media should not consume
   // a user's API request budget, and authenticated users get separate buckets
   // even when Coolify/Traefik shares one proxy IP.

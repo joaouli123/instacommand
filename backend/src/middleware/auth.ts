@@ -46,7 +46,7 @@ export const verifyAuthToken = (req: Request) => {
 
   for (const candidate of candidates) {
     try {
-      const session = asSessionPayload(jwt.verify(candidate, env.JWT_SECRET));
+      const session = asSessionPayload(jwt.verify(candidate, env.JWT_SECRET, { algorithms: ['HS256'] }));
       if (session) return session;
     } catch {
       // A stale browser bearer token must not hide a fresh OAuth session cookie.
