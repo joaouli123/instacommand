@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ShieldCheck } from "lucide-react"
+import { ProductMark } from "@/components/brand/ProductMark"
 import { LegalLanguageJump } from "./LegalLanguageJump"
 
 export type LegalLang = "pt" | "en"
@@ -59,7 +59,7 @@ export function LegalDocument({
 
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <Link href="/login" className="inline-flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm"><ShieldCheck size={21}/></span>
+            <ProductMark />
             <span><span className="block text-base font-bold tracking-tight text-slate-950">InstaCommand</span><span className="block text-xs text-slate-500">Informações do serviço · <span lang="en">Service information</span></span></span>
           </Link>
           <div className="flex flex-wrap items-center gap-2">
@@ -73,6 +73,7 @@ export function LegalDocument({
         </header>
 
         <nav aria-label="Documentos do InstaCommand / InstaCommand documents" className="mb-5 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2">
+          <Link href="/sobre" className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700">Sobre o serviço · About</Link>
           {links.map((link) => <Link key={link.doc} href={hrefFor(link.doc)} className={`rounded-lg px-3 py-2 text-sm font-medium transition hover:bg-indigo-50 hover:text-indigo-700 ${link.doc === doc ? "bg-indigo-50 text-indigo-700" : "text-slate-600"}`}>{primary === "pt" ? `${link.label} · ${link.labelEn}` : `${link.labelEn} · ${link.label}`}</Link>)}
         </nav>
 

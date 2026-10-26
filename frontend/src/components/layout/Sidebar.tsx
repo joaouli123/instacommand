@@ -13,6 +13,7 @@ import { api } from '@/lib/api'
 import type { User } from '@/types'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { LanguageSwitch, useT } from '@/lib/i18n'
+import { ProductMark } from '@/components/brand/ProductMark'
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -54,9 +55,7 @@ export function Sidebar() {
       <div className="flex h-16 items-center justify-between px-4 border-b border-slate-100">
         {!collapsed && (
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 flex items-center justify-center text-white shadow-sm shrink-0">
-              <Instagram size={18} strokeWidth={2.5} />
-            </div>
+            <ProductMark className="h-8 w-8 rounded-lg" />
             <div className="flex flex-col">
               <span className="text-base font-bold tracking-tight text-slate-900 leading-tight">
                 InstaCommand
@@ -69,9 +68,7 @@ export function Sidebar() {
         )}
 
         {collapsed && (
-          <div className="w-8 h-8 mx-auto rounded-lg bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 flex items-center justify-center text-white shadow-sm">
-            <Instagram size={18} strokeWidth={2.5} />
-          </div>
+          <ProductMark className="mx-auto h-8 w-8 rounded-lg" />
         )}
 
         <button 

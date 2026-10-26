@@ -21,8 +21,8 @@ export type Translate = (pt: string, vars?: TranslateVars) => string
 
 export const LANG_STORAGE_KEY = "instacommand_lang"
 // Must match `metadata.title` in app/layout.tsx.
-const PT_TITLE = "InstaCommand - Gestão Inteligente de Instagram"
-const EN_TITLE = "InstaCommand - Smart Instagram Management"
+const PT_TITLE = "InstaCommand | UX Code — Gestão de redes sociais"
+const EN_TITLE = "InstaCommand | UX Code — Social account management"
 
 const EN: Record<string, string> = { ...EN_COMMON, ...EN_ACCOUNTS, ...EN_COMMUNITY, ...EN_AUTOMATIONS, ...EN_ANALYTICS }
 

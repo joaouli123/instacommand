@@ -92,7 +92,7 @@ test('unpublished calendar cards use network colors; published cards stay archiv
 });
 
 test('the dashboard queue shows a thumbnail before the format and caption', () => {
-  const dashboard = read('app/page.tsx');
+  const dashboard = read('components/dashboard/DashboardPage.tsx');
   assert.match(dashboard, /function ScheduledItem/);
   assert.match(dashboard, /post\.thumbnailUrl \|\| post\.mediaUrls\?\.\[0\]/);
   assert.match(dashboard, /<PlatformIcons platforms=\{post\.platforms\}/);

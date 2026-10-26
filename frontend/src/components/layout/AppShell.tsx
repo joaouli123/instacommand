@@ -4,19 +4,21 @@ import { usePathname } from "next/navigation"
 import { Sidebar } from "./Sidebar"
 import { Header } from "./Header"
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, hasBrowserSession }: { children: React.ReactNode; hasBrowserSession: boolean }) {
   const pathname = usePathname()
 
   // Public legal documents must remain accessible without an authenticated workspace.
   // The OAuth consent screen also renders without the workspace chrome.
   const isPublicPage = [
     "/login",
+    "/sobre",
     "/politica-de-privacidade", "/termos-de-servico", "/exclusao-de-dados",
     "/privacy-policy", "/terms-of-service", "/data-deletion",
     "/oauth/authorize",
   ].includes(pathname)
     // Client share links are opened by people without an account.
     || pathname.startsWith("/share/")
+    || (pathname === "/" && !hasBrowserSession)
   if (isPublicPage) {
     return <main className="min-h-dvh w-full">{children}</main>
   }

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { AppShell } from '@/components/layout/AppShell'
 import { Providers } from './providers'
+import { hasBrowserSessionHint } from '@/lib/browser-session-hint'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -10,20 +11,21 @@ const inter = Inter({ subsets: ['latin'] })
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'InstaCommand - Gestão Inteligente de Instagram',
-  description: 'Gerencie múltiplas contas do Instagram com agendamento, analytics e inteligência competitiva.',
+  title: 'InstaCommand | UX Code — Gestão de redes sociais',
+  description: 'Produto independente da UX Code para agendamento, relatórios e gestão de interações de contas sociais autorizadas. Não é o Instagram nem um produto da Meta.',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const hasBrowserSession = await hasBrowserSessionHint()
   return (
     <html lang="pt-BR" className="light">
       <body className={`${inter.className} bg-background text-text min-h-screen flex antialiased selection:bg-indigo-100 selection:text-indigo-900`}>
         <Providers>
-          <AppShell>{children}</AppShell>
+          <AppShell hasBrowserSession={hasBrowserSession}>{children}</AppShell>
         </Providers>
       </body>
     </html>

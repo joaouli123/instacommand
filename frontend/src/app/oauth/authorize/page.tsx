@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertTriangle, Bot, Instagram, Loader2, ShieldCheck } from "lucide-react"
+import { AlertTriangle, Bot, Loader2, ShieldCheck } from "lucide-react"
+import { ProductMark } from "@/components/brand/ProductMark"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -53,7 +54,7 @@ export default function OAuthAuthorizePage() {
     <div className="flex min-h-dvh w-full items-center justify-center bg-slate-50 p-4">
       <Card className="w-full max-w-lg rounded-2xl p-6 shadow-xl sm:p-8">
         <div className="flex items-center justify-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-500 text-white shadow-md"><Instagram size={22} /></div>
+          <ProductMark className="h-11 w-11 rounded-2xl" />
           <span className="text-slate-300">⟷</span>
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-md"><Bot size={22} /></div>
         </div>

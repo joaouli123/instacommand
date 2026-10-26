@@ -47,7 +47,7 @@ export function Header() {
     '/accounts': { title: 'Contas', subtitle: 'Gerencie seus perfis do Instagram, Facebook, Threads e X' }
   }
 
-  const current = titles[pathname] || { title: 'InstaCommand', subtitle: 'Plataforma de Gestão do Instagram' }
+  const current = titles[pathname] || { title: 'InstaCommand', subtitle: 'Gestão de redes sociais · UX Code' }
 
   const { accounts, activeAccount, setActiveAccount, isLoading } = useActiveAccount()
   const userQuery = useQuery<User>({
