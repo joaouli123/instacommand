@@ -134,13 +134,10 @@ export default function AccountsPage() {
       const xConnected = params.get("x_connected")
       const oauthSession = params.get("oauth_session")
       if (oauthSession) {
-        const session = await fetchApi("/auth/oauth-session", {
+        await fetchApi("/auth/oauth-session", {
           method: "POST",
           body: JSON.stringify({ token: oauthSession }),
-        }) as { token?: string; user?: unknown }
-
-        if (session.token) window.localStorage.setItem("instacommand_token", session.token)
-        if (session.user) window.localStorage.setItem("instacommand_user", JSON.stringify(session.user))
+        }) as { user?: unknown }
         params.delete("oauth_session")
         const nextQuery = params.toString()
         window.history.replaceState({}, "", `/accounts${nextQuery ? `?${nextQuery}` : ""}`)

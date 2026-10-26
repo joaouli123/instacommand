@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Lock, Mail, ArrowRight, ShieldCheck, Command, UserRound } from "lucide-react"
 import toast from "react-hot-toast"
-import { BACKEND_ORIGIN } from "@/lib/config"
 import { LanguageSwitch, useT } from "@/lib/i18n"
 
 export default function LoginPage() {
@@ -27,7 +26,7 @@ export default function LoginPage() {
     try {
       const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login"
       const body = mode === "register" ? { name, email, password } : { email, password }
-      const res = await fetch(`${BACKEND_ORIGIN}${endpoint}`, {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -35,12 +34,15 @@ export default function LoginPage() {
       })
 
       const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.token) {
+      if (!res.ok || !data.user?.id) {
         throw new Error(t(data.error || data.message || "Não foi possível entrar na plataforma"))
       }
 
-      localStorage.setItem("instacommand_token", data.token)
-      if (data.user) localStorage.setItem("instacommand_user", JSON.stringify(data.user))
+      try {
+        localStorage.removeItem("instacommand_token")
+        localStorage.removeItem("token")
+        localStorage.removeItem("instacommand_user")
+      } catch { /* HttpOnly sessions work without browser storage. */ }
       toast.success(mode === "register" ? t("Workspace criado com sucesso!") : data.user?.name ? t("Bem-vindo, {name}!", { name: data.user.name }) : t("Bem-vindo de volta!"))
 
       const next = typeof window !== "undefined"

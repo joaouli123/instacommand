@@ -1,6 +1,7 @@
 import type { Server } from 'node:http';
 import { env } from './config/env';
 import { createApp } from './app';
+import { securityRedis } from './config/security-redis';
 
 // Workers
 import { setupPublishPostWorker } from './jobs/publishPost.job';
@@ -13,6 +14,8 @@ import { setupRecurringJobs } from './services/scheduler.service';
 import { reconcileScheduledPosts } from './services/schedule-reconciler.service';
 
 const app = createApp();
+// Open the bounded security connection during startup, not the first user's request.
+void securityRedis;
 const RECONCILE_INTERVAL_MS = 10 * 60_000;
 // Docker sends SIGTERM and kills the container shortly after; finish what we can.
 const SHUTDOWN_GRACE_MS = 25_000;

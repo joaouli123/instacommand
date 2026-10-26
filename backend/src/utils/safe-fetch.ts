@@ -92,16 +92,27 @@ export async function safeGet(raw: string, options: SafeFetchOptions = {}): Prom
   const maxRedirects = options.maxRedirects ?? 3;
   const timeoutMs = options.timeoutMs ?? 15_000;
   let current = assertFetchableUrl(raw, allowHttp);
+  let headers = { 'User-Agent': 'InstaCommand/1.0 (+media-import)', ...options.headers };
 
   for (let hop = 0; ; hop++) {
     const result = await new Promise<SafeResponse>((resolve, reject) => {
       const client = current.protocol === 'https:' ? https : http;
+      // A wall-clock deadline also stops a slow trickle that keeps socket timeouts alive.
+      let deadline: ReturnType<typeof setTimeout> | undefined;
       const request = client.get(current, {
         agent: false,
         lookup: guardedLookup,
-        headers: { 'User-Agent': 'InstaCommand/1.0 (+media-import)', ...options.headers },
+        headers,
         timeout: timeoutMs,
-      }, (response) => resolve({ response, url: current, abort: () => request.destroy() }));
+      }, (response) => {
+        response.once('end', () => { if (deadline) clearTimeout(deadline); });
+        response.once('close', () => { if (deadline) clearTimeout(deadline); });
+        resolve({ response, url: current, abort: () => request.destroy() });
+      });
+      deadline = setTimeout(() => request.destroy(new UnsafeUrlError('O servidor de origem demorou demais para responder.')), timeoutMs);
+      deadline.unref();
+      request.once('error', () => { if (deadline) clearTimeout(deadline); });
+      request.once('close', () => { if (deadline) clearTimeout(deadline); });
       request.on('timeout', () => request.destroy(new UnsafeUrlError('O servidor de origem demorou demais para responder.')));
       request.on('error', (error) => reject(error instanceof UnsafeUrlError ? error : new UnsafeUrlError(`Não foi possível baixar a URL: ${error.message}`)));
     });
@@ -112,7 +123,10 @@ export async function safeGet(raw: string, options: SafeFetchOptions = {}): Prom
       result.response.resume();
       result.abort();
       if (hop >= maxRedirects) throw new UnsafeUrlError('A URL redirecionou vezes demais.');
-      current = assertFetchableUrl(new URL(location, current).toString(), allowHttp);
+      const destination = assertFetchableUrl(new URL(location, current).toString(), allowHttp);
+      if (current.protocol === 'https:' && destination.protocol !== 'https:') throw new UnsafeUrlError('Redirecionamento para conexão sem segurança recusado.');
+      if (destination.origin !== current.origin) headers = { 'User-Agent': 'InstaCommand/1.0 (+media-import)' };
+      current = destination;
       continue;
     }
     return result;

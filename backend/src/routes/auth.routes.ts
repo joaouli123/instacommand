@@ -1,16 +1,17 @@
 import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
 import { getOAuthUrl, handleOAuthCallback, getThreadsOAuthUrl, handleThreadsOAuthCallback } from '../services/instagram/auth.service';
-import { authenticate, verifyAuthToken } from '../middleware/auth';
+import { authenticate, verifyAuthToken, getBearerOrCookieToken } from '../middleware/auth';
 
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { env } from '../config/env';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { rateLimit } from '../middleware/rateLimit';
 import { verifyMetaSignedRequest } from '../utils/meta-signed-request';
 import { consumeOAuthNonce } from '../utils/oauth-nonce';
 import { z } from 'zod';
+import { isSessionRevoked, revokeSession } from '../utils/session-security';
 import { syncAccountsInBackground } from '../services/account-sync.service';
 import { createXAuthorization, handleXCallback, readXState } from '../services/x.service';
 
@@ -24,6 +25,7 @@ type OAuthSessionHandoff = {
   purpose?: 'oauth_session';
   nonce?: string;
   exp?: number;
+  binding?: string;
 };
 
 const normalizeEmail = (email: unknown) => String(email || '').trim().toLowerCase();
@@ -37,26 +39,29 @@ const sessionCookieOptions = {
 };
 
 const issueSession = (res: any, user: { id: string; email: string }) => {
-  const token = jwt.sign({ id: user.id, email: user.email }, env.JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ id: user.id, email: user.email, jti: randomUUID() }, env.JWT_SECRET, { expiresIn: '7d' });
   res.cookie('instacommand_token', token, sessionCookieOptions);
   return token;
 };
 
-// The API and frontend use different hostnames in production. The API cookie
-// therefore cannot replace the browser's local bearer token by itself. This
-// short-lived signed handoff lets the frontend exchange the OAuth result for
-// the exact workspace that authorized the social account.
-const createOAuthSessionHandoff = (userId: string) => jwt.sign(
-  { sub: userId, purpose: 'oauth_session', nonce: randomUUID() },
+// CLI integrations keep their explicit token response; browser sessions are cookie-only.
+const browserSafeToken = (req: any, token: string) => req.get('origin') || req.get('sec-fetch-site') ? undefined : token;
+
+// The browser uses a same-origin HttpOnly facade. Handoffs may renew an
+// existing matching workspace, never sign a stranger into the link owner's account.
+const sessionBinding = (token: string) => createHash('sha256').update(token).digest('hex');
+const createOAuthSessionHandoff = (userId: string, binding: string) => jwt.sign(
+  { sub: userId, purpose: 'oauth_session', nonce: randomUUID(), binding },
   env.JWT_SECRET,
   { expiresIn: '2m' },
 );
 
-const getOAuthSessionUser = async (value: unknown) => {
+const getOAuthSessionUser = async (value: unknown, currentUserId: string, currentToken: string) => {
   if (typeof value !== 'string' || !value) return null;
   try {
     const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as OAuthSessionHandoff;
-    if (payload.purpose !== 'oauth_session' || !payload.sub) return null;
+    if (payload.purpose !== 'oauth_session' || !payload.sub || payload.sub !== currentUserId) return null;
+    if (!payload.binding || payload.binding !== sessionBinding(currentToken)) return null;
     if (!await consumeOAuthNonce(payload, 'oauth_session')) return null;
     return prisma.user.findUnique({ where: { id: payload.sub } });
   } catch {
@@ -72,21 +77,22 @@ const loginUrl = (next = '/accounts') => {
 const getAuthenticatedUser = async (req: any) => {
   const payload = verifyAuthToken(req);
   if (!payload) return null;
+  if (await isSessionRevoked(getBearerOrCookieToken(req)!)) return null;
   return prisma.user.findUnique({ where: { id: payload.id } });
 };
 
-const createOAuthState = (userId: string, purpose: OAuthPurpose) => jwt.sign(
-  { sub: userId, purpose, nonce: randomUUID() },
+const createOAuthState = (userId: string, purpose: OAuthPurpose, token: string) => jwt.sign(
+  { sub: userId, purpose, nonce: randomUUID(), binding: sessionBinding(token) },
   env.JWT_SECRET,
   { expiresIn: '10m' },
 );
 
-const getOAuthUserId = async (value: unknown, purpose: OAuthPurpose) => {
+const getOAuthState = async (value: unknown, purpose: OAuthPurpose) => {
   if (typeof value !== 'string' || !value) return null;
   try {
-    const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: OAuthPurpose; nonce?: string; exp?: number };
-    if (payload.purpose !== purpose || !payload.sub) return null;
-    return await consumeOAuthNonce(payload, purpose) ? payload.sub : null;
+    const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: OAuthPurpose; nonce?: string; exp?: number; binding?: string };
+    if (payload.purpose !== purpose || !payload.sub || !payload.binding || !/^[a-f0-9]{64}$/.test(payload.binding)) return null;
+    return await consumeOAuthNonce(payload, purpose) ? { userId: payload.sub, binding: payload.binding } : null;
   } catch {
     return null;
   }
@@ -100,8 +106,8 @@ const getPublicUser = (user: { id: string; email: string; name: string; avatarUr
 });
 
 // Public account creation for the future SaaS onboarding flow.
-const loginLimit = rateLimit({ name: 'login', windowMs: 15 * 60_000, max: 25, byAddressOnly: true });
-const registrationLimit = rateLimit({ name: 'registration', windowMs: 60 * 60_000, max: 10, byAddressOnly: true });
+const loginLimit = rateLimit({ name: 'login', windowMs: 15 * 60_000, max: 25, byAddressOnly: true, shared: env.NODE_ENV === 'production' });
+const registrationLimit = rateLimit({ name: 'registration', windowMs: 60 * 60_000, max: 10, byAddressOnly: true, shared: env.NODE_ENV === 'production' });
 const credentialsSchema = z.object({ email: z.string().trim().email().max(254), password: z.string().min(1).refine((value) => Buffer.byteLength(value, 'utf8') <= 72, 'A senha pode ter até 72 bytes.') });
 const registrationSchema = credentialsSchema.extend({ name: z.string().trim().min(2).max(120), password: credentialsSchema.shape.password.refine((value) => value.length >= 10, 'Use pelo menos 10 caracteres.') });
 
@@ -128,7 +134,7 @@ router.post('/register', registrationLimit, async (req, res, next) => {
 
     return res.status(201).json({
       message: 'Conta criada com sucesso',
-      token,
+      token: browserSafeToken(req, token),
       user: getPublicUser(user),
     });
   } catch (error) {
@@ -151,7 +157,7 @@ router.post('/login', loginLimit, async (req, res, next) => {
     const token = issueSession(res, user);
     return res.json({
       message: 'Login realizado com sucesso',
-      token,
+      token: browserSafeToken(req, token),
       user: getPublicUser(user),
     });
   } catch (error) {
@@ -165,7 +171,7 @@ router.get('/facebook/url', authenticate, async (req: any, res, next) => {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
 
-    const state = createOAuthState(user.id, 'meta');
+    const state = createOAuthState(user.id, 'meta', getBearerOrCookieToken(req)!);
     return res.json({ url: await getOAuthUrl(user.id, state) });
   } catch (error) {
     return next(error);
@@ -177,7 +183,7 @@ router.get('/facebook', async (req: any, res, next) => {
     const user = await getAuthenticatedUser(req);
     if (!user) return res.redirect(loginUrl('/accounts'));
 
-    const state = createOAuthState(user.id, 'meta');
+    const state = createOAuthState(user.id, 'meta', getBearerOrCookieToken(req)!);
     const url = await getOAuthUrl(user.id, state);
     return res.redirect(url);
   } catch (error) {
@@ -187,8 +193,8 @@ router.get('/facebook', async (req: any, res, next) => {
 
 // Meta callback: the signed state decides which user receives the connection.
 router.get('/facebook/callback', async (req, res) => {
-  const stateUserId = await getOAuthUserId(req.query.state, 'meta');
-  if (!stateUserId) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
+  const state = await getOAuthState(req.query.state, 'meta');
+  if (!state) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
 
   try {
     const { code, error } = req.query;
@@ -199,14 +205,14 @@ router.get('/facebook/callback', async (req, res) => {
       return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=meta_code`);
     }
 
-    const user = await prisma.user.findUnique({ where: { id: stateUserId } });
+    const user = await prisma.user.findUnique({ where: { id: state.userId } });
     if (!user) return res.redirect(loginUrl('/accounts'));
 
     const accounts = await handleOAuthCallback(code, user.id);
     // Import profile, posts and metrics now instead of waiting for the
     // scheduled collector; the redirect does not wait for it.
     syncAccountsInBackground(accounts.filter((account: any) => account.isActive).map((account: any) => account.id));
-    const oauthSession = createOAuthSessionHandoff(user.id);
+    const oauthSession = createOAuthSessionHandoff(user.id, state.binding);
     const destination = accounts.length > 0
       ? `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=${accounts.some((account: any) => account.selectionPending) ? 'pending' : '1'}&oauth_session=${encodeURIComponent(oauthSession)}`
       : `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?connected=0&reason=no_professional_instagram&oauth_session=${encodeURIComponent(oauthSession)}`;
@@ -226,7 +232,7 @@ router.get('/threads/url', authenticate, async (req: any, res, next) => {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
 
-    const state = createOAuthState(user.id, 'threads');
+    const state = createOAuthState(user.id, 'threads', getBearerOrCookieToken(req)!);
     return res.json({ url: await getThreadsOAuthUrl(user.id, state, req.query.automations === '1') });
   } catch (error) {
     return next(error);
@@ -238,7 +244,7 @@ router.get('/threads', async (req: any, res, next) => {
     const user = await getAuthenticatedUser(req);
     if (!user) return res.redirect(loginUrl('/accounts'));
 
-    const state = createOAuthState(user.id, 'threads');
+    const state = createOAuthState(user.id, 'threads', getBearerOrCookieToken(req)!);
     const url = await getThreadsOAuthUrl(user.id, state, req.query.automations === '1');
     return res.redirect(url);
   } catch (error) {
@@ -247,8 +253,8 @@ router.get('/threads', async (req: any, res, next) => {
 });
 
 router.get('/threads/callback', async (req, res) => {
-  const stateUserId = await getOAuthUserId(req.query.state, 'threads');
-  if (!stateUserId) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
+  const state = await getOAuthState(req.query.state, 'threads');
+  if (!state) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
 
   try {
     const { code } = req.query;
@@ -257,11 +263,11 @@ router.get('/threads/callback', async (req, res) => {
       return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=0&reason=${reason}`);
     }
 
-    const user = await prisma.user.findUnique({ where: { id: stateUserId } });
+    const user = await prisma.user.findUnique({ where: { id: state.userId } });
     if (!user) return res.redirect(loginUrl('/accounts'));
 
     await handleThreadsOAuthCallback(code, user.id);
-    const oauthSession = createOAuthSessionHandoff(user.id);
+    const oauthSession = createOAuthSessionHandoff(user.id, state.binding);
     return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=1&oauth_session=${encodeURIComponent(oauthSession)}`);
   } catch (error) {
     // Avoid logging provider payloads that may contain OAuth codes or tokens.
@@ -303,16 +309,15 @@ router.get('/x/callback', async (req, res) => {
   }
 });
 
-// Exchange the short-lived OAuth handoff for the normal browser session. This
-// route intentionally does not use `authenticate`: the current bearer can be
-// stale and is exactly what the handoff is designed to replace.
-router.post('/oauth-session', async (req, res, next) => {
+// A handoff is not a login credential. Require the existing matching session.
+router.post('/oauth-session', authenticate, async (req: any, res, next) => {
   try {
-    const user = await getOAuthSessionUser(req.body?.token);
+    if (req.auth?.kind !== 'session') return res.status(403).json({ error: 'Use sua sessão do painel.' });
+    const user = await getOAuthSessionUser(req.body?.token, req.user.id, getBearerOrCookieToken(req)!);
     if (!user) return res.status(401).json({ error: 'Sessão OAuth expirada ou inválida.' });
 
     const token = issueSession(res, user);
-    return res.json({ token, user: getPublicUser(user) });
+    return res.json({ token: browserSafeToken(req, token), user: getPublicUser(user) });
   } catch (error) {
     return next(error);
   }
@@ -368,9 +373,13 @@ router.post('/threads/delete', async (req, res) => {
   }
 });
 
-router.post('/logout', authenticate, (req, res) => {
-  res.clearCookie('instacommand_token', { path: '/', httpOnly: true, sameSite: 'lax', secure: env.NODE_ENV === 'production' || env.COOKIE_SECURE === 'true' });
-  res.json({ message: 'Logged out successfully' });
+router.post('/logout', authenticate, async (req: any, res, next) => {
+  try {
+    if (req.auth?.kind !== 'session') return res.status(403).json({ error: 'Use sua sessão do painel.' });
+    await revokeSession(getBearerOrCookieToken(req)!);
+    res.clearCookie('instacommand_token', { path: '/', httpOnly: true, sameSite: 'lax', secure: env.NODE_ENV === 'production' || env.COOKIE_SECURE === 'true' });
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) { next(error); }
 });
 
 router.get('/me', authenticate, async (req: any, res, next) => {

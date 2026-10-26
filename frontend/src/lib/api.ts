@@ -1,18 +1,20 @@
-import { BACKEND_ORIGIN } from './config';
-
-const BASE_URL = `${BACKEND_ORIGIN}/api`;
+const BASE_URL = '/api';
 
 export async function fetchApi(path: string, options: RequestInit = {}) {
-  // Keep the browser token fallback for older sessions while cookies remain the default.
-  let token: string | null = null;
+  // Retire the old bearer storage. Users with legacy sessions sign in once;
+  // do not copy a JavaScript-readable token into the new cookie session.
   try {
-    if (typeof window !== 'undefined') token = localStorage.getItem('instacommand_token') || localStorage.getItem('token');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('instacommand_token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('instacommand_user');
+    }
   } catch { /* Cookie sessions must still work when browser storage is blocked. */ }
   
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = new Headers(options.headers);
   if (!isFormData && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+  headers.delete('Authorization');
 
   const requestOptions: RequestInit = {
     ...options,

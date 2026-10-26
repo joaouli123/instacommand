@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { createHash } from 'node:crypto';
-import { RateLimitError } from '../utils/errors';
+import { AppError, RateLimitError } from '../utils/errors';
+import { securityCommand } from '../utils/session-security';
+import { verifiedBrowserAddress } from './browser-proxy';
 
 const store = new Map<string, { count: number; resetTime: number }>();
 const MAX_BUCKETS = 20_000;
@@ -14,7 +16,23 @@ type RateLimitOptions = {
   // Public OAuth endpoints are keyed by client address only, never by the
   // credentials a caller chooses to send.
   byAddressOnly?: boolean;
+  shared?: boolean;
 };
+
+// Count + expiry in a single operation; simultaneous replicas cannot reset the window.
+export const SHARED_LIMIT_SCRIPT = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return {count, redis.call('PTTL', KEYS[1])}
+`;
+export async function sharedRateBudget(key: string, windowMs: number, connection?: { eval: (...args: any[]) => Promise<unknown> }) {
+  return securityCommand(async () => {
+    const client = connection || (await import('../config/security-redis.js')).securityRedis;
+    const result = await client.eval(SHARED_LIMIT_SCRIPT, 1, `rate-budget:${fingerprint(key)}`, windowMs);
+    if (!Array.isArray(result) || result.length !== 2 || !Number.isInteger(result[0]) || result[0] < 1 || !Number.isInteger(result[1]) || result[1] < 0) throw new Error('Invalid rate budget');
+    return { count: result[0] as number, retryAfter: Math.max(1, Math.ceil(result[1] / 1000)) };
+  });
+}
 
 const defaultOptions = {
   windowMs: 15 * 60 * 1000,
@@ -24,7 +42,7 @@ const defaultOptions = {
 };
 
 const clientAddress = (req: Request) => {
-  return `ip:${req.ip || req.socket.remoteAddress || 'unknown'}`;
+  return `ip:${verifiedBrowserAddress(req) || req.ip || req.socket.remoteAddress || 'unknown'}`;
 };
 
 // Express interprets forwarding headers using the configured trusted proxy hop.
@@ -53,6 +71,16 @@ export const rateLimit = (options: RateLimitOptions = {}) => {
 
   return (req: Request, res: Response, next: NextFunction) => {
     const key = `${config.name}:${config.byAddressOnly ? proxiedClientAddress(req) : getClientKey(req)}`;
+    if (config.shared) {
+      void sharedRateBudget(key, config.windowMs).then(({ count, retryAfter }) => {
+        if (count > config.max) {
+          res.setHeader('Retry-After', String(retryAfter));
+          return next(new RateLimitError('Muitas tentativas. Aguarde antes de tentar novamente.'));
+        }
+        next();
+      }).catch(error => next(error instanceof AppError ? error : new AppError('Proteção temporariamente indisponível.', 503)));
+      return;
+    }
     const now = Date.now();
     if (now - lastSweep > 60_000 || store.size >= MAX_BUCKETS) {
       for (const [bucket, entry] of store) if (entry.resetTime <= now) store.delete(bucket);

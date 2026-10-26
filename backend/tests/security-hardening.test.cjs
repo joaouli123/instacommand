@@ -1,5 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL ||= 'postgresql://fixture:fixture@127.0.0.1:1/fixture';
 const { createHmac, randomBytes, createCipheriv, createHash } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const { verifyMetaSignedRequest } = require('../dist/utils/meta-signed-request');

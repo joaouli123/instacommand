@@ -7,6 +7,7 @@ import { AppError, ForbiddenError, UnauthorizedError } from '../utils/errors';
 import { isApiTokenFormat, verifyApiToken } from '../services/api-tokens.service';
 import { API_SCOPE_DETAILS, requiredScopeFor, resolvePostRequirement, type ApiScope } from '../services/api-scopes';
 import { isTrustedMcpProxyRequest } from '../mcp/proxy-trust';
+import { isSessionRevoked } from '../utils/session-security';
 
 const prisma = getPrisma();
 
@@ -65,6 +66,9 @@ export const asSessionPayload = (payload: unknown): { id: string; email: string 
   const value = payload as Record<string, unknown>;
   if (value.purpose !== undefined || value.aud !== undefined) return null;
   if (typeof value.id !== 'string' || !value.id || typeof value.email !== 'string' || !value.email) return null;
+  // Retire sessions issued before the cookie-only migration (formerly in localStorage).
+  // Personal/OAuth API tokens are verified separately and are not invalidated here.
+  if (env.NODE_ENV === 'production' && (typeof value.jti !== 'string' || !/^[a-f0-9-]{36}$/i.test(value.jti))) return null;
   return { id: value.id, email: value.email };
 };
 
@@ -109,6 +113,7 @@ export const authenticate = async (req: AuthRequest, _res: Response, next: NextF
 
     const decoded = verifyAuthToken(req);
     if (!decoded) return next(new UnauthorizedError('Invalid or expired token'));
+    if (await isSessionRevoked(getBearerOrCookieToken(req)!)) return next(new UnauthorizedError('Sessão encerrada. Entre novamente.'));
 
     req.user = decoded;
     req.auth = { kind: 'session' };

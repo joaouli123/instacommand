@@ -18,7 +18,6 @@ import { RiMore2Line, RiMusic2Line, RiPauseFill, RiPlayFill } from "@remixicon/r
 import { useDropzone } from "react-dropzone"
 import toast from "react-hot-toast"
 import { api } from "@/lib/api"
-import { BACKEND_ORIGIN } from "@/lib/config"
 import { DailyContentPlan } from "@/components/dashboard/DailyContentPlan"
 import { ArtworkStudio } from "@/components/dashboard/ArtworkStudio"
 import { selectAccount } from "@/lib/active-account-store"
@@ -1025,7 +1024,7 @@ export default function ComposerPage() {
               </select>
             )}
             {!selectedAccount && <a href="/accounts" className="inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar Instagram em Contas →</a>}
-            {!threadsAccounts.length && <a href={`${BACKEND_ORIGIN}/api/auth/threads`} className="ml-4 inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar conta do Threads →</a>}
+            {!threadsAccounts.length && <a href="/accounts" className="ml-4 inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar conta do Threads →</a>}
             <p className="flex items-center gap-2 border-t border-slate-200 pt-3 text-xs text-slate-500"><span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold">i</span>Para trocar de perfil, use o seletor no topo da página.</p>
           </div>
           }

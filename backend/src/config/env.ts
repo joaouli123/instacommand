@@ -7,6 +7,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   BACKEND_PORT: z.string().default('3001'),
   TRUST_PROXY_HOPS: z.string().regex(/^[0-3]$/).default('1'),
+  // Server-only shared secret: authenticates client IPs forwarded by our browser facade.
+  BROWSER_PROXY_SECRET: z.string().min(32).optional(),
   DATABASE_URL: z.string(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   JWT_SECRET: z.string().min(32).default('change-this-development-secret-32-chars'),

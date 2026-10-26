@@ -6,6 +6,9 @@ import { Providers } from './providers'
 
 const inter = Inter({ subsets: ['latin'] })
 
+// A fresh nonce must be rendered into the HTML; never reuse static/cached HTML.
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'InstaCommand - Gestão Inteligente de Instagram',
   description: 'Gerencie múltiplas contas do Instagram com agendamento, analytics e inteligência competitiva.',
