@@ -11,6 +11,7 @@ import { withConversationLock } from './automation-lock';
 
 const prisma = getPrisma();
 const RECONNECT = 'Reconecte o canal do YouTube em Contas e aceite a permissão de gerenciar comentários para responder ou moderar por aqui.';
+const RECONNECT_TO_LIST = 'Para ver os comentários do YouTube aqui, reconecte o canal em Contas e, na tela do Google, marque todas as caixas de permissão (inclusive a de gerenciar seus vídeos e comentários).';
 
 type ApiComment = { id: string; snippet?: { textOriginal?: string; textDisplay?: string; authorDisplayName?: string; authorProfileImageUrl?: string; authorChannelId?: { value?: string }; likeCount?: number; publishedAt?: string; parentId?: string } };
 export type ApiThread = { id: string; snippet?: { videoId?: string; totalReplyCount?: number; topLevelComment?: ApiComment }; replies?: { comments?: ApiComment[] } };
@@ -80,6 +81,8 @@ async function videoInfo(token: string, ids: string[]) {
 /** Latest comments on the company channel's videos, in the same shape as the Instagram Community. */
 export async function listYouTubeComments(userId: string, companyId: string, limit = 100) {
   const channel = await companyChannel(userId, companyId);
+  // Google only lists a channel's comment threads with the manage permission (youtube.force-ssl).
+  if (!hasYouTubeScope(channel.scopes, YOUTUBE_COMMENTS_SCOPE)) throw new ValidationError(RECONNECT_TO_LIST);
   const token = await getYouTubeAccessToken(channel.id);
   const threads = (await readThreads(token, channel.channelId, Math.ceil(limit / 100)))
     .filter((thread) => thread.snippet?.topLevelComment?.snippet?.authorChannelId?.value !== channel.channelId).slice(0, limit);

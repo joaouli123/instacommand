@@ -52,6 +52,7 @@ test('Community on YouTube uses only the selected company channel, and replying 
   await assert.rejects(() => community.listYouTubeComments('u1', 'co'), /não tem canal do YouTube/);
   await assert.rejects(() => community.listYouTubeComments('u2', 'co'), /Empresa não encontrada/);
   channels = [{ id: 'yt', userId: 'u1', workspaceAccountId: 'co', scopes: 'https://www.googleapis.com/auth/youtube.readonly' }];
+  await assert.rejects(() => community.listYouTubeComments('u1', 'co'), /marque todas as caixas de permissão/);
   await assert.rejects(() => community.replyToCompanyYouTubeComment('u1', 'co', 'UgzComment123', 'Oi!'), /Reconecte o canal do YouTube/);
   await assert.rejects(() => community.hideCompanyYouTubeComment('u1', 'co', 'bad id!'), /inválido/);
 });
