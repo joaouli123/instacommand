@@ -316,7 +316,7 @@ export const postTools = [
     description: 'Exclui a publicação do UX Code Social (cancela agendamento). Se já publicada, tenta excluir no Facebook e no Threads; o Instagram não permite excluir pela API (o usuário apaga no app). IRREVERSÍVEL: exige confirmação explícita.',
     scopes: ['write'],
     annotations: DESTRUCTIVE,
-    inputSchema: { postId: postIdSchema, confirm: confirmSchema },
-    handler: async ({ postId }, { api }) => api.delete(`/posts/${encodePathSegment(postId)}`),
+    inputSchema: { postId: postIdSchema, deleteYouTubeVideo: z.boolean().default(false).describe('Apagar também o vídeo publicado no YouTube (permanente). Só true se o usuário pedir explicitamente.'), confirm: confirmSchema },
+    handler: async ({ postId, deleteYouTubeVideo }, { api }) => api.delete(`/posts/${encodePathSegment(postId)}`, deleteYouTubeVideo ? { youtube: 'delete' } : undefined),
   }),
 ];

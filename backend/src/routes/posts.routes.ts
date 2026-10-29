@@ -13,6 +13,7 @@ import { assertPostReady, SUPPORTED_PLATFORMS, TEXT_PLATFORMS, textLimitFor, X_M
 import { deleteXPost } from '../services/x.service';
 import { validateYouTubeSettings } from '../services/youtube-settings';
 import { assertSameWorkspace } from '../services/workspace-links';
+import { deleteYouTubeVideo } from '../services/youtube.service';
 
 /** Rules for X on top of the shared ones: 280 characters and up to 4 media. */
 const xRuleError = (platforms: string[], caption: unknown, mediaCount: number) => {
@@ -494,8 +495,20 @@ router.delete('/:id', async (req: any, res, next) => {
     }
 
     if (post.publishedPost?.youtubeVideoId) {
-      // The connection only has permission to upload; removing a video stays with the channel owner.
-      warnings.push('O vídeo do YouTube não foi removido do canal: exclua-o no YouTube Studio se necessário.');
+      // Deleting a video is permanent, so it only happens when the user explicitly asked for it.
+      if (req.query.youtube !== 'delete') {
+        warnings.push('O vídeo do YouTube continua no canal. Para apagá-lo também, exclua escolhendo apagar o vídeo no YouTube, ou remova-o no YouTube Studio.');
+      } else if (!post.youtubeAccountId) {
+        warnings.push('O vídeo do YouTube pode continuar no canal; não foi possível localizar o canal conectado. Remova-o no YouTube Studio.');
+      } else {
+        try {
+          const owner = await prisma.youTubeAccount.findFirst({ where: { id: post.youtubeAccountId, userId: req.user.id, isActive: true } });
+          if (!owner) throw new Error('Canal do YouTube não encontrado ou desconectado.');
+          await deleteYouTubeVideo(owner.id, post.publishedPost.youtubeVideoId);
+        } catch (error) {
+          warnings.push(`O vídeo do YouTube não foi apagado: ${error instanceof Error ? error.message : 'erro desconhecido'} Remova-o no YouTube Studio se necessário.`);
+        }
+      }
     }
 
     const uploadRoot = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);

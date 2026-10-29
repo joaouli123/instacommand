@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 
 import { env } from '../config/env';
-import { AppError } from '../utils/errors';
+import { AppError, ValidationError } from '../utils/errors';
 import { decryptSecret, encryptSecret } from './instagram/auth.service';
 import { readLimitedBody, safeGet } from '../utils/safe-fetch';
 import { consumeOAuthNonce } from '../utils/oauth-nonce';
@@ -247,6 +247,70 @@ export function buildYouTubeMetadata(settings: YouTubeSettings, caption?: string
 /** Parts of the video resource the upload writes; recordingDetails only when a date was chosen. */
 export const youtubeUploadParts = (settings: YouTubeSettings) => ['snippet', 'status', ...(settings.recordingDate ? ['recordingDetails'] : [])].join(',');
 
+/**
+ * Deletes a video of the channel for good. Needs the comment/manage permission (youtube.force-ssl);
+ * channels connected before it must reconnect. A video already gone counts as deleted.
+ */
+export async function deleteYouTubeVideo(accountId: string, videoId: string) {
+  if (!/^[\w-]{6,20}$/.test(videoId)) throw new ValidationError('Vídeo do YouTube inválido.');
+  const account = await prisma.youTubeAccount.findUnique({ where: { id: accountId }, select: { scopes: true } });
+  if (!hasYouTubeScope(account?.scopes, YOUTUBE_COMMENTS_SCOPE)) throw new ValidationError('Reconecte o canal do YouTube em Contas e aceite todas as permissões para apagar vídeos por aqui.');
+  const token = await getYouTubeAccessToken(accountId);
+  const response = await fetch(`${YOUTUBE_API}/videos?id=${encodeURIComponent(videoId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) });
+  if (response.ok || response.status === 404) return;
+  throw youtubeError(response.status, await response.json().catch(() => ({})));
+}
+
+export type YouTubePlaylist = { id: string; title: string; privacyStatus: string; itemCount: number | null; thumbnailUrl: string | null };
+
+/** The channel's own playlists, newest first (up to 200). */
+export async function listYouTubePlaylists(accountId: string): Promise<YouTubePlaylist[]> {
+  const token = await getYouTubeAccessToken(accountId);
+  const playlists: YouTubePlaylist[] = [];
+  let pageToken = '';
+  for (let page = 0; page < 4; page++) {
+    const result = await youtubeRequest<{ items?: Array<{ id: string; snippet?: { title?: string; thumbnails?: Record<string, { url?: string }> }; status?: { privacyStatus?: string }; contentDetails?: { itemCount?: number } }>; nextPageToken?: string }>(
+      `${YOUTUBE_API}/playlists?${new URLSearchParams({ part: 'snippet,status,contentDetails', mine: 'true', maxResults: '50', ...(pageToken ? { pageToken } : {}) })}`, token);
+    for (const item of result.items || []) {
+      playlists.push({ id: item.id, title: item.snippet?.title || 'Playlist sem nome', privacyStatus: item.status?.privacyStatus || 'public',
+        itemCount: typeof item.contentDetails?.itemCount === 'number' ? item.contentDetails.itemCount : null,
+        thumbnailUrl: item.snippet?.thumbnails?.default?.url || item.snippet?.thumbnails?.medium?.url || null });
+    }
+    if (!result.nextPageToken) break;
+    pageToken = result.nextPageToken;
+  }
+  return playlists;
+}
+
+/**
+ * Puts a just-published video in the chosen playlists (creating the new one first). Never fails the
+ * publication: every playlist that could not receive the video becomes a warning.
+ */
+async function addToPlaylists(accountId: string, token: string, videoId: string, settings: YouTubeSettings) {
+  const account = await prisma.youTubeAccount.findUnique({ where: { id: accountId }, select: { scopes: true } });
+  if (!hasYouTubeScope(account?.scopes, YOUTUBE_COMMENTS_SCOPE)) {
+    return ['O vídeo foi publicado, mas não entrou nas playlists: reconecte o canal do YouTube em Contas e aceite todas as permissões.'];
+  }
+  const warnings: string[] = [];
+  const targets = [...settings.playlistIds];
+  if (settings.newPlaylist) {
+    try {
+      const created = await youtubeRequest<{ id?: string }>(`${YOUTUBE_API}/playlists?part=snippet,status`, token, { method: 'POST', body: JSON.stringify({ snippet: { title: settings.newPlaylist.title }, status: { privacyStatus: settings.newPlaylist.privacyStatus } }) });
+      if (created.id) targets.push(created.id);
+    } catch (error) {
+      warnings.push(`O vídeo foi publicado, mas a playlist "${settings.newPlaylist.title}" não foi criada: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+    }
+  }
+  for (const playlistId of targets) {
+    try {
+      await youtubeRequest(`${YOUTUBE_API}/playlistItems?part=snippet`, token, { method: 'POST', body: JSON.stringify({ snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } } }) });
+    } catch (error) {
+      warnings.push(`O vídeo foi publicado, mas não entrou em uma das playlists: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+    }
+  }
+  return warnings;
+}
+
 export type YouTubePublishResult = { id: string; url: string; privacyStatus?: string; warnings: string[] };
 
 /**
@@ -304,6 +368,7 @@ export async function publishYouTubeVideo(
       warnings.push(`O vídeo foi publicado, mas a miniatura não foi aplicada: ${error instanceof Error ? error.message : 'erro desconhecido'} (miniaturas exigem canal verificado por telefone).`);
     }
   }
+  if (settings.playlistIds.length || settings.newPlaylist) warnings.push(...await addToPlaylists(accountId, token, video.id, settings));
   const url = settings.format === 'short' ? `https://www.youtube.com/shorts/${video.id}` : `https://www.youtube.com/watch?v=${video.id}`;
   return { id: video.id, url, privacyStatus: video.status?.privacyStatus, warnings };
 }

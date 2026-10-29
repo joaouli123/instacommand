@@ -56,7 +56,7 @@ test('YouTube settings: drafts may be incomplete, scheduling needs a title and t
   assert.equal(validateYouTubeSettings(undefined), null);
   assert.deepEqual(validateYouTubeSettings({ title: '  Meu   vídeo ' }), {
     format: 'video', title: 'Meu vídeo', privacyStatus: 'public', madeForKids: null, alteredContent: false, categoryId: '22', thumbnailUrl: null,
-    tags: [], defaultLanguage: null, defaultAudioLanguage: null, license: 'youtube', embeddable: true, publicStatsViewable: true, notifySubscribers: true, recordingDate: null,
+    tags: [], defaultLanguage: null, defaultAudioLanguage: null, license: 'youtube', embeddable: true, publicStatsViewable: true, notifySubscribers: true, recordingDate: null, playlistIds: [], newPlaylist: null,
   });
   assert.throws(() => validateYouTubeSettings({ title: 'a'.repeat(101) }), /100/);
   assert.throws(() => validateYouTubeSettings({ title: 'a <b>' }), /< ou >/);

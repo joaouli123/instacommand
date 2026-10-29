@@ -667,6 +667,7 @@ export default function ComposerPage() {
     if (!youtubeSettings.title.trim()) return "Escreva o título do vídeo para o YouTube."
     if (/[<>]/.test(youtubeSettings.title)) return "O título do YouTube não pode conter < ou >."
     if (youtubeSettings.madeForKids === null) return "Informe se o vídeo do YouTube é feito para crianças."
+    if (youtubeSettings.newPlaylist && !youtubeSettings.newPlaylist.title.trim()) return "Dê um nome à nova playlist do YouTube ou cancele a criação."
     if (/[<>]/.test(text)) return "O YouTube não aceita < ou > na descrição. Remova esses caracteres ou desmarque o YouTube."
     return null
   }
@@ -1350,7 +1351,7 @@ export default function ComposerPage() {
             </div>}
           </div>
 
-          {platforms.includes("YOUTUBE") && <YouTubeOptions settings={youtubeSettings} onChange={setYouTubeSettings} media={activeMedia} hashtags={hashtags} onUploadThumbnail={(file) => { void uploadYouTubeThumbnail(file) }} thumbnailUploading={youtubeThumbnailUploading} />}
+          {platforms.includes("YOUTUBE") && <YouTubeOptions channelId={selectedYouTubeAccount?.id} settings={youtubeSettings} onChange={setYouTubeSettings} media={activeMedia} hashtags={hashtags} onUploadThumbnail={(file) => { void uploadYouTubeThumbnail(file) }} thumbnailUploading={youtubeThumbnailUploading} />}
 
           <details className="group rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-800 marker:hidden">

@@ -126,13 +126,16 @@ export default function CalendarPage() {
 
   const deletePost = async () => {
     if (!selectedPost || !window.confirm("Excluir esta publicação do calendário?")) return
+    // Deleting the video on YouTube is permanent, so it is a separate, explicit choice.
+    const youtubeVideo = selectedPost.status === "PUBLISHED" && selectedPost.platforms?.includes("YOUTUBE")
+    const deleteYouTubeVideo = youtubeVideo && window.confirm("Apagar também o vídeo no YouTube?\n\nOK apaga o vídeo do canal para sempre. Cancelar mantém o vídeo no YouTube e só tira a publicação do calendário.")
     setActionLoading(true)
     try {
-      const result = await api.deletePost(selectedPost.id) as { warnings?: string[] }
+      const result = await api.deletePost(selectedPost.id, { deleteYouTubeVideo }) as { warnings?: string[] }
       setPosts((current) => current.filter((post) => post.id !== selectedPost.id))
       setSelectedPost(null)
       if (result.warnings?.length) result.warnings.forEach((warning) => toast.error(warning))
-      else toast.success("Publicação removida do calendário.")
+      else toast.success(deleteYouTubeVideo ? "Publicação removida e vídeo apagado do YouTube." : "Publicação removida do calendário.")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível excluir a publicação.")
     } finally {

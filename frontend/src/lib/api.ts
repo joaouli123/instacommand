@@ -85,7 +85,7 @@ export const api = {
   getPost: (id: string) => fetchApi(`/posts/${encodeURIComponent(id)}`),
   saveDailyDrafts: (data: Record<string, unknown>) => fetchApi('/ai/daily-drafts', { method: 'POST', body: JSON.stringify(data) }),
   updatePost: (id: string, data: Record<string, unknown>) => fetchApi(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deletePost: (id: string) => fetchApi(`/posts/${id}`, { method: 'DELETE' }),
+  deletePost: (id: string, options: { deleteYouTubeVideo?: boolean } = {}) => fetchApi(`/posts/${id}${options.deleteYouTubeVideo ? '?youtube=delete' : ''}`, { method: 'DELETE' }),
   getDashboard: (accountId: string, days = 30) => fetchApi(`/analytics/${accountId}/dashboard?days=${days}`),
   getGrowth: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/growth?days=${days}`),
   getEngagement: (accountId: string, days: number) => fetchApi(`/analytics/${accountId}/engagement?days=${days}`),

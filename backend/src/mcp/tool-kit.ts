@@ -88,6 +88,8 @@ export const youtubeSettingsSchema = z.object({
   publicStatsViewable: z.boolean().optional().describe('Mostrar o número de curtidas. Padrão true.'),
   notifySubscribers: z.boolean().optional().describe('Notificar os inscritos. Padrão true.'),
   recordingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data de gravação, AAAA-MM-DD.'),
+  playlistIds: z.array(z.string()).max(10).optional().describe('IDs das playlists do canal que recebem o vídeo (list_youtube_playlists).'),
+  newPlaylist: z.object({ title: z.string().max(150), privacyStatus: z.enum(['public', 'unlisted', 'private']).default('public') }).optional().describe('Playlist criada na publicação, que também recebe o vídeo.'),
 }).describe('Opções do vídeo no YouTube. A descrição é a própria legenda.');
 export const postIdSchema = z.string().uuid().describe('ID da publicação no UX Code Social (campo "id" de list_posts).');
 

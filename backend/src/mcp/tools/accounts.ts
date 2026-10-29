@@ -120,6 +120,17 @@ export const accountTools = [
   }),
 
   defineTool({
+    name: 'list_youtube_playlists',
+    title: 'Playlists do canal do YouTube',
+    category: 'accounts',
+    description: 'Lista as playlists do canal do YouTube (id, nome, visibilidade e quantidade de vídeos), para usar em youtubeSettings.playlistIds.',
+    scopes: ['read'],
+    annotations: READ_LIVE,
+    inputSchema: { youtubeAccountId: z.string().uuid().describe('id do canal do YouTube (list_accounts).') },
+    handler: async ({ youtubeAccountId }, { api }) => api.get(`/accounts/youtube/${encodePathSegment(youtubeAccountId)}/playlists`),
+  }),
+
+  defineTool({
     name: 'disconnect_account',
     title: 'Desconectar conta',
     category: 'accounts',

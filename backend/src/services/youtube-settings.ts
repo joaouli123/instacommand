@@ -40,7 +40,33 @@ export type YouTubeSettings = {
   notifySubscribers: boolean;
   /** Day the video was recorded, YYYY-MM-DD. */
   recordingDate: string | null;
+  /** Existing playlists of the channel that receive the video after it is published. */
+  playlistIds: string[];
+  /** Playlist created at publish time, which also receives the video. */
+  newPlaylist: { title: string; privacyStatus: YouTubePrivacy } | null;
 };
+
+export const MAX_YOUTUBE_PLAYLISTS = 10;
+
+function readPlaylistIds(value: unknown) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.some((id) => typeof id !== 'string' || !/^[\w-]{10,64}$/.test(id))) throw new ValidationError('Playlist do YouTube inválida.');
+  const ids = [...new Set(value as string[])];
+  if (ids.length > MAX_YOUTUBE_PLAYLISTS) throw new ValidationError(`Escolha até ${MAX_YOUTUBE_PLAYLISTS} playlists.`);
+  return ids;
+}
+
+function readNewPlaylist(value: unknown) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) throw new ValidationError('Nova playlist do YouTube inválida.');
+  const raw = value as Record<string, unknown>;
+  const title = typeof raw.title === 'string' ? raw.title.replace(/\s+/g, ' ').trim() : '';
+  if (!title) return null;
+  if ([...title].length > 150 || /[<>]/.test(title)) throw new ValidationError('O nome da playlist pode ter até 150 caracteres, sem < ou >.');
+  const privacyStatus = raw.privacyStatus === undefined ? 'public' : raw.privacyStatus;
+  if (!YOUTUBE_PRIVACY.includes(privacyStatus as YouTubePrivacy)) throw new ValidationError('Visibilidade da playlist inválida.');
+  return { title, privacyStatus: privacyStatus as YouTubePrivacy };
+}
 
 export const youtubeTagsLength = (tags: string[]) => tags.reduce((total, tag) => total + tag.length + (/\s/.test(tag) ? 2 : 0), 0) + Math.max(0, tags.length - 1);
 
@@ -122,6 +148,8 @@ export function validateYouTubeSettings(raw: unknown, options: { requireComplete
     publicStatsViewable: optionalBoolean(value.publicStatsViewable, true, 'Opção de curtidas visíveis do YouTube inválida.'),
     notifySubscribers: optionalBoolean(value.notifySubscribers, true, 'Opção de notificar inscritos do YouTube inválida.'),
     recordingDate: readRecordingDate(value.recordingDate),
+    playlistIds: readPlaylistIds(value.playlistIds),
+    newPlaylist: readNewPlaylist(value.newPlaylist),
   };
   if (options.requireComplete) {
     if (!settings.title) throw new ValidationError('Preencha o título do vídeo para o YouTube.');

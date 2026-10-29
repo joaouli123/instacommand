@@ -3,7 +3,9 @@
 // Everything the composer asks before a YouTube upload: the format (regular video
 // or Short), the watch-page details and the advanced options of YouTube Studio.
 import { useState } from "react"
-import { ChevronDown, ImagePlus, Loader2, MonitorPlay, Smartphone, X } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { ChevronDown, ImagePlus, ListVideo, Loader2, MonitorPlay, Plus, Smartphone, X } from "lucide-react"
+import { fetchApi } from "@/lib/api"
 import { SiYoutube } from "@icons-pack/react-simple-icons"
 import { Input } from "@/components/ui/input"
 import { fitsYouTubeShort, type MediaItem, type YouTubeFormat, type YouTubePrivacy } from "@/components/preview/SocialPostPreview"
@@ -26,11 +28,14 @@ export type YouTubeSettings = {
   publicStatsViewable: boolean
   notifySubscribers: boolean
   recordingDate: string | null
+  playlistIds: string[]
+  newPlaylist: { title: string; privacyStatus: YouTubePrivacy } | null
 }
 
 export const emptyYouTubeSettings = (): YouTubeSettings => ({
   format: "video", title: "", privacyStatus: "public", madeForKids: null, alteredContent: false, categoryId: "22", thumbnailUrl: null,
   tags: [], defaultLanguage: "pt-BR", defaultAudioLanguage: "pt-BR", license: "youtube", embeddable: true, publicStatsViewable: true, notifySubscribers: true, recordingDate: null,
+  playlistIds: [], newPlaylist: null,
 })
 
 /** YouTube categories offered in the composer (ids from the YouTube Data API). */
@@ -85,8 +90,10 @@ function Toggle({ checked, onChange, label, help }: { checked: boolean; onChange
 const sectionTitle = "text-[11px] font-bold uppercase tracking-wide text-slate-500"
 const selectClass = "mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-normal text-slate-800"
 
-export function YouTubeOptions({ settings, onChange, media, hashtags, onUploadThumbnail, thumbnailUploading }: {
+export function YouTubeOptions({ settings, onChange, media, hashtags, onUploadThumbnail, thumbnailUploading, channelId }: {
   settings: YouTubeSettings
+  /** Connected channel the video goes to; its playlists are offered. */
+  channelId?: string
   onChange: (update: (current: YouTubeSettings) => YouTubeSettings) => void
   media: MediaItem | null
   hashtags: string[]
@@ -186,6 +193,8 @@ export function YouTubeOptions({ settings, onChange, media, hashtags, onUploadTh
       </div>
     </div>
 
+    <PlaylistPicker channelId={channelId} settings={settings} onChange={onChange} />
+
     <details className="group rounded-xl border border-slate-200 bg-slate-50/70">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-xs font-semibold text-slate-800 marker:hidden">Configurações avançadas<ChevronDown size={16} className="text-slate-500 transition group-open:rotate-180" /></summary>
       <div className="space-y-1 border-t border-slate-200 bg-white px-3 pb-3 pt-1">
@@ -202,8 +211,43 @@ export function YouTubeOptions({ settings, onChange, media, hashtags, onUploadTh
             <span className="mt-1.5 flex items-center gap-2"><input type="date" max={today} value={settings.recordingDate || ""} onChange={(event) => set("recordingDate", event.target.value || null)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-normal text-slate-800" />{settings.recordingDate && <button type="button" onClick={() => set("recordingDate", null)} className="shrink-0 text-xs font-normal text-slate-500 underline">Limpar</button>}</span>
           </label>
         </div>
-        <p className="pt-2 text-[10px] leading-4 text-slate-400">Playlists, legendas, telas finais e a configuração de comentários ficam no YouTube Studio: a API de envio do YouTube não altera esses itens.</p>
+        <p className="pt-2 text-[10px] leading-4 text-slate-400">Legendas, telas finais e a configuração de comentários ficam no YouTube Studio.</p>
       </div>
     </details>
   </section>
+}
+
+type Playlist = { id: string; title: string; privacyStatus: string; itemCount: number | null }
+const PRIVACY_LABEL: Record<string, string> = { public: "Pública", unlisted: "Não listada", private: "Privada" }
+
+/** Existing playlists of the channel, plus an optional new one created when the video is published. */
+function PlaylistPicker({ channelId, settings, onChange }: { channelId?: string; settings: YouTubeSettings; onChange: (update: (current: YouTubeSettings) => YouTubeSettings) => void }) {
+  const query = useQuery({ queryKey: ["youtube-playlists", channelId], enabled: !!channelId, staleTime: 5 * 60_000, retry: false,
+    queryFn: ({ signal }) => fetchApi(`/accounts/youtube/${encodeURIComponent(channelId!)}/playlists`, { signal }) as Promise<{ playlists: Playlist[] }> })
+  const playlists = query.data?.playlists || []
+  const toggle = (id: string) => onChange(current => ({ ...current, playlistIds: current.playlistIds.includes(id) ? current.playlistIds.filter(item => item !== id) : current.playlistIds.length >= 10 ? current.playlistIds : [...current.playlistIds, id] }))
+  const creating = settings.newPlaylist !== null
+  return <div className="space-y-3">
+    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Playlists</p>
+    {!channelId ? <p className="text-xs text-slate-500">Escolha o canal do YouTube para ver as playlists.</p>
+      : query.isLoading ? <div className="flex items-center gap-2 text-xs text-slate-500"><Loader2 size={14} className="animate-spin" />Carregando playlists do canal…</div>
+      : query.isError ? <p className="text-xs text-rose-700">Não foi possível carregar as playlists: {query.error.message} <button type="button" onClick={() => void query.refetch()} className="font-semibold underline">Tentar de novo</button></p>
+      : playlists.length ? <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5" role="group" aria-label="Playlists do canal">
+        {playlists.map((playlist) => <label key={playlist.id} className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-slate-50">
+          <input type="checkbox" checked={settings.playlistIds.includes(playlist.id)} onChange={() => toggle(playlist.id)} className="h-4 w-4 accent-indigo-600" />
+          <ListVideo size={15} className="shrink-0 text-slate-400" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{playlist.title}</span>
+          <span className="shrink-0 text-[11px] text-slate-500">{PRIVACY_LABEL[playlist.privacyStatus] || playlist.privacyStatus}{playlist.itemCount != null ? ` · ${playlist.itemCount} vídeos` : ""}</span>
+        </label>)}
+      </div> : <p className="text-xs text-slate-500">Este canal ainda não tem playlists.</p>}
+    {creating ? <div className="space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
+      <div className="flex items-center justify-between"><span className="text-xs font-semibold text-slate-800">Nova playlist</span><button type="button" onClick={() => onChange(current => ({ ...current, newPlaylist: null }))} className="text-xs text-slate-500 underline">Cancelar</button></div>
+      <div className="grid gap-2 sm:grid-cols-[1fr_150px]">
+        <Input value={settings.newPlaylist?.title || ""} maxLength={150} onChange={(event) => onChange(current => ({ ...current, newPlaylist: { title: event.target.value, privacyStatus: current.newPlaylist?.privacyStatus || "public" } }))} placeholder="Nome da playlist" aria-label="Nome da nova playlist" className="h-9 bg-white text-sm" />
+        <select value={settings.newPlaylist?.privacyStatus || "public"} onChange={(event) => onChange(current => ({ ...current, newPlaylist: { title: current.newPlaylist?.title || "", privacyStatus: event.target.value as YouTubePrivacy } }))} aria-label="Visibilidade da nova playlist" className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm"><option value="public">Pública</option><option value="unlisted">Não listada</option><option value="private">Privada</option></select>
+      </div>
+      <p className="text-[11px] text-slate-500">A playlist é criada no canal quando o vídeo for publicado, já com o vídeo dentro.</p>
+    </div> : <button type="button" onClick={() => onChange(current => ({ ...current, newPlaylist: { title: "", privacyStatus: "public" } }))} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900"><Plus size={14} />Criar nova playlist</button>}
+    {(settings.playlistIds.length > 0 || creating) && <p className="text-[11px] leading-4 text-slate-500">Adicionar a playlists exige o canal reconectado com todas as permissões. Se uma playlist falhar, o vídeo continua publicado e você recebe um aviso.</p>}
+  </div>
 }

@@ -5,7 +5,7 @@ import { getConnectedAccounts, getPendingConnectedAccounts, selectConnectedAccou
 import { isAccountSyncRunning, syncAccountOnce, syncAccountsInBackground } from '../services/account-sync.service';
 import { authenticate } from '../middleware/auth';
 import { disconnectXAccount, getConnectedXAccounts, isXConfigured } from '../services/x.service';
-import { disconnectYouTubeAccount, getConnectedYouTubeAccounts, isYouTubeConfigured } from '../services/youtube.service';
+import { disconnectYouTubeAccount, getConnectedYouTubeAccounts, isYouTubeConfigured, listYouTubePlaylists } from '../services/youtube.service';
 import { autoLinkThreadsAccounts, linkNetworkAccount, type LinkedNetwork } from '../services/workspace-links';
 
 
@@ -95,6 +95,17 @@ router.get('/:id', async (req: any, res, next) => {
     });
     if (!account) return res.status(404).json({ error: 'Account not found' });
     res.json(account);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Playlists of a YouTube channel, for the composer's playlist picker.
+router.get('/youtube/:id/playlists', async (req: any, res, next) => {
+  try {
+    const channel = await prisma.youTubeAccount.findFirst({ where: { id: req.params.id, userId: req.user.id, isActive: true }, select: { id: true } });
+    if (!channel) return res.status(404).json({ error: 'Canal do YouTube não encontrado.' });
+    res.json({ playlists: await listYouTubePlaylists(channel.id) });
   } catch (error) {
     next(error);
   }
