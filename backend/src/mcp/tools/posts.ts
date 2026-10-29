@@ -5,7 +5,7 @@ import {
   accountIdSchema, advancedSettingsSchema, audioFields, confirmSchema, dateTimeSchema, defineTool, DESTRUCTIVE, EXTERNAL,
   instagramAudioSchema, MEDIA_TYPES, mergeHashtagsIntoCaption, normalizeHashtags, platformSchema, POST_STATUSES,
   postDetails, postIdSchema, postSummary, publishPlatformSchema, READ, threadsAccountIdSchema, xAccountIdSchema,
-  youtubeAccountIdSchema, youtubeSettingsSchema, toIso, WRITE,
+  youtubeAccountIdSchema, youtubeSettingsSchema, tiktokAccountIdSchema, tiktokSettingsSchema, toIso, WRITE,
 } from '../tool-kit';
 
 const EDITABLE = new Set(['DRAFT', 'SCHEDULED', 'FAILED']);
@@ -93,6 +93,8 @@ export const postTools = [
       xAccountId: xAccountIdSchema.optional().describe('Obrigatório quando platforms inclui X.'),
       youtubeAccountId: youtubeAccountIdSchema.optional().describe('Obrigatório quando platforms inclui YOUTUBE.'),
       youtubeSettings: youtubeSettingsSchema.optional().describe('Obrigatório quando platforms inclui YOUTUBE.'),
+      tiktokAccountId: tiktokAccountIdSchema.optional().describe('Obrigatório quando platforms inclui TIKTOK.'),
+      tiktokSettings: tiktokSettingsSchema.optional().describe('Obrigatório quando platforms inclui TIKTOK.'),
       mediaType: z.enum(MEDIA_TYPES).describe('IMAGE (1 imagem), CAROUSEL (2–10 mídias; no X até 4), REEL (1 vídeo), STORY (1 mídia, só Instagram) ou TEXT (só Threads e/ou X, sem mídia).'),
       mediaUrls: mediaUrlsSchema.default([]),
       caption: captionSchema.default(''),
@@ -112,6 +114,8 @@ export const postTools = [
         xAccountId: args.xAccountId,
         youtubeAccountId: args.youtubeAccountId,
         youtubeSettings: args.youtubeSettings,
+        tiktokAccountId: args.tiktokAccountId,
+        tiktokSettings: args.tiktokSettings,
         platforms: unique(args.platforms),
         mediaType: args.mediaType,
         mediaUrls: args.mediaUrls,
@@ -148,6 +152,8 @@ export const postTools = [
       xAccountId: xAccountIdSchema.nullable().optional().describe('null remove a conta do X.'),
       youtubeAccountId: youtubeAccountIdSchema.nullable().optional().describe('null remove o canal do YouTube.'),
       youtubeSettings: youtubeSettingsSchema.nullable().optional().describe('Substitui as opções do YouTube; null limpa.'),
+      tiktokAccountId: tiktokAccountIdSchema.nullable().optional().describe('null remove o perfil do TikTok.'),
+      tiktokSettings: tiktokSettingsSchema.nullable().optional().describe('Substitui as opções do TikTok; null limpa.'),
       mediaType: z.enum(MEDIA_TYPES).optional(),
       mediaUrls: mediaUrlsSchema.optional(),
       caption: captionSchema.optional(),
@@ -168,6 +174,8 @@ export const postTools = [
       if (changes.xAccountId !== undefined) body.xAccountId = changes.xAccountId;
       if (changes.youtubeAccountId !== undefined) body.youtubeAccountId = changes.youtubeAccountId;
       if (changes.youtubeSettings !== undefined) body.youtubeSettings = changes.youtubeSettings;
+      if (changes.tiktokAccountId !== undefined) body.tiktokAccountId = changes.tiktokAccountId;
+      if (changes.tiktokSettings !== undefined) body.tiktokSettings = changes.tiktokSettings;
       if (changes.mediaType) body.mediaType = changes.mediaType;
       if (changes.mediaUrls) body.mediaUrls = changes.mediaUrls;
       if (changes.caption !== undefined) body.caption = changes.caption;

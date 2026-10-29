@@ -7,6 +7,7 @@ import { authenticate } from '../middleware/auth';
 import { disconnectXAccount, getConnectedXAccounts, isXConfigured } from '../services/x.service';
 import { disconnectYouTubeAccount, getConnectedYouTubeAccounts, isYouTubeConfigured, listYouTubePlaylists } from '../services/youtube.service';
 import { autoLinkThreadsAccounts, linkNetworkAccount, type LinkedNetwork } from '../services/workspace-links';
+import { disconnectTikTokAccount, getConnectedTikTokAccounts, getTikTokCreatorInfo, isTikTokConfigured } from '../services/tiktok.service';
 
 
 const router = Router();
@@ -37,6 +38,34 @@ router.get('/threads', async (req: any, res, next) => {
 router.get('/x', async (req: any, res, next) => {
   try {
     res.json({ configured: isXConfigured(), accounts: await getConnectedXAccounts(req.user.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/tiktok', async (req: any, res, next) => {
+  try {
+    res.json({ configured: isTikTokConfigured(), accounts: await getConnectedTikTokAccounts(req.user.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// What this TikTok creator can post now; the composer reads it every time the TikTok options open.
+router.get('/tiktok/:id/creator-info', async (req: any, res, next) => {
+  try {
+    const account = await prisma.tikTokAccount.findFirst({ where: { id: req.params.id, userId: req.user.id, isActive: true }, select: { id: true } });
+    if (!account) return res.status(404).json({ error: 'Perfil do TikTok não encontrado.' });
+    res.json(await getTikTokCreatorInfo(account.id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/tiktok/:id', async (req: any, res, next) => {
+  try {
+    if (!(await disconnectTikTokAccount(req.params.id, req.user.id))) return res.status(404).json({ error: 'Perfil do TikTok não encontrado.' });
+    res.json({ message: 'Perfil do TikTok desconectado' });
   } catch (error) {
     next(error);
   }
@@ -112,7 +141,7 @@ router.get('/youtube/:id/playlists', async (req: any, res, next) => {
 });
 
 // Moves a Threads, X or YouTube profile to a company (or unlinks it with null).
-router.patch('/:network(threads|x|youtube)/:id/workspace', async (req: any, res, next) => {
+router.patch('/:network(threads|x|youtube|tiktok)/:id/workspace', async (req: any, res, next) => {
   try {
     const network = String(req.params.network).toUpperCase() as LinkedNetwork;
     const value = req.body?.workspaceAccountId;

@@ -25,6 +25,7 @@ model User {
   accounts            InstagramAccount[]
   threadsAccounts     ThreadsAccount[]
   xAccounts           XAccount[]
+  tiktokAccounts  TikTokAccount[]
   youtubeAccounts     YouTubeAccount[]
   scheduledPosts      ScheduledPost[]
   preferences         UserPreference?
@@ -179,6 +180,7 @@ model InstagramAccount {
   linkedXAccounts       XAccount[]               @relation("XWorkspace")
   linkedYouTubeAccounts YouTubeAccount[]         @relation("YouTubeWorkspace")
   youtubeCompetitors    YouTubeCompetitor[]
+  linkedTikTokAccounts  TikTokAccount[]       @relation("TikTokWorkspace")
 
   @@index([userId])
 }
@@ -581,6 +583,10 @@ model ScheduledPost {
   accountId            String
   threadsAccountId     String?
   xAccountId           String?
+  tiktokAccountId  String?
+  tiktokAccount    TikTokAccount? @relation(fields: [tiktokAccountId], references: [id], onDelete: SetNull)
+  /// TikTok options chosen in the composer (privacy, interactions, disclosure, consent).
+  tiktokSettings   Json?
   youtubeAccountId     String?
   mediaType            MediaType
   mediaUrls            String[]
@@ -629,6 +635,8 @@ model PublishedPost {
   facebookPostId     String?
   threadsPostId      String?
   xPostId            String?
+  tiktokPublishId String?
+  tiktokPostId    String?
   youtubeVideoId     String?
   publishResults     Json?
   igMediaUrl         String?
@@ -846,4 +854,36 @@ model YouTubeCompetitorSnapshot {
   competitor YouTubeCompetitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
 
   @@index([competitorId, collectedAt])
+}
+
+/// A TikTok profile connected with Login Kit; belongs to one company like the other networks.
+model TikTokAccount {
+  id                 String    @id @default(uuid())
+  userId             String
+  openId             String    @unique
+  username           String?
+  displayName        String
+  avatarUrl          String?
+  followerCount      Int?
+  followingCount     Int?
+  likesCount         Int?
+  videoCount         Int?
+  accessToken        String
+  refreshToken       String?
+  tokenExpiresAt     DateTime?
+  refreshExpiresAt   DateTime?
+  scopes             String?
+  isActive           Boolean   @default(true)
+  connectedAt        DateTime  @default(now())
+  lastSyncAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  workspaceAccountId String?
+  workspaceAccount   InstagramAccount? @relation("TikTokWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
+
+  user           User            @relation(fields: [userId], references: [id])
+  scheduledPosts ScheduledPost[]
+
+  @@index([userId])
+  @@index([workspaceAccountId])
 }

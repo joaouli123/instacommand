@@ -25,6 +25,10 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   YOUTUBE_REDIRECT_URI: z.string().optional(),
+  // TikTok for Developers app with Login Kit and the Content Posting API.
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
+  TIKTOK_REDIRECT_URI: z.string().optional(),
   // Legacy names remain supported so existing Coolify variables keep working.
   FB_APP_ID: z.string().optional(),
   FB_APP_SECRET: z.string().optional(),
@@ -89,6 +93,7 @@ export const env = {
   THREADS_REDIRECT_URI: parsed.THREADS_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/threads/callback`,
   X_REDIRECT_URI: parsed.X_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/x/callback`,
   YOUTUBE_REDIRECT_URI: parsed.YOUTUBE_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/youtube/callback`,
+  TIKTOK_REDIRECT_URI: parsed.TIKTOK_REDIRECT_URI || `${parsed.BACKEND_URL.replace(/\/$/, '')}/api/auth/tiktok/callback`,
   MEDIA_PUBLIC_URL: parsed.MEDIA_PUBLIC_URL || `${parsed.BACKEND_URL.replace(/\/$/, '')}/uploads`,
   CORS_ORIGINS: parsed.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
 };

@@ -97,3 +97,17 @@ export function summarizeYouTube(body: any): CompanyNetworkSummary {
     notice: analytics ? null : body.analytics?.reason === 'scope' ? 'Reconecte o canal em Contas para ver visualizações, tempo assistido e inscritos.' : body.analytics?.message || null,
   };
 }
+
+export function summarizeTikTok(body: any): CompanyNetworkSummary {
+  if (!body) return failedSummary('TIKTOK', new Error('Perfil do TikTok não encontrado.'));
+  return {
+    network: 'TIKTOK', accountId: body.account?.id, name: body.account?.displayName, handle: body.account?.username ? `@${body.account.username}` : null, avatarUrl: body.account?.avatarUrl ?? null,
+    status: 'ok', audience: body.profile?.followers ?? null, audienceLabel: 'Seguidores',
+    metrics: [
+      { key: 'views', label: 'Views dos vídeos', value: body.totals?.views ?? null },
+      { key: 'likes', label: 'Curtidas', value: body.totals?.likes ?? null },
+      { key: 'videos', label: 'Vídeos publicados', value: body.totals?.videos ?? null },
+      { key: 'engagementRate', label: 'Engajamento', value: body.engagementRate ?? null, format: 'percent' },
+    ],
+  };
+}

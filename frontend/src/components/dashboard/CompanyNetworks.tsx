@@ -6,7 +6,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ArrowDownRight, ArrowUpRight, Plus } from "lucide-react"
-import { SiFacebook, SiInstagram, SiThreads, SiX, SiYoutube } from "@icons-pack/react-simple-icons"
+import { SiFacebook, SiInstagram, SiThreads, SiTiktok, SiX, SiYoutube } from "@icons-pack/react-simple-icons"
 import { Card } from "@/components/ui/card"
 import { AvatarImage } from "@/components/ui/avatar-image"
 import { fetchApi } from "@/lib/api"
@@ -22,6 +22,7 @@ const NETWORKS: Record<string, { label: string; Icon: typeof SiInstagram; bg: st
   THREADS: { label: "Threads", Icon: SiThreads, bg: "bg-[#101113]", tab: "threads" },
   X: { label: "X", Icon: SiX, bg: "bg-black", tab: "x" },
   YOUTUBE: { label: "YouTube", Icon: SiYoutube, bg: "bg-[#ff0033]", tab: "youtube" },
+  TIKTOK: { label: "TikTok", Icon: SiTiktok, bg: "bg-black", tab: "tiktok" },
 }
 
 const show = (metric: Metric) => metric.value == null ? "—"

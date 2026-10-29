@@ -7,14 +7,14 @@ export type CompatMedia = { kind: "image" | "video"; width?: number; height?: nu
 export const FORMAT_PLATFORMS: Record<ComposerFormat, string[]> = {
   FEED: ["INSTAGRAM", "FACEBOOK", "THREADS", "X"],
   CAROUSEL: ["INSTAGRAM", "FACEBOOK", "THREADS", "X"],
-  REEL: ["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"],
+  REEL: ["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE", "TIKTOK"],
   STORY: ["INSTAGRAM"],
   TEXT: ["THREADS", "X"],
 }
 
 /** Networks that accept a post with text only. */
 export const TEXT_NETWORKS = ["THREADS", "X"]
-export const NETWORK_NAMES: Record<string, string> = { INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X", YOUTUBE: "YouTube" }
+export const NETWORK_NAMES: Record<string, string> = { INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X", YOUTUBE: "YouTube", TIKTOK: "TikTok" }
 const FORMAT_NAMES: Record<ComposerFormat, string> = { FEED: "foto única", CAROUSEL: "carrossel", REEL: "vídeo", STORY: "Story", TEXT: "post só de texto" }
 
 export const YOUTUBE_SHORT_MAX_SECONDS = 180
@@ -43,6 +43,7 @@ export const incompatiblePlatforms = (format: ComposerFormat, platforms: string[
 /** Why a network is left out of a format, in the user's words. */
 export function formatConflictMessage(platform: string, format: ComposerFormat) {
   if (platform === "YOUTUBE") return `O YouTube só publica vídeos: não aceita ${FORMAT_NAMES[format]}. Escolha o formato Vídeo ou desmarque o YouTube.`
+  if (platform === "TIKTOK") return `O TikTok publica vídeo nesta integração: não aceita ${FORMAT_NAMES[format]}. Escolha o formato Vídeo ou desmarque o TikTok.`
   if (format === "STORY") return `Stories só são publicados no Instagram. Desmarque o ${NETWORK_NAMES[platform] || platform} ou escolha outro formato.`
   if (format === "TEXT") return `Post só de texto funciona apenas no Threads e no X. Desmarque o ${NETWORK_NAMES[platform] || platform} ou escolha um formato com mídia.`
   return `O ${NETWORK_NAMES[platform] || platform} não publica ${FORMAT_NAMES[format]}.`

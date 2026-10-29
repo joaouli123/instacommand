@@ -247,7 +247,7 @@ export const publishThreadsPost = async (post: any, token: string) => {
 export const publishPost = async (scheduledPostId: string, trigger?: { scheduledFor?: string }) => {
   const post = await prisma.scheduledPost.findUnique({
     where: { id: scheduledPostId },
-    include: { account: true, threadsAccount: true, xAccount: true, youtubeAccount: true },
+    include: { account: true, threadsAccount: true, xAccount: true, youtubeAccount: true, tiktokAccount: true },
   });
 
   if (!post) throw new Error('Post not found');
@@ -298,6 +298,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
       { network: 'THREADS', account: platforms.includes('THREADS') ? post.threadsAccount : null },
       { network: 'X', account: platforms.includes('X') ? post.xAccount : null },
       { network: 'YOUTUBE', account: platforms.includes('YOUTUBE') ? post.youtubeAccount : null },
+      { network: 'TIKTOK', account: platforms.includes('TIKTOK') ? post.tiktokAccount : null },
     ]);
     const results: Record<string, unknown> = {};
     const errors: string[] = [];
@@ -404,6 +405,18 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
       }
     }
 
+    if (platforms.includes('TIKTOK')) {
+      try {
+        if (!post.tiktokAccount || !post.tiktokAccount.isActive || post.tiktokAccount.userId !== post.userId) throw new Error('Conecte um perfil do TikTok antes de publicar.');
+        // Loaded on demand so publishing to the other networks never depends on the TikTok client.
+        const { publishTikTokVideo } = require('../tiktok.service') as typeof import('../tiktok.service');
+        const video = await publishTikTokVideo(post, post.tiktokAccount.id);
+        results.TIKTOK = { id: video.postId, publishId: video.publishId, url: video.url, status: video.status, advancedWarnings: video.warnings };
+      } catch (error) {
+        errors.push(`TikTok: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+      }
+    }
+
     const successfulPlatforms = Object.keys(results);
     if (!successfulPlatforms.length) throw new Error(errors.join(' | ') || 'Nenhuma plataforma publicou o conteúdo.');
 
@@ -412,6 +425,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
     const threadsResult = results.THREADS as { id?: string } | undefined;
     const xResult = results.X as { id?: string } | undefined;
     const youtubeResult = results.YOUTUBE as { id?: string } | undefined;
+    const tiktokResult = results.TIKTOK as { id?: string | null; publishId?: string } | undefined;
     const published = await prisma.publishedPost.create({
       data: {
         accountId: post.accountId,
@@ -420,6 +434,8 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         threadsPostId: threadsResult?.id,
         xPostId: xResult?.id,
         youtubeVideoId: youtubeResult?.id,
+        tiktokPublishId: tiktokResult?.publishId,
+        tiktokPostId: tiktokResult?.id ?? undefined,
         publishResults: JSON.parse(JSON.stringify(results)),
         igMediaUrl: instagramResult?.mediaUrl,
         igPermalink: instagramResult?.permalink,

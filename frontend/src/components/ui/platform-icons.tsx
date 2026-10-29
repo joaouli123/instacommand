@@ -1,4 +1,4 @@
-import { SiFacebook, SiInstagram, SiThreads, SiX, SiYoutube } from "@icons-pack/react-simple-icons"
+import { SiFacebook, SiInstagram, SiThreads, SiTiktok, SiX, SiYoutube } from "@icons-pack/react-simple-icons"
 import { cn } from "@/lib/utils"
 
 const PLATFORMS = {
@@ -7,6 +7,7 @@ const PLATFORMS = {
   THREADS: { label: "Threads", Icon: SiThreads, color: "#101010" },
   X: { label: "X", Icon: SiX, color: "#000000" },
   YOUTUBE: { label: "YouTube", Icon: SiYoutube, color: "#FF0033" },
+  TIKTOK: { label: "TikTok", Icon: SiTiktok, color: "#000000" },
 } as const
 
 type KnownPlatform = keyof typeof PLATFORMS
@@ -19,6 +20,7 @@ const BRAND_STOPS: Record<KnownPlatform, string[]> = {
   THREADS: ["#2A2A2A", "#000000"],
   X: ["#52525B", "#3F3F46"],
   YOUTUBE: ["#FF3355", "#E00028"],
+  TIKTOK: ["#25F4EE", "#FE2C55"],
 }
 
 /**

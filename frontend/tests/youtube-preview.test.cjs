@@ -38,7 +38,7 @@ test('the chosen format drives the YouTube preview: Shorts player or watch page 
 });
 
 test('the YouTube preview tab only appears for video posts', () => {
-  assert.match(composer, /tab\.id !== "YOUTUBE" \|\| postType === "REEL"/);
+  assert.match(composer, /\(tab\.id !== "YOUTUBE" && tab\.id !== "TIKTOK"\) \|\| postType === "REEL"/);
 });
 
 test('YouTube-only posts pick between a regular video and a Short, and a Short that YouTube would refuse is blocked', () => {

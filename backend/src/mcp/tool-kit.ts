@@ -61,8 +61,8 @@ export const DESTRUCTIVE: ToolAnnotations = { readOnlyHint: false, destructiveHi
 // ---------------------------------------------------------------- shared schemas
 
 export const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X', 'YOUTUBE'] as const;
-/** Publishing networks: every network also publishes. */
-export const PUBLISH_PLATFORMS = PLATFORMS;
+/** Publishing networks. TikTok has no automations, so it stays out of PLATFORMS. */
+export const PUBLISH_PLATFORMS = [...PLATFORMS, 'TIKTOK'] as const;
 export const MEDIA_TYPES = ['IMAGE', 'CAROUSEL', 'REEL', 'STORY', 'TEXT'] as const;
 export const POST_STATUSES = ['DRAFT', 'SCHEDULED', 'PROCESSING', 'PUBLISHED', 'FAILED'] as const;
 export const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
@@ -72,6 +72,16 @@ export const accountIdSchema = z.string().uuid()
 export const threadsAccountIdSchema = z.string().uuid().describe('ID interno da conta do Threads (campo "id" em threads de list_accounts).');
 export const xAccountIdSchema = z.string().uuid().describe('ID interno da conta do X (campo "id" em x de list_accounts).');
 export const youtubeAccountIdSchema = z.string().uuid().describe('ID interno do canal do YouTube (campo "id" em youtube de list_accounts).');
+export const tiktokAccountIdSchema = z.string().uuid().describe('ID interno do perfil do TikTok (campo "id" em tiktok de list_accounts).');
+export const tiktokSettingsSchema = z.object({
+  privacyLevel: z.enum(['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY']).describe('Quem pode ver. Pergunte ao usuário; nunca presuma. Use só opções de get_tiktok_creator_info. Sem auditoria do app, apenas SELF_ONLY com o perfil privado.'),
+  allowComment: z.boolean().default(false), allowDuet: z.boolean().default(false), allowStitch: z.boolean().default(false),
+  commercialContent: z.boolean().default(false).describe('Divulgação de conteúdo comercial.'),
+  yourBrand: z.boolean().default(false).describe('Promove a própria marca (rótulo "Conteúdo promocional").'),
+  brandedContent: z.boolean().default(false).describe('Parceria paga com terceiro (rótulo "Parceria paga"); não pode ser SELF_ONLY.'),
+  aiGenerated: z.boolean().default(false),
+  consent: z.literal(true).describe('O usuário confirmou a Declaração de Uso de Música do TikTok (e a Política de Conteúdo de Marca, se for o caso).'),
+}).describe('Opções do vídeo no TikTok. A legenda do post vira a legenda do TikTok (até 2.200 caracteres).');
 export const youtubeSettingsSchema = z.object({
   format: z.enum(['video', 'short']).default('video').describe('video: vídeo comum (horizontal 16:9 recomendado). short: vertical ou quadrado de até 3 minutos.'),
   title: z.string().max(100).describe('Título do vídeo (obrigatório para agendar), até 100 caracteres, sem < ou >.'),

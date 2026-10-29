@@ -33,7 +33,8 @@ type ThreadsOAuthStatus = { appIdConfigured: boolean; appSecretConfigured: boole
 
 import { XAccountsCard } from "@/components/accounts/XAccountsCard"
 import { YouTubeAccountsCard } from "@/components/accounts/YouTubeAccountsCard"
-import { SiX, SiYoutube } from "@icons-pack/react-simple-icons"
+import { TikTokAccountsCard } from "@/components/accounts/TikTokAccountsCard"
+import { SiX, SiYoutube, SiTiktok } from "@icons-pack/react-simple-icons"
 
 export default function AccountsPage() {
   const queryClient = useQueryClient()
@@ -109,6 +110,11 @@ export default function AccountsPage() {
     void startOAuth(`/auth/youtube/url?workspace=${encodeURIComponent(getSelectedAccountId())}`)
   }
 
+  const connectTikTok = () => {
+    setConnectDialogOpen(false)
+    void startOAuth(`/auth/tiktok/url?workspace=${encodeURIComponent(getSelectedAccountId())}`)
+  }
+
   const refreshAccounts = useCallback(async () => {
     const [data, threads, pending, oauthStatus] = await Promise.all([
       api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts(),
@@ -141,6 +147,7 @@ export default function AccountsPage() {
       const threadsConnected = params.get("threads_connected")
       const xConnected = params.get("x_connected")
       const youtubeConnected = params.get("youtube_connected")
+      const tiktokConnected = params.get("tiktok_connected")
       const oauthSession = params.get("oauth_session")
       if (oauthSession) {
         await fetchApi("/auth/oauth-session", {
@@ -191,7 +198,17 @@ export default function AccountsPage() {
                 ? "O Google não retornou o código de autorização. Confira o URI de redirecionamento no Google Cloud."
                 : "A conexão com o YouTube falhou. Tente novamente em alguns instantes."))
       if (youtubeConnected === "1") void queryClient.invalidateQueries({ queryKey: ["youtube-accounts"] })
-      if ((connected || threadsConnected || xConnected || youtubeConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
+      if (tiktokConnected === "1") { toast.success(tr("Perfil do TikTok conectado com sucesso")); void queryClient.invalidateQueries({ queryKey: ["tiktok-accounts"] }) }
+      if (tiktokConnected === "0") toast.error(tr(reason === "tiktok_denied"
+        ? "Você cancelou ou o TikTok recusou a autorização. Nenhum perfil foi vinculado."
+        : reason === "tiktok_account_conflict"
+          ? "Esse perfil do TikTok já está vinculado a outro usuário do UX Code Social."
+          : reason === "tiktok_scope_missing"
+            ? "A permissão para publicar vídeos não foi concedida. Conecte novamente e aceite todas as permissões."
+            : reason === "tiktok_callback_missing_code"
+              ? "O TikTok não retornou o código de autorização. Confira o Redirect URI no app do TikTok."
+              : "A conexão com o TikTok falhou. Tente novamente em alguns instantes."))
+      if ((connected || threadsConnected || xConnected || youtubeConnected || tiktokConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
 
       await refreshAccounts()
       if (connected === "1" || connected === "pending" || threadsConnected === "1") {
@@ -376,6 +393,11 @@ export default function AccountsPage() {
               <span className="min-w-0 flex-1"><span className="block font-bold text-slate-900">YouTube</span><span className="mt-1 block text-xs leading-5 text-slate-500">{t("Entre com o Google e escolha o canal para publicar vídeos e Shorts.")}</span></span>
               <ArrowRight size={18} className="shrink-0 text-indigo-600" />
             </button>
+            <button type="button" onClick={connectTikTok} className="flex items-center gap-4 rounded-2xl border border-slate-200 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50/60">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-white"><SiTiktok size={20} color="white" /></span>
+              <span className="min-w-0 flex-1"><span className="block font-bold text-slate-900">TikTok</span><span className="mt-1 block text-xs leading-5 text-slate-500">{t("Entre com o TikTok para publicar vídeos e acompanhar os resultados.")}</span></span>
+              <ArrowRight size={18} className="shrink-0 text-indigo-600" />
+            </button>
           </div>
           <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">{t("Selecione apenas as contas e Páginas que deseja gerenciar. Se uma opção não estiver disponível, confira seu acesso a ela no Meta Business.")}</div>
         </DialogContent>
@@ -409,6 +431,7 @@ export default function AccountsPage() {
       <XAccountsCard onConnect={connectX} />
 
       <YouTubeAccountsCard onConnect={connectYouTube} />
+      <TikTokAccountsCard onConnect={connectTikTok} />
     </div>
   )
 }

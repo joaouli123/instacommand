@@ -8,7 +8,7 @@ import toast from "react-hot-toast"
 import { api } from "@/lib/api"
 import { useActiveAccount } from "@/hooks/useActiveAccount"
 
-const QUERY_KEYS = { threads: "threads-accounts", x: "x-accounts", youtube: "youtube-accounts" } as const
+const QUERY_KEYS = { threads: "threads-accounts", x: "x-accounts", youtube: "youtube-accounts", tiktok: "tiktok-accounts" } as const
 
 export function CompanyLinkSelect({ network, accountId, value, label, onLinked }: { network: keyof typeof QUERY_KEYS; accountId: string; value?: string | null; label: string; onLinked?: () => void }) {
   const { accounts } = useActiveAccount()

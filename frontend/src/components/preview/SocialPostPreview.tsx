@@ -4,7 +4,7 @@
 // the composer and the calendar so both show exactly what will be published.
 import { useEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
-import { SiThreads, SiX, SiYoutube, SiYoutubeshorts } from "@icons-pack/react-simple-icons"
+import { SiThreads, SiTiktok, SiX, SiYoutube, SiYoutubeshorts } from "@icons-pack/react-simple-icons"
 import twitterText from "twitter-text"
 import { RiBarChartLine, RiChat1Line, RiShare2Line } from "@remixicon/react"
 import { RiAccountCircleLine, RiAddLine, RiArrowLeftLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiEmotionHappyLine, RiHeartFill, RiHeartLine, RiImageLine, RiMore2Line, RiMusic2Line, RiPauseFill, RiPlayFill, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiThumbUpFill, RiThumbUpLine, RiVolumeMuteLine, RiVolumeUpLine } from "@remixicon/react"
@@ -16,6 +16,7 @@ export type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY" | "TEXT"
 export type PreviewAccount = { igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null }
 export type PreviewThreadsAccount = { username: string }
 export type PreviewXAccount = { username: string; name?: string | null; profilePicUrl?: string | null }
+export type PreviewTikTokAccount = { nickname: string; username?: string | null; avatarUrl?: string | null }
 export type PreviewYouTubeAccount = { title: string; handle?: string | null; thumbnailUrl?: string | null; subscriberCount?: number | null }
 export type YouTubePrivacy = "public" | "unlisted" | "private"
 export type YouTubeFormat = "video" | "short"
@@ -59,6 +60,9 @@ export type SocialPreviewProps = {
   xAccount?: PreviewXAccount
   youtubeAccount?: PreviewYouTubeAccount
   youtubeSettings?: PreviewYouTubeSettings
+  tiktokAccount?: PreviewTikTokAccount
+  /** Privacy chosen for TikTok; "Só eu" is shown on the preview. */
+  tiktokPrivacy?: string | null
   media: MediaItem | null
   mediaItems: MediaItem[]
   activeMediaIndex: number
@@ -370,7 +374,35 @@ function YouTubePreview({ account, settings, media, caption, hashtags }: { accou
   </div>
 }
 
-export function SocialPostPreview({ postType, previewPlatform, selectedAccount, threadsAccount, xAccount, youtubeAccount, youtubeSettings, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags, locationName }: SocialPreviewProps) {
+/** TikTok "For You" player: the video full screen, the action rail on the right and the caption at the bottom. */
+function TikTokPreview({ account, media, caption, hashtags, privacy }: { account?: PreviewTikTokAccount; media: MediaItem | null; caption: string; hashtags: string[]; privacy?: string | null }) {
+  const name = account?.username ? `@${account.username}` : account?.nickname || "@seu_perfil"
+  const text = [caption, hashtags.map((tag) => `#${tag}`).join(" ")].filter(Boolean).join(" ")
+  const initial = (account?.nickname || "T")[0]?.toUpperCase()
+  return <article data-preview="tiktok" aria-label="Prévia de vídeo do TikTok" className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-xl bg-black text-white ring-1 ring-black/10 font-[system-ui,-apple-system,'Segoe_UI',Roboto,Arial,sans-serif]">
+    <PreviewMedia media={media?.kind === "video" ? media : null} emptyMessage="Seu vídeo do TikTok aparecerá aqui" fill backgroundClassName="bg-[#111]" />
+    <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/45 to-transparent" />
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
+    <header className="absolute inset-x-3 top-3 flex items-center justify-center gap-4 text-[13px] font-semibold drop-shadow"><span className="text-white/70">Seguindo</span><span className="border-b-2 border-white pb-0.5">Para você</span><RiSearchLine size={18} className="absolute right-0" aria-hidden="true" /></header>
+    {privacy === "SELF_ONLY" && <span className="absolute left-3 top-11 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium"><RiLock2Line size={11} aria-hidden="true" />Só eu</span>}
+    <nav aria-label="Ações do vídeo no TikTok" className="absolute bottom-20 right-2 flex flex-col items-center gap-3.5 drop-shadow-md">
+      <span className="relative mb-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-[#333] text-sm font-bold"><AvatarImage src={account?.avatarUrl} fallback={initial} /></span>
+      <span className="flex flex-col items-center gap-0.5"><RiHeartFill size={26} aria-hidden="true" /><span className="text-[10px] font-semibold">0</span></span>
+      <span className="flex flex-col items-center gap-0.5"><RiChat3Line size={24} aria-hidden="true" /><span className="text-[10px] font-semibold">0</span></span>
+      <span className="flex flex-col items-center gap-0.5"><RiBookmarkLine size={23} aria-hidden="true" /><span className="text-[10px] font-semibold">0</span></span>
+      <span className="flex flex-col items-center gap-0.5"><RiShareForwardLine size={24} aria-hidden="true" /><span className="text-[10px] font-semibold">0</span></span>
+    </nav>
+    <div className="absolute inset-x-3 bottom-3 pr-14 drop-shadow-sm">
+      <p className="text-[13px] font-semibold">{name}</p>
+      <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-[12px] leading-4">{text ? text.split(/(\s+)/).map((part, index) => TAG_PATTERN.test(part) ? <b key={index}>{part}</b> : part) : <span className="text-white/70">A legenda do post aparecerá aqui.</span>}</p>
+      <p className="mt-1.5 flex items-center gap-1 truncate text-[11px]"><RiMusic2Line size={12} aria-hidden="true" />som original · {account?.nickname || "seu perfil"}</p>
+    </div>
+    <SiTiktok size={16} color="#fff" title="TikTok" className="absolute bottom-3 right-3 opacity-80" />
+  </article>
+}
+
+export function SocialPostPreview({ postType, previewPlatform, selectedAccount, threadsAccount, xAccount, youtubeAccount, youtubeSettings, tiktokAccount, tiktokPrivacy, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags, locationName }: SocialPreviewProps) {
+  if (previewPlatform === "TIKTOK") return <TikTokPreview account={tiktokAccount} media={media} caption={caption} hashtags={hashtags} privacy={tiktokPrivacy} />
   if (previewPlatform === "X") return <XPostPreview account={xAccount} caption={caption} hashtags={hashtags} mediaItems={mediaItems} postType={postType} />
   if (previewPlatform === "YOUTUBE") return <YouTubePreview account={youtubeAccount} settings={youtubeSettings} media={media} caption={caption} hashtags={hashtags} />
   const isInstagram = previewPlatform === "INSTAGRAM"

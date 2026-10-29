@@ -12,6 +12,7 @@ import { env } from '../config/env';
 import { assertPostReady, SUPPORTED_PLATFORMS, TEXT_PLATFORMS, textLimitFor, X_MAX_MEDIA, X_TEXT_LIMIT, xTextLength } from '../services/post-readiness';
 import { deleteXPost } from '../services/x.service';
 import { validateYouTubeSettings } from '../services/youtube-settings';
+import { validateTikTokSettings } from '../services/tiktok-settings';
 import { assertSameWorkspace } from '../services/workspace-links';
 import { deleteYouTubeVideo } from '../services/youtube.service';
 
@@ -62,7 +63,7 @@ router.post('/', async (req: any, res, next) => {
   try {
     const { accountId, threadsAccountId, xAccountId, youtubeAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
-      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings } = req.body;
+      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings, tiktokAccountId, tiktokSettings } = req.body;
     if (status !== undefined && !['DRAFT', 'SCHEDULED'].includes(status)) return res.status(400).json({ error: 'Status de criação inválido.' });
     const normalizedPlatforms = Array.isArray(platforms) && platforms.length ? platforms : ['INSTAGRAM'];
     const textOnlyThreads = normalizedPlatforms.every((platform: string) => TEXT_PLATFORMS.includes(platform));
@@ -88,12 +89,20 @@ router.post('/', async (req: any, res, next) => {
     if (normalizedPlatforms.includes('YOUTUBE') && !youtubeAccount) {
       return res.status(400).json({ error: 'Conecte um canal do YouTube antes de selecionar essa plataforma.' });
     }
+    const tiktokAccount = tiktokAccountId
+      ? await prisma.tikTokAccount.findFirst({ where: { id: tiktokAccountId, userId: req.user.id, isActive: true } })
+      : null;
+    if (normalizedPlatforms.includes('TIKTOK') && !tiktokAccount) {
+      return res.status(400).json({ error: 'Conecte um perfil do TikTok antes de selecionar essa plataforma.' });
+    }
     assertSameWorkspace(account.id, [
       { network: 'THREADS', account: normalizedPlatforms.includes('THREADS') ? threadsAccount : null },
       { network: 'X', account: normalizedPlatforms.includes('X') ? xAccount : null },
       { network: 'YOUTUBE', account: normalizedPlatforms.includes('YOUTUBE') ? youtubeAccount : null },
+      { network: 'TIKTOK', account: normalizedPlatforms.includes('TIKTOK') ? tiktokAccount : null },
     ]);
     const normalizedYouTubeSettings = normalizedPlatforms.includes('YOUTUBE') ? validateYouTubeSettings(youtubeSettings) : null;
+    const normalizedTikTokSettings = normalizedPlatforms.includes('TIKTOK') ? validateTikTokSettings(tiktokSettings) : null;
     if (normalizedPlatforms.includes('FACEBOOK') && !account.pageId) {
       return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
     }
@@ -148,7 +157,7 @@ router.post('/', async (req: any, res, next) => {
     if (Number.isNaN(targetDate.getTime())) return res.status(400).json({ error: 'Data de publicação inválida.' });
     if (status === 'SCHEDULED') {
       if (targetDate <= new Date()) return res.status(400).json({ error: 'Escolha uma data futura.' });
-      assertPostReady({ mediaType, mediaUrls, caption, platforms: normalizedPlatforms, youtubeSettings: normalizedYouTubeSettings });
+      assertPostReady({ mediaType, mediaUrls, caption, platforms: normalizedPlatforms, youtubeSettings: normalizedYouTubeSettings, tiktokSettings: normalizedTikTokSettings });
     }
 
     const post = await prisma.scheduledPost.create({
@@ -159,6 +168,8 @@ router.post('/', async (req: any, res, next) => {
         xAccountId: xAccount?.id,
         youtubeAccountId: youtubeAccount?.id,
         youtubeSettings: (normalizedYouTubeSettings ?? undefined) as any,
+        tiktokAccountId: tiktokAccount?.id,
+        tiktokSettings: (normalizedTikTokSettings ?? undefined) as any,
         mediaType,
         mediaUrls,
         caption,
@@ -304,7 +315,7 @@ router.patch('/:id', async (req: any, res, next) => {
   try {
     const { caption, scheduledFor, status, platforms, threadsAccountId, xAccountId, youtubeAccountId, mediaUrls, mediaType, hashtags,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
-      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings } = req.body;
+      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings, tiktokAccountId, tiktokSettings } = req.body;
     const post = await prisma.scheduledPost.findFirst({
       where: { id: req.params.id, userId: req.user.id }
     });
@@ -341,6 +352,15 @@ router.patch('/:id', async (req: any, res, next) => {
       assertSameWorkspace(post.accountId, [{ network: 'YOUTUBE', account: youtubeAccount }]);
     }
     const nextYouTubeSettings = youtubeSettings === undefined ? post.youtubeSettings : validateYouTubeSettings(youtubeSettings);
+    if (nextPlatforms.includes('TIKTOK')) {
+      const nextTikTokAccountId = tiktokAccountId === undefined ? post.tiktokAccountId : tiktokAccountId;
+      const tiktokAccount = nextTikTokAccountId
+        ? await prisma.tikTokAccount.findFirst({ where: { id: nextTikTokAccountId, userId: req.user.id, isActive: true } })
+        : null;
+      if (!tiktokAccount) return res.status(400).json({ error: 'Conecte um perfil do TikTok antes de selecionar essa plataforma.' });
+      assertSameWorkspace(post.accountId, [{ network: 'TIKTOK', account: tiktokAccount }]);
+    }
+    const nextTikTokSettings = tiktokSettings === undefined ? post.tiktokSettings : validateTikTokSettings(tiktokSettings);
     if (nextPlatforms.includes('THREADS')) {
       const nextThreadsAccountId = threadsAccountId === undefined ? post.threadsAccountId : threadsAccountId;
       const threadsAccount = nextThreadsAccountId
@@ -397,7 +417,7 @@ router.patch('/:id', async (req: any, res, next) => {
     if (Number.isNaN(nextDate.getTime())) return res.status(400).json({ error: 'Data de publicação inválida.' });
     if ((status || post.status) === 'SCHEDULED') {
       if (nextDate <= new Date()) return res.status(400).json({ error: 'Escolha uma data futura.' });
-      assertPostReady({ ...post, caption: nextCaption, mediaType: nextMediaType, mediaUrls: nextMediaUrls, platforms: nextPlatforms, youtubeSettings: nextYouTubeSettings });
+      assertPostReady({ ...post, caption: nextCaption, mediaType: nextMediaType, mediaUrls: nextMediaUrls, platforms: nextPlatforms, youtubeSettings: nextYouTubeSettings, tiktokSettings: nextTikTokSettings });
     }
 
     if (post.status === 'SCHEDULED' && (status === 'DRAFT' || scheduledFor)) {
@@ -426,6 +446,8 @@ router.patch('/:id', async (req: any, res, next) => {
         xAccountId: xAccountId === null ? null : xAccountId || undefined,
         youtubeAccountId: youtubeAccountId === null ? null : youtubeAccountId || undefined,
         youtubeSettings: youtubeSettings === undefined ? undefined : (nextYouTubeSettings ?? Prisma.DbNull) as any,
+        tiktokAccountId: tiktokAccountId === null ? null : tiktokAccountId || undefined,
+        tiktokSettings: tiktokSettings === undefined ? undefined : (nextTikTokSettings ?? Prisma.DbNull) as any,
       }
     }).catch((error) => {
       if (error?.code === 'P2025') throw new ConflictError('Esta publicação mudou ou já está sendo enviada. Atualize a tela antes de editar.');
@@ -494,6 +516,9 @@ router.delete('/:id', async (req: any, res, next) => {
       }
     }
 
+    if (post.publishedPost?.tiktokPublishId) {
+      warnings.push('O vídeo do TikTok continua no perfil: a API do TikTok não permite apagar publicações. Exclua-o no aplicativo do TikTok.');
+    }
     if (post.publishedPost?.youtubeVideoId) {
       // Deleting a video is permanent, so it only happens when the user explicitly asked for it.
       if (req.query.youtube !== 'delete') {

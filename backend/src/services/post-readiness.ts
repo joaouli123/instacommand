@@ -1,8 +1,9 @@
 import { ValidationError } from '../utils/errors';
 import twitterText from 'twitter-text';
 import { validateYouTubeSettings, YOUTUBE_DESCRIPTION_LIMIT } from './youtube-settings';
+import { TIKTOK_CAPTION_LIMIT, validateTikTokSettings } from './tiktok-settings';
 
-export const SUPPORTED_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X', 'YOUTUBE'];
+export const SUPPORTED_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X', 'YOUTUBE', 'TIKTOK'];
 /** Networks that accept a post with text only, no media. */
 export const TEXT_PLATFORMS = ['THREADS', 'X'];
 export const X_TEXT_LIMIT = 280;
@@ -15,7 +16,7 @@ const textLength = (value?: string | null) => [...(value || '')].length;
 export const xTextLength = (value?: string | null) => twitterText.parseTweet(value || '').weightedLength;
 const isVideoUrl = (url: string) => /\.(mp4|mov|m4v)(\?|$)/i.test(url);
 
-export function assertPostReady(post: { mediaType: string; mediaUrls: string[]; caption?: string | null; platforms?: string[]; youtubeSettings?: unknown }) {
+export function assertPostReady(post: { mediaType: string; mediaUrls: string[]; caption?: string | null; platforms?: string[]; youtubeSettings?: unknown; tiktokSettings?: unknown }) {
   const platforms = post.platforms?.length ? post.platforms : ['INSTAGRAM'];
   if (platforms.some(p => !SUPPORTED_PLATFORMS.includes(p))) throw new ValidationError('Rede de publicação inválida.');
   if (!Array.isArray(post.mediaUrls)) throw new ValidationError('Mídias inválidas.');
@@ -26,6 +27,11 @@ export function assertPostReady(post: { mediaType: string; mediaUrls: string[]; 
     validateYouTubeSettings(post.youtubeSettings, { requireComplete: true });
     if (Buffer.byteLength(post.caption || '', 'utf8') > YOUTUBE_DESCRIPTION_LIMIT) throw new ValidationError(`A descrição do YouTube passa de ${YOUTUBE_DESCRIPTION_LIMIT} caracteres.`);
     if (/[<>]/.test(post.caption || '')) throw new ValidationError('O YouTube não aceita < ou > na descrição. Remova esses caracteres ou desmarque o YouTube.');
+  }
+  if (platforms.includes('TIKTOK')) {
+    if (post.mediaType !== 'REEL' || post.mediaUrls.length !== 1 || !isVideoUrl(post.mediaUrls[0])) throw new ValidationError('O TikTok publica um vídeo nesta integração. Use o formato Vídeo ou desmarque o TikTok.');
+    validateTikTokSettings(post.tiktokSettings, { requireComplete: true });
+    if ((post.caption || '').length > TIKTOK_CAPTION_LIMIT) throw new ValidationError(`A legenda passa de ${TIKTOK_CAPTION_LIMIT} caracteres, o limite do TikTok.`);
   }
   const textOnlyNetworks = platforms.every(p => TEXT_PLATFORMS.includes(p));
   if (post.mediaType === 'TEXT') {

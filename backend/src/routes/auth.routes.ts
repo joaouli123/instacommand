@@ -15,6 +15,7 @@ import { isSessionRevoked, revokeSession } from '../utils/session-security';
 import { syncAccountsInBackground } from '../services/account-sync.service';
 import { createXAuthorization, handleXCallback, readXState } from '../services/x.service';
 import { createYouTubeAuthorization, handleYouTubeCallback, readYouTubeState } from '../services/youtube.service';
+import { createTikTokAuthorization, handleTikTokCallback, readTikTokState } from '../services/tiktok.service';
 import { autoLinkThreadsAccounts, linkAfterConnect, ownedWorkspaceId } from '../services/workspace-links';
 
 const router = Router();
@@ -321,6 +322,40 @@ router.get('/youtube/url', authenticate, async (req: any, res, next) => {
     return res.json(createYouTubeAuthorization(user.id, await ownedWorkspaceId(user.id, req.query.workspace)));
   } catch (error) {
     return next(error);
+  }
+});
+
+// TikTok: Login Kit for the signed-in user, linked to the company chosen at the top.
+router.get('/tiktok/url', authenticate, async (req: any, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    return res.json(createTikTokAuthorization(user.id, await ownedWorkspaceId(user.id, req.query.workspace)));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+const TIKTOK_FAILURE_REASONS: Record<string, string> = {
+  TIKTOK_ACCOUNT_CONFLICT: 'tiktok_account_conflict',
+  TIKTOK_PUBLISH_NOT_GRANTED: 'tiktok_scope_missing',
+};
+
+router.get('/tiktok/callback', async (req, res) => {
+  const accounts = `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts`;
+  const parsed = readTikTokState(req.query.state);
+  if (!parsed) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
+  const { code } = req.query;
+  if (!code || typeof code !== 'string') return res.redirect(`${accounts}?tiktok_connected=0&reason=${req.query.error ? 'tiktok_denied' : 'tiktok_callback_missing_code'}`);
+  try {
+    // Same as X and YouTube: no session handoff, so a forwarded link cannot sign someone into this workspace.
+    await handleTikTokCallback(code, req.query.state);
+    return res.redirect(`${accounts}?tiktok_connected=1`);
+  } catch (error) {
+    // Never log provider payloads: they may contain codes or tokens.
+    console.error('TikTok OAuth callback failed');
+    const reason = (error instanceof Error && TIKTOK_FAILURE_REASONS[error.message]) || 'tiktok_connection';
+    return res.redirect(`${accounts}?tiktok_connected=0&reason=${reason}`);
   }
 });
 

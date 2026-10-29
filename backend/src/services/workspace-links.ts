@@ -7,9 +7,9 @@ const prisma = getPrisma();
 // the "empresa" chosen at the top of the panel). Screens, posts and reports use only
 // the profiles of the selected company, so one client's data never shows up in another.
 
-export type LinkedNetwork = 'THREADS' | 'X' | 'YOUTUBE';
-export const LINKED_NETWORKS: LinkedNetwork[] = ['THREADS', 'X', 'YOUTUBE'];
-const NETWORK_LABELS: Record<LinkedNetwork, string> = { THREADS: 'do Threads', X: 'do X', YOUTUBE: 'do YouTube' };
+export type LinkedNetwork = 'THREADS' | 'X' | 'YOUTUBE' | 'TIKTOK';
+export const LINKED_NETWORKS: LinkedNetwork[] = ['THREADS', 'X', 'YOUTUBE', 'TIKTOK'];
+const NETWORK_LABELS: Record<LinkedNetwork, string> = { THREADS: 'do Threads', X: 'do X', YOUTUBE: 'do YouTube', TIKTOK: 'do TikTok' };
 
 /** The company id when it belongs to the user and is connected, otherwise null. */
 export async function ownedWorkspaceId(userId: string, raw: unknown): Promise<string | null> {
@@ -18,7 +18,7 @@ export async function ownedWorkspaceId(userId: string, raw: unknown): Promise<st
   return account?.id ?? null;
 }
 
-const delegate = (network: LinkedNetwork) => (network === 'THREADS' ? prisma.threadsAccount : network === 'X' ? prisma.xAccount : prisma.youTubeAccount) as unknown as {
+const delegate = (network: LinkedNetwork) => (network === 'THREADS' ? prisma.threadsAccount : network === 'X' ? prisma.xAccount : network === 'TIKTOK' ? prisma.tikTokAccount : prisma.youTubeAccount) as unknown as {
   findFirst(args: unknown): Promise<{ id: string; workspaceAccountId: string | null } | null>;
   update(args: unknown): Promise<unknown>;
 };

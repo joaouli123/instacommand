@@ -12,6 +12,7 @@ type Linked = { id: string; workspaceAccountId?: string | null }
 export type CompanyThreadsProfile = Linked & { username: string; name?: string | null; profilePicUrl?: string | null }
 export type CompanyXProfile = Linked & { username: string; name?: string | null; profilePicUrl?: string | null; followersCount?: number | null }
 export type CompanyYouTubeChannel = Linked & { title: string; handle?: string | null; thumbnailUrl?: string | null; subscriberCount?: number | null }
+export type CompanyTikTokProfile = Linked & { displayName: string; username?: string | null; avatarUrl?: string | null; followerCount?: number | null }
 
 /** Profiles that belong to the company; pure so the rule can be tested. */
 export const ofCompany = <T extends Linked>(profiles: T[] | undefined, companyId: string) =>
@@ -22,6 +23,7 @@ export function useCompanyProfiles() {
   const threadsQuery = useQuery({ queryKey: ['threads-accounts'], queryFn: () => api.getThreadsAccounts() as Promise<CompanyThreadsProfile[]>, staleTime: 60_000 })
   const xQuery = useQuery({ queryKey: ['x-accounts'], queryFn: () => api.getXAccounts() as Promise<{ configured?: boolean; accounts?: CompanyXProfile[] }>, staleTime: 60_000 })
   const youtubeQuery = useQuery({ queryKey: ['youtube-accounts'], queryFn: () => api.getYouTubeAccounts() as Promise<{ configured?: boolean; accounts?: CompanyYouTubeChannel[] }>, staleTime: 60_000 })
+  const tiktokQuery = useQuery({ queryKey: ['tiktok-accounts'], queryFn: () => api.getTikTokAccounts() as Promise<{ configured?: boolean; accounts?: CompanyTikTokProfile[] }>, staleTime: 60_000 })
 
   return useMemo(() => ({
     company: activeAccount,
@@ -29,8 +31,10 @@ export function useCompanyProfiles() {
     threads: ofCompany(threadsQuery.data, accountId),
     x: ofCompany(xQuery.data?.accounts, accountId),
     youtube: ofCompany(youtubeQuery.data?.accounts, accountId),
+    tiktok: ofCompany(tiktokQuery.data?.accounts, accountId),
+    tiktokConfigured: tiktokQuery.data?.configured !== false,
     xConfigured: xQuery.data?.configured !== false,
     youtubeConfigured: youtubeQuery.data?.configured !== false,
-    isLoading: companyLoading || threadsQuery.isLoading || xQuery.isLoading || youtubeQuery.isLoading,
-  }), [activeAccount, accountId, threadsQuery.data, xQuery.data, youtubeQuery.data, companyLoading, threadsQuery.isLoading, xQuery.isLoading, youtubeQuery.isLoading])
+    isLoading: companyLoading || threadsQuery.isLoading || xQuery.isLoading || youtubeQuery.isLoading || tiktokQuery.isLoading,
+  }), [activeAccount, accountId, threadsQuery.data, xQuery.data, youtubeQuery.data, tiktokQuery.data, companyLoading, threadsQuery.isLoading, xQuery.isLoading, youtubeQuery.isLoading, tiktokQuery.isLoading])
 }

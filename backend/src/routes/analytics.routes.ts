@@ -16,7 +16,7 @@ import { MediaType } from '@prisma/client';
 import { InstagramApiError } from '../utils/errors';
 import { getFacebookReport } from '../services/facebook-report.service';
 import { getThreadsReport } from '../services/threads-report.service';
-import { failedSummary, summarizeFacebook, summarizeInstagram, summarizeThreads, summarizeX, summarizeYouTube, type CompanyNetworkSummary } from '../services/company-summary';
+import { failedSummary, summarizeFacebook, summarizeInstagram, summarizeThreads, summarizeTikTok, summarizeX, summarizeYouTube, type CompanyNetworkSummary } from '../services/company-summary';
 import { analyticsDays } from '../services/analytics-period';
 import { readLimitedBody, safeGet } from '../utils/safe-fetch';
 import { detectMediaSignature } from '../utils/media-signature';
@@ -89,6 +89,22 @@ const youtubeBody = (userId: string, accountId: string, days: number, refresh = 
   return getYouTubeReport(userId, accountId, days);
 }, { refresh, keep: Boolean });
 
+const tiktokBody = (userId: string, accountId: string, days: number, refresh = false) => cached(`tiktok:${userId}:${accountId}:${days}`, REPORT_TTL_MS, () => {
+  // Loaded on demand like X and YouTube.
+  const { getTikTokReport } = require('../services/tiktok-report.service') as typeof import('../services/tiktok-report.service');
+  return getTikTokReport(userId, accountId, days);
+}, { refresh, keep: Boolean });
+
+router.get('/networks/tiktok/:accountId', async (req: any, res, next) => {
+  const days = Number(req.query.days || 30);
+  if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
+  try {
+    const body = await tiktokBody(req.user.id, req.params.accountId, days, req.query.refresh === '1');
+    if (!body) return res.status(404).json({ error: 'Perfil do TikTok não encontrado.' });
+    return res.json(body);
+  } catch (error) { next(error); }
+});
+
 router.get('/networks/x/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);
   if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
@@ -142,23 +158,25 @@ router.get('/company/:accountId/summary', async (req: any, res, next) => {
     const company = await prisma.instagramAccount.findFirst({ where: { id: req.params.accountId, userId: req.user.id, isActive: true } });
     if (!company) return res.status(404).json({ error: 'Empresa não encontrada.' });
     const linked = { workspaceAccountId: company.id, userId: req.user.id, isActive: true };
-    const [threads, xProfiles, channels] = await Promise.all([
+    const [threads, xProfiles, channels, tiktoks] = await Promise.all([
       prisma.threadsAccount.findMany({ where: linked, select: { id: true } }),
       prisma.xAccount.findMany({ where: linked, select: { id: true } }),
       prisma.youTubeAccount.findMany({ where: linked, select: { id: true } }),
+      prisma.tikTokAccount.findMany({ where: linked, select: { id: true } }),
     ]);
     const userId = req.user.id;
-    const labels = ['INSTAGRAM', ...(company.pageId ? ['FACEBOOK'] : []), ...threads.map(() => 'THREADS'), ...xProfiles.map(() => 'X'), ...channels.map(() => 'YOUTUBE')];
+    const labels = ['INSTAGRAM', ...(company.pageId ? ['FACEBOOK'] : []), ...threads.map(() => 'THREADS'), ...xProfiles.map(() => 'X'), ...channels.map(() => 'YOUTUBE'), ...tiktoks.map(() => 'TIKTOK')];
     const settled = await Promise.allSettled<CompanyNetworkSummary>([
       getDashboardStats(company.id, days).then((stats) => summarizeInstagram(company, stats)),
       ...(company.pageId ? [facebookBody(userId, company.id, days).then((body) => summarizeFacebook(company, body))] : []),
       ...threads.map((profile) => threadsBody(userId, profile.id, days).then(summarizeThreads)),
       ...xProfiles.map((profile) => xBody(userId, profile.id, days).then(summarizeX)),
       ...channels.map((profile) => youtubeBody(userId, profile.id, days).then(summarizeYouTube)),
+      ...tiktoks.map((profile) => tiktokBody(userId, profile.id, days).then(summarizeTikTok)),
     ]);
     const networks = settled.map((result, index) => result.status === 'fulfilled' ? result.value : failedSummary(labels[index], result.reason));
     return res.json({ company: { id: company.id, igUsername: company.igUsername, pageName: company.pageName }, days, networks,
-      missing: (['THREADS', 'X', 'YOUTUBE'] as const).filter((network) => !labels.includes(network)) });
+      missing: (['THREADS', 'X', 'YOUTUBE', 'TIKTOK'] as const).filter((network) => !labels.includes(network)) });
   } catch (error) { next(error); }
 });
 

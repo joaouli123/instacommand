@@ -59,12 +59,12 @@ export const analyticsTools = [
     scopes: ['read'],
     annotations: READ_LIVE,
     inputSchema: {
-      network: z.enum(['facebook', 'threads', 'x', 'youtube']),
+      network: z.enum(['facebook', 'threads', 'x', 'youtube', 'tiktok']),
       accountId: z.string().uuid().describe('facebook: id da conta do Instagram dona da Página. threads, x, youtube: id do perfil ou canal.'),
       days: daysSchema,
     },
     handler: async ({ network, accountId, days }, { api }) => {
-      if ((network === 'threads' || network === 'x') && ![7, 30, 90].includes(days)) throw new ValidationError('Os relatórios do Threads e do X aceitam 7, 30 ou 90 dias.');
+      if ((network === 'threads' || network === 'x' || network === 'tiktok') && ![7, 30, 90].includes(days)) throw new ValidationError('Os relatórios do Threads, do X e do TikTok aceitam 7, 30 ou 90 dias.');
       if (network === 'youtube' && ![7, 30, 90, 365].includes(days)) throw new ValidationError('O relatório do YouTube aceita 7, 30, 90 ou 365 dias.');
       return api.get(`/analytics/networks/${network}/${encodePathSegment(accountId)}`, { days });
     },

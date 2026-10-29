@@ -12,16 +12,18 @@ export const accountTools = [
     annotations: READ,
     inputSchema: {},
     handler: async (_args, { api }) => {
-      const [instagram, threads, x, youtube] = await Promise.all([
+      const [instagram, threads, x, youtube, tiktok] = await Promise.all([
         api.get<any[]>('/accounts'), api.get<any[]>('/accounts/threads'),
         api.get<{ accounts: any[] }>('/accounts/x').catch(() => ({ accounts: [] })),
         api.get<{ accounts: any[] }>('/accounts/youtube').catch(() => ({ accounts: [] })),
+        api.get<{ accounts: any[] }>('/accounts/tiktok').catch(() => ({ accounts: [] })),
       ]);
       return {
         instagram: instagram.map(compactAccount),
         threads: threads.map((account: any) => ({ ...compactThreadsAccount(account), companyAccountId: account.workspaceAccountId ?? null })),
         x: (x.accounts || []).map((account: any) => ({ id: account.id, username: account.username, name: account.name, followers: account.followersCount ?? null, companyAccountId: account.workspaceAccountId ?? null })),
         youtube: (youtube.accounts || []).map((account: any) => ({ id: account.id, title: account.title, handle: account.handle ?? null, subscribers: account.subscriberCount ?? null, companyAccountId: account.workspaceAccountId ?? null })),
+        tiktok: (tiktok.accounts || []).map((account: any) => ({ id: account.id, username: account.username ?? null, name: account.displayName, followers: account.followerCount ?? null, companyAccountId: account.workspaceAccountId ?? null })),
         note: 'Cada empresa é uma conta do Instagram (id em instagram). Threads, X e YouTube têm companyAccountId: use num post somente as contas cujo companyAccountId é igual ao accountId do post; contas com companyAccountId null precisam ser vinculadas a uma empresa em Contas antes de publicar. Para publicar no Facebook use o accountId da conta do Instagram: o post vai para a Página em facebookPage.',
       };
     },
@@ -57,7 +59,7 @@ export const accountTools = [
     scopes: ['admin'],
     annotations: READ_LIVE,
     inputSchema: {
-      network: z.enum(['meta', 'threads', 'x', 'youtube']).describe('meta = Instagram + Facebook; threads = Threads; x = X (Twitter); youtube = canal do YouTube.'),
+      network: z.enum(['meta', 'threads', 'x', 'youtube', 'tiktok']).describe('meta = Instagram + Facebook; threads = Threads; x = X (Twitter); youtube = canal do YouTube; tiktok = perfil do TikTok.'),
       companyAccountId: accountIdSchema.optional().describe('Threads, X e YouTube: empresa (id da conta do Instagram) dona do perfil. Pergunte ao usuário se não estiver claro; sem ela, o perfil precisa ser vinculado depois em Contas.'),
       enableThreadsReplies: z.boolean().default(false).describe('Somente Threads: pede também a permissão de gerenciar respostas, necessária para automações.'),
     },
@@ -68,7 +70,7 @@ export const accountTools = [
         : network === 'threads'
           ? await api.get('/auth/threads/url', { ...workspace, ...(enableThreadsReplies ? { automations: 1 } : {}) })
           : await api.get(`/auth/${network}/url`, workspace);
-      const label = network === 'threads' ? 'o Threads' : network === 'x' ? 'o X' : 'o YouTube';
+      const label = network === 'threads' ? 'o Threads' : network === 'x' ? 'o X' : network === 'tiktok' ? 'o TikTok' : 'o YouTube';
       return {
         authorizationUrl: result.url,
         expiresInMinutes: 10,
@@ -112,8 +114,8 @@ export const accountTools = [
     scopes: ['admin'],
     annotations: WRITE,
     inputSchema: {
-      network: z.enum(['threads', 'x', 'youtube']),
-      accountId: z.string().uuid().describe('id do perfil do Threads, do X ou do canal do YouTube (list_accounts).'),
+      network: z.enum(['threads', 'x', 'youtube', 'tiktok']),
+      accountId: z.string().uuid().describe('id do perfil do Threads, do X, do TikTok ou do canal do YouTube (list_accounts).'),
       companyAccountId: accountIdSchema.nullable().describe('id da conta do Instagram da empresa, ou null para desvincular.'),
     },
     handler: async ({ network, accountId, companyAccountId }, { api }) => api.patch(`/accounts/${network}/${encodePathSegment(accountId)}/workspace`, { workspaceAccountId: companyAccountId }),
@@ -131,6 +133,17 @@ export const accountTools = [
   }),
 
   defineTool({
+    name: 'get_tiktok_creator_info',
+    title: 'O que o perfil do TikTok pode publicar',
+    category: 'accounts',
+    description: 'Consulta no TikTok as opções de privacidade disponíveis, se comentários/Dueto/Costura estão liberados, a duração máxima de vídeo e se o perfil pode publicar agora. Chame antes de montar tiktokSettings.',
+    scopes: ['read'],
+    annotations: READ_LIVE,
+    inputSchema: { tiktokAccountId: z.string().uuid().describe('id do perfil do TikTok (list_accounts).') },
+    handler: async ({ tiktokAccountId }, { api }) => api.get(`/accounts/tiktok/${encodePathSegment(tiktokAccountId)}/creator-info`),
+  }),
+
+  defineTool({
     name: 'disconnect_account',
     title: 'Desconectar conta',
     category: 'accounts',
@@ -138,13 +151,13 @@ export const accountTools = [
     scopes: ['admin'],
     annotations: DESTRUCTIVE,
     inputSchema: {
-      network: z.enum(['instagram', 'threads', 'x', 'youtube']),
-      accountId: z.string().uuid().describe('id da conta do Instagram, do Threads, do X ou do canal do YouTube.'),
+      network: z.enum(['instagram', 'threads', 'x', 'youtube', 'tiktok']),
+      accountId: z.string().uuid().describe('id da conta do Instagram, do Threads, do X, do TikTok ou do canal do YouTube.'),
       confirm: confirmSchema,
     },
     handler: async ({ network, accountId }, { api }) => api.delete(network === 'threads'
       ? `/accounts/threads/${encodePathSegment(accountId)}`
-      : network === 'x' || network === 'youtube'
+      : network === 'x' || network === 'youtube' || network === 'tiktok'
         ? `/accounts/${network}/${encodePathSegment(accountId)}`
         : `/accounts/${encodePathSegment(accountId)}`),
   }),

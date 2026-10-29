@@ -15,7 +15,7 @@ test('the dashboard shows every network of the selected company from the company
 
 test('Analytics has a YouTube tab limited to the company channels', () => {
   const page = read('app/analytics/page.tsx');
-  assert.match(page, /const TABS = \["instagram", "facebook", "threads", "x", "youtube"\]/);
+  assert.match(page, /const TABS = \["instagram", "facebook", "threads", "x", "youtube", "tiktok"\]/);
   assert.match(page, /<TabsContent value="youtube"><YouTubeReport \/><\/TabsContent>/);
   const report = read('components/dashboard/YouTubeReport.tsx');
   assert.match(report, /youtube: channels/);
