@@ -1,19 +1,23 @@
 "use client"
 
-// Native-style previews of a post on Instagram, Facebook and Threads. Shared by
+// Native-style previews of a post on Instagram, Facebook, Threads, X and YouTube. Shared by
 // the composer and the calendar so both show exactly what will be published.
 import { useEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
-import { SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import { SiThreads, SiX, SiYoutube, SiYoutubeshorts } from "@icons-pack/react-simple-icons"
 import twitterText from "twitter-text"
 import { RiBarChartLine, RiChat1Line, RiShare2Line } from "@remixicon/react"
 import { RiAccountCircleLine, RiAddLine, RiArrowLeftLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiEmotionHappyLine, RiHeartFill, RiHeartLine, RiImageLine, RiMore2Line, RiMusic2Line, RiPauseFill, RiPlayFill, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiThumbUpFill, RiThumbUpLine, RiVolumeMuteLine, RiVolumeUpLine } from "@remixicon/react"
+import { RiDownload2Line, RiGlobalLine, RiLinkM, RiLock2Line, RiThumbDownLine } from "@remixicon/react"
 import { AvatarImage } from "@/components/ui/avatar-image"
 
 export type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY" | "TEXT"
 export type PreviewAccount = { igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null }
 export type PreviewThreadsAccount = { username: string }
 export type PreviewXAccount = { username: string; name?: string | null; profilePicUrl?: string | null }
+export type PreviewYouTubeAccount = { title: string; handle?: string | null; thumbnailUrl?: string | null; subscriberCount?: number | null }
+export type YouTubePrivacy = "public" | "unlisted" | "private"
+export type PreviewYouTubeSettings = { title: string; privacyStatus: YouTubePrivacy; thumbnailUrl?: string | null }
 export type MediaItem = {
   id: string
   src: string
@@ -49,6 +53,8 @@ export type SocialPreviewProps = {
   selectedAccount?: PreviewAccount
   threadsAccount?: PreviewThreadsAccount
   xAccount?: PreviewXAccount
+  youtubeAccount?: PreviewYouTubeAccount
+  youtubeSettings?: PreviewYouTubeSettings
   media: MediaItem | null
   mediaItems: MediaItem[]
   activeMediaIndex: number
@@ -267,8 +273,98 @@ function XPostPreview({ account, caption, hashtags, mediaItems, postType }: { ac
   </article>
 }
 
-export function SocialPostPreview({ postType, previewPlatform, selectedAccount, threadsAccount, xAccount, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags, locationName }: SocialPreviewProps) {
+const YOUTUBE_PRIVACY_LABEL: Record<YouTubePrivacy, { label: string; Icon: typeof RiGlobalLine }> = {
+  public: { label: "Público", Icon: RiGlobalLine },
+  unlisted: { label: "Não listado", Icon: RiLinkM },
+  private: { label: "Privado", Icon: RiLock2Line },
+}
+
+/** A video becomes a Short on YouTube when it is vertical or square (and up to 3 minutes). */
+export const isYouTubeShort = (media: MediaItem | null) => !media?.width || !media.height || media.width <= media.height
+
+const formatSubscribers = (count?: number | null) => {
+  if (count == null) return "Inscritos ocultos"
+  const compact = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(count)
+  return `${compact} ${count === 1 ? "inscrito" : "inscritos"}`
+}
+
+const HASHTAG_PATTERN = new RegExp("^#[\\p{L}\\p{N}_]+$", "u")
+
+/**
+ * YouTube preview: vertical videos as a Short in the Shorts player; horizontal
+ * ones as the watch page plus the card shown in search and on the home feed.
+ */
+function YouTubePreview({ account, settings, media, caption, hashtags }: { account?: PreviewYouTubeAccount; settings?: PreviewYouTubeSettings; media: MediaItem | null; caption: string; hashtags: string[] }) {
+  const channel = account?.title || "Seu canal"
+  const handle = account?.handle || "@seucanal"
+  const title = settings?.title?.trim() || ""
+  const description = [caption, hashtags.map((tag) => `#${tag}`).join(" ")].filter(Boolean).join("\n\n")
+  const privacy = YOUTUBE_PRIVACY_LABEL[settings?.privacyStatus || "public"]
+  const video = media?.kind === "video" ? media : null
+  const channelInitial = (channel[0] || "Y").toUpperCase()
+
+  if (isYouTubeShort(media)) {
+    return <article data-preview="youtube-short" aria-label="Prévia de YouTube Shorts" className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-xl bg-black text-white ring-1 ring-black/10 font-[Roboto,system-ui,-apple-system,'Segoe_UI',Arial,sans-serif]">
+      <PreviewMedia media={video} emptyMessage="Seu Short aparecerá aqui" fill backgroundClassName="bg-[#0f0f0f]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/50 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
+      <header className="absolute inset-x-3 top-2.5 flex items-center justify-between drop-shadow-sm">
+        <span className="flex items-center gap-1.5 text-[13px] font-semibold"><SiYoutubeshorts size={18} color="#ff0033" title="YouTube Shorts" />Shorts</span>
+        <span className="flex items-center gap-2"><RiSearchLine size={19} aria-hidden="true" /><RiMore2Line size={19} aria-hidden="true" /></span>
+      </header>
+      {settings?.privacyStatus && settings.privacyStatus !== "public" && <span className="absolute left-3 top-11 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium"><privacy.Icon size={11} aria-hidden="true" />{privacy.label}</span>}
+      <nav aria-label="Ações do Short" className="absolute bottom-24 right-2 flex flex-col items-center gap-3 text-white drop-shadow-md">
+        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiThumbUpLine size={19} /></span><span className="text-[9px]">Gostei</span></span>
+        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiThumbDownLine size={19} /></span><span className="text-[9px]">Não gostei</span></span>
+        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiChat3Line size={19} /></span><span className="text-[9px]">0</span></span>
+        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiShareForwardLine size={19} /></span><span className="text-[9px]">Compartilhar</span></span>
+        <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md border-2 border-white/80 bg-[#272727] text-xs font-semibold"><AvatarImage src={account?.thumbnailUrl} fallback={channelInitial} /></span>
+      </nav>
+      <div className="absolute inset-x-3 bottom-3 pr-12 drop-shadow-sm">
+        <div className="flex min-w-0 items-center gap-2"><span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#272727] text-[11px] font-semibold"><AvatarImage src={account?.thumbnailUrl} fallback={channelInitial} /></span><p className="min-w-0 truncate text-[12px] font-semibold">{handle}</p><span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#0f0f0f]">Inscrever-se</span></div>
+        <p className="mt-2 line-clamp-2 break-words text-[12px] font-medium leading-4">{title || <span className="text-white/70">O título do Short aparecerá aqui</span>}</p>
+        <p className="mt-1.5 flex items-center gap-1 truncate text-[10px] text-white/90"><RiMusic2Line size={12} aria-hidden="true" />Som original · {channel}</p>
+      </div>
+    </article>
+  }
+
+  const poster = settings?.thumbnailUrl
+  return <div className="flex w-full max-w-[400px] flex-col gap-4 font-[Roboto,system-ui,-apple-system,'Segoe_UI',Arial,sans-serif]">
+    <article data-preview="youtube-video" aria-label="Prévia de vídeo do YouTube" className="w-full overflow-hidden rounded-xl border border-[#e5e5e5] bg-white text-[#0f0f0f]">
+      <PreviewMedia media={video} emptyMessage="Seu vídeo aparecerá aqui" aspectRatioOverride="16 / 9" backgroundClassName="bg-black" />
+      <div className="px-3 pb-3 pt-2.5">
+        <h4 className="line-clamp-2 break-words text-[15px] font-semibold leading-5">{title || <span className="font-normal text-[#606060]">O título do vídeo aparecerá aqui</span>}</h4>
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-[#606060]">0 visualizações · agora<span className="inline-flex items-center gap-1 rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[11px] font-medium"><privacy.Icon size={12} aria-hidden="true" />{privacy.label}</span></p>
+        <div className="mt-3 flex items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e5e5e5] text-sm font-semibold text-[#0f0f0f]"><AvatarImage src={account?.thumbnailUrl} fallback={channelInitial} /></span>
+          <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{channel}</p><p className="truncate text-[11px] text-[#606060]">{formatSubscribers(account?.subscriberCount)}</p></div>
+          <span className="shrink-0 rounded-full bg-[#0f0f0f] px-3 py-1.5 text-[12px] font-semibold text-white">Inscrever-se</span>
+        </div>
+        <div className="mt-3 flex gap-2 overflow-hidden text-[12px] font-medium" aria-label="Ações do vídeo no YouTube">
+          <span className="flex shrink-0 items-center rounded-full bg-[#f2f2f2]"><span className="flex items-center gap-1.5 border-r border-[#d9d9d9] py-1.5 pl-3 pr-2.5"><RiThumbUpLine size={16} />0</span><span className="px-2.5 py-1.5"><RiThumbDownLine size={16} /></span></span>
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#f2f2f2] px-3 py-1.5"><RiShareForwardLine size={16} />Compartilhar</span>
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#f2f2f2] px-3 py-1.5"><RiDownload2Line size={16} />Download</span>
+        </div>
+        <div className="mt-3 rounded-xl bg-[#f2f2f2] px-3 py-2.5 text-[12px] leading-[18px]">
+          <p className="font-semibold">0 visualizações · agora</p>
+          <p className="line-clamp-4 whitespace-pre-wrap break-words">{description ? description.split(/(\s+)/).map((part, index) => HASHTAG_PATTERN.test(part) ? <span key={index} className="text-[#065fd4]">{part}</span> : part) : <span className="text-[#606060]">A legenda vira a descrição do vídeo.</span>}</p>
+        </div>
+      </div>
+    </article>
+    <article data-preview="youtube-search-card" aria-label="Prévia do vídeo na busca do YouTube" className="flex w-full gap-3 rounded-xl border border-[#e5e5e5] bg-white p-2.5 text-[#0f0f0f]">
+      <div className="relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg bg-[#0f0f0f]">
+        {poster ? <img src={poster} alt="Miniatura do vídeo" className="absolute inset-0 h-full w-full object-cover" /> : video ? <video src={video.src} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" /> : null}
+        <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-[10px] font-semibold text-white">{poster ? "Miniatura" : "Quadro automático"}</span>
+      </div>
+      <div className="min-w-0 flex-1"><p className="line-clamp-2 text-[13px] font-semibold leading-[18px]">{title || "Título do vídeo"}</p><p className="mt-1 truncate text-[11px] text-[#606060]">{channel}</p><p className="truncate text-[11px] text-[#606060]">0 visualizações · agora</p></div>
+      <SiYoutube size={16} color="#ff0033" title="YouTube" className="shrink-0" />
+    </article>
+  </div>
+}
+
+export function SocialPostPreview({ postType, previewPlatform, selectedAccount, threadsAccount, xAccount, youtubeAccount, youtubeSettings, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags, locationName }: SocialPreviewProps) {
   if (previewPlatform === "X") return <XPostPreview account={xAccount} caption={caption} hashtags={hashtags} mediaItems={mediaItems} postType={postType} />
+  if (previewPlatform === "YOUTUBE") return <YouTubePreview account={youtubeAccount} settings={youtubeSettings} media={media} caption={caption} hashtags={hashtags} />
   const isInstagram = previewPlatform === "INSTAGRAM"
   const isFacebook = previewPlatform === "FACEBOOK"
   const username = isFacebook ? selectedAccount?.pageName || "Sua Página" : isInstagram ? selectedAccount?.igUsername || "sua_conta" : threadsAccount?.username || "sua_conta"

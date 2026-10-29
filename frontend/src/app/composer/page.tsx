@@ -12,7 +12,7 @@ import {
   Copy, Timer, BadgeCheck, Scaling,
   Check, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, Mic, Plus, Eye, PencilLine, PlusCircle, Search, Loader2
 } from "lucide-react"
-import { SiInstagram, SiFacebook, SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import { SiInstagram, SiFacebook, SiThreads, SiX, SiYoutube } from "@icons-pack/react-simple-icons"
 import twitterText from "twitter-text"
 import { RiMore2Line, RiMusic2Line, RiPauseFill, RiPlayFill } from "@remixicon/react"
 import { useDropzone } from "react-dropzone"
@@ -22,14 +22,14 @@ import { DailyContentPlan } from "@/components/dashboard/DailyContentPlan"
 import { ArtworkStudio } from "@/components/dashboard/ArtworkStudio"
 import { selectAccount } from "@/lib/active-account-store"
 import { isVideoUrl } from "@/lib/media"
-import { getMediaDimensions, SocialPostPreview as ComposerSocialPreview, type MediaItem, type PostType } from "@/components/preview/SocialPostPreview"
+import { getMediaDimensions, isYouTubeShort, SocialPostPreview as ComposerSocialPreview, type MediaItem, type PostType, type YouTubePrivacy } from "@/components/preview/SocialPostPreview"
 
 
 
 const formatPlatforms: Record<PostType, string[]> = {
   FEED: ["INSTAGRAM", "FACEBOOK", "THREADS", "X"],
   CAROUSEL: ["INSTAGRAM", "FACEBOOK", "THREADS", "X"],
-  REEL: ["INSTAGRAM", "FACEBOOK", "THREADS", "X"],
+  REEL: ["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"],
   STORY: ["INSTAGRAM"],
   TEXT: ["THREADS", "X"],
 }
@@ -66,9 +66,12 @@ const networkFormatDetails: Record<string, Partial<Record<PostType, PlatformForm
     REEL: { name: "Post com vídeo", shape: "Horizontal, quadrado ou vertical", dimensions: "Até 2 min 20 s · até 512 MB", note: "Vídeos mais longos exigem conta X Premium." },
     TEXT: { name: "Post de texto", shape: "Somente texto", dimensions: "Até 280 caracteres", note: "Sem mídia anexada." },
   },
+  YOUTUBE: {
+    REEL: { name: "Vídeo do YouTube", shape: "Vertical ou quadrado vira Short · horizontal vira vídeo", dimensions: "Short: 1080 × 1920 px, até 3 min · Vídeo: 1920 × 1080 px", note: "Título obrigatório; a legenda vira a descrição do vídeo." },
+  },
 }
 
-const platformNames: Record<string, string> = { INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X" }
+const platformNames: Record<string, string> = { INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X", YOUTUBE: "YouTube" }
 const TEXT_ONLY_NETWORKS = ["THREADS", "X"]
 /** Limit of the strictest selected text network (X 280, Threads 500). */
 const textLimitFor = (selected: string[]) => selected.includes("X") ? 280 : 500
@@ -88,6 +91,11 @@ function formatAspectRatio(width: number, height: number) {
 type ConnectedAccount = { id: string; igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null; isActive: boolean }
 type ThreadsAccount = { id: string; username: string; name?: string | null; isActive: boolean }
 type XAccount = { id: string; username: string; name?: string | null }
+type YouTubeAccount = { id: string; title: string; handle?: string | null; thumbnailUrl?: string | null; subscriberCount?: number | null }
+type YouTubeSettings = { title: string; privacyStatus: YouTubePrivacy; madeForKids: boolean | null; alteredContent: boolean; categoryId: string; thumbnailUrl: string | null }
+const emptyYouTubeSettings = (): YouTubeSettings => ({ title: "", privacyStatus: "public", madeForKids: null, alteredContent: false, categoryId: "22", thumbnailUrl: null })
+/** YouTube categories offered in the composer (ids from the YouTube Data API). */
+const YOUTUBE_CATEGORIES: Array<[string, string]> = [["22", "Pessoas e blogs"], ["27", "Educação"], ["26", "Guias e estilo"], ["24", "Entretenimento"], ["28", "Ciência e tecnologia"], ["25", "Notícias e política"], ["17", "Esportes"], ["10", "Música"], ["19", "Viagens e eventos"], ["2", "Carros e veículos"], ["15", "Animais"], ["20", "Jogos"], ["23", "Comédia"], ["1", "Filmes e animação"]]
 type AiPlanItem = { day: string; format: string; topic: string; hook: string; cta: string; suggestedTime: string }
 type InstagramAudioTrack = { id: string; title: string; audioType?: string; durationInMs?: number | null; artist?: string | null; creatorUsername?: string | null; coverUrl?: string | null; previewUrl?: string | null; previewLink?: string | null }
 type InstagramUserTag = { username: string; x: number; y: number; mediaIndex: number }
@@ -142,6 +150,10 @@ export default function ComposerPage() {
   const [threadsAccountId, setThreadsAccountId] = useState("")
   const [xAccounts, setXAccounts] = useState<XAccount[]>([])
   const [xAccountId, setXAccountId] = useState("")
+  const [youtubeAccounts, setYouTubeAccounts] = useState<YouTubeAccount[]>([])
+  const [youtubeAccountId, setYouTubeAccountId] = useState("")
+  const [youtubeSettings, setYouTubeSettings] = useState<YouTubeSettings>(emptyYouTubeSettings)
+  const [youtubeThumbnailUploading, setYouTubeThumbnailUploading] = useState(false)
   const [platforms, setPlatforms] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [aiTopic, setAiTopic] = useState("")
@@ -184,11 +196,14 @@ export default function ComposerPage() {
     const requestedReference = new URLSearchParams(window.location.search).get('reference') || ''
     if (/^https:\/\/(www\.)?instagram\.com\//.test(requestedReference)) setReferenceUrl(requestedReference)
     setDraftLoading(!!requestedDraft)
-    Promise.all([api.getAccounts(), api.getThreadsAccounts(), requestedDraft ? api.getPost(requestedDraft) : Promise.resolve(null), (api.getXAccounts() as Promise<{ accounts: XAccount[] }>).catch(() => ({ accounts: [] as XAccount[] }))])
-      .then(([instagramAccounts, threadAccounts, draft, xPayload]) => {
+    Promise.all([api.getAccounts(), api.getThreadsAccounts(), requestedDraft ? api.getPost(requestedDraft) : Promise.resolve(null), (api.getXAccounts() as Promise<{ accounts: XAccount[] }>).catch(() => ({ accounts: [] as XAccount[] })), (api.getYouTubeAccounts() as Promise<{ accounts: YouTubeAccount[] }>).catch(() => ({ accounts: [] as YouTubeAccount[] }))])
+      .then(([instagramAccounts, threadAccounts, draft, xPayload, youtubePayload]) => {
         const nextX = xPayload.accounts || []
         setXAccounts(nextX)
         if (nextX[0]) setXAccountId(nextX[0].id)
+        const nextYouTube = youtubePayload.accounts || []
+        setYouTubeAccounts(nextYouTube)
+        if (nextYouTube[0]) setYouTubeAccountId(nextYouTube[0].id)
         const nextAccounts = (instagramAccounts as ConnectedAccount[]).filter((account) => account.isActive)
         const nextThreads = (threadAccounts as ThreadsAccount[]).filter((account) => account.isActive)
         setAccounts(nextAccounts)
@@ -202,7 +217,8 @@ export default function ComposerPage() {
           if (!nextAccounts.some(a => a.id === draft.accountId)) throw new Error('A conta deste rascunho não está ativa.')
           setDraftId(draft.id); setAccountId(draft.accountId); selectAccount(draft.accountId)
           setCaption(draft.caption || ''); setHashtags(draft.hashtags || []); setPlatforms(draft.platforms || ['INSTAGRAM'])
-          setThreadsAccountId(draft.threadsAccountId || ''); if (draft.xAccountId) setXAccountId(draft.xAccountId); setPostType(draft.mediaType === 'IMAGE' ? 'FEED' : draft.mediaType)
+          setThreadsAccountId(draft.threadsAccountId || ''); if (draft.xAccountId) setXAccountId(draft.xAccountId); if (draft.youtubeAccountId) setYouTubeAccountId(draft.youtubeAccountId)
+          if (draft.youtubeSettings) setYouTubeSettings({ ...emptyYouTubeSettings(), ...draft.youtubeSettings }); setPostType(draft.mediaType === 'IMAGE' ? 'FEED' : draft.mediaType)
           setEditorialBrief(draft.editorialBrief || null)
           setIsAiGenerated(draft.isAiGenerated === true)
           const savedAdvanced = draft.advancedSettings as Partial<InstagramAdvancedSettings> | null
@@ -340,10 +356,11 @@ export default function ComposerPage() {
   const selectedAccount = accounts.find((account) => account.id === accountId)
   const resolvedPreviewPlatform = postType === "TEXT" ? (previewPlatform === "X" || !platforms.includes("THREADS") ? "X" : "THREADS") : previewPlatform
   const selectedXAccount = xAccounts.find((account) => account.id === xAccountId) || xAccounts[0]
+  const selectedYouTubeAccount = youtubeAccounts.find((account) => account.id === youtubeAccountId) || youtubeAccounts[0]
   const previewDescription = {
     FEED: "Prévia da publicação única no feed, sem faixa de Stories.",
     CAROUSEL: "Prévia do carrossel no feed, com navegação entre os itens.",
-    REEL: resolvedPreviewPlatform === "INSTAGRAM" ? "Prévia vertical da experiência de Reels." : `Prévia do vídeo em ${platformNames[resolvedPreviewPlatform] || resolvedPreviewPlatform}.`,
+    REEL: resolvedPreviewPlatform === "INSTAGRAM" ? "Prévia vertical da experiência de Reels." : resolvedPreviewPlatform === "YOUTUBE" ? (isYouTubeShort(activeMedia) ? "Prévia do Short no player do YouTube." : "Prévia da página do vídeo e do card na busca do YouTube.") : `Prévia do vídeo em ${platformNames[resolvedPreviewPlatform] || resolvedPreviewPlatform}.`,
     STORY: resolvedPreviewPlatform === "FACEBOOK" ? "Prévia visual da interface de Facebook Stories." : "Prévia vertical de Story em tela cheia.",
     TEXT: "Prévia clara do post de texto no Threads.",
   }[postType]
@@ -352,6 +369,7 @@ export default function ComposerPage() {
     ...(selectedAccount?.pageName ? ["FACEBOOK"] : []),
     ...(threadsAccounts.length ? ["THREADS"] : []),
     ...(xAccounts.length ? ["X"] : []),
+    ...(youtubeAccounts.length ? ["YOUTUBE"] : []),
   ]
   const compatiblePlatformsFor = (format: PostType) => {
     const connected = connectedPlatforms.filter((platform) => formatPlatforms[format].includes(platform))
@@ -498,6 +516,16 @@ export default function ComposerPage() {
       setMediaItems([])
       toast("Formato ajustado para foto única, compatível com as redes escolhidas.")
     }
+    if (nextPlatforms.includes("YOUTUBE") && postType !== "REEL") {
+      setPostType("REEL")
+      if (mediaItems.some((item) => item.kind !== "video") || mediaItems.length > 1) {
+        mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
+        setMediaItems([])
+        setActiveMediaIndex(0)
+      }
+      toast("Formato ajustado para vídeo: o YouTube publica somente vídeos.")
+    }
+    if (!nextPlatforms.includes("YOUTUBE")) setYouTubeSettings(emptyYouTubeSettings())
     if (!nextPlatforms.includes("INSTAGRAM")) {
       setIsAiGenerated(false)
       setAdvancedSettings(emptyInstagramAdvancedSettings())
@@ -596,6 +624,34 @@ export default function ComposerPage() {
     } finally {
       setCoverUploading(false)
     }
+  }
+
+  const uploadYouTubeThumbnail = async (file: File | undefined) => {
+    if (!file) return
+    if (!["image/jpeg", "image/png"].includes(file.type)) { toast.error("A miniatura precisa ser JPG ou PNG."); return }
+    if (file.size > 2 * 1024 * 1024) { toast.error("A miniatura do YouTube pode ter até 2 MB."); return }
+    setYouTubeThumbnailUploading(true)
+    try {
+      const response = await api.uploadMedia([file]) as { urls: string[] }
+      if (!response.urls?.[0]) throw new Error("O envio da miniatura não retornou um link.")
+      setYouTubeSettings(current => ({ ...current, thumbnailUrl: response.urls[0] }))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar a miniatura.")
+    } finally {
+      setYouTubeThumbnailUploading(false)
+    }
+  }
+
+  /** Problem that keeps the YouTube upload from being accepted, or null when it is ready. */
+  const youtubeProblem = (text: string) => {
+    if (!platforms.includes("YOUTUBE")) return null
+    if (!selectedYouTubeAccount) return "Conecte um canal do YouTube ou remova o YouTube da seleção."
+    if (postType !== "REEL" || mediaItems.length !== 1 || mediaItems[0].kind !== "video") return "O YouTube publica somente um vídeo. Use o formato de vídeo ou desmarque o YouTube."
+    if (!youtubeSettings.title.trim()) return "Escreva o título do vídeo para o YouTube."
+    if (/[<>]/.test(youtubeSettings.title)) return "O título do YouTube não pode conter < ou >."
+    if (youtubeSettings.madeForKids === null) return "Informe se o vídeo do YouTube é feito para crianças."
+    if (/[<>]/.test(text)) return "O YouTube não aceita < ou > na descrição. Remova esses caracteres ou desmarque o YouTube."
+    return null
   }
 
   const addCollaborator = () => {
@@ -706,6 +762,11 @@ export default function ComposerPage() {
       toast.error("O X aceita até 4 mídias por post. Remova mídias ou desmarque o X.")
       return
     }
+    const youtubeError = youtubeProblem(caption)
+    if (youtubeError) {
+      toast.error(youtubeError)
+      return
+    }
     if (postType === "CAROUSEL" && mediaItems.length < 2) {
       toast.error("Um carrossel precisa ter pelo menos duas mídias.")
       return
@@ -757,6 +818,8 @@ export default function ComposerPage() {
         accountId,
         threadsAccountId: platforms.includes("THREADS") ? threadsAccountId : undefined,
         xAccountId: platforms.includes("X") ? selectedXAccount?.id : undefined,
+        youtubeAccountId: platforms.includes("YOUTUBE") ? selectedYouTubeAccount?.id : undefined,
+        youtubeSettings: platforms.includes("YOUTUBE") ? youtubeSettings : undefined,
         mediaType: postType === "FEED" ? "IMAGE" : postType,
         mediaUrls,
         caption: finalCaption,
@@ -784,12 +847,11 @@ export default function ComposerPage() {
       if (mode === "schedule") {
         toast.success("Publicação agendada com sucesso.")
       } else if (publishSummary?.failed?.length) {
-        const names: Record<string, string> = { INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X" }
-        const succeeded = (publishSummary.succeeded || []).map((platform) => names[platform] || platform)
-        const failed = publishSummary.failed.map(({ platform, message }) => `${names[platform] || platform}: ${message}`)
+        const succeeded = (publishSummary.succeeded || []).map((platform) => platformNames[platform] || platform)
+        const failed = publishSummary.failed.map(({ platform, message }) => `${platformNames[platform] || platform}: ${message}`)
         toast.error(`${succeeded.length ? `Publicado em ${succeeded.join(", ")}. ` : ""}Falhou em ${failed.join("; ")}.`)
       } else if (publishSummary?.succeeded?.length === platforms.length) {
-        toast.success(`Publicado em ${publishSummary.succeeded.map((platform) => ({ INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X" })[platform] || platform).join(", ")}.`)
+        toast.success(`Publicado em ${publishSummary.succeeded.map((platform) => platformNames[platform] || platform).join(", ")}.`)
       } else {
         toast.success("Solicitação de publicação concluída. Confira o resultado no calendário.")
       }
@@ -826,7 +888,8 @@ export default function ComposerPage() {
       let index = 0
       const urls = mediaItems.map(item => item.file ? upload.urls[index++] : item.src)
       const data = { caption, hashtags, mediaUrls: urls, mediaType: postType === 'FEED' ? 'IMAGE' : postType,
-        platforms, threadsAccountId: platforms.includes('THREADS') ? threadsAccountId : null, xAccountId: platforms.includes('X') ? selectedXAccount?.id ?? null : null, status: 'DRAFT',
+        platforms, threadsAccountId: platforms.includes('THREADS') ? threadsAccountId : null, xAccountId: platforms.includes('X') ? selectedXAccount?.id ?? null : null,
+        youtubeAccountId: platforms.includes('YOUTUBE') ? selectedYouTubeAccount?.id ?? null : null, youtubeSettings: platforms.includes('YOUTUBE') ? youtubeSettings : null, status: 'DRAFT',
         isAiGenerated: platforms.includes('INSTAGRAM') && isAiGenerated,
         instagramAudioId: postType === 'REEL' && platforms.includes('INSTAGRAM') ? selectedAudioTrack?.id ?? null : null,
         instagramAudioTitle: selectedAudioTrack?.title ?? null,
@@ -846,13 +909,12 @@ export default function ComposerPage() {
   if (draftLoading) return <p role="status">Abrindo rascunho salvo...</p>
   if (draftError) return <Card className="p-6"><p role="alert">{draftError}</p><a href="/calendar" className="text-indigo-700 underline">Voltar ao calendário</a></Card>
   if (publishOutcome) {
-    const platformNames: Record<string, string> = { INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X" }
     const allSucceeded = publishOutcome.succeeded.length > 0 && publishOutcome.failed.length === 0
     const hasPartialSuccess = publishOutcome.succeeded.length > 0 && publishOutcome.failed.length > 0
     const startAnother = () => {
       mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
       setPublishOutcome(null); setStep(1); setCaption(""); setHashtags([]); setTagInput(""); setMediaItems([]); setActiveMediaIndex(0); setDraftId(""); setEditorialBrief(null)
-      setIsAiGenerated(false); setAdvancedSettings(emptyInstagramAdvancedSettings()); setCollaboratorInput(""); setPersonTagInput(""); setSelectedAudioTrack(null); setAudioTracks([]); setAudioSearchQuery(""); setPreviewingAudioId(null); audioPreviewRef.current?.pause()
+      setIsAiGenerated(false); setAdvancedSettings(emptyInstagramAdvancedSettings()); setYouTubeSettings(emptyYouTubeSettings()); setCollaboratorInput(""); setPersonTagInput(""); setSelectedAudioTrack(null); setAudioTracks([]); setAudioSearchQuery(""); setPreviewingAudioId(null); audioPreviewRef.current?.pause()
     }
     return <main className="mx-auto flex min-h-[65vh] w-full max-w-2xl items-center justify-center px-3 py-8">
       <Card className="w-full overflow-hidden rounded-3xl border-slate-200 shadow-sm">
@@ -881,7 +943,7 @@ export default function ComposerPage() {
   }
   return (
     <div className="space-y-5 animate-fade-in">
-      <PageHeader eyebrow="Criação" title="Nova publicação" description="Crie, visualize e agende para Instagram, Facebook, Threads e X." />
+      <PageHeader eyebrow="Criação" title="Nova publicação" description="Crie, visualize e agende para Instagram, Facebook, Threads, X e YouTube." />
       {referenceUrl && <Card className="flex flex-col gap-2 border-amber-200 bg-amber-50/60 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-semibold text-amber-900">Criando a partir de uma referência</p><p className="truncate text-xs text-amber-800">Use o post como inspiração de formato e gancho, sem copiar o conteúdo. {referenceUrl}</p></div><div className="flex shrink-0 gap-2"><a href={referenceUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100">Abrir referência</a><button type="button" onClick={() => setReferenceUrl("")} className="rounded-lg px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100">Ocultar</button></div></Card>}
       <nav className="grid grid-cols-2 gap-x-3 gap-y-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-xs md:flex md:items-center md:gap-0 md:px-7" aria-label="Etapas da publicação">
         {[
@@ -961,8 +1023,8 @@ export default function ComposerPage() {
                   ))
                   const firstCarouselRatio = mediaItems[0]?.width && mediaItems[0].height ? mediaItems[0].width / mediaItems[0].height : undefined
                   const instagramCarouselWillCrop = platform === "INSTAGRAM" && postType === "CAROUSEL" && activeRatio !== undefined && firstCarouselRatio !== undefined && Math.abs(activeRatio - firstCarouselRatio) > 0.002
-                  const PlatformIcon = platform === "INSTAGRAM" ? SiInstagram : platform === "FACEBOOK" ? SiFacebook : platform === "X" ? SiX : SiThreads
-                  const platformBg = platform === "INSTAGRAM" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : platform === "FACEBOOK" ? "bg-[#1877F2]" : platform === "X" ? "bg-black" : "bg-[#101113]"
+                  const PlatformIcon = platform === "INSTAGRAM" ? SiInstagram : platform === "FACEBOOK" ? SiFacebook : platform === "X" ? SiX : platform === "YOUTUBE" ? SiYoutube : SiThreads
+                  const platformBg = platform === "INSTAGRAM" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : platform === "FACEBOOK" ? "bg-[#1877F2]" : platform === "X" ? "bg-black" : platform === "YOUTUBE" ? "bg-[#ff0033]" : "bg-[#101113]"
                   return <article key={platform} className="flex min-w-0 flex-col items-start gap-2 rounded-xl border border-white bg-white/90 p-3">
                     <div className="flex items-center gap-2.5"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${platformBg}`}><PlatformIcon size={24} color="#fff" /></span><h4 className="text-sm font-bold text-slate-900">{platformNames[platform]}</h4></div>
                     <p className="mt-1 text-xs font-semibold text-slate-700">{detail.name}</p>
@@ -996,9 +1058,10 @@ export default function ComposerPage() {
                 { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook, handle: selectedAccount?.pageName || "Página do Facebook", help: selectedAccount?.pageName ? "Conectado" : "Não conectado", color: "facebook" },
                 { id: "THREADS", label: "Threads", Icon: SiThreads, handle: threadsAccounts[0] ? `@${threadsAccounts[0].username}` : "Conta do Threads", help: threadsAccounts.length ? "Conectado" : "Não conectado", color: "threads" },
                 { id: "X", label: "X", Icon: SiX, handle: selectedXAccount ? `@${selectedXAccount.username}` : "Conta do X", help: xAccounts.length ? "Conectado · até 280 caracteres" : "Não conectado", color: "x" },
+                { id: "YOUTUBE", label: "YouTube", Icon: SiYoutube, handle: selectedYouTubeAccount ? selectedYouTubeAccount.title : "Canal do YouTube", help: youtubeAccounts.length ? "Conectado · somente vídeo" : "Não conectado", color: "youtube" },
               ].map((target) => {
                 const selected = platforms.includes(target.id)
-                const unavailable = (target.id === "INSTAGRAM" && (!selectedAccount || postType === "TEXT")) || (target.id === "X" && (!xAccounts.length || postType === "STORY")) || (target.id === "THREADS" && (!threadsAccounts.length || postType === "STORY")) || (target.id === "FACEBOOK" && (!selectedAccount?.pageName || postType === "STORY" || postType === "TEXT"))
+                const unavailable = (target.id === "INSTAGRAM" && (!selectedAccount || postType === "TEXT")) || (target.id === "X" && (!xAccounts.length || postType === "STORY")) || (target.id === "YOUTUBE" && !youtubeAccounts.length) || (target.id === "THREADS" && (!threadsAccounts.length || postType === "STORY")) || (target.id === "FACEBOOK" && (!selectedAccount?.pageName || postType === "STORY" || postType === "TEXT"))
                 return (
                   <button
                     key={target.id}
@@ -1008,7 +1071,7 @@ export default function ComposerPage() {
                     className={`relative grid min-h-[76px] w-full grid-cols-[36px_minmax(0,1fr)_24px] items-center gap-x-3 gap-y-1 rounded-xl border px-3 py-3 text-left transition-all sm:grid-cols-[48px_minmax(0,1fr)_auto_28px] sm:gap-4 sm:px-4 ${selected ? "border-indigo-600 bg-indigo-50/50 shadow-[0_0_0_1px_rgba(99,102,241,.16)]" : "border-slate-200 bg-white hover:border-slate-300"} ${unavailable ? "cursor-not-allowed opacity-60" : ""}`}
                     aria-pressed={selected}
                   >
-                    <span className={`row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:row-span-1 sm:h-12 sm:w-12 ${target.color === "instagram" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : target.color === "facebook" ? "bg-[#1877F2]" : target.color === "x" ? "bg-black" : "bg-[#101113]"}`}>
+                    <span className={`row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:row-span-1 sm:h-12 sm:w-12 ${target.color === "instagram" ? "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" : target.color === "facebook" ? "bg-[#1877F2]" : target.color === "x" ? "bg-black" : target.color === "youtube" ? "bg-[#ff0033]" : "bg-[#101113]"}`}>
                       <target.Icon size={25} color="#fff" title={`${target.label} logo`} />
                     </span>
                     <span className="min-w-0 flex-1"><span className="block text-[13px] font-semibold leading-4 text-slate-800">{target.label}</span><span className="mt-0.5 block truncate text-[10px] text-slate-500">{target.handle}</span></span>
@@ -1025,6 +1088,12 @@ export default function ComposerPage() {
             )}
             {!selectedAccount && <a href="/accounts" className="inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar Instagram em Contas →</a>}
             {!threadsAccounts.length && <a href="/accounts" className="ml-4 inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar conta do Threads →</a>}
+            {!youtubeAccounts.length && <a href="/accounts" className="ml-4 inline-flex text-xs font-semibold text-indigo-600 hover:text-indigo-800">Conectar canal do YouTube →</a>}
+            {platforms.includes("YOUTUBE") && youtubeAccounts.length > 1 && (
+              <select value={selectedYouTubeAccount?.id || ""} onChange={(event) => setYouTubeAccountId(event.target.value)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700" aria-label="Canal do YouTube">
+                {youtubeAccounts.map((account) => <option key={account.id} value={account.id}>YouTube · {account.title}</option>)}
+              </select>
+            )}
             <p className="flex items-center gap-2 border-t border-slate-200 pt-3 text-xs text-slate-500"><span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold">i</span>Para trocar de perfil, use o seletor no topo da página.</p>
           </div>
           }
@@ -1255,6 +1324,43 @@ export default function ComposerPage() {
             </div>}
           </div>
 
+          {platforms.includes("YOUTUBE") && <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4" aria-labelledby="youtube-options-heading">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#ff0033]"><SiYoutube size={22} color="#fff" title="YouTube" /></span>
+              <div className="min-w-0"><h3 id="youtube-options-heading" className="text-sm font-semibold text-slate-800">Vídeo no YouTube</h3><p className="mt-1 text-xs leading-5 text-slate-500">{activeMedia?.kind === "video" ? (isYouTubeShort(activeMedia) ? "Vídeo vertical ou quadrado: será publicado como Short (até 3 minutos)." : "Vídeo horizontal: será publicado como vídeo comum.") : "Vertical ou quadrado vira Short; horizontal vira vídeo comum."} O texto do post vira a descrição.</p></div>
+            </div>
+            <label className="block text-xs font-medium text-slate-700">Título <span className="text-rose-600">*</span>
+              <Input value={youtubeSettings.title} maxLength={100} onChange={(event) => setYouTubeSettings(current => ({ ...current, title: event.target.value }))} placeholder="Ex.: Como organizar as finanças do seu negócio em 3 passos" aria-label="Título do vídeo no YouTube" className="mt-1.5 h-10 rounded-lg text-sm font-normal" />
+              <span className={`mt-1 block text-right text-[10px] ${youtubeSettings.title.length > 90 ? "text-amber-700" : "text-slate-400"}`}>{youtubeSettings.title.length}/100</span>
+            </label>
+            <fieldset>
+              <legend className="text-xs font-medium text-slate-700">Visibilidade</legend>
+              <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Visibilidade do vídeo no YouTube">
+                {([["public", "Público", "Qualquer pessoa pode encontrar"], ["unlisted", "Não listado", "Só quem tiver o link"], ["private", "Privado", "Só você"]] as const).map(([value, label, help]) => <button key={value} type="button" role="radio" aria-checked={youtubeSettings.privacyStatus === value} onClick={() => setYouTubeSettings(current => ({ ...current, privacyStatus: value }))} className={`flex min-w-[120px] flex-1 flex-col items-start rounded-lg border px-3 py-2 text-left ${youtubeSettings.privacyStatus === value ? "border-indigo-600 bg-indigo-50/60 ring-1 ring-indigo-600" : "border-slate-200 bg-white hover:border-slate-300"}`}><span className="text-xs font-semibold text-slate-800">{label}</span><span className="text-[11px] text-slate-500">{help}</span></button>)}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className="text-xs font-medium text-slate-700">Público <span className="text-rose-600">*</span></legend>
+              <p className="mt-0.5 text-[11px] leading-4 text-slate-500">O YouTube exige que você informe se o vídeo é feito para crianças. Vídeos para crianças não têm comentários nem anúncios personalizados.</p>
+              <div className="mt-1.5 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="O vídeo é feito para crianças?">
+                {([[false, "Não é conteúdo para crianças"], [true, "Sim, é feito para crianças"]] as const).map(([value, label]) => <button key={String(value)} type="button" role="radio" aria-checked={youtubeSettings.madeForKids === value} onClick={() => setYouTubeSettings(current => ({ ...current, madeForKids: value }))} className={`rounded-lg border px-3 py-2 text-left text-xs font-semibold ${youtubeSettings.madeForKids === value ? "border-indigo-600 bg-indigo-50/60 text-indigo-800 ring-1 ring-indigo-600" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>{label}</button>)}
+              </div>
+            </fieldset>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-xs font-medium text-slate-700">Categoria
+                <select value={youtubeSettings.categoryId} onChange={(event) => setYouTubeSettings(current => ({ ...current, categoryId: event.target.value }))} className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-normal text-slate-800">
+                  {YOUTUBE_CATEGORIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                </select>
+              </label>
+              <div className="text-xs font-medium text-slate-700">Miniatura <span className="font-normal text-slate-400">· opcional</span>
+                {youtubeSettings.thumbnailUrl ? <div className="mt-1.5 flex items-center gap-3"><img src={youtubeSettings.thumbnailUrl} alt="Miniatura escolhida para o YouTube" className="aspect-video h-12 rounded-md object-cover" /><button type="button" onClick={() => setYouTubeSettings(current => ({ ...current, thumbnailUrl: null }))} className="text-xs font-normal text-slate-500 underline">Remover</button></div>
+                  : <label className="mt-1.5 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white text-xs font-normal text-indigo-700 hover:border-indigo-300">{youtubeThumbnailUploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}Enviar imagem 1280 × 720<input type="file" accept="image/jpeg,image/png" className="sr-only" disabled={youtubeThumbnailUploading} onChange={(event) => { void uploadYouTubeThumbnail(event.target.files?.[0]); event.target.value = "" }} /></label>}
+              </div>
+            </div>
+            <p className="text-[10px] leading-4 text-slate-400">Miniaturas personalizadas só são aplicadas em canais verificados por telefone; sem isso, o YouTube escolhe um quadro e você recebe um aviso. Shorts usam um quadro do próprio vídeo.</p>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-slate-50 p-3"><input type="checkbox" checked={youtubeSettings.alteredContent} onChange={(event) => setYouTubeSettings(current => ({ ...current, alteredContent: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-indigo-600" /><span><span className="block text-xs font-semibold text-slate-800">Conteúdo alterado ou sintético</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">Marque se o vídeo mostra pessoas, lugares ou eventos realistas criados ou modificados (por exemplo, com IA). Edições comuns e efeitos claramente irreais não precisam.</span></span></label>
+          </section>}
+
           <details className="group rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-800 marker:hidden">
               <span className="flex items-center gap-2"><RiMore2Line size={18} className="text-indigo-600" />Configurações avançadas</span>
@@ -1368,8 +1474,8 @@ export default function ComposerPage() {
           </div>}
 
           {step === 4 && <div className="animate-fade-in space-y-5">
-            <section><h3 className="text-sm font-bold text-slate-900">Redes sociais selecionadas</h3><div className="mt-2 flex flex-wrap gap-2">{platforms.map(platform => { const network = platform === "INSTAGRAM" ? { label: `Instagram · @${selectedAccount?.igUsername || "conta"}`, Icon: SiInstagram, bg: "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" } : platform === "FACEBOOK" ? { label: `Facebook · ${selectedAccount?.pageName || "Página"}`, Icon: SiFacebook, bg: "bg-[#1877F2]" } : platform === "X" ? { label: `X · @${selectedXAccount?.username || "conta"}`, Icon: SiX, bg: "bg-black" } : { label: `Threads · @${threadsAccounts.find(account => account.id === threadsAccountId)?.username || "conta"}`, Icon: SiThreads, bg: "bg-[#101113]" }; return <span key={platform} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><span className={`flex h-7 w-7 items-center justify-center rounded-lg ${network.bg}`}><network.Icon size={17} color="#fff" title={network.label} /></span>{network.label}</span> })}</div></section>
-            <section className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Formato</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "FEED" ? "Foto única" : postType === "CAROUSEL" ? "Carrossel" : postType === "REEL" ? "Vídeo / Reel" : postType === "STORY" ? "Story" : "Post de texto · Threads"}</p></div><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Mídia</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "TEXT" ? "Somente texto" : `${mediaItems.length} ${mediaItems.length === 1 ? "arquivo" : "arquivos"}`}</p></div></section>
+            <section><h3 className="text-sm font-bold text-slate-900">Redes sociais selecionadas</h3><div className="mt-2 flex flex-wrap gap-2">{platforms.map(platform => { const network = platform === "INSTAGRAM" ? { label: `Instagram · @${selectedAccount?.igUsername || "conta"}`, Icon: SiInstagram, bg: "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" } : platform === "FACEBOOK" ? { label: `Facebook · ${selectedAccount?.pageName || "Página"}`, Icon: SiFacebook, bg: "bg-[#1877F2]" } : platform === "X" ? { label: `X · @${selectedXAccount?.username || "conta"}`, Icon: SiX, bg: "bg-black" } : platform === "YOUTUBE" ? { label: `YouTube · ${selectedYouTubeAccount?.title || "canal"}`, Icon: SiYoutube, bg: "bg-[#ff0033]" } : { label: `Threads · @${threadsAccounts.find(account => account.id === threadsAccountId)?.username || "conta"}`, Icon: SiThreads, bg: "bg-[#101113]" }; return <span key={platform} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><span className={`flex h-7 w-7 items-center justify-center rounded-lg ${network.bg}`}><network.Icon size={17} color="#fff" title={network.label} /></span>{network.label}</span> })}</div></section>
+            <section className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Formato</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "FEED" ? "Foto única" : postType === "CAROUSEL" ? "Carrossel" : postType === "REEL" ? (platforms.length === 1 && platforms[0] === "YOUTUBE" ? (isYouTubeShort(activeMedia) ? "YouTube Short" : "Vídeo do YouTube") : "Vídeo / Reel") : postType === "STORY" ? "Story" : "Post de texto · Threads"}</p></div><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Mídia</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "TEXT" ? "Somente texto" : `${mediaItems.length} ${mediaItems.length === 1 ? "arquivo" : "arquivos"}`}</p></div></section>
             <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-bold text-slate-900">Resumo do conteúdo</h3><div className="mt-3 flex gap-3">{activeMedia && <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white">{activeMedia.kind === "video" ? <video src={activeMedia.src} muted playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Mídia selecionada" className="h-full w-full object-cover" />}</div>}<div className="min-w-0"><p className="line-clamp-4 whitespace-pre-wrap text-sm leading-5 text-slate-700">{caption || "Adicione a legenda na etapa Conteúdo."}</p>{hashtags.length > 0 && <p className="mt-1 line-clamp-1 text-xs text-indigo-600">{hashtags.map(tag => `#${tag} `)}</p>}</div></div></section>
             <section className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4"><label htmlFor="publish-date" className="text-sm font-semibold text-slate-900">Data e horário para agendar</label><p className="mb-2 mt-1 text-xs text-slate-500">A publicação imediata ignora este horário.</p><Input id="publish-date" type="datetime-local" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="h-11 rounded-xl bg-white text-sm font-medium" /></section>
           </div>}
@@ -1386,7 +1492,7 @@ export default function ComposerPage() {
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-xs md:p-5">
           <div className="flex items-center justify-between gap-3"><div><h3 className="section-title">Prévia da publicação</h3><p className="text-xs text-slate-500">{previewDescription}</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500"><Eye size={17} /></span></div>
           <div className="mt-4 flex w-full gap-1 rounded-md bg-slate-100 p-1" role="tablist" aria-label="Prévia por plataforma">
-            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }, { id: "X", label: "X", Icon: SiX }].filter(tab => postType === "TEXT" ? TEXT_ONLY_NETWORKS.includes(tab.id) : postType === "STORY" ? tab.id === "INSTAGRAM" || tab.id === "FACEBOOK" : true).map(tab => <button key={tab.id} type="button" role="tab" aria-label={postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook (prévia visual)" : tab.label} aria-selected={resolvedPreviewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${resolvedPreviewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook · prévia" : tab.label}</button>)}
+            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }, { id: "X", label: "X", Icon: SiX }, { id: "YOUTUBE", label: "YouTube", Icon: SiYoutube }].filter(tab => postType === "TEXT" ? TEXT_ONLY_NETWORKS.includes(tab.id) : postType === "STORY" ? tab.id === "INSTAGRAM" || tab.id === "FACEBOOK" : tab.id !== "YOUTUBE" || postType === "REEL").map(tab => <button key={tab.id} type="button" role="tab" aria-label={postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook (prévia visual)" : tab.label} aria-selected={resolvedPreviewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${resolvedPreviewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook · prévia" : tab.label}</button>)}
           </div>
           {postType === "STORY" && resolvedPreviewPlatform === "FACEBOOK" && <p role="note" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">Apenas prévia visual. Facebook Stories não está habilitado para publicação neste compositor.</p>}
           {postType === "CAROUSEL" && resolvedPreviewPlatform === "FACEBOOK" && (mediaItems.some(item => item.kind === "video")
@@ -1400,6 +1506,8 @@ export default function ComposerPage() {
               selectedAccount={selectedAccount}
               threadsAccount={threadsAccounts.find(account => account.id === threadsAccountId)}
               xAccount={selectedXAccount}
+              youtubeAccount={selectedYouTubeAccount}
+              youtubeSettings={youtubeSettings}
               media={activeMedia}
               mediaItems={mediaItems}
               activeMediaIndex={activeMediaIndex}

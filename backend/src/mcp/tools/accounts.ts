@@ -7,16 +7,21 @@ export const accountTools = [
     name: 'list_accounts',
     title: 'Listar contas conectadas',
     category: 'accounts',
-    description: 'Lista as contas do Instagram (cada uma com a Página do Facebook vinculada) e as contas do Threads e do X conectadas, com os IDs usados nas demais ferramentas.',
+    description: 'Lista as contas do Instagram (cada uma com a Página do Facebook vinculada) e as contas do Threads, do X e os canais do YouTube conectados, com os IDs usados nas demais ferramentas.',
     scopes: ['read'],
     annotations: READ,
     inputSchema: {},
     handler: async (_args, { api }) => {
-      const [instagram, threads, x] = await Promise.all([api.get<any[]>('/accounts'), api.get<any[]>('/accounts/threads'), api.get<{ accounts: any[] }>('/accounts/x').catch(() => ({ accounts: [] }))]);
+      const [instagram, threads, x, youtube] = await Promise.all([
+        api.get<any[]>('/accounts'), api.get<any[]>('/accounts/threads'),
+        api.get<{ accounts: any[] }>('/accounts/x').catch(() => ({ accounts: [] })),
+        api.get<{ accounts: any[] }>('/accounts/youtube').catch(() => ({ accounts: [] })),
+      ]);
       return {
         instagram: instagram.map(compactAccount),
         threads: threads.map(compactThreadsAccount),
         x: (x.accounts || []).map((account: any) => ({ id: account.id, username: account.username, name: account.name, followers: account.followersCount ?? null })),
+        youtube: (youtube.accounts || []).map((account: any) => ({ id: account.id, title: account.title, handle: account.handle ?? null, subscribers: account.subscriberCount ?? null })),
         note: 'Para publicar no Facebook use o accountId da conta do Instagram: o post vai para a Página em facebookPage.',
       };
     },
@@ -100,18 +105,18 @@ export const accountTools = [
     name: 'disconnect_account',
     title: 'Desconectar conta',
     category: 'accounts',
-    description: 'Desconecta uma conta do Instagram (e sua Página do Facebook), do Threads ou do X deste workspace. Agendamentos dela deixam de ser publicados. Exige confirmação explícita.',
+    description: 'Desconecta uma conta do Instagram (e sua Página do Facebook), do Threads, do X ou um canal do YouTube deste workspace. Agendamentos dela deixam de ser publicados. Exige confirmação explícita.',
     scopes: ['admin'],
     annotations: DESTRUCTIVE,
     inputSchema: {
-      network: z.enum(['instagram', 'threads', 'x']),
-      accountId: z.string().uuid().describe('id da conta do Instagram, do Threads ou do X.'),
+      network: z.enum(['instagram', 'threads', 'x', 'youtube']),
+      accountId: z.string().uuid().describe('id da conta do Instagram, do Threads, do X ou do canal do YouTube.'),
       confirm: confirmSchema,
     },
     handler: async ({ network, accountId }, { api }) => api.delete(network === 'threads'
       ? `/accounts/threads/${encodePathSegment(accountId)}`
-      : network === 'x'
-        ? `/accounts/x/${encodePathSegment(accountId)}`
+      : network === 'x' || network === 'youtube'
+        ? `/accounts/${network}/${encodePathSegment(accountId)}`
         : `/accounts/${encodePathSegment(accountId)}`),
   }),
 ];

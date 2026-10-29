@@ -5,6 +5,7 @@ import { getConnectedAccounts, getPendingConnectedAccounts, selectConnectedAccou
 import { isAccountSyncRunning, syncAccountOnce, syncAccountsInBackground } from '../services/account-sync.service';
 import { authenticate } from '../middleware/auth';
 import { disconnectXAccount, getConnectedXAccounts, isXConfigured } from '../services/x.service';
+import { disconnectYouTubeAccount, getConnectedYouTubeAccounts, isYouTubeConfigured } from '../services/youtube.service';
 
 
 const router = Router();
@@ -34,6 +35,14 @@ router.get('/threads', async (req: any, res, next) => {
 router.get('/x', async (req: any, res, next) => {
   try {
     res.json({ configured: isXConfigured(), accounts: await getConnectedXAccounts(req.user.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/youtube', async (req: any, res, next) => {
+  try {
+    res.json({ configured: isYouTubeConfigured(), accounts: await getConnectedYouTubeAccounts(req.user.id) });
   } catch (error) {
     next(error);
   }
@@ -84,6 +93,15 @@ router.get('/:id', async (req: any, res, next) => {
     });
     if (!account) return res.status(404).json({ error: 'Account not found' });
     res.json(account);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/youtube/:id', async (req: any, res, next) => {
+  try {
+    if (!(await disconnectYouTubeAccount(req.params.id, req.user.id))) return res.status(404).json({ error: 'Canal do YouTube não encontrado.' });
+    res.json({ message: 'Canal do YouTube desconectado' });
   } catch (error) {
     next(error);
   }

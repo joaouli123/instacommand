@@ -246,7 +246,7 @@ export const publishThreadsPost = async (post: any, token: string) => {
 export const publishPost = async (scheduledPostId: string, trigger?: { scheduledFor?: string }) => {
   const post = await prisma.scheduledPost.findUnique({
     where: { id: scheduledPostId },
-    include: { account: true, threadsAccount: true, xAccount: true },
+    include: { account: true, threadsAccount: true, xAccount: true, youtubeAccount: true },
   });
 
   if (!post) throw new Error('Post not found');
@@ -385,6 +385,18 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
       }
     }
 
+    if (platforms.includes('YOUTUBE')) {
+      try {
+        if (!post.youtubeAccount || !post.youtubeAccount.isActive || post.youtubeAccount.userId !== post.userId) throw new Error('Conecte um canal do YouTube antes de publicar.');
+        // Loaded on demand so publishing to the other networks never depends on the YouTube client.
+        const { publishYouTubeVideo } = require('../youtube.service') as typeof import('../youtube.service');
+        const video = await publishYouTubeVideo(post, post.youtubeAccount.id);
+        results.YOUTUBE = { id: video.id, url: video.url, privacyStatus: video.privacyStatus, advancedWarnings: video.warnings };
+      } catch (error) {
+        errors.push(`YouTube: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+      }
+    }
+
     const successfulPlatforms = Object.keys(results);
     if (!successfulPlatforms.length) throw new Error(errors.join(' | ') || 'Nenhuma plataforma publicou o conteúdo.');
 
@@ -392,6 +404,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
     const facebookResult = results.FACEBOOK as { id?: string } | undefined;
     const threadsResult = results.THREADS as { id?: string } | undefined;
     const xResult = results.X as { id?: string } | undefined;
+    const youtubeResult = results.YOUTUBE as { id?: string } | undefined;
     const published = await prisma.publishedPost.create({
       data: {
         accountId: post.accountId,
@@ -399,6 +412,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         facebookPostId: facebookResult?.id,
         threadsPostId: threadsResult?.id,
         xPostId: xResult?.id,
+        youtubeVideoId: youtubeResult?.id,
         publishResults: JSON.parse(JSON.stringify(results)),
         igMediaUrl: instagramResult?.mediaUrl,
         igPermalink: instagramResult?.permalink,

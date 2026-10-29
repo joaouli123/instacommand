@@ -61,6 +61,8 @@ export const DESTRUCTIVE: ToolAnnotations = { readOnlyHint: false, destructiveHi
 // ---------------------------------------------------------------- shared schemas
 
 export const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X'] as const;
+/** Publishing networks. YouTube has no automations, so it stays out of PLATFORMS. */
+export const PUBLISH_PLATFORMS = [...PLATFORMS, 'YOUTUBE'] as const;
 export const MEDIA_TYPES = ['IMAGE', 'CAROUSEL', 'REEL', 'STORY', 'TEXT'] as const;
 export const POST_STATUSES = ['DRAFT', 'SCHEDULED', 'PROCESSING', 'PUBLISHED', 'FAILED'] as const;
 export const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
@@ -69,6 +71,15 @@ export const accountIdSchema = z.string().uuid()
   .describe('ID interno da conta do Instagram no UX Code Social (campo "id" de list_accounts). Não é o @usuário nem o ID da Meta.');
 export const threadsAccountIdSchema = z.string().uuid().describe('ID interno da conta do Threads (campo "id" em threads de list_accounts).');
 export const xAccountIdSchema = z.string().uuid().describe('ID interno da conta do X (campo "id" em x de list_accounts).');
+export const youtubeAccountIdSchema = z.string().uuid().describe('ID interno do canal do YouTube (campo "id" em youtube de list_accounts).');
+export const youtubeSettingsSchema = z.object({
+  title: z.string().max(100).describe('Título do vídeo (obrigatório para agendar), até 100 caracteres, sem < ou >.'),
+  privacyStatus: z.enum(['public', 'unlisted', 'private']).default('public'),
+  madeForKids: z.boolean().describe('Declaração obrigatória do YouTube: o vídeo é feito para crianças? Pergunte ao usuário; nunca presuma.'),
+  alteredContent: z.boolean().optional().describe('Conteúdo realista alterado ou sintético (IA).'),
+  categoryId: z.string().optional().describe('Categoria do YouTube. Padrão 22 (Pessoas e blogs).'),
+  thumbnailUrl: z.string().url().optional().describe('Miniatura JPG/PNG até 2 MB, importada com import_media_from_url. Exige canal verificado.'),
+}).describe('Opções do vídeo no YouTube. A descrição é a própria legenda.');
 export const postIdSchema = z.string().uuid().describe('ID da publicação no UX Code Social (campo "id" de list_posts).');
 
 const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -81,6 +92,7 @@ export const confirmSchema = z.literal(true)
   .describe('Envie true somente depois que o usuário confirmou explicitamente esta ação nesta conversa.');
 
 export const platformSchema = z.enum(PLATFORMS);
+export const publishPlatformSchema = z.enum(PUBLISH_PLATFORMS);
 export const automationPlatformSchema = z.enum(PLATFORMS).default('INSTAGRAM')
   .describe('Rede da automação. INSTAGRAM (comentários e DMs), FACEBOOK (Messenger da Página) ou THREADS (respostas públicas).');
 export const automationAccountIdSchema = z.string().uuid()
@@ -207,6 +219,9 @@ export function postDetails(post: any) {
     platforms: post.platforms,
     accountId: post.accountId,
     threadsAccountId: post.threadsAccountId ?? null,
+    xAccountId: post.xAccountId ?? null,
+    youtubeAccountId: post.youtubeAccountId ?? null,
+    youtubeSettings: post.youtubeSettings ?? null,
     scheduledFor: post.scheduledFor,
     caption: post.caption ?? '',
     hashtags: post.hashtags ?? [],

@@ -13,7 +13,7 @@ export const PUBLISHING_GUIDE = {
   formats: {
     IMAGE: 'Uma imagem. Instagram (feed), Facebook (foto da Página), Threads e X.',
     CAROUSEL: 'De 2 a 10 mídias (no X, até 4). Instagram e Threads aceitam imagens e vídeos misturados; o álbum do Facebook aceita somente fotos.',
-    REEL: 'Um vídeo. Instagram (Reels), Facebook (vídeo da Página), Threads (vídeo) e X (vídeo).',
+    REEL: 'Um vídeo. Instagram (Reels), Facebook (vídeo da Página), Threads (vídeo), X (vídeo) e YouTube (vídeo; vertical de até 3 minutos vira Short).',
     STORY: 'Uma imagem ou vídeo. Somente Instagram.',
     TEXT: 'Somente Threads e/ou X, sem mídia. Até 500 caracteres no Threads e 280 no X.',
   },
@@ -22,6 +22,7 @@ export const PUBLISHING_GUIDE = {
     FACEBOOK: 'Publica na Página do Facebook vinculada à conta do Instagram (accountId). Stories não são suportados.',
     THREADS: 'Exige threadsAccountId. Mesmo em posts somente para Threads, accountId (Instagram) continua obrigatório.',
     X: 'Exige xAccountId (campo "x" de list_accounts). Texto de até 280 caracteres (com hashtags), até 4 imagens ou 1 vídeo. Cada post consome créditos da API do X do workspace; links no texto custam bem mais — prefira deixar o link na bio. accountId (Instagram) continua obrigatório.',
+    YOUTUBE: 'Exige youtubeAccountId (campo "youtube" de list_accounts), formato REEL com 1 vídeo e youtubeSettings: title (até 100 caracteres) e madeForKids (pergunte ao usuário). A legenda vira a descrição (até 5.000 caracteres, sem < ou >). Enquanto o app não passa pela auditoria do YouTube, os vídeos ficam privados. Excluir no UX Code Social não remove o vídeo do canal. accountId (Instagram) continua obrigatório.',
   },
   limits: {
     caption: 'Até 2.200 caracteres (Instagram). No Threads, texto final de até 500 caracteres; no X, até 280.',

@@ -1,6 +1,7 @@
 "use client"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { useXAccounts } from "@/components/accounts/XAccountsCard"
+import { useYouTubeAccounts } from "@/components/accounts/YouTubeAccountsCard"
 import { useEffect, useMemo, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -40,6 +41,8 @@ type CalendarPost = {
   hashtags?: string[]
   threadsAccountId?: string | null
   xAccountId?: string | null
+  youtubeAccountId?: string | null
+  youtubeSettings?: { title: string; privacyStatus: "public" | "unlisted" | "private"; thumbnailUrl?: string | null } | null
   isAiGenerated?: boolean
   instagramAudioTitle?: string | null
   instagramAudioArtist?: string | null
@@ -67,6 +70,7 @@ export default function CalendarPage() {
   const threadsQuery = useQuery({ queryKey: ["threads-accounts"], queryFn: api.getThreadsAccounts, staleTime: 5 * 60_000 })
   const threadsAccounts = (threadsQuery.data || []) as Array<{ id: string; username: string }>
   const xAccounts = useXAccounts().data?.accounts || []
+  const youtubeAccounts = useYouTubeAccounts().data?.accounts || []
   const [monthDate, setMonthDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [posts, setPosts] = useState<CalendarPost[]>([])
   const [loading, setLoading] = useState(true)
@@ -170,7 +174,7 @@ export default function CalendarPage() {
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 pt-3 text-[11px] font-medium text-slate-500" aria-label="Legenda">
-          {(["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).map((network) => <span key={network} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: platformBackground([network]) }} />{platformLabel(network)}</span>)}
+          {(["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"] as const).map((network) => <span key={network} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: platformBackground([network]) }} />{platformLabel(network)}</span>)}
           <span className="hidden h-3 w-px bg-slate-200 sm:block" />
           {(["scheduled", "published", "draft", "failed"] as const).map((status) => { const Icon = STATUS_ICON[status]; return <span key={status} className="inline-flex items-center gap-1"><Icon size={12} aria-hidden />{STATUS_LABEL[status]}</span> })}
         </div>
@@ -184,17 +188,18 @@ export default function CalendarPage() {
              account={accounts.find((account) => account.id === selectedPost.accountId)}
              threadsAccount={threadsAccounts.find((account) => account.id === selectedPost.threadsAccountId)}
              xAccount={xAccounts.find((account) => account.id === selectedPost.xAccountId) || xAccounts[0]}
+             youtubeAccount={youtubeAccounts.find((account) => account.id === selectedPost.youtubeAccountId) || youtubeAccounts[0]}
            />
            <div className="min-w-0 space-y-4">
              <div className="pr-8"><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Detalhes da publicação</p><h3 className="mt-1 break-words text-xl font-bold text-slate-900">{selectedPost.caption?.split("\n")[0] || "Publicação sem legenda"}</h3></div>
-             <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Formato</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.mediaType === "CAROUSEL" ? "Carrossel" : selectedPost.mediaType === "REEL" ? "Reel" : selectedPost.mediaType === "STORY" ? "Story" : selectedPost.mediaType === "TEXT" ? "Texto" : "Feed"}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Status</p><p className="mt-1 flex items-center gap-1.5 font-semibold text-slate-700">{selectedPost.status === "PUBLISHED" && <CheckCircle2 size={14} className="text-slate-500" aria-hidden />}{selectedPost.status === "SCHEDULED" ? "Agendado" : selectedPost.status === "PUBLISHED" ? "Publicado" : selectedPost.status === "FAILED" ? "Falhou" : "Rascunho"}</p></div></div>
+             <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Formato</p><p className="mt-1 font-semibold text-slate-800">{selectedPost.mediaType === "CAROUSEL" ? "Carrossel" : selectedPost.mediaType === "REEL" ? (selectedPost.platforms?.length === 1 && selectedPost.platforms[0] === "YOUTUBE" ? "Vídeo do YouTube" : "Reel") : selectedPost.mediaType === "STORY" ? "Story" : selectedPost.mediaType === "TEXT" ? "Texto" : "Feed"}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Status</p><p className="mt-1 flex items-center gap-1.5 font-semibold text-slate-700">{selectedPost.status === "PUBLISHED" && <CheckCircle2 size={14} className="text-slate-500" aria-hidden />}{selectedPost.status === "SCHEDULED" ? "Agendado" : selectedPost.status === "PUBLISHED" ? "Publicado" : selectedPost.status === "FAILED" ? "Falhou" : "Rascunho"}</p></div></div>
              <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Redes selecionadas</p><div className="mt-2 flex flex-wrap gap-2">{(selectedPost.platforms || []).map((platform) => <PlatformChip key={platform} platform={platform} />)}</div></div>
              {selectedPost.publishedPost?.publishResults && <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Resultado real</p><div className="mt-2 space-y-1 text-xs text-slate-600">{Object.entries(selectedPost.publishedPost.publishResults).map(([platform, result]) => <p key={platform} className="flex items-center gap-1.5"><PlatformIcons platforms={[platform]} size={12} /><span className="font-semibold">{platformLabel(platform)}:</span> publicado{result.id ? ` · ID ${result.id}` : ""}</p>)}</div></div>}
             <p className="text-sm text-slate-600">{selectedPost.status === "PUBLISHED" ? "Publicado em " : "Agendado para "}{new Date(selectedPost.status === "PUBLISHED" ? selectedPost.publishedPost?.publishedAt || selectedPost.scheduledFor : selectedPost.scheduledFor).toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "short" })}</p>
             <PostContentDetails post={selectedPost} />
             <ClientCommentsPanel postId={selectedPost.id} />
             {selectedPost.errorMessage && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-700">{selectedPost.errorMessage}</p>}
-            {selectedPost.status === "PUBLISHED" && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Excluir aqui remove o registro do UX Code Social. A API não consegue apagar do Instagram uma mídia que já foi publicada; remova-a diretamente no Instagram. No Facebook/Threads{selectedPost.platforms?.includes("X") ? "/X" : ""}, o app tenta excluir também e avisa se a rede recusar.</p>}
+            {selectedPost.status === "PUBLISHED" && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Excluir aqui remove o registro do UX Code Social. A API não consegue apagar do Instagram uma mídia que já foi publicada; remova-a diretamente no Instagram. No Facebook/Threads{selectedPost.platforms?.includes("X") ? "/X" : ""}, o app tenta excluir também e avisa se a rede recusar.{selectedPost.platforms?.includes("YOUTUBE") ? " O vídeo do YouTube continua no canal: exclua-o no YouTube Studio se necessário." : ""}</p>}
             {['DRAFT', 'FAILED'].includes(selectedPost.status) && <Link href={`/composer?draft=${encodeURIComponent(selectedPost.id)}`} className="inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Editar rascunho e adicionar mídias</Link>}
             <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setSelectedPost(null)}>Fechar</Button>{selectedPost.status === "SCHEDULED" && <Button variant="outline" onClick={cancelSchedule} disabled={actionLoading}>Cancelar agendamento</Button>}<Button variant="danger" onClick={deletePost} disabled={actionLoading}>{actionLoading ? "Excluindo…" : selectedPost.status === "PUBLISHED" ? "Excluir registro" : "Excluir"}</Button></div>
            </div>

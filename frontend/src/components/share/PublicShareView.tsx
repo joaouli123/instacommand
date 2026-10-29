@@ -26,6 +26,8 @@ type PublicPost = {
   status: "SCHEDULED" | "PUBLISHED" | "DRAFT"
   threadsAccount: { username: string } | null
   xAccount: { username: string; name: string | null; profilePicUrl: string | null } | null
+  youtubeAccount?: { title: string; handle: string | null; thumbnailUrl: string | null } | null
+  youtubeSettings?: { title: string; privacyStatus: "public" | "unlisted" | "private"; thumbnailUrl: string | null } | null
 }
 type Payload = { link: { name: string; includeDrafts: boolean; expiresAt: string | null }; accounts: PublicAccount[]; posts: PublicPost[]; comments: ClientComment[] }
 type PendingPin = { mediaIndex: number; x: number; y: number }
@@ -35,7 +37,7 @@ const STATUS = {
   PUBLISHED: { label: "Publicado", Icon: CheckCircle2, className: "bg-slate-100 text-slate-600 ring-slate-200" },
   DRAFT: { label: "Rascunho", Icon: PencilLine, className: "bg-slate-100 text-slate-600 ring-slate-200" },
 } as const
-const NETWORKS = ["INSTAGRAM", "FACEBOOK", "THREADS", "X"]
+const NETWORKS = ["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"]
 const FORMAT_LABEL: Record<string, string> = { CAROUSEL: "Carrossel", REEL: "Reel", STORY: "Story", TEXT: "Texto", IMAGE: "Feed" }
 const NAME_KEY = "instacommand_share_author"
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
@@ -344,7 +346,7 @@ function PostDetail({ token, post, account, comments, onComment }: { token: stri
         <button type="button" role="tab" aria-selected={tab === "annotate"} onClick={() => setTab("annotate")} className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold", tab === "annotate" ? "bg-slate-900 text-white" : "text-slate-600")}><MapPin size={13} />Marcar na mídia{pinned.length ? ` (${pinned.length})` : ""}</button>
       </div>}
       {tab === "preview" || !hasMedia
-        ? <div className="mx-auto max-w-[300px] md:max-w-none"><PostPreviewPanel post={post} account={account ? { igUsername: account.igUsername, pageName: account.pageName, igProfilePicUrl: account.igProfilePicUrl } : undefined} threadsAccount={post.threadsAccount || undefined} xAccount={post.xAccount || undefined} /></div>
+        ? <div className="mx-auto max-w-[300px] md:max-w-none"><PostPreviewPanel post={post} account={account ? { igUsername: account.igUsername, pageName: account.pageName, igProfilePicUrl: account.igProfilePicUrl } : undefined} threadsAccount={post.threadsAccount || undefined} xAccount={post.xAccount || undefined} youtubeAccount={post.youtubeAccount || undefined} /></div>
         : <Annotator post={post} mediaIndex={mediaIndex} setMediaIndex={(index) => { setMediaIndex(index); setPending(null) }} pins={pinned} pinNumbers={pinNumbers} pending={pending} setPending={setPending} highlight={highlight} setHighlight={setHighlight} />}
     </div>
     <div className="relative z-10 flex min-w-0 flex-col bg-white md:max-h-[90dvh] md:min-h-0">

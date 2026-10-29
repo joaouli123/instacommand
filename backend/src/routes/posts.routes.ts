@@ -2,7 +2,7 @@ import { getPrisma } from '../lib/prisma';
 import { Router } from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth';
-import { MediaType, PostStatus } from '@prisma/client';
+import { MediaType, PostStatus, Prisma } from '@prisma/client';
 import { schedulePost, cancelScheduledPost } from '../services/scheduler.service';
 import { publishPost, deleteFacebookPost, deleteThreadsPost } from '../services/instagram/publish.service';
 import path from 'path';
@@ -11,6 +11,7 @@ import crypto from 'crypto';
 import { env } from '../config/env';
 import { assertPostReady, SUPPORTED_PLATFORMS, TEXT_PLATFORMS, textLimitFor, X_MAX_MEDIA, X_TEXT_LIMIT, xTextLength } from '../services/post-readiness';
 import { deleteXPost } from '../services/x.service';
+import { validateYouTubeSettings } from '../services/youtube-settings';
 
 /** Rules for X on top of the shared ones: 280 characters and up to 4 media. */
 const xRuleError = (platforms: string[], caption: unknown, mediaCount: number) => {
@@ -57,9 +58,9 @@ router.use(authenticate);
 
 router.post('/', async (req: any, res, next) => {
   try {
-    const { accountId, threadsAccountId, xAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status,
+    const { accountId, threadsAccountId, xAccountId, youtubeAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
-      instagramAudioVolume, instagramVideoVolume, advancedSettings } = req.body;
+      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings } = req.body;
     if (status !== undefined && !['DRAFT', 'SCHEDULED'].includes(status)) return res.status(400).json({ error: 'Status de criação inválido.' });
     const normalizedPlatforms = Array.isArray(platforms) && platforms.length ? platforms : ['INSTAGRAM'];
     const textOnlyThreads = normalizedPlatforms.every((platform: string) => TEXT_PLATFORMS.includes(platform));
@@ -79,6 +80,13 @@ router.post('/', async (req: any, res, next) => {
     if (normalizedPlatforms.includes('X') && !xAccount) {
       return res.status(400).json({ error: 'Conecte uma conta do X antes de selecionar essa plataforma.' });
     }
+    const youtubeAccount = youtubeAccountId
+      ? await prisma.youTubeAccount.findFirst({ where: { id: youtubeAccountId, userId: req.user.id, isActive: true } })
+      : null;
+    if (normalizedPlatforms.includes('YOUTUBE') && !youtubeAccount) {
+      return res.status(400).json({ error: 'Conecte um canal do YouTube antes de selecionar essa plataforma.' });
+    }
+    const normalizedYouTubeSettings = normalizedPlatforms.includes('YOUTUBE') ? validateYouTubeSettings(youtubeSettings) : null;
     if (normalizedPlatforms.includes('FACEBOOK') && !account.pageId) {
       return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
     }
@@ -133,7 +141,7 @@ router.post('/', async (req: any, res, next) => {
     if (Number.isNaN(targetDate.getTime())) return res.status(400).json({ error: 'Data de publicação inválida.' });
     if (status === 'SCHEDULED') {
       if (targetDate <= new Date()) return res.status(400).json({ error: 'Escolha uma data futura.' });
-      assertPostReady({ mediaType, mediaUrls, caption, platforms: normalizedPlatforms });
+      assertPostReady({ mediaType, mediaUrls, caption, platforms: normalizedPlatforms, youtubeSettings: normalizedYouTubeSettings });
     }
 
     const post = await prisma.scheduledPost.create({
@@ -142,6 +150,8 @@ router.post('/', async (req: any, res, next) => {
         accountId,
         threadsAccountId: threadsAccount?.id,
         xAccountId: xAccount?.id,
+        youtubeAccountId: youtubeAccount?.id,
+        youtubeSettings: (normalizedYouTubeSettings ?? undefined) as any,
         mediaType,
         mediaUrls,
         caption,
@@ -187,6 +197,7 @@ router.get('/', async (req: any, res, next) => {
             facebookPostId: true,
             threadsPostId: true,
             xPostId: true,
+            youtubeVideoId: true,
             publishResults: true,
             igPermalink: true,
             publishedAt: true,
@@ -267,6 +278,7 @@ router.get('/:id', async (req: any, res, next) => {
             facebookPostId: true,
             threadsPostId: true,
             xPostId: true,
+            youtubeVideoId: true,
             publishResults: true,
             igPermalink: true,
             publishedAt: true,
@@ -283,9 +295,9 @@ router.get('/:id', async (req: any, res, next) => {
 
 router.patch('/:id', async (req: any, res, next) => {
   try {
-    const { caption, scheduledFor, status, platforms, threadsAccountId, xAccountId, mediaUrls, mediaType, hashtags,
+    const { caption, scheduledFor, status, platforms, threadsAccountId, xAccountId, youtubeAccountId, mediaUrls, mediaType, hashtags,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
-      instagramAudioVolume, instagramVideoVolume, advancedSettings } = req.body;
+      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings } = req.body;
     const post = await prisma.scheduledPost.findFirst({
       where: { id: req.params.id, userId: req.user.id }
     });
@@ -312,6 +324,14 @@ router.patch('/:id', async (req: any, res, next) => {
         : null;
       if (!xAccount) return res.status(400).json({ error: 'Conecte uma conta do X antes de selecionar essa plataforma.' });
     }
+    if (nextPlatforms.includes('YOUTUBE')) {
+      const nextYouTubeAccountId = youtubeAccountId === undefined ? post.youtubeAccountId : youtubeAccountId;
+      const youtubeAccount = nextYouTubeAccountId
+        ? await prisma.youTubeAccount.findFirst({ where: { id: nextYouTubeAccountId, userId: req.user.id, isActive: true } })
+        : null;
+      if (!youtubeAccount) return res.status(400).json({ error: 'Conecte um canal do YouTube antes de selecionar essa plataforma.' });
+    }
+    const nextYouTubeSettings = youtubeSettings === undefined ? post.youtubeSettings : validateYouTubeSettings(youtubeSettings);
     if (nextPlatforms.includes('THREADS')) {
       const nextThreadsAccountId = threadsAccountId === undefined ? post.threadsAccountId : threadsAccountId;
       const threadsAccount = nextThreadsAccountId
@@ -367,7 +387,7 @@ router.patch('/:id', async (req: any, res, next) => {
     if (Number.isNaN(nextDate.getTime())) return res.status(400).json({ error: 'Data de publicação inválida.' });
     if ((status || post.status) === 'SCHEDULED') {
       if (nextDate <= new Date()) return res.status(400).json({ error: 'Escolha uma data futura.' });
-      assertPostReady({ ...post, caption: nextCaption, mediaType: nextMediaType, mediaUrls: nextMediaUrls, platforms: nextPlatforms });
+      assertPostReady({ ...post, caption: nextCaption, mediaType: nextMediaType, mediaUrls: nextMediaUrls, platforms: nextPlatforms, youtubeSettings: nextYouTubeSettings });
     }
 
     if (post.status === 'SCHEDULED' && (status === 'DRAFT' || scheduledFor)) {
@@ -394,6 +414,8 @@ router.patch('/:id', async (req: any, res, next) => {
         platforms: Array.isArray(platforms) && platforms.length ? nextPlatforms : undefined,
         threadsAccountId: threadsAccountId === null ? null : threadsAccountId || undefined,
         xAccountId: xAccountId === null ? null : xAccountId || undefined,
+        youtubeAccountId: youtubeAccountId === null ? null : youtubeAccountId || undefined,
+        youtubeSettings: youtubeSettings === undefined ? undefined : (nextYouTubeSettings ?? Prisma.DbNull) as any,
       }
     }).catch((error) => {
       if (error?.code === 'P2025') throw new ConflictError('Esta publicação mudou ou já está sendo enviada. Atualize a tela antes de editar.');
@@ -460,6 +482,11 @@ router.delete('/:id', async (req: any, res, next) => {
           warnings.push('O post do X pode continuar no perfil; o X não autorizou a exclusão. Remova-o diretamente no X se necessário.');
         }
       }
+    }
+
+    if (post.publishedPost?.youtubeVideoId) {
+      // The connection only has permission to upload; removing a video stays with the channel owner.
+      warnings.push('O vídeo do YouTube não foi removido do canal: exclua-o no YouTube Studio se necessário.');
     }
 
     const uploadRoot = path.resolve(process.cwd(), env.MEDIA_UPLOAD_DIR);

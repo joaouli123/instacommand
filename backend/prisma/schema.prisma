@@ -25,6 +25,7 @@ model User {
   accounts            InstagramAccount[]
   threadsAccounts     ThreadsAccount[]
   xAccounts           XAccount[]
+  youtubeAccounts     YouTubeAccount[]
   scheduledPosts      ScheduledPost[]
   preferences         UserPreference?
   notifications       Notification[]
@@ -468,6 +469,31 @@ model XPostMetric {
   @@index([accountId, postedAt])
 }
 
+// One YouTube channel connected through Google OAuth. Posting only: no reports yet.
+model YouTubeAccount {
+  id              String    @id @default(uuid())
+  userId          String
+  channelId       String    @unique
+  title           String
+  handle          String?
+  thumbnailUrl    String?
+  subscriberCount Int?
+  accessToken     String
+  refreshToken    String?
+  tokenExpiresAt  DateTime?
+  scopes          String?
+  isActive        Boolean   @default(true)
+  connectedAt     DateTime  @default(now())
+  lastSyncAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id])
+  scheduledPosts ScheduledPost[]
+
+  @@index([userId])
+}
+
 model ThreadsAccount {
   id                  String    @id @default(uuid())
   userId              String
@@ -519,6 +545,7 @@ model ScheduledPost {
   accountId            String
   threadsAccountId     String?
   xAccountId           String?
+  youtubeAccountId     String?
   mediaType            MediaType
   mediaUrls            String[]
   thumbnailUrl         String?
@@ -533,6 +560,8 @@ model ScheduledPost {
   instagramAudioVolume Int?
   instagramVideoVolume Int?
   advancedSettings     Json?
+  // Title, privacy and audience of the YouTube upload; the description is the caption.
+  youtubeSettings      Json?
   scheduledFor         DateTime
   status               PostStatus @default(DRAFT)
   errorMessage         String?
@@ -544,6 +573,7 @@ model ScheduledPost {
   account        InstagramAccount @relation(fields: [accountId], references: [id])
   threadsAccount ThreadsAccount?  @relation(fields: [threadsAccountId], references: [id])
   xAccount       XAccount?        @relation(fields: [xAccountId], references: [id])
+  youtubeAccount YouTubeAccount?  @relation(fields: [youtubeAccountId], references: [id])
   publishedPost  PublishedPost?   @relation(fields: [publishedPostId], references: [id])
 
   @@index([accountId])
@@ -551,6 +581,7 @@ model ScheduledPost {
   @@index([status, scheduledFor])
   @@index([threadsAccountId])
   @@index([xAccountId])
+  @@index([youtubeAccountId])
   @@index([userId, scheduledFor])
   @@index([accountId, scheduledFor])
 }
@@ -562,6 +593,7 @@ model PublishedPost {
   facebookPostId     String?
   threadsPostId      String?
   xPostId            String?
+  youtubeVideoId     String?
   publishResults     Json?
   igMediaUrl         String?
   igPermalink        String?

@@ -4,7 +4,8 @@ import { ValidationError } from '../../utils/errors';
 import {
   accountIdSchema, advancedSettingsSchema, audioFields, confirmSchema, dateTimeSchema, defineTool, DESTRUCTIVE, EXTERNAL,
   instagramAudioSchema, MEDIA_TYPES, mergeHashtagsIntoCaption, normalizeHashtags, platformSchema, POST_STATUSES,
-  postDetails, postIdSchema, postSummary, READ, threadsAccountIdSchema, xAccountIdSchema, toIso, WRITE,
+  postDetails, postIdSchema, postSummary, publishPlatformSchema, READ, threadsAccountIdSchema, xAccountIdSchema,
+  youtubeAccountIdSchema, youtubeSettingsSchema, toIso, WRITE,
 } from '../tool-kit';
 
 const EDITABLE = new Set(['DRAFT', 'SCHEDULED', 'FAILED']);
@@ -15,8 +16,8 @@ const mediaUrlsSchema = z.array(z.string().url().max(2048)).max(10)
 const captionSchema = z.string().max(2200).describe('Legenda/texto do post. No Threads, o texto final (com hashtags) precisa ter até 500 caracteres; no X, até 280.');
 const hashtagsSchema = z.array(z.string().min(1).max(100)).max(30)
   .describe('Hashtags sem "#". São acrescentadas ao fim da legenda ao agendar/publicar (sem duplicar as que já estão no texto).');
-const platformsSchema = z.array(platformSchema).min(1).max(4)
-  .describe('Redes de destino. FACEBOOK publica na Página vinculada à conta do Instagram; THREADS exige threadsAccountId; X exige xAccountId (até 280 caracteres e 4 mídias).');
+const platformsSchema = z.array(publishPlatformSchema).min(1).max(5)
+  .describe('Redes de destino. FACEBOOK publica na Página vinculada à conta do Instagram; THREADS exige threadsAccountId; X exige xAccountId (até 280 caracteres e 4 mídias); YOUTUBE exige youtubeAccountId, formato REEL e youtubeSettings.');
 
 const unique = <T>(values: T[]) => [...new Set(values)];
 
@@ -81,7 +82,7 @@ export const postTools = [
     name: 'create_post',
     title: 'Criar publicação',
     category: 'posts',
-    description: 'Cria uma publicação para Instagram, Facebook e/ou Threads. Por padrão salva como DRAFT (rascunho, nada é publicado). Com status SCHEDULED agenda para scheduledFor (exige permissão publish e confirmação do usuário). Envie as mídias antes com import_media_from_url/upload_media_base64. Veja get_publishing_guide para formatos e limites.',
+    description: 'Cria uma publicação para Instagram, Facebook, Threads, X e/ou YouTube. Por padrão salva como DRAFT (rascunho, nada é publicado). Com status SCHEDULED agenda para scheduledFor (exige permissão publish e confirmação do usuário). Envie as mídias antes com import_media_from_url/upload_media_base64. Veja get_publishing_guide para formatos e limites.',
     scopes: ['write'],
     scopesFor: (args) => (args.status === 'SCHEDULED' ? ['publish'] : ['write']),
     annotations: WRITE,
@@ -90,6 +91,8 @@ export const postTools = [
       platforms: platformsSchema.default(['INSTAGRAM']),
       threadsAccountId: threadsAccountIdSchema.optional().describe('Obrigatório quando platforms inclui THREADS.'),
       xAccountId: xAccountIdSchema.optional().describe('Obrigatório quando platforms inclui X.'),
+      youtubeAccountId: youtubeAccountIdSchema.optional().describe('Obrigatório quando platforms inclui YOUTUBE.'),
+      youtubeSettings: youtubeSettingsSchema.optional().describe('Obrigatório quando platforms inclui YOUTUBE.'),
       mediaType: z.enum(MEDIA_TYPES).describe('IMAGE (1 imagem), CAROUSEL (2–10 mídias; no X até 4), REEL (1 vídeo), STORY (1 mídia, só Instagram) ou TEXT (só Threads e/ou X, sem mídia).'),
       mediaUrls: mediaUrlsSchema.default([]),
       caption: captionSchema.default(''),
@@ -107,6 +110,8 @@ export const postTools = [
         accountId: args.accountId,
         threadsAccountId: args.threadsAccountId,
         xAccountId: args.xAccountId,
+        youtubeAccountId: args.youtubeAccountId,
+        youtubeSettings: args.youtubeSettings,
         platforms: unique(args.platforms),
         mediaType: args.mediaType,
         mediaUrls: args.mediaUrls,
@@ -141,6 +146,8 @@ export const postTools = [
       platforms: platformsSchema.optional(),
       threadsAccountId: threadsAccountIdSchema.nullable().optional().describe('null remove a conta do Threads.'),
       xAccountId: xAccountIdSchema.nullable().optional().describe('null remove a conta do X.'),
+      youtubeAccountId: youtubeAccountIdSchema.nullable().optional().describe('null remove o canal do YouTube.'),
+      youtubeSettings: youtubeSettingsSchema.nullable().optional().describe('Substitui as opções do YouTube; null limpa.'),
       mediaType: z.enum(MEDIA_TYPES).optional(),
       mediaUrls: mediaUrlsSchema.optional(),
       caption: captionSchema.optional(),
@@ -159,6 +166,8 @@ export const postTools = [
       if (changes.platforms) body.platforms = unique(changes.platforms);
       if (changes.threadsAccountId !== undefined) body.threadsAccountId = changes.threadsAccountId;
       if (changes.xAccountId !== undefined) body.xAccountId = changes.xAccountId;
+      if (changes.youtubeAccountId !== undefined) body.youtubeAccountId = changes.youtubeAccountId;
+      if (changes.youtubeSettings !== undefined) body.youtubeSettings = changes.youtubeSettings;
       if (changes.mediaType) body.mediaType = changes.mediaType;
       if (changes.mediaUrls) body.mediaUrls = changes.mediaUrls;
       if (changes.caption !== undefined) body.caption = changes.caption;

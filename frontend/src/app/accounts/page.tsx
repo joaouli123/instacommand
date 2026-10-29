@@ -30,7 +30,8 @@ type ConnectedThreadsAccount = { id: string; username: string; name?: string | n
 type ThreadsOAuthStatus = { appIdConfigured: boolean; appSecretConfigured: boolean; platformConfigured: boolean; credentialSource: 'platform' | 'workspace' | 'missing' }
 
 import { XAccountsCard } from "@/components/accounts/XAccountsCard"
-import { SiX } from "@icons-pack/react-simple-icons"
+import { YouTubeAccountsCard } from "@/components/accounts/YouTubeAccountsCard"
+import { SiX, SiYoutube } from "@icons-pack/react-simple-icons"
 
 export default function AccountsPage() {
   const queryClient = useQueryClient()
@@ -101,6 +102,11 @@ export default function AccountsPage() {
     void startOAuth("/auth/x/url")
   }
 
+  const connectYouTube = () => {
+    setConnectDialogOpen(false)
+    void startOAuth("/auth/youtube/url")
+  }
+
   const refreshAccounts = useCallback(async () => {
     const [data, threads, pending, oauthStatus] = await Promise.all([
       api.getAccounts(), api.getThreadsAccounts(), api.getPendingAccounts(),
@@ -132,6 +138,7 @@ export default function AccountsPage() {
       const reason = params.get("reason")
       const threadsConnected = params.get("threads_connected")
       const xConnected = params.get("x_connected")
+      const youtubeConnected = params.get("youtube_connected")
       const oauthSession = params.get("oauth_session")
       if (oauthSession) {
         await fetchApi("/auth/oauth-session", {
@@ -169,7 +176,20 @@ export default function AccountsPage() {
             ? "O X não retornou o código de autorização. Confira a Callback URL configurada no app do X."
             : "A conexão com o X falhou. Confira se o app do X tem permissão de leitura e escrita e tente novamente."))
       if (xConnected === "1") void queryClient.invalidateQueries({ queryKey: ["x-accounts"] })
-      if ((connected || threadsConnected || xConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
+      if (youtubeConnected === "1") toast.success(tr("Canal do YouTube conectado com sucesso"))
+      if (youtubeConnected === "0") toast.error(tr(reason === "youtube_denied"
+        ? "Você cancelou ou o Google recusou a autorização. Nenhum canal foi vinculado."
+        : reason === "youtube_account_conflict"
+          ? "Esse canal do YouTube já está vinculado a outro usuário do UX Code Social."
+          : reason === "youtube_no_channel"
+            ? "A conta Google escolhida não tem um canal do YouTube. Crie o canal ou escolha outra conta e tente novamente."
+            : reason === "youtube_scope_missing"
+              ? "A permissão para enviar vídeos não foi concedida. Conecte novamente e marque todas as permissões pedidas."
+              : reason === "youtube_callback_missing_code"
+                ? "O Google não retornou o código de autorização. Confira o URI de redirecionamento no Google Cloud."
+                : "A conexão com o YouTube falhou. Tente novamente em alguns instantes."))
+      if (youtubeConnected === "1") void queryClient.invalidateQueries({ queryKey: ["youtube-accounts"] })
+      if ((connected || threadsConnected || xConnected || youtubeConnected) && !oauthSession) window.history.replaceState({}, "", "/accounts")
 
       await refreshAccounts()
       if (connected === "1" || connected === "pending" || threadsConnected === "1") {
@@ -318,7 +338,7 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="page-header"><div><p className="page-eyebrow">{t("Conexões")}</p><h1 className="page-title">{t("Contas conectadas")}</h1><p className="page-subtitle">{t("Gerencie suas contas do Instagram, Facebook, Threads e X.")}</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />{t("Adicionar conta")}</Button></div>
+      <div className="page-header"><div><p className="page-eyebrow">{t("Conexões")}</p><h1 className="page-title">{t("Contas conectadas")}</h1><p className="page-subtitle">{t("Gerencie suas contas do Instagram, Facebook, Threads, X e YouTube.")}</p></div><Button onClick={() => setConnectDialogOpen(true)} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Plus size={17} />{t("Adicionar conta")}</Button></div>
 
       {handedOff && <Card className="flex items-start gap-3 border-emerald-200 bg-emerald-50/70 p-4">
         <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-600" />
@@ -347,6 +367,11 @@ export default function AccountsPage() {
             <button type="button" onClick={connectX} className="flex items-center gap-4 rounded-2xl border border-slate-200 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50/60">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-white"><SiX size={18} color="white" /></span>
               <span className="min-w-0 flex-1"><span className="block font-bold text-slate-900">X (Twitter)</span><span className="mt-1 block text-xs leading-5 text-slate-500">{t("Entre com o X e autorize publicar e ler as métricas do perfil.")}</span></span>
+              <ArrowRight size={18} className="shrink-0 text-indigo-600" />
+            </button>
+            <button type="button" onClick={connectYouTube} className="flex items-center gap-4 rounded-2xl border border-slate-200 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50/60">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#ff0033] text-white"><SiYoutube size={20} color="white" /></span>
+              <span className="min-w-0 flex-1"><span className="block font-bold text-slate-900">YouTube</span><span className="mt-1 block text-xs leading-5 text-slate-500">{t("Entre com o Google e escolha o canal para publicar vídeos e Shorts.")}</span></span>
               <ArrowRight size={18} className="shrink-0 text-indigo-600" />
             </button>
           </div>
@@ -380,6 +405,8 @@ export default function AccountsPage() {
       </Card>
 
       <XAccountsCard onConnect={connectX} />
+
+      <YouTubeAccountsCard onConnect={connectYouTube} />
     </div>
   )
 }

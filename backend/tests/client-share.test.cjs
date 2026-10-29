@@ -84,8 +84,11 @@ test('public payload whitelists fields and hides drafts unless allowed', async (
   const published = payload.posts.find((post) => post.id === 'p-published');
   assert.equal(published.status, 'PUBLISHED');
   assert.equal(new Date(published.scheduledAt).toISOString(), posts.find((post) => post.id === 'p-published').publishedPost.publishedAt.toISOString(), 'the client link should show when it actually went live, not its old planned date');
-  assert.deepEqual(Object.keys(payload.posts[0]).sort(), ['accountKey', 'caption', 'hashtags', 'id', 'mediaType', 'mediaUrls', 'platforms', 'scheduledAt', 'status', 'thumbnailUrl', 'threadsAccount', 'xAccount'].sort());
+  assert.deepEqual(Object.keys(payload.posts[0]).sort(), ['accountKey', 'caption', 'hashtags', 'id', 'mediaType', 'mediaUrls', 'platforms', 'scheduledAt', 'status', 'thumbnailUrl', 'threadsAccount', 'xAccount', 'youtubeAccount', 'youtubeSettings'].sort());
   assert.equal(payload.accounts[0].igUsername, 'marca');
+  const youtube = share.toPublicPost({ id: 'yt', platforms: ['YOUTUBE'], status: 'SCHEDULED', youtubeAccount: { title: 'Canal', handle: '@canal', thumbnailUrl: null, accessToken: 'TOKEN-SECRET' }, youtubeSettings: { title: 'Vídeo', privacyStatus: 'unlisted', madeForKids: false, alteredContent: true, thumbnailUrl: 'javascript:alert(1)' } }, { platforms: [] });
+  assert.deepEqual(youtube.youtubeSettings, { title: 'Vídeo', privacyStatus: 'unlisted', thumbnailUrl: null });
+  assert.deepEqual(youtube.youtubeAccount, { title: 'Canal', handle: '@canal', thumbnailUrl: null });
   assert.equal(payload.posts[0].accountKey, payload.accounts[0].key);
   links[0].includeDrafts = true;
   assert.deepEqual((await share.getPublicSchedule(token)).posts.map((post) => post.id), ['p1', 'p-published', 'p2']);

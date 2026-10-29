@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { isSessionRevoked, revokeSession } from '../utils/session-security';
 import { syncAccountsInBackground } from '../services/account-sync.service';
 import { createXAuthorization, handleXCallback, readXState } from '../services/x.service';
+import { createYouTubeAuthorization, handleYouTubeCallback, readYouTubeState } from '../services/youtube.service';
 
 const router = Router();
 const prisma = getPrisma();
@@ -306,6 +307,41 @@ router.get('/x/callback', async (req, res) => {
     console.error('X OAuth callback failed');
     const reason = error instanceof Error && error.message === 'X_ACCOUNT_CONFLICT' ? 'x_account_conflict' : 'x_connection';
     return res.redirect(`${accounts}?x_connected=0&reason=${reason}`);
+  }
+});
+
+// YouTube: Google OAuth 2.0 with PKCE and offline access for the signed-in user.
+router.get('/youtube/url', authenticate, async (req: any, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    return res.json(createYouTubeAuthorization(user.id));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+const YOUTUBE_FAILURE_REASONS: Record<string, string> = {
+  YOUTUBE_ACCOUNT_CONFLICT: 'youtube_account_conflict',
+  YOUTUBE_NO_CHANNEL: 'youtube_no_channel',
+  YOUTUBE_UPLOAD_NOT_GRANTED: 'youtube_scope_missing',
+};
+
+router.get('/youtube/callback', async (req, res) => {
+  const accounts = `${env.FRONTEND_URL.replace(/\/$/, '')}/accounts`;
+  const parsed = readYouTubeState(req.query.state);
+  if (!parsed) return res.redirect(`${loginUrl('/accounts')}&reason=oauth_state`);
+  const { code } = req.query;
+  if (!code || typeof code !== 'string') return res.redirect(`${accounts}?youtube_connected=0&reason=${req.query.error ? 'youtube_denied' : 'youtube_callback_missing_code'}`);
+  try {
+    // Same as X: no session handoff, so a forwarded link cannot sign someone into this workspace.
+    await handleYouTubeCallback(code, req.query.state);
+    return res.redirect(`${accounts}?youtube_connected=1`);
+  } catch (error) {
+    // Never log provider payloads: they may contain codes or tokens.
+    console.error('YouTube OAuth callback failed');
+    const reason = (error instanceof Error && YOUTUBE_FAILURE_REASONS[error.message]) || 'youtube_connection';
+    return res.redirect(`${accounts}?youtube_connected=0&reason=${reason}`);
   }
 });
 

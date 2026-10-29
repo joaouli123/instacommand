@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { SiFacebook, SiInstagram, SiThreads, SiX } from "@icons-pack/react-simple-icons"
-import { getMediaDimensions, SocialPostPreview, type MediaItem, type PostType, type PreviewAccount, type PreviewThreadsAccount, type PreviewXAccount } from "@/components/preview/SocialPostPreview"
+import { SiFacebook, SiInstagram, SiThreads, SiX, SiYoutube } from "@icons-pack/react-simple-icons"
+import { getMediaDimensions, SocialPostPreview, type MediaItem, type PostType, type PreviewAccount, type PreviewThreadsAccount, type PreviewXAccount, type PreviewYouTubeAccount, type PreviewYouTubeSettings } from "@/components/preview/SocialPostPreview"
 import { isVideoUrl } from "@/lib/media"
 import { captionAsPublished } from "@/lib/caption"
 import { cn } from "@/lib/utils"
@@ -15,6 +15,7 @@ export type PreviewablePost = {
   caption?: string | null
   hashtags?: string[]
   platforms: string[]
+  youtubeSettings?: PreviewYouTubeSettings | null
 }
 
 const NETWORKS: Record<string, { name: string; Icon: typeof SiInstagram }> = {
@@ -22,12 +23,13 @@ const NETWORKS: Record<string, { name: string; Icon: typeof SiInstagram }> = {
   FACEBOOK: { name: "Facebook", Icon: SiFacebook },
   THREADS: { name: "Threads", Icon: SiThreads },
   X: { name: "X", Icon: SiX },
+  YOUTUBE: { name: "YouTube", Icon: SiYoutube },
 }
 
 const toPostType = (mediaType: string): PostType => (mediaType === "IMAGE" ? "FEED" : (["CAROUSEL", "REEL", "STORY", "TEXT"].includes(mediaType) ? mediaType : "FEED") as PostType)
 
 /** The same native-style preview the composer shows, for a saved post. */
-export function PostPreviewPanel({ post, account, threadsAccount, xAccount }: { post: PreviewablePost; account?: PreviewAccount; threadsAccount?: PreviewThreadsAccount; xAccount?: PreviewXAccount }) {
+export function PostPreviewPanel({ post, account, threadsAccount, xAccount, youtubeAccount }: { post: PreviewablePost; account?: PreviewAccount; threadsAccount?: PreviewThreadsAccount; xAccount?: PreviewXAccount; youtubeAccount?: PreviewYouTubeAccount }) {
   const platforms = post.platforms?.length ? post.platforms : ["INSTAGRAM"]
   const [platform, setPlatform] = useState(platforms[0])
   const [activeIndex, setActiveIndex] = useState(0)
@@ -72,6 +74,8 @@ export function PostPreviewPanel({ post, account, threadsAccount, xAccount }: { 
         selectedAccount={account}
         threadsAccount={threadsAccount}
         xAccount={xAccount}
+        youtubeAccount={youtubeAccount}
+        youtubeSettings={post.youtubeSettings || undefined}
         media={mediaItems[index] || null}
         mediaItems={mediaItems}
         activeMediaIndex={index}

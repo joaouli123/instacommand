@@ -18,7 +18,7 @@ export const SHARE_TOKEN_PREFIX = 'shr_';
 export const COMMENT_MAX_LENGTH = 1000;
 export const AUTHOR_MAX_LENGTH = 60;
 export const LINK_NAME_MAX_LENGTH = 80;
-const SHARE_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X'];
+const SHARE_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X', 'YOUTUBE'];
 const SHARE_RANGE_MAX_DAYS = 400;
 
 /** 32 random bytes, url-safe. Returned once; only its hash is stored. */
@@ -241,6 +241,13 @@ export function toPublicPost(post: any, link: Pick<ShareLinkRecord, 'platforms'>
     status,
     threadsAccount: post.threadsAccount ? { username: post.threadsAccount.username } : null,
     xAccount: post.xAccount ? { username: post.xAccount.username, name: post.xAccount.name || null, profilePicUrl: post.xAccount.profilePicUrl || null } : null,
+    youtubeAccount: post.youtubeAccount ? { title: post.youtubeAccount.title, handle: post.youtubeAccount.handle || null, thumbnailUrl: post.youtubeAccount.thumbnailUrl || null } : null,
+    // Only what the preview shows: never the audience or AI declarations.
+    youtubeSettings: post.youtubeSettings && typeof post.youtubeSettings === 'object' ? {
+      title: String((post.youtubeSettings as any).title || ''),
+      privacyStatus: ['public', 'unlisted', 'private'].includes((post.youtubeSettings as any).privacyStatus) ? (post.youtubeSettings as any).privacyStatus : 'public',
+      thumbnailUrl: typeof (post.youtubeSettings as any).thumbnailUrl === 'string' && /^https?:\/\//i.test((post.youtubeSettings as any).thumbnailUrl) ? (post.youtubeSettings as any).thumbnailUrl : null,
+    } : null,
   };
 }
 
@@ -274,6 +281,8 @@ export async function getPublicSchedule(token: unknown, query: { from?: unknown;
       account: { select: { igUsername: true, igName: true, pageName: true, igProfilePicUrl: true } },
       threadsAccount: { select: { username: true } },
       xAccount: { select: { username: true, name: true, profilePicUrl: true } },
+      youtubeAccount: { select: { title: true, handle: true, thumbnailUrl: true } },
+      youtubeSettings: true,
       publishedPost: { select: { publishedAt: true } },
     },
   });

@@ -1,0 +1,286 @@
+import { getPrisma } from '../lib/prisma';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+
+import { env } from '../config/env';
+import { AppError } from '../utils/errors';
+import { decryptSecret, encryptSecret } from './instagram/auth.service';
+import { readLimitedBody, safeGet } from '../utils/safe-fetch';
+import { consumeOAuthNonce } from '../utils/oauth-nonce';
+import { normalizeMediaUrl } from '../utils/public-media';
+import { validateYouTubeSettings, type YouTubeSettings } from './youtube-settings';
+
+const prisma = getPrisma();
+
+export const GOOGLE_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+export const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+export const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
+export const YOUTUBE_API = 'https://www.googleapis.com/youtube/v3';
+export const YOUTUBE_UPLOAD_API = 'https://www.googleapis.com/upload/youtube/v3';
+// Upload and read the channel only. Managing or deleting videos would need the
+// broader `youtube` scope, which makes Google's app verification much heavier.
+export const YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly'];
+
+// Never answer 401 for YouTube problems: the web app treats 401 as "UX Code Social session expired" and signs the user out.
+export const isYouTubeConfigured = () => Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+const requireConfig = () => {
+  if (!isYouTubeConfigured()) throw new AppError('YOUTUBE_OAUTH_NOT_CONFIGURED', 503);
+  return { clientId: env.GOOGLE_CLIENT_ID!, clientSecret: env.GOOGLE_CLIENT_SECRET!, redirectUri: env.YOUTUBE_REDIRECT_URI };
+};
+
+const base64url = (buffer: Buffer) => buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+/**
+ * Google authorization URL with PKCE and offline access. The code_verifier
+ * travels inside the signed state, encrypted; the state expires in 10 minutes.
+ */
+export function createYouTubeAuthorization(userId: string) {
+  const { clientId, redirectUri } = requireConfig();
+  const verifier = base64url(crypto.randomBytes(48));
+  const challenge = base64url(crypto.createHash('sha256').update(verifier).digest());
+  const state = jwt.sign({ sub: userId, purpose: 'youtube', v: encryptSecret(verifier), nonce: crypto.randomUUID() }, env.JWT_SECRET, { expiresIn: '10m' });
+  const url = new URL(GOOGLE_AUTHORIZE_URL);
+  url.search = new URLSearchParams({
+    response_type: 'code', client_id: clientId, redirect_uri: redirectUri, scope: YOUTUBE_SCOPES.join(' '),
+    state, code_challenge: challenge, code_challenge_method: 'S256',
+    // offline + consent: Google only returns a refresh token on consent, and scheduled posts need one.
+    access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true',
+  }).toString();
+  return { url: url.toString() };
+}
+
+export function readYouTubeState(state: unknown): { userId: string; verifier: string } | null {
+  if (typeof state !== 'string' || !state) return null;
+  try {
+    const payload = jwt.verify(state, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: string; v?: string };
+    if (payload.purpose !== 'youtube' || !payload.sub || !payload.v) return null;
+    return { userId: payload.sub, verifier: decryptSecret(payload.v) };
+  } catch { return null; }
+}
+
+type TokenResponse = { access_token: string; refresh_token?: string; expires_in?: number; scope?: string };
+
+async function tokenRequest(body: Record<string, string>): Promise<TokenResponse> {
+  const { clientId, clientSecret } = requireConfig();
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ ...body, client_id: clientId, client_secret: clientSecret }).toString(),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const data = await response.json().catch(() => ({})) as TokenResponse & { error?: string; error_description?: string };
+  if (!response.ok || !data.access_token) {
+    if (data.error === 'invalid_grant') throw new AppError('A conexão com o YouTube expirou ou foi revogada. Conecte o canal novamente em Contas.', 400);
+    throw new AppError(data.error_description || 'O Google recusou a autorização. Tente conectar novamente.', 400);
+  }
+  return data;
+}
+
+/** Friendly message for YouTube API errors (quota, upload limits, permissions). */
+export function describeYouTubeError(status: number, body: any): string {
+  const reason = body?.error?.errors?.[0]?.reason || body?.error?.status || '';
+  const detail = body?.error?.message || '';
+  if (/quotaExceeded|dailyLimitExceeded|rateLimitExceeded/i.test(reason)) return 'A cota diária da API do YouTube acabou. Ela volta à meia-noite do horário do Pacífico; tente depois ou peça aumento de cota no Google Cloud.';
+  if (/uploadLimitExceeded/i.test(reason)) return 'O canal atingiu o limite de envios do YouTube por hoje. Tente novamente amanhã.';
+  if (/youtubeSignupRequired|channelNotFound/i.test(reason)) return 'Esta conta Google ainda não tem um canal do YouTube. Crie o canal e conecte novamente.';
+  if (/invalidTitle/i.test(reason)) return 'O YouTube recusou o título. Use até 100 caracteres, sem < ou >.';
+  if (/invalidDescription/i.test(reason)) return 'O YouTube recusou a descrição. Use até 5.000 caracteres, sem < ou >.';
+  if (status === 401) return 'A conexão com o YouTube expirou ou foi revogada. Conecte o canal novamente em Contas.';
+  if (status === 403) return detail ? `O YouTube recusou a ação: ${detail}` : 'O YouTube recusou a ação. Confira as permissões concedidas ao conectar o canal.';
+  if (status === 429) return 'O YouTube limitou temporariamente as requisições. Tente novamente em alguns minutos.';
+  return detail ? `YouTube: ${detail}` : `O YouTube respondeu com erro (HTTP ${status}).`;
+}
+
+const youtubeError = (status: number, body: unknown) => {
+  const error = new AppError(describeYouTubeError(status, body), status >= 500 ? 502 : 400);
+  (error as AppError & { youtubeStatus?: number }).youtubeStatus = status;
+  return error;
+};
+
+export async function youtubeRequest<T = any>(url: string, token: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: { Authorization: `Bearer ${token}`, ...(typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(init.headers || {}) },
+    signal: init.signal || AbortSignal.timeout(60_000),
+  });
+  if (response.status === 204) return {} as T;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw youtubeError(response.status, data);
+  return data as T;
+}
+
+type YouTubeChannel = {
+  id: string;
+  snippet?: { title?: string; customUrl?: string; thumbnails?: Record<string, { url?: string }> };
+  statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean };
+};
+
+const channelThumbnail = (channel: YouTubeChannel) => channel.snippet?.thumbnails?.high?.url || channel.snippet?.thumbnails?.medium?.url || channel.snippet?.thumbnails?.default?.url || null;
+
+export async function handleYouTubeCallback(code: string, state: unknown) {
+  const parsed = readYouTubeState(state);
+  if (!parsed) throw new AppError('A autorização do YouTube expirou. Tente conectar novamente.', 400);
+  const claims = jwt.verify(String(state), env.JWT_SECRET, { algorithms: ['HS256'] }) as { nonce?: string; exp?: number };
+  if (!await consumeOAuthNonce(claims, 'youtube')) throw new AppError('A autorização do YouTube já foi utilizada ou expirou. Conecte novamente.', 400);
+  const { redirectUri } = requireConfig();
+  const tokens = await tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, code_verifier: parsed.verifier });
+  const granted = (tokens.scope || '').split(' ');
+  if (!granted.includes(YOUTUBE_SCOPES[0])) throw new AppError('YOUTUBE_UPLOAD_NOT_GRANTED', 400);
+  const list = await youtubeRequest<{ items?: YouTubeChannel[] }>(`${YOUTUBE_API}/channels?part=snippet,statistics&mine=true`, tokens.access_token);
+  const channel = list.items?.[0];
+  if (!channel) throw new AppError('YOUTUBE_NO_CHANNEL', 400);
+  const existing = await prisma.youTubeAccount.findUnique({ where: { channelId: channel.id } });
+  if (existing && existing.userId !== parsed.userId && existing.isActive) throw new AppError('YOUTUBE_ACCOUNT_CONFLICT', 409);
+  if (existing && existing.userId !== parsed.userId) {
+    // The previous owner disconnected: none of their scheduled posts may be published with the new tokens.
+    await prisma.scheduledPost.updateMany({ where: { youtubeAccountId: existing.id }, data: { youtubeAccountId: null } });
+    await prisma.youTubeAccount.delete({ where: { id: existing.id } });
+  }
+  const subscribers = channel.statistics?.hiddenSubscriberCount ? null : Number(channel.statistics?.subscriberCount);
+  const data = {
+    userId: parsed.userId, title: channel.snippet?.title || 'Canal do YouTube', handle: channel.snippet?.customUrl || null,
+    thumbnailUrl: channelThumbnail(channel), subscriberCount: Number.isFinite(subscribers) ? subscribers : null,
+    accessToken: encryptSecret(tokens.access_token),
+    // Google omits the refresh token when the user had already consented; keep the stored one then.
+    ...(tokens.refresh_token ? { refreshToken: encryptSecret(tokens.refresh_token) } : {}),
+    tokenExpiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null, scopes: tokens.scope || null,
+    isActive: true, lastSyncAt: new Date(),
+  };
+  const account = await prisma.youTubeAccount.upsert({ where: { channelId: channel.id }, update: data, create: { ...data, channelId: channel.id } });
+  return { userId: parsed.userId, account };
+}
+
+const refreshing = new Map<string, Promise<string>>();
+
+/** A token that cannot be decrypted (corrupted, wrong key) means the user has to connect again. */
+const readToken = (value: string) => {
+  try { return decryptSecret(value); } catch { throw new AppError('A conexão com o YouTube precisa ser refeita. Conecte o canal novamente em Contas.', 400); }
+};
+
+/** Valid access token for a channel, refreshing it when it is about to expire (Google tokens last 1 hour). */
+export async function getYouTubeAccessToken(accountId: string): Promise<string> {
+  const account = await prisma.youTubeAccount.findUnique({ where: { id: accountId } });
+  if (!account || !account.isActive) throw new AppError('Canal do YouTube não encontrado ou desconectado.', 404);
+  const expiresSoon = !account.tokenExpiresAt || account.tokenExpiresAt.getTime() - Date.now() < 120_000;
+  if (!expiresSoon) return readToken(account.accessToken);
+  if (!account.refreshToken) throw new AppError('A conexão com o YouTube expirou. Conecte o canal novamente em Contas.', 400);
+  const pending = refreshing.get(accountId);
+  if (pending) return pending;
+  const run = (async () => {
+    const tokens = await tokenRequest({ grant_type: 'refresh_token', refresh_token: readToken(account.refreshToken!) });
+    await prisma.youTubeAccount.update({ where: { id: accountId }, data: {
+      accessToken: encryptSecret(tokens.access_token),
+      ...(tokens.refresh_token ? { refreshToken: encryptSecret(tokens.refresh_token) } : {}),
+      tokenExpiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null,
+    } });
+    return tokens.access_token;
+  })().finally(() => refreshing.delete(accountId));
+  refreshing.set(accountId, run);
+  return run;
+}
+
+export const getConnectedYouTubeAccounts = (userId: string) => prisma.youTubeAccount.findMany({
+  where: { userId, isActive: true }, orderBy: { connectedAt: 'asc' },
+  select: { id: true, channelId: true, title: true, handle: true, thumbnailUrl: true, subscriberCount: true, connectedAt: true, lastSyncAt: true },
+});
+
+export async function disconnectYouTubeAccount(accountId: string, userId: string) {
+  const account = await prisma.youTubeAccount.findFirst({ where: { id: accountId, userId } });
+  if (!account) return false;
+  // Best effort: revoking the refresh token also ends the access token; the local record is cleared either way.
+  try {
+    const token = account.refreshToken ? decryptSecret(account.refreshToken) : decryptSecret(account.accessToken);
+    await fetch(GOOGLE_REVOKE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token }).toString(),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch { /* ignore */ }
+  // Scheduled posts lose the channel: they must never be published later through someone else's reconnection.
+  await prisma.scheduledPost.updateMany({ where: { youtubeAccountId: accountId }, data: { youtubeAccountId: null } });
+  await prisma.youTubeAccount.update({ where: { id: accountId }, data: { isActive: false, accessToken: encryptSecret('revoked'), refreshToken: null } });
+  return true;
+}
+
+const MAX_VIDEO_BYTES = 256 * 1024 * 1024;
+const MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024;
+
+async function download(url: string, maxBytes: number) {
+  const { response, abort } = await safeGet(url, { timeoutMs: 120_000 });
+  try {
+    if ((response.statusCode || 500) >= 400) throw new AppError('Não foi possível ler a mídia da publicação.', 400);
+    return { body: await readLimitedBody(response, maxBytes), type: String(response.headers['content-type'] || '').split(';')[0] };
+  } finally { abort(); }
+}
+
+/** Snippet and status sent to YouTube. The description is the post caption. */
+export function buildYouTubeMetadata(settings: YouTubeSettings, caption?: string | null) {
+  return {
+    snippet: { title: settings.title, description: (caption || '').trim(), categoryId: settings.categoryId },
+    status: {
+      privacyStatus: settings.privacyStatus,
+      selfDeclaredMadeForKids: settings.madeForKids === true,
+      containsSyntheticMedia: settings.alteredContent,
+      embeddable: true,
+    },
+  };
+}
+
+export type YouTubePublishResult = { id: string; url: string; privacyStatus?: string; warnings: string[] };
+
+/**
+ * Uploads the post's video with a resumable session and returns the new video.
+ * The custom thumbnail is optional: when YouTube refuses it (unverified channel),
+ * the video stays published and the reason becomes a warning.
+ */
+export async function publishYouTubeVideo(
+  post: { caption?: string | null; mediaUrls?: string[]; mediaType: string; youtubeSettings?: unknown },
+  accountId: string,
+): Promise<YouTubePublishResult> {
+  const settings = validateYouTubeSettings(post.youtubeSettings, { requireComplete: true });
+  if (!settings) throw new AppError('Preencha o título do vídeo para o YouTube.', 400);
+  const videoUrl = post.mediaUrls?.[0];
+  if (post.mediaType !== 'REEL' || !videoUrl) throw new AppError('O YouTube aceita apenas vídeo. Escolha o formato Vídeo/Reel com um arquivo de vídeo.', 400);
+  const token = await getYouTubeAccessToken(accountId);
+  const { body, type } = await download(normalizeMediaUrl(videoUrl), MAX_VIDEO_BYTES);
+  const contentType = type.startsWith('video/') ? type : 'video/mp4';
+
+  const session = await fetch(`${YOUTUBE_UPLOAD_API}/videos?uploadType=resumable&part=snippet,status`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8',
+      'X-Upload-Content-Length': String(body.length), 'X-Upload-Content-Type': contentType,
+    },
+    body: JSON.stringify(buildYouTubeMetadata(settings, post.caption)),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const location = session.headers.get('location');
+  if (!session.ok || !location) throw youtubeError(session.status, await session.json().catch(() => ({})));
+
+  const upload = await fetch(location, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType, 'Content-Length': String(body.length) },
+    body: new Uint8Array(body),
+    signal: AbortSignal.timeout(15 * 60_000),
+  });
+  const video = await upload.json().catch(() => ({})) as { id?: string; status?: { privacyStatus?: string; uploadStatus?: string } };
+  if (!upload.ok || !video.id) throw youtubeError(upload.status, video);
+
+  const warnings: string[] = [];
+  // Projects that have not passed YouTube's API audit have every upload locked as private.
+  if (video.status?.privacyStatus && video.status.privacyStatus !== settings.privacyStatus) {
+    warnings.push('O YouTube manteve o vídeo como privado: o app ainda não passou pela auditoria da API do YouTube. Altere a visibilidade no YouTube Studio.');
+  }
+  if (settings.thumbnailUrl) {
+    try {
+      const image = await download(normalizeMediaUrl(settings.thumbnailUrl), MAX_THUMBNAIL_BYTES);
+      await youtubeRequest(`${YOUTUBE_UPLOAD_API}/thumbnails/set?videoId=${encodeURIComponent(video.id)}`, token, {
+        method: 'POST', headers: { 'Content-Type': /^image\/(png|jpeg)$/.test(image.type) ? image.type : 'image/jpeg' }, body: new Uint8Array(image.body),
+      });
+    } catch (error) {
+      warnings.push(`O vídeo foi publicado, mas a miniatura não foi aplicada: ${error instanceof Error ? error.message : 'erro desconhecido'} (miniaturas exigem canal verificado por telefone).`);
+    }
+  }
+  return { id: video.id, url: `https://www.youtube.com/watch?v=${video.id}`, privacyStatus: video.status?.privacyStatus, warnings };
+}
