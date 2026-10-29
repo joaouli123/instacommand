@@ -187,8 +187,8 @@ export default function CalendarPage() {
              post={selectedPost}
              account={accounts.find((account) => account.id === selectedPost.accountId)}
              threadsAccount={threadsAccounts.find((account) => account.id === selectedPost.threadsAccountId)}
-             xAccount={xAccounts.find((account) => account.id === selectedPost.xAccountId) || xAccounts[0]}
-             youtubeAccount={youtubeAccounts.find((account) => account.id === selectedPost.youtubeAccountId) || youtubeAccounts[0]}
+             xAccount={xAccounts.find((account) => account.id === selectedPost.xAccountId)}
+             youtubeAccount={youtubeAccounts.find((account) => account.id === selectedPost.youtubeAccountId)}
            />
            <div className="min-w-0 space-y-4">
              <div className="pr-8"><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Detalhes da publicação</p><h3 className="mt-1 break-words text-xl font-bold text-slate-900">{selectedPost.caption?.split("\n")[0] || "Publicação sem legenda"}</h3></div>

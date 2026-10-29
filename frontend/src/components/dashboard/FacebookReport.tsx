@@ -1,5 +1,6 @@
 'use client'
 
+import { useActiveAccount } from '@/hooks/useActiveAccount'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download, RefreshCw } from 'lucide-react'
@@ -23,12 +24,12 @@ const periods = [{ days: 7, label: 'Últimos 7 dias' }, { days: 30, label: 'Últ
 const interactionSeries = [{ key: 'reactions', label: 'Reações', color: '#4f46e5' }, { key: 'comments', label: 'Comentários', color: '#0284c7' }, { key: 'shares', label: 'Compartilhamentos', color: '#0d9488' }]
 
 export function FacebookReport() {
-  const [selected, setSelected] = useState('')
   const [comparing, setComparing] = useComparePreference()
   const [days, setDays] = useState(30)
-  const accountsQuery = useQuery({ queryKey: ['accounts'], queryFn: api.getAccounts })
-  const accounts = ((accountsQuery.data || []) as Array<{ id: string; igUsername: string; pageId: string; pageName: string | null }>).filter(a => a.pageId)
-  const accountId = accounts.some(a => a.id === selected) ? selected : accounts[0]?.id || ''
+  // Always the Page of the company chosen at the top, never another company's.
+  const companyQuery = useActiveAccount()
+  const company = companyQuery.activeAccount
+  const accountId = company?.pageId ? company.id : ''
   const query = useQuery<Report>({ queryKey: ['facebook-report', accountId, days], enabled: !!accountId,
     queryFn: ({ signal }) => fetchApi(`/analytics/networks/facebook/${encodeURIComponent(accountId)}?days=${days}`, { signal }), staleTime: 60_000, retry: false })
   const report = query.data
@@ -50,14 +51,14 @@ export function FacebookReport() {
     downloadReport([['Página', 'Publicação', 'Data', 'Texto', 'Reações acumuladas', 'Comentários acumulados', 'Compartilhamentos acumulados'],
       ...report.posts.map(p => [report.page.name, p.id, p.createdAt, p.text, p.reactions, p.comments, p.shares])], `facebook-${days}dias.csv`)
   }
-  if (accountsQuery.isPending) return <p role="status">Carregando Páginas do Facebook…</p>
-  if (accountsQuery.isError) return <Card className="p-6"><p role="alert">Não foi possível carregar as contas.</p><Button onClick={() => accountsQuery.refetch()}>Tentar novamente</Button></Card>
-  if (!accountId) return <Card className="p-6"><h2 className="text-xl font-bold">Conecte uma Página do Facebook</h2><p className="my-3 text-sm text-slate-600">As métricas da Página ficam separadas do Instagram.</p><a className="font-semibold text-indigo-600 underline" href="/accounts">Gerenciar conexões</a></Card>
+  if (companyQuery.isLoading) return <p role="status">Carregando Página do Facebook…</p>
+  if (companyQuery.error) return <Card className="p-6"><p role="alert">Não foi possível carregar as contas.</p><Button onClick={() => companyQuery.refetch()}>Tentar novamente</Button></Card>
+  if (!accountId) return <Card className="p-6"><h2 className="text-xl font-bold">{company ? `@${company.igUsername} não tem Página do Facebook vinculada` : 'Conecte uma conta'}</h2><p className="my-3 text-sm text-slate-600">O relatório do Facebook mostra só a Página da empresa selecionada no topo.</p><a className="font-semibold text-indigo-600 underline" href="/accounts">Gerenciar conexões</a></Card>
   const ranked = report ? rankFacebookPosts(report.posts).slice(0, 3) : []
   const previous = (report as { previous?: { mediaViews: number | null; posts: number | null; totals: Record<string, { value: number | null; complete: boolean; availablePosts: number }> } | null } | undefined)?.previous
   return <section className="min-w-0 space-y-4 sm:space-y-5" aria-label="Relatório do Facebook">
     <div className="report-header"><div><p className="report-eyebrow">Facebook</p><h2 className="report-title">Desempenho da Página</h2><p className="report-description">Acompanhe sua audiência e os conteúdos publicados.</p></div>
-      <div className="report-filters"><label>Página<select value={accountId} onChange={e => setSelected(e.target.value)}>{accounts.map(a => <option key={a.id} value={a.id}>{a.pageName || 'Página vinculada'} · @{a.igUsername}</option>)}</select></label><label>Período<select value={days} onChange={e => setDays(Number(e.target.value))}>{periods.map(p => <option key={p.days} value={p.days}>{p.label}</option>)}</select></label></div>
+      <div className="report-filters"><label>Página<select value={accountId} disabled aria-readonly="true"><option value={accountId}>{company?.pageName || 'Página vinculada'} · @{company?.igUsername}</option></select></label><label>Período<select value={days} onChange={e => setDays(Number(e.target.value))}>{periods.map(p => <option key={p.days} value={p.days}>{p.label}</option>)}</select></label></div>
     </div>
     <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={query.isFetching} onClick={() => query.refetch()}><RefreshCw size={15} className={`mr-2 ${query.isFetching ? 'animate-spin' : ''}`}/>Atualizar</Button><Button variant="outline" disabled={!report?.posts.length} onClick={exportCsv}><Download size={15} className="mr-2"/>Exportar publicações</Button></div>
     <ReportAccessNotice accountId={accountId} network="Facebook"/>

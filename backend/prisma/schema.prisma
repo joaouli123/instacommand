@@ -175,6 +175,9 @@ model InstagramAccount {
   privateReplyClaims   PrivateReplyClaim[]
   conversations        AutomationConversation[]
   dailyInsights        AccountDailyInsight[]
+  linkedThreadsAccounts ThreadsAccount[]      @relation("ThreadsWorkspace")
+  linkedXAccounts       XAccount[]            @relation("XWorkspace")
+  linkedYouTubeAccounts YouTubeAccount[]      @relation("YouTubeWorkspace")
 
   @@index([userId])
 }
@@ -434,6 +437,9 @@ model XAccount {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
+  /// Company (Instagram account) this profile belongs to; screens and posts never mix companies.
+  workspaceAccountId String?
+  workspaceAccount   InstagramAccount? @relation("XWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
   user                 User                     @relation(fields: [userId], references: [id])
   scheduledPosts       ScheduledPost[]
   postMetrics          XPostMetric[]
@@ -444,6 +450,7 @@ model XAccount {
   conversations        AutomationConversation[]
 
   @@index([userId])
+  @@index([workspaceAccountId])
 }
 
 // Last known counters of each X post, refreshed while they can still change (30 days).
@@ -488,10 +495,14 @@ model YouTubeAccount {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  /// Company (Instagram account) this profile belongs to; screens and posts never mix companies.
+  workspaceAccountId String?
+  workspaceAccount   InstagramAccount? @relation("YouTubeWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
   user           User            @relation(fields: [userId], references: [id])
   scheduledPosts ScheduledPost[]
 
   @@index([userId])
+  @@index([workspaceAccountId])
 }
 
 model ThreadsAccount {
@@ -511,6 +522,9 @@ model ThreadsAccount {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
+  /// Company (Instagram account) this profile belongs to; screens and posts never mix companies.
+  workspaceAccountId String?
+  workspaceAccount   InstagramAccount? @relation("ThreadsWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
   user                 User                     @relation(fields: [userId], references: [id])
   scheduledPosts       ScheduledPost[]
   socialAutomations    SocialAutomation[]
@@ -520,6 +534,7 @@ model ThreadsAccount {
   conversations        AutomationConversation[]
 
   @@index([userId])
+  @@index([workspaceAccountId])
 }
 
 enum MediaType {

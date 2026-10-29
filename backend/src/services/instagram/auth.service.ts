@@ -673,6 +673,7 @@ export const getConnectedThreadsAccounts = async (userId: string) => {
       isActive: true,
       connectedAt: true,
       lastSyncAt: true,
+      workspaceAccountId: true,
     },
   });
 };

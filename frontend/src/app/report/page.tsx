@@ -1,5 +1,6 @@
 "use client"
 
+import { ofCompany } from "@/hooks/useCompanyProfiles"
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
@@ -60,8 +61,8 @@ function summarize(kpis: Kpi[], extra: string[] = []) {
 }
 
 export default function ReportPage() {
-  const { accounts, activeAccount, isLoading } = useActiveAccount()
-  const [accountId, setAccountId] = useState("")
+  // The report covers only the company chosen at the top and its own profiles.
+  const { activeAccount, isLoading } = useActiveAccount()
   const [days, setDays] = useState(30)
   const [compare, setCompare] = useState(true)
   const [networks, setNetworks] = useState({ INSTAGRAM: true, FACEBOOK: true, THREADS: true, X: true })
@@ -69,12 +70,14 @@ export default function ReportPage() {
   const drafts = useRef<Record<string, PdfDraft>>({})
   const register = useRef((key: string, draft: PdfDraft | null) => { if (draft) drafts.current[key] = draft; else delete drafts.current[key] }).current
   const [exporting, setExporting] = useState(false)
-  const account = accounts.find((item) => item.id === (accountId || activeAccount?.id)) || activeAccount
+  const account = activeAccount
   const id = account?.id || ""
   const threadsQuery = useQuery({ queryKey: ["threads-accounts"], queryFn: api.getThreadsAccounts })
-  const threadsId = ((threadsQuery.data || []) as Array<{ id: string }>)[0]?.id
+  const companyThreads = ofCompany((threadsQuery.data || []) as Array<{ id: string; username?: string; workspaceAccountId?: string | null }>, id)
+  const threadsId = companyThreads[0]?.id
   const xAccountsQuery = useXAccounts()
-  const xId = xAccountsQuery.data?.accounts?.[0]?.id || ""
+  const companyX = ofCompany(xAccountsQuery.data?.accounts as Array<{ id: string; username?: string; workspaceAccountId?: string | null }> | undefined, id)
+  const xId = companyX[0]?.id || ""
   const xr = useXReport(networks.X ? xId : "", days)
 
   const ig = useQuery({
@@ -98,8 +101,8 @@ export default function ReportPage() {
     queryFn: ({ signal }) => fetchApi(`/analytics/networks/threads/${encodeURIComponent(threadsId!)}?days=${days}`, { signal }) as Promise<ThReport> })
 
   const until = new Date(), since = new Date(until.getTime() - days * 864e5), prevSince = new Date(since.getTime() - days * 864e5)
-  const xUsername = xAccountsQuery.data?.accounts?.[0]?.username
-  const threadsUsername = ((threadsQuery.data || []) as Array<{ username?: string }>)[0]?.username
+  const xUsername = companyX[0]?.username
+  const threadsUsername = companyThreads[0]?.username
   const handle = account?.igUsername || xUsername || threadsUsername || ""
   const source = dataSource((["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).filter((key) => networks[key]))
   const loading = (networks.INSTAGRAM && ig.isLoading) || (networks.FACEBOOK && fb.isLoading) || (networks.THREADS && th.isLoading) || (networks.X && !!xId && xr.isLoading)
@@ -145,7 +148,7 @@ export default function ReportPage() {
         <div className="flex gap-2"><Button variant="outline" asChild><Link href="/analytics"><ArrowLeft size={15} className="mr-1.5" />Relatórios</Link></Button><Button onClick={() => void download()} disabled={loading || exporting} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700">{exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{exporting ? "Gerando PDF…" : "Baixar PDF"}</Button></div>
       </div>
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-        {account && <label className="text-xs font-semibold text-slate-600">Conta<select value={account.id} onChange={(event) => setAccountId(event.target.value)} className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm">{accounts.map((item) => <option key={item.id} value={item.id}>@{item.igUsername}</option>)}</select></label>}
+        {account && <label className="text-xs font-semibold text-slate-600">Empresa<select value={account.id} disabled aria-readonly="true" className="mt-1 block h-10 rounded-lg border border-slate-200 bg-slate-50 px-2 text-sm"><option value={account.id}>@{account.igUsername}</option></select></label>}
         <label className="text-xs font-semibold text-slate-600">Período<select value={days} onChange={(event) => setDays(Number(event.target.value))} className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm"><option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select></label>
         <div className="flex flex-wrap gap-2">{(["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).map((network) => <label key={network} className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm"><input type="checkbox" checked={networks[network]} onChange={(event) => setNetworks((current) => ({ ...current, [network]: event.target.checked }))} className="accent-indigo-600" />{{ INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X" }[network]}</label>)}</div>
         <label className="flex h-10 items-center gap-2 text-sm text-slate-700"><Switch checked={compare} onCheckedChange={setCompare} />Comparar com o período anterior</label>

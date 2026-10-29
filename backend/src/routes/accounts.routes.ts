@@ -6,6 +6,7 @@ import { isAccountSyncRunning, syncAccountOnce, syncAccountsInBackground } from 
 import { authenticate } from '../middleware/auth';
 import { disconnectXAccount, getConnectedXAccounts, isXConfigured } from '../services/x.service';
 import { disconnectYouTubeAccount, getConnectedYouTubeAccounts, isYouTubeConfigured } from '../services/youtube.service';
+import { autoLinkThreadsAccounts, linkNetworkAccount, type LinkedNetwork } from '../services/workspace-links';
 
 
 const router = Router();
@@ -25,6 +26,7 @@ router.get('/', async (req: any, res, next) => {
 
 router.get('/threads', async (req: any, res, next) => {
   try {
+    await autoLinkThreadsAccounts(req.user.id);
     const accounts = await getConnectedThreadsAccounts(req.user.id);
     res.json(accounts);
   } catch (error) {
@@ -93,6 +95,18 @@ router.get('/:id', async (req: any, res, next) => {
     });
     if (!account) return res.status(404).json({ error: 'Account not found' });
     res.json(account);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Moves a Threads, X or YouTube profile to a company (or unlinks it with null).
+router.patch('/:network(threads|x|youtube)/:id/workspace', async (req: any, res, next) => {
+  try {
+    const network = String(req.params.network).toUpperCase() as LinkedNetwork;
+    const value = req.body?.workspaceAccountId;
+    if (value !== null && typeof value !== 'string') return res.status(400).json({ error: 'Informe a empresa.' });
+    res.json(await linkNetworkAccount(network, req.params.id, req.user.id, value));
   } catch (error) {
     next(error);
   }

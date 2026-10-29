@@ -1,4 +1,5 @@
 import { getPrisma } from '../lib/prisma';
+import { linkAfterConnect } from './workspace-links';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 
@@ -30,11 +31,11 @@ const base64url = (buffer: Buffer) => buffer.toString('base64').replace(/\+/g, '
  * Authorization URL with PKCE. The code_verifier travels inside the signed
  * state, encrypted, so only this server can use it; the state expires in 10 minutes.
  */
-export function createXAuthorization(userId: string) {
+export function createXAuthorization(userId: string, workspaceAccountId?: string | null) {
   const { clientId, redirectUri } = requireConfig();
   const verifier = base64url(crypto.randomBytes(48));
   const challenge = base64url(crypto.createHash('sha256').update(verifier).digest());
-  const state = jwt.sign({ sub: userId, purpose: 'x', v: encryptSecret(verifier), nonce: crypto.randomUUID() }, env.JWT_SECRET, { expiresIn: '10m' });
+  const state = jwt.sign({ sub: userId, purpose: 'x', v: encryptSecret(verifier), nonce: crypto.randomUUID(), ws: workspaceAccountId || undefined }, env.JWT_SECRET, { expiresIn: '10m' });
   const url = new URL(X_AUTHORIZE_URL);
   url.search = new URLSearchParams({
     response_type: 'code', client_id: clientId, redirect_uri: redirectUri, scope: X_SCOPES.join(' '),
@@ -43,12 +44,12 @@ export function createXAuthorization(userId: string) {
   return { url: url.toString() };
 }
 
-export function readXState(state: unknown): { userId: string; verifier: string } | null {
+export function readXState(state: unknown): { userId: string; verifier: string; workspaceAccountId: string | null } | null {
   if (typeof state !== 'string' || !state) return null;
   try {
-    const payload = jwt.verify(state, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: string; v?: string };
+    const payload = jwt.verify(state, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: string; v?: string; ws?: string };
     if (payload.purpose !== 'x' || !payload.sub || !payload.v) return null;
-    return { userId: payload.sub, verifier: decryptSecret(payload.v) };
+    return { userId: payload.sub, verifier: decryptSecret(payload.v), workspaceAccountId: payload.ws || null };
   } catch { return null; }
 }
 
@@ -120,6 +121,7 @@ export async function handleXCallback(code: string, state: unknown) {
     isActive: true, lastSyncAt: new Date(),
   };
   const account = await prisma.xAccount.upsert({ where: { xUserId: profile.id }, update: data, create: { ...data, xUserId: profile.id } });
+  await linkAfterConnect('X', account.id, parsed.userId, parsed.workspaceAccountId);
   return { userId: parsed.userId, account };
 }
 
@@ -155,7 +157,7 @@ export async function getXAccessToken(accountId: string): Promise<string> {
 
 export const getConnectedXAccounts = (userId: string) => prisma.xAccount.findMany({
   where: { userId, isActive: true }, orderBy: { connectedAt: 'asc' },
-  select: { id: true, xUserId: true, username: true, name: true, profilePicUrl: true, followersCount: true, connectedAt: true, lastSyncAt: true, tokenExpiresAt: true },
+  select: { id: true, xUserId: true, username: true, name: true, profilePicUrl: true, followersCount: true, connectedAt: true, lastSyncAt: true, tokenExpiresAt: true, workspaceAccountId: true },
 });
 
 export async function disconnectXAccount(accountId: string, userId: string) {

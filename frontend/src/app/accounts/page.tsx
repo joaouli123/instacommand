@@ -1,5 +1,7 @@
 "use client"
 
+import { CompanyLinkSelect } from "@/components/accounts/CompanyLinkSelect"
+import { getSelectedAccountId } from "@/lib/active-account-store"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
@@ -26,7 +28,7 @@ type ConnectedAccount = {
   // True while the server imports posts and metrics (first sync after connecting).
   syncing?: boolean
 }
-type ConnectedThreadsAccount = { id: string; username: string; name?: string | null; profilePicUrl?: string | null; isActive: boolean }
+type ConnectedThreadsAccount = { id: string; username: string; name?: string | null; profilePicUrl?: string | null; isActive: boolean; workspaceAccountId?: string | null }
 type ThreadsOAuthStatus = { appIdConfigured: boolean; appSecretConfigured: boolean; platformConfigured: boolean; credentialSource: 'platform' | 'workspace' | 'missing' }
 
 import { XAccountsCard } from "@/components/accounts/XAccountsCard"
@@ -94,17 +96,17 @@ export default function AccountsPage() {
       toast.error(t("Falta concluir uma configuração do Threads no servidor. Você não precisa informar credenciais; avise o administrador do sistema."))
       return
     }
-    void startOAuth("/auth/threads/url")
+    void startOAuth(`/auth/threads/url?workspace=${encodeURIComponent(getSelectedAccountId())}`)
   }
 
   const connectX = () => {
     setConnectDialogOpen(false)
-    void startOAuth("/auth/x/url")
+    void startOAuth(`/auth/x/url?workspace=${encodeURIComponent(getSelectedAccountId())}`)
   }
 
   const connectYouTube = () => {
     setConnectDialogOpen(false)
-    void startOAuth("/auth/youtube/url")
+    void startOAuth(`/auth/youtube/url?workspace=${encodeURIComponent(getSelectedAccountId())}`)
   }
 
   const refreshAccounts = useCallback(async () => {
@@ -401,7 +403,7 @@ export default function AccountsPage() {
           <Button variant={threadsAccounts.length ? "outline" : "secondary"} onClick={connectThreads} disabled={Boolean(threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured))} className="gap-2">{threadsAccounts.length ? t("Conectar outra conta") : threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) ? t("Conexão em configuração") : t("Entrar com Threads")}</Button>
         </div>
         {threadsOAuthStatus && (!threadsOAuthStatus.appIdConfigured || !threadsOAuthStatus.appSecretConfigured) && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-semibold">{t("A conexão automática ainda não está pronta")}</p><p className="mt-1">{t("O administrador do UX Code Social precisa concluir a configuração do Threads uma vez no servidor. Você não precisa criar aplicativo, copiar ID ou colar token.")}</p></div>}
-        {threadsAccounts.length > 0 && <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">{threadsAccounts.map((account) => <div key={account.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5"><span className="text-sm font-semibold text-slate-800">@{account.username}</span><div className="flex items-center gap-2"><Badge variant="success">{t("Ativo")}</Badge><Button variant="ghost" size="icon" title={t("Desconectar @{username}", { username: account.username })} onClick={() => disconnectThreads(account)} disabled={disconnectingThreadId === account.id} className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={14}/></Button></div></div>)}</div>}
+        {threadsAccounts.length > 0 && <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">{threadsAccounts.map((account) => <div key={account.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5"><span className="text-sm font-semibold text-slate-800">@{account.username}</span><div className="flex flex-wrap items-center justify-end gap-2"><CompanyLinkSelect network="threads" accountId={account.id} value={account.workspaceAccountId} label={`@${account.username}`} onLinked={() => void refreshAccounts()} /><Badge variant="success">{t("Ativo")}</Badge><Button variant="ghost" size="icon" title={t("Desconectar @{username}", { username: account.username })} onClick={() => disconnectThreads(account)} disabled={disconnectingThreadId === account.id} className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={14}/></Button></div></div>)}</div>}
       </Card>
 
       <XAccountsCard onConnect={connectX} />

@@ -1,5 +1,6 @@
 "use client"
 
+import { CompanyLinkSelect } from "@/components/accounts/CompanyLinkSelect"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { SiX } from "@icons-pack/react-simple-icons"
 import { Trash2 } from "lucide-react"
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { AvatarImage } from "@/components/ui/avatar-image"
 import { useLang, useT } from "@/lib/i18n"
 
-export type XAccount = { id: string; username: string; name?: string | null; profilePicUrl?: string | null; followersCount?: number | null }
+export type XAccount = { id: string; username: string; name?: string | null; profilePicUrl?: string | null; followersCount?: number | null; workspaceAccountId?: string | null }
 export type XAccountsPayload = { configured: boolean; accounts: XAccount[] }
 
 export function useXAccounts() {
@@ -49,7 +50,7 @@ export function XAccountsCard({ onConnect }: { onConnect: () => void }) {
     {!configured && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-semibold">{t("A conexão com o X ainda não está pronta")}</p><p className="mt-1">{t("O administrador precisa cadastrar o Client ID e o Client Secret do app do X no servidor.")}</p></div>}
     {accounts.length > 0 && <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">{accounts.map((account) => <div key={account.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2.5">
       <span className="flex min-w-0 items-center gap-2.5"><span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-xs font-bold text-white"><AvatarImage src={account.profilePicUrl} fallback={account.username[0]?.toUpperCase() || "X"} /></span><span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-800">@{account.username}</span>{account.followersCount != null && <span className="block text-xs text-slate-500">{t("{count} seguidores", { count: account.followersCount.toLocaleString(locale) })}</span>}</span></span>
-      <div className="flex items-center gap-2"><Badge variant="success">{t("Ativo")}</Badge><Button variant="ghost" size="icon" title={t("Desconectar @{username}", { username: account.username })} onClick={() => void disconnect(account)} className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={14} /></Button></div>
+      <div className="flex flex-wrap items-center justify-end gap-2"><CompanyLinkSelect network="x" accountId={account.id} value={account.workspaceAccountId} label={`@${account.username}`} /><Badge variant="success">{t("Ativo")}</Badge><Button variant="ghost" size="icon" title={t("Desconectar @{username}", { username: account.username })} onClick={() => void disconnect(account)} className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={14} /></Button></div>
     </div>)}</div>}
   </Card>
 }

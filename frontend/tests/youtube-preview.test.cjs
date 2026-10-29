@@ -6,14 +6,16 @@ const path = require('node:path');
 const read = (file) => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8');
 const composer = read('app/composer/page.tsx');
 const preview = read('components/preview/SocialPostPreview.tsx');
-const options = read('components/composer/YouTubeOptions.tsx');
+const options = read('components/composer/YouTubeOptions.tsx') + read('lib/publish-compat.ts');
 
-test('YouTube only takes the video format and choosing it moves the post to video', () => {
-  assert.match(composer, /REEL: \["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"\]/);
-  assert.match(composer, /FEED: \["INSTAGRAM", "FACEBOOK", "THREADS", "X"\]/);
-  assert.match(composer, /if \(nextPlatforms\.includes\("YOUTUBE"\) && postType !== "REEL"\) \{\s*setPostType\("REEL"\)/);
-  assert.match(composer, /o YouTube publica somente vídeos/);
-});
+test('YouTube only takes the video format; adding it never wipes the format or the media', () => {
+  assert.match(composer, /FORMAT_PLATFORMS as formatPlatforms/);
+  assert.doesNotMatch(composer, /Formato ajustado para vídeo: o YouTube publica somente vídeos/);
+  assert.match(composer, /const unavailable = !connectedPlatforms\.includes\(target\.id\)/);
+  assert.match(composer, /const formatConflicts = incompatiblePlatforms\(postType, platforms\)/);
+  assert.match(composer, /if \(step === 2 && formatConflicts\.length\)/);
+  assert.match(composer, /if \(compatibilityProblems\.length\) \{\s*toast\.error\(compatibilityProblems\[0\]\)/);
+})
 
 test('composer requires the title and the made-for-kids declaration before sending to YouTube', () => {
   assert.match(composer, /Escreva o título do vídeo para o YouTube\./);

@@ -23,17 +23,13 @@ import { ArtworkStudio } from "@/components/dashboard/ArtworkStudio"
 import { selectAccount } from "@/lib/active-account-store"
 import { isVideoUrl } from "@/lib/media"
 import { getMediaDimensions, SocialPostPreview as ComposerSocialPreview, youtubeFormatOf, type MediaItem, type PostType, type YouTubeFormat } from "@/components/preview/SocialPostPreview"
+import { acceptedKinds, FORMAT_PLATFORMS as formatPlatforms, incompatiblePlatforms, publishProblems } from "@/lib/publish-compat"
+import { ofCompany } from "@/hooks/useCompanyProfiles"
 import { emptyYouTubeSettings, YOUTUBE_FORMAT_DETAILS, YouTubeFormatPicker, youtubeMediaProblem, YouTubeOptions, type YouTubeSettings } from "@/components/composer/YouTubeOptions"
 
 
 
-const formatPlatforms: Record<PostType, string[]> = {
-  FEED: ["INSTAGRAM", "FACEBOOK", "THREADS", "X"],
-  CAROUSEL: ["INSTAGRAM", "FACEBOOK", "THREADS", "X"],
-  REEL: ["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"],
-  STORY: ["INSTAGRAM"],
-  TEXT: ["THREADS", "X"],
-}
+
 
 type PlatformFormatDetail = {
   name: string
@@ -90,9 +86,9 @@ function formatAspectRatio(width: number, height: number) {
 }
 
 type ConnectedAccount = { id: string; igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null; isActive: boolean }
-type ThreadsAccount = { id: string; username: string; name?: string | null; isActive: boolean }
-type XAccount = { id: string; username: string; name?: string | null }
-type YouTubeAccount = { id: string; title: string; handle?: string | null; thumbnailUrl?: string | null; subscriberCount?: number | null }
+type ThreadsAccount = { id: string; username: string; name?: string | null; isActive: boolean; workspaceAccountId?: string | null }
+type XAccount = { id: string; username: string; name?: string | null; workspaceAccountId?: string | null }
+type YouTubeAccount = { id: string; title: string; handle?: string | null; thumbnailUrl?: string | null; subscriberCount?: number | null; workspaceAccountId?: string | null }
 type AiPlanItem = { day: string; format: string; topic: string; hook: string; cta: string; suggestedTime: string }
 type InstagramAudioTrack = { id: string; title: string; audioType?: string; durationInMs?: number | null; artist?: string | null; creatorUsername?: string | null; coverUrl?: string | null; previewUrl?: string | null; previewLink?: string | null }
 type InstagramUserTag = { username: string; x: number; y: number; mediaIndex: number }
@@ -142,12 +138,12 @@ export default function ComposerPage() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [activeMediaIndex, setActiveMediaIndex] = useState(0)
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
-  const [threadsAccounts, setThreadsAccounts] = useState<ThreadsAccount[]>([])
+  const [allThreadsAccounts, setThreadsAccounts] = useState<ThreadsAccount[]>([])
   const [accountId, setAccountId] = useState("")
   const [threadsAccountId, setThreadsAccountId] = useState("")
-  const [xAccounts, setXAccounts] = useState<XAccount[]>([])
+  const [allXAccounts, setXAccounts] = useState<XAccount[]>([])
   const [xAccountId, setXAccountId] = useState("")
-  const [youtubeAccounts, setYouTubeAccounts] = useState<YouTubeAccount[]>([])
+  const [allYouTubeAccounts, setYouTubeAccounts] = useState<YouTubeAccount[]>([])
   const [youtubeAccountId, setYouTubeAccountId] = useState("")
   const [youtubeSettings, setYouTubeSettings] = useState<YouTubeSettings>(emptyYouTubeSettings)
   const [youtubeThumbnailUploading, setYouTubeThumbnailUploading] = useState(false)
@@ -197,10 +193,8 @@ export default function ComposerPage() {
       .then(([instagramAccounts, threadAccounts, draft, xPayload, youtubePayload]) => {
         const nextX = xPayload.accounts || []
         setXAccounts(nextX)
-        if (nextX[0]) setXAccountId(nextX[0].id)
         const nextYouTube = youtubePayload.accounts || []
         setYouTubeAccounts(nextYouTube)
-        if (nextYouTube[0]) setYouTubeAccountId(nextYouTube[0].id)
         const nextAccounts = (instagramAccounts as ConnectedAccount[]).filter((account) => account.isActive)
         const nextThreads = (threadAccounts as ThreadsAccount[]).filter((account) => account.isActive)
         setAccounts(nextAccounts)
@@ -208,7 +202,6 @@ export default function ComposerPage() {
         if (!requestedDraft) setPlatforms(nextAccounts.length ? ["INSTAGRAM"] : [])
         const storedAccountId = window.localStorage.getItem("instacommand_active_account")
         if (nextAccounts.length) setAccountId(nextAccounts.find((account) => account.id === storedAccountId)?.id || nextAccounts[0].id)
-        if (nextThreads[0]) setThreadsAccountId(nextThreads[0].id)
         if (draft) {
           if (!['DRAFT', 'FAILED'].includes(draft.status)) throw new Error('Cancele o agendamento antes de editar. Publicações concluídas não podem ser editadas aqui.')
           if (!nextAccounts.some(a => a.id === draft.accountId)) throw new Error('A conta deste rascunho não está ativa.')
@@ -242,6 +235,21 @@ export default function ComposerPage() {
       })
       .finally(() => setDraftLoading(false))
   }, [])
+
+  // Threads, X and YouTube profiles of the selected company only: a post never goes to another company's profile.
+  const threadsAccounts = ofCompany(allThreadsAccounts, accountId)
+  const xAccounts = ofCompany(allXAccounts, accountId)
+  const youtubeAccounts = ofCompany(allYouTubeAccounts, accountId)
+  useEffect(() => {
+    if (draftLoading) return
+    const keep = (current: string, list: Array<{ id: string }>) => list.some(item => item.id === current) ? current : list[0]?.id || ""
+    setThreadsAccountId(current => keep(current, threadsAccounts))
+    setXAccountId(current => keep(current, xAccounts))
+    setYouTubeAccountId(current => keep(current, youtubeAccounts))
+    const available = (platform: string) => platform === "THREADS" ? threadsAccounts.length > 0 : platform === "X" ? xAccounts.length > 0 : platform === "YOUTUBE" ? youtubeAccounts.length > 0 : true
+    setPlatforms(current => current.every(available) ? current : current.filter(available))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId, allThreadsAccounts, allXAccounts, allYouTubeAccounts, draftLoading])
 
   useEffect(() => {
     const syncSelectedAccount = () => {
@@ -304,6 +312,12 @@ export default function ComposerPage() {
         toast.error("Alguns arquivos foram rejeitados. Use imagens ou vídeos de até 100MB.")
       }
 
+      const kinds = acceptedKinds(postType, platforms)
+      const refused = acceptedFiles.filter(file => !kinds.includes(isVideoFile(file) ? "video" : "image"))
+      if (refused.length) {
+        toast.error(kinds.length === 1 && kinds[0] === "video" ? "Este formato usa vídeo. Para fotos, volte e escolha Foto única ou Carrossel." : postType === "CAROUSEL" ? "No Facebook, o álbum aceita só fotos. Desmarque o Facebook para usar vídeos no carrossel." : "Este formato usa imagem. Para vídeo, volte e escolha o formato Vídeo.")
+        acceptedFiles = acceptedFiles.filter(file => !refused.includes(file))
+      }
       if (acceptedFiles.length === 0) return
 
       const incomingItems = await Promise.all(acceptedFiles.map(async (file, index): Promise<MediaItem> => {
@@ -350,10 +364,12 @@ export default function ComposerPage() {
   })
 
   const activeMedia = mediaItems[activeMediaIndex] ?? null
+  const formatConflicts = incompatiblePlatforms(postType, platforms)
+  const compatibilityProblems = publishProblems({ format: postType, platforms, media: mediaItems, youtubeFormat: youtubeSettings.format })
   const selectedAccount = accounts.find((account) => account.id === accountId)
   const resolvedPreviewPlatform = postType === "TEXT" ? (previewPlatform === "X" || !platforms.includes("THREADS") ? "X" : "THREADS") : previewPlatform
-  const selectedXAccount = xAccounts.find((account) => account.id === xAccountId) || xAccounts[0]
-  const selectedYouTubeAccount = youtubeAccounts.find((account) => account.id === youtubeAccountId) || youtubeAccounts[0]
+  const selectedXAccount = xAccounts.find((account) => account.id === xAccountId)
+  const selectedYouTubeAccount = youtubeAccounts.find((account) => account.id === youtubeAccountId)
   const previewDescription = {
     FEED: "Prévia da publicação única no feed, sem faixa de Stories.",
     CAROUSEL: "Prévia do carrossel no feed, com navegação entre os itens.",
@@ -375,7 +391,8 @@ export default function ComposerPage() {
   }
 
   const changePostType = (nextType: PostType) => {
-    if (postType === nextType) return
+    const sameType = postType === nextType
+    if (sameType && !incompatiblePlatforms(nextType, platforms).length) return
 
     const nextPlatforms = compatiblePlatformsFor(nextType)
     if (!nextPlatforms.length) {
@@ -412,7 +429,9 @@ export default function ComposerPage() {
       setPreviewPlatform(nextPlatforms.includes("THREADS") ? "THREADS" : "X")
     } else if (!nextPlatforms.includes(previewPlatform)) setPreviewPlatform(nextPlatforms[0])
 
-    if (nextType === "TEXT" || nextType === "STORY" || nextType === "REEL" || nextType === "FEED") {
+    if (sameType) {
+      // Same format: keep the media, only the destinations change.
+    } else if (nextType === "TEXT" || nextType === "STORY" || nextType === "REEL" || nextType === "FEED") {
       mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
       setMediaItems([])
       setActiveMediaIndex(0)
@@ -511,24 +530,16 @@ export default function ComposerPage() {
     setPreviewPlatform("YOUTUBE")
   }
 
+  const selectAllPlatforms = () => {
+    const missing = connectedPlatforms.filter(platform => !platforms.includes(platform))
+    if (missing.length) setPlatforms([...platforms, ...missing])
+  }
+
   const togglePlatform = (platform: string) => {
     const nextPlatforms = platforms.includes(platform)
       ? platforms.filter((item) => item !== platform)
       : [...platforms, platform]
-    if (postType === "TEXT" && (!nextPlatforms.length || nextPlatforms.some((item) => !TEXT_ONLY_NETWORKS.includes(item)))) {
-      setPostType("FEED")
-      setMediaItems([])
-      toast("Formato ajustado para foto única, compatível com as redes escolhidas.")
-    }
-    if (nextPlatforms.includes("YOUTUBE") && postType !== "REEL") {
-      setPostType("REEL")
-      if (mediaItems.some((item) => item.kind !== "video") || mediaItems.length > 1) {
-        mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })
-        setMediaItems([])
-        setActiveMediaIndex(0)
-      }
-      toast("Formato ajustado para vídeo: o YouTube publica somente vídeos.")
-    }
+    // The format is chosen in step 2, where networks that cannot take it are pointed out.
     if (!nextPlatforms.includes("YOUTUBE")) setYouTubeSettings(emptyYouTubeSettings())
     if (!nextPlatforms.includes("INSTAGRAM")) {
       setIsAiGenerated(false)
@@ -764,6 +775,10 @@ export default function ComposerPage() {
       toast.error("Conecte uma conta do X ou remova o X da seleção.")
       return
     }
+    if (compatibilityProblems.length) {
+      toast.error(compatibilityProblems[0])
+      return
+    }
     if (platforms.includes("X") && mediaItems.length > 4) {
       toast.error("O X aceita até 4 mídias por post. Remova mídias ou desmarque o X.")
       return
@@ -978,6 +993,7 @@ export default function ComposerPage() {
               {platforms.map((platform) => <span key={platform} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700">{platformNames[platform] || platform}</span>)}
               {!platforms.length && <span className="text-xs text-slate-500">Volte à etapa 1 e escolha uma rede.</span>}
             </div>
+            {formatConflicts.length > 0 && <div role="alert" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900"><p className="font-semibold">Escolha um formato que sirva para as redes selecionadas.</p><p className="mt-0.5">{formatConflicts.map(platform => platformNames[platform] || platform).join(" e ")} não {formatConflicts.length > 1 ? "publicam" : "publica"} {postType === "FEED" ? "foto única" : postType === "CAROUSEL" ? "carrossel" : postType === "REEL" ? "vídeo" : postType === "STORY" ? "Story" : "post só de texto"}. Ao escolher um formato, as redes que não aceitam ficam de fora desta publicação.</p></div>}
             {platforms.length === 1 && platforms[0] === "YOUTUBE" ? <YouTubeFormatPicker value={postType === "REEL" ? youtubeSettings.format : "video"} onChange={chooseYouTubeFormat} media={activeMedia} /> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {[
                 { id: "FEED" as const, label: platforms.length === 1 && platforms[0] === "FACEBOOK" ? "Foto da Página" : platforms.length === 1 && platforms[0] === "THREADS" ? "Post com imagem" : "Foto única", description: "Uma imagem · feed ou post", icon: ImageIcon },
@@ -999,10 +1015,10 @@ export default function ComposerPage() {
                   type="button"
                   onClick={() => available && changePostType(type.id)}
                   disabled={!available}
-                  aria-pressed={postType === type.id}
+                  aria-pressed={postType === type.id && !formatConflicts.length}
                   aria-describedby={!available ? `format-${type.id}-unavailable` : undefined}
                   className={`relative flex min-h-32 flex-col items-start rounded-2xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-55 md:min-h-36 md:p-4 ${
-                    postType === type.id
+                    postType === type.id && !formatConflicts.length
                       ? "border-indigo-600 bg-indigo-50/70 text-indigo-700 shadow-xs ring-1 ring-indigo-600"
                       : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
@@ -1010,8 +1026,8 @@ export default function ComposerPage() {
                   <span className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl ${postType === type.id ? "bg-white text-indigo-600" : "bg-slate-50 text-slate-500"}`}><type.icon size={27} strokeWidth={1.9} /></span>
                   <span className="text-sm font-bold">{typeLabel}</span><span className="mt-1 text-[11px] leading-4 text-slate-500">{typeDescription}</span>
                   {!available && <span id={`format-${type.id}-unavailable`} className="mt-1 text-[10px] leading-4 text-slate-500">{unavailableReason}</span>}
-                  {willAdjustDestinations && <span className="mt-2 text-[10px] font-medium leading-4 text-indigo-700">Usar em {targetPlatforms.map(platform => platformNames[platform] || platform).join(" e ")}</span>}
-                  {postType === type.id && <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>}
+                  {willAdjustDestinations && <span className="mt-2 text-[10px] font-medium leading-4 text-indigo-700">Publica em {targetPlatforms.map(platform => platformNames[platform] || platform).join(", ")}<span className="block text-amber-700">Fica de fora: {platforms.filter(platform => !targetPlatforms.includes(platform)).map(platform => platformNames[platform] || platform).join(", ")}</span></span>}
+                  {postType === type.id && !formatConflicts.length && <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>}
                 </button>
                 })()
               ))}
@@ -1057,18 +1073,21 @@ export default function ComposerPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-700">Onde publicar</p>
                 <p className="mt-1 text-xs text-slate-500">Escolha uma ou várias redes para este conteúdo.</p>
               </div>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">{selectedAccount ? `@${selectedAccount.igUsername}` : "Nenhuma conta do Instagram ativa"}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {connectedPlatforms.length > 1 && <button type="button" onClick={selectAllPlatforms} className="rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">{connectedPlatforms.every(platform => platforms.includes(platform)) ? "Todas selecionadas" : "Selecionar todas"}</button>}
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">{selectedAccount ? `@${selectedAccount.igUsername}` : "Nenhuma conta do Instagram ativa"}</span>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-3">
               {[
                 { id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram, handle: selectedAccount ? `@${selectedAccount.igUsername}` : "Nenhuma conta selecionada", help: selectedAccount ? "Conectado" : "Conecte uma conta em Contas", color: "instagram" },
                 { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook, handle: selectedAccount?.pageName || "Página do Facebook", help: selectedAccount?.pageName ? "Conectado" : "Não conectado", color: "facebook" },
-                { id: "THREADS", label: "Threads", Icon: SiThreads, handle: threadsAccounts[0] ? `@${threadsAccounts[0].username}` : "Conta do Threads", help: threadsAccounts.length ? "Conectado" : "Não conectado", color: "threads" },
-                { id: "X", label: "X", Icon: SiX, handle: selectedXAccount ? `@${selectedXAccount.username}` : "Conta do X", help: xAccounts.length ? "Conectado · até 280 caracteres" : "Não conectado", color: "x" },
-                { id: "YOUTUBE", label: "YouTube", Icon: SiYoutube, handle: selectedYouTubeAccount ? selectedYouTubeAccount.title : "Canal do YouTube", help: youtubeAccounts.length ? "Conectado · vídeos e Shorts" : "Não conectado", color: "youtube" },
+                { id: "THREADS", label: "Threads", Icon: SiThreads, handle: threadsAccounts[0] ? `@${threadsAccounts[0].username}` : "Conta do Threads", help: threadsAccounts.length ? "Conectado" : "Sem perfil nesta empresa", color: "threads" },
+                { id: "X", label: "X", Icon: SiX, handle: selectedXAccount ? `@${selectedXAccount.username}` : "Conta do X", help: xAccounts.length ? "Conectado · até 280 caracteres" : "Sem perfil nesta empresa", color: "x" },
+                { id: "YOUTUBE", label: "YouTube", Icon: SiYoutube, handle: selectedYouTubeAccount ? selectedYouTubeAccount.title : "Canal do YouTube", help: youtubeAccounts.length ? "Conectado · vídeos e Shorts" : "Sem canal nesta empresa", color: "youtube" },
               ].map((target) => {
                 const selected = platforms.includes(target.id)
-                const unavailable = (target.id === "INSTAGRAM" && (!selectedAccount || postType === "TEXT")) || (target.id === "X" && (!xAccounts.length || postType === "STORY")) || (target.id === "YOUTUBE" && !youtubeAccounts.length) || (target.id === "THREADS" && (!threadsAccounts.length || postType === "STORY")) || (target.id === "FACEBOOK" && (!selectedAccount?.pageName || postType === "STORY" || postType === "TEXT"))
+                const unavailable = !connectedPlatforms.includes(target.id)
                 return (
                   <button
                     key={target.id}
@@ -1446,6 +1465,7 @@ export default function ComposerPage() {
           </div>}
 
           {step === 4 && <div className="animate-fade-in space-y-5">
+            {compatibilityProblems.length > 0 && <section role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3"><h3 className="text-sm font-bold text-rose-900">Corrija antes de publicar</h3><ul className="mt-1.5 list-disc space-y-1 pl-5 text-xs leading-5 text-rose-800">{compatibilityProblems.map(problem => <li key={problem}>{problem}</li>)}</ul></section>}
             <section><h3 className="text-sm font-bold text-slate-900">Redes sociais selecionadas</h3><div className="mt-2 flex flex-wrap gap-2">{platforms.map(platform => { const network = platform === "INSTAGRAM" ? { label: `Instagram · @${selectedAccount?.igUsername || "conta"}`, Icon: SiInstagram, bg: "bg-gradient-to-br from-fuchsia-600 via-pink-500 to-amber-400" } : platform === "FACEBOOK" ? { label: `Facebook · ${selectedAccount?.pageName || "Página"}`, Icon: SiFacebook, bg: "bg-[#1877F2]" } : platform === "X" ? { label: `X · @${selectedXAccount?.username || "conta"}`, Icon: SiX, bg: "bg-black" } : platform === "YOUTUBE" ? { label: `YouTube · ${selectedYouTubeAccount?.title || "canal"}`, Icon: SiYoutube, bg: "bg-[#ff0033]" } : { label: `Threads · @${threadsAccounts.find(account => account.id === threadsAccountId)?.username || "conta"}`, Icon: SiThreads, bg: "bg-[#101113]" }; return <span key={platform} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><span className={`flex h-7 w-7 items-center justify-center rounded-lg ${network.bg}`}><network.Icon size={17} color="#fff" title={network.label} /></span>{network.label}</span> })}</div></section>
             <section className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Formato</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "FEED" ? "Foto única" : postType === "CAROUSEL" ? "Carrossel" : postType === "REEL" ? (platforms.length === 1 && platforms[0] === "YOUTUBE" ? YOUTUBE_FORMAT_DETAILS[youtubeSettings.format].name : platforms.includes("YOUTUBE") ? `Vídeo / Reel · ${YOUTUBE_FORMAT_DETAILS[youtubeSettings.format].name}` : "Vídeo / Reel") : postType === "STORY" ? "Story" : "Post de texto · Threads"}</p></div><div className="rounded-xl border border-slate-200 p-3"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Mídia</span><p className="mt-1 text-sm font-semibold text-slate-900">{postType === "TEXT" ? "Somente texto" : `${mediaItems.length} ${mediaItems.length === 1 ? "arquivo" : "arquivos"}`}</p></div></section>
             <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-bold text-slate-900">Resumo do conteúdo</h3><div className="mt-3 flex gap-3">{activeMedia && <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white">{activeMedia.kind === "video" ? <video src={activeMedia.src} muted playsInline className="h-full w-full object-cover" /> : <img src={activeMedia.src} alt="Mídia selecionada" className="h-full w-full object-cover" />}</div>}<div className="min-w-0"><p className="line-clamp-4 whitespace-pre-wrap text-sm leading-5 text-slate-700">{caption || "Adicione a legenda na etapa Conteúdo."}</p>{hashtags.length > 0 && <p className="mt-1 line-clamp-1 text-xs text-indigo-600">{hashtags.map(tag => `#${tag} `)}</p>}</div></div></section>
@@ -1454,7 +1474,7 @@ export default function ComposerPage() {
 
           <div className="flex items-center justify-between border-t border-slate-100 pt-4">
             <Button type="button" variant="outline" disabled={step === 1} onClick={() => setStep(current => Math.max(1, current - 1))} className="gap-1"><ChevronLeft size={16} />Voltar</Button>
-            {step < 4 ? <Button type="button" onClick={() => { if (step === 1 && (!accountId || !platforms.length)) { toast.error("Selecione uma rede disponível antes de continuar."); return } if (step === 3 && !caption.trim() && !mediaItems.length) { toast.error("Adicione uma legenda ou mídia antes de revisar."); return } setStep(current => current + 1) }} className="gap-1 bg-indigo-600 text-white hover:bg-indigo-700">Continuar<ChevronRight size={16} /></Button> : <div className="flex flex-1 justify-end gap-2"><Button type="button" variant="outline" onClick={() => submitPost("schedule")} disabled={isSubmitting} className="gap-2"><CalendarIcon size={16} />Programar para depois</Button><Button type="button" onClick={() => submitPost("publish")} disabled={isSubmitting} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Send size={16} />{isSubmitting ? "Enviando..." : "Publicar agora"}</Button></div>}
+            {step < 4 ? <Button type="button" onClick={() => { if (step === 1 && (!accountId || !platforms.length)) { toast.error("Selecione uma rede disponível antes de continuar."); return } if (step === 2 && formatConflicts.length) { toast.error(compatibilityProblems[0]); return } if (step === 3 && !caption.trim() && !mediaItems.length) { toast.error("Adicione uma legenda ou mídia antes de revisar."); return } if (step === 3 && compatibilityProblems.length) { toast.error(compatibilityProblems[0]); return } setStep(current => current + 1) }} className="gap-1 bg-indigo-600 text-white hover:bg-indigo-700">Continuar<ChevronRight size={16} /></Button> : <div className="flex flex-1 justify-end gap-2"><Button type="button" variant="outline" onClick={() => submitPost("schedule")} disabled={isSubmitting} className="gap-2"><CalendarIcon size={16} />Programar para depois</Button><Button type="button" onClick={() => submitPost("publish")} disabled={isSubmitting} className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"><Send size={16} />{isSubmitting ? "Enviando..." : "Publicar agora"}</Button></div>}
           </div>
         </Card>
       </div>
@@ -1464,7 +1484,7 @@ export default function ComposerPage() {
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-xs md:p-5">
           <div className="flex items-center justify-between gap-3"><div><h3 className="section-title">Prévia da publicação</h3><p className="text-xs text-slate-500">{previewDescription}</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500"><Eye size={17} /></span></div>
           <div className="mt-4 flex w-full gap-1 rounded-md bg-slate-100 p-1" role="tablist" aria-label="Prévia por plataforma">
-            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }, { id: "X", label: "X", Icon: SiX }, { id: "YOUTUBE", label: "YouTube", Icon: SiYoutube }].filter(tab => postType === "TEXT" ? TEXT_ONLY_NETWORKS.includes(tab.id) : postType === "STORY" ? tab.id === "INSTAGRAM" || tab.id === "FACEBOOK" : tab.id !== "YOUTUBE" || postType === "REEL").map(tab => <button key={tab.id} type="button" role="tab" aria-label={postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook (prévia visual)" : tab.label} aria-selected={resolvedPreviewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${resolvedPreviewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook · prévia" : tab.label}</button>)}
+            {[{ id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram }, { id: "FACEBOOK", label: "Facebook", Icon: SiFacebook }, { id: "THREADS", label: "Threads", Icon: SiThreads }, { id: "X", label: "X", Icon: SiX }, { id: "YOUTUBE", label: "YouTube", Icon: SiYoutube }].filter(tab => !platforms.length || platforms.includes(tab.id) || (postType === "STORY" && tab.id === "FACEBOOK")).filter(tab => postType === "TEXT" ? TEXT_ONLY_NETWORKS.includes(tab.id) : postType === "STORY" ? tab.id === "INSTAGRAM" || tab.id === "FACEBOOK" : tab.id !== "YOUTUBE" || postType === "REEL").map(tab => <button key={tab.id} type="button" role="tab" aria-label={postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook (prévia visual)" : tab.label} aria-selected={resolvedPreviewPlatform === tab.id} onClick={() => setPreviewPlatform(tab.id)} className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1.5 py-2 text-[11px] font-semibold transition sm:text-xs ${resolvedPreviewPlatform === tab.id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><tab.Icon size={15} title={tab.label} />{postType === "STORY" && tab.id === "FACEBOOK" ? "Facebook · prévia" : tab.label}</button>)}
           </div>
           {postType === "STORY" && resolvedPreviewPlatform === "FACEBOOK" && <p role="note" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">Apenas prévia visual. Facebook Stories não está habilitado para publicação neste compositor.</p>}
           {postType === "CAROUSEL" && resolvedPreviewPlatform === "FACEBOOK" && (mediaItems.some(item => item.kind === "video")

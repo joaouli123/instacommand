@@ -15,6 +15,7 @@ import { isSessionRevoked, revokeSession } from '../utils/session-security';
 import { syncAccountsInBackground } from '../services/account-sync.service';
 import { createXAuthorization, handleXCallback, readXState } from '../services/x.service';
 import { createYouTubeAuthorization, handleYouTubeCallback, readYouTubeState } from '../services/youtube.service';
+import { autoLinkThreadsAccounts, linkAfterConnect, ownedWorkspaceId } from '../services/workspace-links';
 
 const router = Router();
 const prisma = getPrisma();
@@ -82,8 +83,8 @@ const getAuthenticatedUser = async (req: any) => {
   return prisma.user.findUnique({ where: { id: payload.id } });
 };
 
-const createOAuthState = (userId: string, purpose: OAuthPurpose, token: string) => jwt.sign(
-  { sub: userId, purpose, nonce: randomUUID(), binding: sessionBinding(token) },
+const createOAuthState = (userId: string, purpose: OAuthPurpose, token: string, workspaceAccountId?: string | null) => jwt.sign(
+  { sub: userId, purpose, nonce: randomUUID(), binding: sessionBinding(token), ws: workspaceAccountId || undefined },
   env.JWT_SECRET,
   { expiresIn: '10m' },
 );
@@ -91,9 +92,9 @@ const createOAuthState = (userId: string, purpose: OAuthPurpose, token: string) 
 const getOAuthState = async (value: unknown, purpose: OAuthPurpose) => {
   if (typeof value !== 'string' || !value) return null;
   try {
-    const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: OAuthPurpose; nonce?: string; exp?: number; binding?: string };
+    const payload = jwt.verify(value, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub?: string; purpose?: OAuthPurpose; nonce?: string; exp?: number; binding?: string; ws?: string };
     if (payload.purpose !== purpose || !payload.sub || !payload.binding || !/^[a-f0-9]{64}$/.test(payload.binding)) return null;
-    return await consumeOAuthNonce(payload, purpose) ? { userId: payload.sub, binding: payload.binding } : null;
+    return await consumeOAuthNonce(payload, purpose) ? { userId: payload.sub, binding: payload.binding, workspaceAccountId: payload.ws || null } : null;
   } catch {
     return null;
   }
@@ -233,7 +234,7 @@ router.get('/threads/url', authenticate, async (req: any, res, next) => {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
 
-    const state = createOAuthState(user.id, 'threads', getBearerOrCookieToken(req)!);
+    const state = createOAuthState(user.id, 'threads', getBearerOrCookieToken(req)!, await ownedWorkspaceId(user.id, req.query.workspace));
     return res.json({ url: await getThreadsOAuthUrl(user.id, state, req.query.automations === '1') });
   } catch (error) {
     return next(error);
@@ -245,7 +246,7 @@ router.get('/threads', async (req: any, res, next) => {
     const user = await getAuthenticatedUser(req);
     if (!user) return res.redirect(loginUrl('/accounts'));
 
-    const state = createOAuthState(user.id, 'threads', getBearerOrCookieToken(req)!);
+    const state = createOAuthState(user.id, 'threads', getBearerOrCookieToken(req)!, await ownedWorkspaceId(user.id, req.query.workspace));
     const url = await getThreadsOAuthUrl(user.id, state, req.query.automations === '1');
     return res.redirect(url);
   } catch (error) {
@@ -267,7 +268,9 @@ router.get('/threads/callback', async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: state.userId } });
     if (!user) return res.redirect(loginUrl('/accounts'));
 
-    await handleThreadsOAuthCallback(code, user.id);
+    const threadsAccount = await handleThreadsOAuthCallback(code, user.id);
+    if (state.workspaceAccountId) await linkAfterConnect('THREADS', threadsAccount.id, user.id, state.workspaceAccountId);
+    else await autoLinkThreadsAccounts(user.id);
     const oauthSession = createOAuthSessionHandoff(user.id, state.binding);
     return res.redirect(`${env.FRONTEND_URL.replace(/\/$/, '')}/accounts?threads_connected=1&oauth_session=${encodeURIComponent(oauthSession)}`);
   } catch (error) {
@@ -285,7 +288,7 @@ router.get('/x/url', authenticate, async (req: any, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
-    return res.json(createXAuthorization(user.id));
+    return res.json(createXAuthorization(user.id, await ownedWorkspaceId(user.id, req.query.workspace)));
   } catch (error) {
     return next(error);
   }
@@ -315,7 +318,7 @@ router.get('/youtube/url', authenticate, async (req: any, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
-    return res.json(createYouTubeAuthorization(user.id));
+    return res.json(createYouTubeAuthorization(user.id, await ownedWorkspaceId(user.id, req.query.workspace)));
   } catch (error) {
     return next(error);
   }

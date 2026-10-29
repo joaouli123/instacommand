@@ -71,6 +71,7 @@ export const api = {
   disconnectXAccount: (id: string) => fetchApi(`/accounts/x/${id}`, { method: 'DELETE' }),
   getYouTubeAccounts: () => fetchApi('/accounts/youtube'),
   disconnectYouTubeAccount: (id: string) => fetchApi(`/accounts/youtube/${id}`, { method: 'DELETE' }),
+  linkNetworkAccount: (network: 'threads' | 'x' | 'youtube', id: string, workspaceAccountId: string | null) => fetchApi(`/accounts/${network}/${encodeURIComponent(id)}/workspace`, { method: 'PATCH', body: JSON.stringify({ workspaceAccountId }) }),
   uploadMedia: (files: File[]) => {
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));

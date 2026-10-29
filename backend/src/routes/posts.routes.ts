@@ -12,6 +12,7 @@ import { env } from '../config/env';
 import { assertPostReady, SUPPORTED_PLATFORMS, TEXT_PLATFORMS, textLimitFor, X_MAX_MEDIA, X_TEXT_LIMIT, xTextLength } from '../services/post-readiness';
 import { deleteXPost } from '../services/x.service';
 import { validateYouTubeSettings } from '../services/youtube-settings';
+import { assertSameWorkspace } from '../services/workspace-links';
 
 /** Rules for X on top of the shared ones: 280 characters and up to 4 media. */
 const xRuleError = (platforms: string[], caption: unknown, mediaCount: number) => {
@@ -86,6 +87,11 @@ router.post('/', async (req: any, res, next) => {
     if (normalizedPlatforms.includes('YOUTUBE') && !youtubeAccount) {
       return res.status(400).json({ error: 'Conecte um canal do YouTube antes de selecionar essa plataforma.' });
     }
+    assertSameWorkspace(account.id, [
+      { network: 'THREADS', account: normalizedPlatforms.includes('THREADS') ? threadsAccount : null },
+      { network: 'X', account: normalizedPlatforms.includes('X') ? xAccount : null },
+      { network: 'YOUTUBE', account: normalizedPlatforms.includes('YOUTUBE') ? youtubeAccount : null },
+    ]);
     const normalizedYouTubeSettings = normalizedPlatforms.includes('YOUTUBE') ? validateYouTubeSettings(youtubeSettings) : null;
     if (normalizedPlatforms.includes('FACEBOOK') && !account.pageId) {
       return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
@@ -323,6 +329,7 @@ router.patch('/:id', async (req: any, res, next) => {
         ? await prisma.xAccount.findFirst({ where: { id: nextXAccountId, userId: req.user.id, isActive: true } })
         : null;
       if (!xAccount) return res.status(400).json({ error: 'Conecte uma conta do X antes de selecionar essa plataforma.' });
+      assertSameWorkspace(post.accountId, [{ network: 'X', account: xAccount }]);
     }
     if (nextPlatforms.includes('YOUTUBE')) {
       const nextYouTubeAccountId = youtubeAccountId === undefined ? post.youtubeAccountId : youtubeAccountId;
@@ -330,6 +337,7 @@ router.patch('/:id', async (req: any, res, next) => {
         ? await prisma.youTubeAccount.findFirst({ where: { id: nextYouTubeAccountId, userId: req.user.id, isActive: true } })
         : null;
       if (!youtubeAccount) return res.status(400).json({ error: 'Conecte um canal do YouTube antes de selecionar essa plataforma.' });
+      assertSameWorkspace(post.accountId, [{ network: 'YOUTUBE', account: youtubeAccount }]);
     }
     const nextYouTubeSettings = youtubeSettings === undefined ? post.youtubeSettings : validateYouTubeSettings(youtubeSettings);
     if (nextPlatforms.includes('THREADS')) {
@@ -338,6 +346,7 @@ router.patch('/:id', async (req: any, res, next) => {
         ? await prisma.threadsAccount.findFirst({ where: { id: nextThreadsAccountId, userId: req.user.id, isActive: true } })
         : null;
       if (!threadsAccount) return res.status(400).json({ error: 'Conecte uma conta do Threads antes de selecionar essa plataforma.' });
+      assertSameWorkspace(post.accountId, [{ network: 'THREADS', account: threadsAccount }]);
     }
     if (nextPlatforms.includes('FACEBOOK')) {
       const account = await prisma.instagramAccount.findFirst({ where: { id: post.accountId, userId: req.user.id, isActive: true } });

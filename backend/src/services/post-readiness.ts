@@ -41,6 +41,7 @@ export function assertPostReady(post: { mediaType: string; mediaUrls: string[]; 
   }
   if (!post.mediaUrls.length) throw new ValidationError('Este rascunho ainda não tem mídia. Abra o compositor e adicione as imagens ou o vídeo antes de publicar ou agendar.');
   if (post.mediaType === 'CAROUSEL' && (post.mediaUrls.length < 2 || post.mediaUrls.length > 10)) throw new ValidationError('O carrossel precisa de 2 a 10 mídias.');
+  if (post.mediaType === 'CAROUSEL' && platforms.includes('FACEBOOK') && post.mediaUrls.some(isVideoUrl)) throw new ValidationError('No Facebook, o álbum aceita só fotos. Remova os vídeos ou desmarque o Facebook.');
   if (post.mediaType === 'CAROUSEL' && platforms.includes('X') && post.mediaUrls.length > X_MAX_MEDIA) throw new ValidationError(`O X aceita até ${X_MAX_MEDIA} imagens por post. Use até ${X_MAX_MEDIA} ou desmarque o X.`);
   if (post.mediaType !== 'CAROUSEL' && post.mediaUrls.length !== 1) throw new ValidationError('Este formato usa uma única mídia.');
   if (post.mediaType === 'STORY' && platforms.some(p => p !== 'INSTAGRAM')) throw new ValidationError('Stories só estão disponíveis no Instagram.');

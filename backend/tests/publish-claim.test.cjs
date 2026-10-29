@@ -44,13 +44,20 @@ beforeEach(() => {
 
 test('disconnected accounts block Instagram, Facebook and Threads queue deliveries without remote writes', async () => {
   for (const platform of ['INSTAGRAM', 'FACEBOOK', 'THREADS']) {
-    row.status = 'SCHEDULED'; row.platforms = [platform]; row.threadsAccount = { id: 'threads' };
+    row.status = 'SCHEDULED'; row.platforms = [platform]; row.threadsAccount = { id: 'threads', workspaceAccountId: 'account' };
     connectedAccount.isActive = false;
     await assert.rejects(publishPost('post', {}), /está desconectada/);
     assert.equal(row.status, 'FAILED');
     assert.deepEqual(writes, []);
     assert.deepEqual(publishedRows, []);
   }
+});
+
+test('a queued post whose Threads profile belongs to another company fails without remote writes', async () => {
+  row.status = 'SCHEDULED'; row.platforms = ['THREADS']; row.threadsAccount = { id: 'threads', workspaceAccountId: 'another-company' };
+  await assert.rejects(publishPost('post', {}), /pertence a outra empresa/);
+  assert.equal(row.status, 'FAILED');
+  assert.deepEqual(writes, []);
 });
 
 test('a missing or foreign workspace connection cannot publish a queued post', async () => {

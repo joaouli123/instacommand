@@ -6,7 +6,8 @@ import { useState } from "react"
 import { ChevronDown, ImagePlus, Loader2, MonitorPlay, Smartphone, X } from "lucide-react"
 import { SiYoutube } from "@icons-pack/react-simple-icons"
 import { Input } from "@/components/ui/input"
-import { fitsYouTubeShort, YOUTUBE_SHORT_MAX_SECONDS, type MediaItem, type YouTubeFormat, type YouTubePrivacy } from "@/components/preview/SocialPostPreview"
+import { fitsYouTubeShort, type MediaItem, type YouTubeFormat, type YouTubePrivacy } from "@/components/preview/SocialPostPreview"
+import { youtubeShortProblem } from "@/lib/publish-compat"
 
 export type YouTubeLicense = "youtube" | "creativeCommon"
 export type YouTubeSettings = {
@@ -45,15 +46,8 @@ export const YOUTUBE_FORMAT_DETAILS: Record<YouTubeFormat, { name: string; shape
 /** YouTube counts tags with spaces as quoted and joins them with commas. */
 const tagsLength = (tags: string[]) => tags.reduce((total, tag) => total + tag.length + (/\s/.test(tag) ? 2 : 0), 0) + Math.max(0, tags.length - 1)
 
-const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`
-
 /** Video that YouTube would not publish in the chosen format, or null. */
-export function youtubeMediaProblem(format: YouTubeFormat, media: MediaItem | null) {
-  if (format !== "short" || media?.kind !== "video" || !media.width || !media.height) return null
-  if (media.width > media.height) return "Este vídeo é horizontal: o YouTube só publica como Short vídeos verticais ou quadrados. Escolha Vídeo do YouTube ou envie um vídeo vertical."
-  if (media.duration !== undefined && media.duration > YOUTUBE_SHORT_MAX_SECONDS) return `Este vídeo tem ${formatDuration(media.duration)}: Shorts vão até 3 minutos. Escolha Vídeo do YouTube ou envie um vídeo mais curto.`
-  return null
-}
+export const youtubeMediaProblem = (format: YouTubeFormat, media: MediaItem | null) => format === "short" ? youtubeShortProblem(media) : null
 
 /** Two big cards to choose between a regular video and a Short. */
 export function YouTubeFormatPicker({ value, onChange, media, compact = false }: { value: YouTubeFormat; onChange: (format: YouTubeFormat) => void; media?: MediaItem | null; compact?: boolean }) {

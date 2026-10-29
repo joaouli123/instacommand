@@ -1,5 +1,6 @@
 'use client'
 
+import { useCompanyProfiles } from '@/hooks/useCompanyProfiles'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, fetchApi } from '@/lib/api'
@@ -30,8 +31,8 @@ export function ThreadsReport() {
   const [selectedId, setSelectedId] = useState('')
   const [days, setDays] = useState(30)
   const [connecting, setConnecting] = useState(false)
-  const accountsQuery = useQuery({ queryKey: ['threads-accounts'], queryFn: api.getThreadsAccounts })
-  const accounts = (accountsQuery.data || []) as Array<{ id: string; username: string }>
+  // Only the Threads profiles of the company chosen at the top.
+  const { company, companyId, threads: accounts, isLoading: profilesLoading } = useCompanyProfiles()
   const accountId = accounts.some(a => a.id === selectedId) ? selectedId : accounts[0]?.id || ''
   const reportQuery = useQuery<Report>({
     queryKey: ['threads-report', accountId, days], enabled: !!accountId,
@@ -67,7 +68,7 @@ export function ThreadsReport() {
     authWindow.document.body.textContent = t('Abrindo autorização segura…')
     setConnecting(true)
     try {
-      const result = await fetchApi('/auth/threads/url') as { url: string }
+      const result = await fetchApi(`/auth/threads/url?workspace=${encodeURIComponent(companyId)}`) as { url: string }
       authWindow.location.replace(withAuthLocale(result.url))
     } catch (error) { authWindow.close(); toast.error(error instanceof Error ? error.message : t('Não foi possível abrir a autorização')) }
     finally { setConnecting(false) }
@@ -79,9 +80,8 @@ export function ThreadsReport() {
         report.metrics[key]?.value ?? '', report.metrics[key]?.available ? t('Sim') : t('Não')])]
     downloadReport(rows, `threads-${report.account.username}-${t('{days}dias', { days })}.csv`)
   }
-  if (accountsQuery.isPending) return <p role="status">{t('Carregando contas do Threads...')}</p>
-  if (accountsQuery.isError) return <Card className="p-6"><p role="alert">{t('Não foi possível carregar suas contas do Threads.')}</p><Button onClick={() => accountsQuery.refetch()}>{t('Tentar novamente')}</Button></Card>
-  if (!accountId) return <Card className="p-8 text-center"><h2 className="text-xl font-bold">{t('Conecte seu Threads')}</h2><p className="my-3 text-sm text-slate-600">{t('Entre na sua conta e autorize a leitura de métricas. Não é necessário copiar tokens.')}</p><Button onClick={connect} disabled={connecting}>{connecting ? t('Abrindo...') : t('Conectar Threads')}</Button></Card>
+  if (profilesLoading) return <p role="status">{t('Carregando contas do Threads...')}</p>
+  if (!accountId) return <Card className="p-8 text-center"><h2 className="text-xl font-bold">Nenhum perfil do Threads nesta empresa</h2><p className="mx-auto my-3 max-w-md text-sm text-slate-600">Os relatórios mostram só os perfis da empresa selecionada no topo{company ? ` (@${company.igUsername})` : ''}. Conecte o perfil desta empresa ou vincule um perfil já conectado em Contas.</p><div className="flex flex-wrap justify-center gap-3"><Button onClick={connect} disabled={connecting || !companyId}>{connecting ? t('Abrindo...') : t('Conectar Threads')}</Button><a className="inline-flex h-10 items-center text-sm font-semibold text-indigo-600 underline" href="/accounts">Vincular em Contas</a></div></Card>
   const reasons = new Set(report?.issues.map(issue => issue.reason))
   const requiresReconnect = reasons.has('permission') || reasons.has('expired')
   const metaInternalError = report?.issues.some(issue => issue.status === 500 && issue.code === 1)

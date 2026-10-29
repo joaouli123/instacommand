@@ -10,6 +10,7 @@ import { RiBarChartLine, RiChat1Line, RiShare2Line } from "@remixicon/react"
 import { RiAccountCircleLine, RiAddLine, RiArrowLeftLine, RiBookmarkLine, RiChat3Line, RiCloseLine, RiEmotionHappyLine, RiHeartFill, RiHeartLine, RiImageLine, RiMore2Line, RiMusic2Line, RiPauseFill, RiPlayFill, RiRepeat2Line, RiSearchLine, RiSendPlaneLine, RiShareForwardLine, RiThumbUpFill, RiThumbUpLine, RiVolumeMuteLine, RiVolumeUpLine } from "@remixicon/react"
 import { RiDownload2Line, RiGlobalLine, RiLinkM, RiLock2Line, RiThumbDownLine } from "@remixicon/react"
 import { AvatarImage } from "@/components/ui/avatar-image"
+import { YOUTUBE_SHORT_MAX_SECONDS } from "@/lib/publish-compat"
 
 export type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY" | "TEXT"
 export type PreviewAccount = { igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null }
@@ -283,7 +284,6 @@ const YOUTUBE_PRIVACY_LABEL: Record<YouTubePrivacy, { label: string; Icon: typeo
 }
 
 /** YouTube's own Shorts rule: vertical or square and up to 3 minutes. */
-export const YOUTUBE_SHORT_MAX_SECONDS = 180
 export const fitsYouTubeShort = (media: MediaItem | null) => Boolean(media?.width && media.height && media.width <= media.height && (media.duration === undefined || media.duration <= YOUTUBE_SHORT_MAX_SECONDS))
 
 /** Format the post was set up as; older drafts without one follow the video's shape. */

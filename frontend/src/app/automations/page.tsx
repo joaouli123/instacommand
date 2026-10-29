@@ -1,5 +1,7 @@
 "use client"
 
+import { getSelectedAccountId } from "@/lib/active-account-store"
+import { ofCompany } from "@/hooks/useCompanyProfiles"
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -23,11 +25,13 @@ export default function AutomationsPage() {
   const t = useT()
   const [platform, setPlatform] = useState<Platform>("INSTAGRAM")
   const [threadId, setThreadId] = useState("")
-  const threads = useQuery({ queryKey: ["threads-accounts"], queryFn: () => api.getThreadsAccounts() as Promise<Array<{ id: string; username: string }>> })
+  // Only the profiles of the company chosen at the top.
+  const threadsQuery = useQuery({ queryKey: ["threads-accounts"], queryFn: () => api.getThreadsAccounts() as Promise<Array<{ id: string; username: string; workspaceAccountId?: string | null }>> })
+  const threads = { data: ofCompany(threadsQuery.data, activeAccount?.id || ""), isLoading: threadsQuery.isLoading }
   const selectedThread = threads.data?.find((account) => account.id === threadId) || threads.data?.[0]
   // Same cache entry as the Accounts page, which stores the whole { configured, accounts } payload.
-  const xQuery = useQuery({ queryKey: ["x-accounts"], queryFn: () => api.getXAccounts() as Promise<{ accounts?: Array<{ id: string; username: string }> }> })
-  const xAccounts = { data: xQuery.data?.accounts, isLoading: xQuery.isLoading }
+  const xQuery = useQuery({ queryKey: ["x-accounts"], queryFn: () => api.getXAccounts() as Promise<{ accounts?: Array<{ id: string; username: string; workspaceAccountId?: string | null }> }> })
+  const xAccounts = { data: ofCompany(xQuery.data?.accounts, activeAccount?.id || ""), isLoading: xQuery.isLoading }
   const [xId, setXId] = useState("")
   const selectedX = xAccounts.data?.find((account) => account.id === xId) || xAccounts.data?.[0]
   const accountId = platform === "THREADS" ? selectedThread?.id : platform === "X" ? selectedX?.id : activeAccount?.id
@@ -87,7 +91,7 @@ function AutomationWorkspace({ accountId, username, platform }: { accountId: str
     if (!popup) return toast.error(t("Permita pop-ups para autorizar sem sair desta página."))
     popup.opener = null
     popup.document.body.textContent = t("Abrindo autorização segura do Threads…")
-    try { const response = await fetchApi("/auth/threads/url?automations=1") as { url: string }; popup.location.replace(withAuthLocale(response.url)) }
+    try { const response = await fetchApi(`/auth/threads/url?automations=1&workspace=${encodeURIComponent(getSelectedAccountId())}`) as { url: string }; popup.location.replace(withAuthLocale(response.url)) }
     catch (error) { popup.close(); toast.error(error instanceof Error ? error.message : t("Não foi possível abrir a autorização.")) }
   }
 

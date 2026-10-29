@@ -1,5 +1,6 @@
 'use client'
 
+import { useCompanyProfiles } from '@/hooks/useCompanyProfiles'
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Download, ExternalLink, RefreshCw } from 'lucide-react'
@@ -41,8 +42,8 @@ export function XReport() {
   const [selectedId, setSelectedId] = useState('')
   const [days, setDays] = useState(30)
   const [order, setOrder] = useState<'engagement' | 'impressions' | 'recent'>('engagement')
-  const accountsQuery = useXAccounts()
-  const accounts = accountsQuery.data?.accounts || []
+  // Only the X profiles of the company chosen at the top.
+  const { company, companyId, x: accounts, xConfigured, isLoading: profilesLoading } = useCompanyProfiles()
   const accountId = accounts.some((a) => a.id === selectedId) ? selectedId : accounts[0]?.id || ''
   const reportQuery = useXReport(accountId, days)
   const queryClient = useQueryClient()
@@ -64,7 +65,7 @@ export function XReport() {
     if (!authWindow) { toast.error('Permita pop-ups para conectar sem sair desta página.'); return }
     authWindow.opener = null
     authWindow.document.body.textContent = 'Abrindo autorização segura do X…'
-    try { authWindow.location.replace(((await fetchApi('/auth/x/url')) as { url: string }).url) }
+    try { authWindow.location.replace(((await fetchApi(`/auth/x/url?workspace=${encodeURIComponent(companyId)}`)) as { url: string }).url) }
     catch (error) { authWindow.close(); toast.error(error instanceof Error ? error.message : 'Não foi possível abrir a autorização do X') }
   }
   const exportReport = () => {
@@ -72,9 +73,8 @@ export function XReport() {
     downloadReport([['Rede', 'Perfil', 'Início', 'Fim', 'Métrica', 'Valor'], ...X_METRICS.map(({ key, label }) => ['X', report.account.username, report.period.since, report.period.until, label, report.totals[key] ?? ''])], `x-${report.account.username}-${days}dias.csv`)
   }
 
-  if (accountsQuery.isPending) return <p role="status">Carregando contas do X…</p>
-  if (accountsQuery.isError) return <Card className="border-rose-200 p-5 text-rose-700" role="alert">Não foi possível carregar suas contas do X. <button onClick={() => void accountsQuery.refetch()} className="font-semibold underline">Tentar novamente</button></Card>
-  if (!accountId) return <Card className="p-8 text-center"><h2 className="text-xl font-bold">Conecte seu X</h2><p className="my-3 text-sm text-slate-600">Entre com o X e autorize publicar e ler as métricas do perfil.</p><Button onClick={() => void connect()} disabled={accountsQuery.data?.configured === false}>{accountsQuery.data?.configured === false ? 'Conexão em configuração' : 'Conectar X'}</Button></Card>
+  if (profilesLoading) return <p role="status">Carregando contas do X…</p>
+  if (!accountId) return <Card className="p-8 text-center"><h2 className="text-xl font-bold">Nenhum perfil do X nesta empresa</h2><p className="mx-auto my-3 max-w-md text-sm text-slate-600">Os relatórios mostram só os perfis da empresa selecionada no topo{company ? ` (@${company.igUsername})` : ''}. Conecte o perfil desta empresa ou vincule um perfil já conectado em Contas.</p><div className="flex flex-wrap justify-center gap-3"><Button onClick={() => void connect()} disabled={!xConfigured || !companyId}>{!xConfigured ? 'Conexão em configuração' : 'Conectar X'}</Button><a className="inline-flex h-10 items-center text-sm font-semibold text-indigo-600 underline" href="/accounts">Vincular em Contas</a></div></Card>
 
   const previous = report?.previous
   return <section className="min-w-0 space-y-4 sm:space-y-5" aria-label="Relatório do X">

@@ -5,7 +5,8 @@ const path = require('node:path');
 
 // The native-style previews live in a component shared with the calendar.
 const source = fs.readFileSync(path.join(__dirname, '../src/app/composer/page.tsx'), 'utf8')
-  + fs.readFileSync(path.join(__dirname, '../src/components/preview/SocialPostPreview.tsx'), 'utf8');
+  + fs.readFileSync(path.join(__dirname, '../src/components/preview/SocialPostPreview.tsx'), 'utf8')
+  + fs.readFileSync(path.join(__dirname, '../src/lib/publish-compat.ts'), 'utf8');
 
 test('composer defines platform-specific formats and makes Stories Instagram-only', () => {
   assert.match(source, /FEED: \["INSTAGRAM", "FACEBOOK", "THREADS", "X"\]/);
@@ -38,7 +39,8 @@ test('format options derive compatible connected destinations and explain destin
   assert.match(source, /connectedPlatforms\.filter\(\(platform\) => formatPlatforms\[format\]\.includes\(platform\)\)/);
   assert.match(source, /selected\.length \? selected : connected/);
   assert.match(source, /const targetPlatforms = compatiblePlatformsFor\(type\.id\)/);
-  assert.match(source, /Usar em \{targetPlatforms\.map\(platform => platformNames\[platform\] \|\| platform\)\.join\(" e "\)\}/);
+  assert.match(source, /Publica em \{targetPlatforms\.map\(platform => platformNames\[platform\] \|\| platform\)\.join\(", "\)\}/);
+  assert.match(source, /Fica de fora: /);
   assert.match(source, /Não disponível para todas as redes escolhidas/);
   assert.match(source, /postType === "TEXT" \? "500" : "2\.200"/);
 });

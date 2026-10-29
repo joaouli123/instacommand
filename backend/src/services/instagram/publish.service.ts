@@ -1,4 +1,5 @@
 import { getPrisma } from '../../lib/prisma';
+import { assertSameWorkspace } from '../workspace-links';
 
 import { graphPost, graphGet, graphDelete as apiDelete } from '../../utils/instagram-api';
 import { getDecryptedToken, getDecryptedThreadsToken, getInstagramGrantedPermissions } from './auth.service';
@@ -292,6 +293,12 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
 
   try {
     const platforms = post.platforms?.length ? post.platforms : ['INSTAGRAM'];
+    // A post scheduled before companies were separated must still go only to its own company's profiles.
+    assertSameWorkspace(post.accountId, [
+      { network: 'THREADS', account: platforms.includes('THREADS') ? post.threadsAccount : null },
+      { network: 'X', account: platforms.includes('X') ? post.xAccount : null },
+      { network: 'YOUTUBE', account: platforms.includes('YOUTUBE') ? post.youtubeAccount : null },
+    ]);
     const results: Record<string, unknown> = {};
     const errors: string[] = [];
 

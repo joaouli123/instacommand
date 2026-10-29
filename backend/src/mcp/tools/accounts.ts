@@ -19,10 +19,10 @@ export const accountTools = [
       ]);
       return {
         instagram: instagram.map(compactAccount),
-        threads: threads.map(compactThreadsAccount),
-        x: (x.accounts || []).map((account: any) => ({ id: account.id, username: account.username, name: account.name, followers: account.followersCount ?? null })),
-        youtube: (youtube.accounts || []).map((account: any) => ({ id: account.id, title: account.title, handle: account.handle ?? null, subscribers: account.subscriberCount ?? null })),
-        note: 'Para publicar no Facebook use o accountId da conta do Instagram: o post vai para a Página em facebookPage.',
+        threads: threads.map((account: any) => ({ ...compactThreadsAccount(account), companyAccountId: account.workspaceAccountId ?? null })),
+        x: (x.accounts || []).map((account: any) => ({ id: account.id, username: account.username, name: account.name, followers: account.followersCount ?? null, companyAccountId: account.workspaceAccountId ?? null })),
+        youtube: (youtube.accounts || []).map((account: any) => ({ id: account.id, title: account.title, handle: account.handle ?? null, subscribers: account.subscriberCount ?? null, companyAccountId: account.workspaceAccountId ?? null })),
+        note: 'Cada empresa é uma conta do Instagram (id em instagram). Threads, X e YouTube têm companyAccountId: use num post somente as contas cujo companyAccountId é igual ao accountId do post; contas com companyAccountId null precisam ser vinculadas a uma empresa em Contas antes de publicar. Para publicar no Facebook use o accountId da conta do Instagram: o post vai para a Página em facebookPage.',
       };
     },
   }),
@@ -53,25 +53,28 @@ export const accountTools = [
     name: 'start_account_connection',
     title: 'Conectar nova conta',
     category: 'accounts',
-    description: 'Gera o link oficial de autorização para conectar contas. network "meta" conecta Instagram profissional + Página do Facebook; "threads" conecta o Threads; "x" conecta o X (Twitter). Entregue o link ao usuário para abrir no navegador (válido por 10 minutos). As contas escolhidas na tela da Meta ficam ativas na hora e a primeira sincronização começa sozinha; depois, chame list_accounts para confirmar.',
+    description: 'Gera o link oficial de autorização para conectar contas. network "meta" conecta Instagram profissional + Página do Facebook (cada conta do Instagram é uma empresa); "threads", "x" e "youtube" conectam o perfil e o vinculam à empresa informada em companyAccountId. Entregue o link ao usuário para abrir no navegador (válido por 10 minutos); depois, chame list_accounts para confirmar.',
     scopes: ['admin'],
     annotations: READ_LIVE,
     inputSchema: {
-      network: z.enum(['meta', 'threads', 'x']).describe('meta = Instagram + Facebook; threads = Threads; x = X (Twitter).'),
+      network: z.enum(['meta', 'threads', 'x', 'youtube']).describe('meta = Instagram + Facebook; threads = Threads; x = X (Twitter); youtube = canal do YouTube.'),
+      companyAccountId: accountIdSchema.optional().describe('Threads, X e YouTube: empresa (id da conta do Instagram) dona do perfil. Pergunte ao usuário se não estiver claro; sem ela, o perfil precisa ser vinculado depois em Contas.'),
       enableThreadsReplies: z.boolean().default(false).describe('Somente Threads: pede também a permissão de gerenciar respostas, necessária para automações.'),
     },
-    handler: async ({ network, enableThreadsReplies }, { api }) => {
+    handler: async ({ network, companyAccountId, enableThreadsReplies }, { api }) => {
+      const workspace = companyAccountId ? { workspace: companyAccountId } : {};
       const result = network === 'meta'
         ? await api.get('/auth/facebook/url')
-        : network === 'x'
-          ? await api.get('/auth/x/url')
-          : await api.get('/auth/threads/url', enableThreadsReplies ? { automations: 1 } : undefined);
+        : network === 'threads'
+          ? await api.get('/auth/threads/url', { ...workspace, ...(enableThreadsReplies ? { automations: 1 } : {}) })
+          : await api.get(`/auth/${network}/url`, workspace);
+      const label = network === 'threads' ? 'o Threads' : network === 'x' ? 'o X' : 'o YouTube';
       return {
         authorizationUrl: result.url,
         expiresInMinutes: 10,
         nextSteps: network === 'meta'
           ? ['Peça ao usuário para abrir o link, entrar na Meta e escolher as Páginas e contas profissionais.', 'Ao terminar, chame list_accounts: as contas autorizadas já aparecem ativas. Publicações e métricas são importadas automaticamente em seguida (alguns segundos a poucos minutos).']
-          : ['Peça ao usuário para abrir o link e autorizar o Threads.', 'Ao terminar, chame list_accounts para ver a conta do Threads conectada.'],
+          : [`Peça ao usuário para abrir o link e autorizar ${label}.`, 'Ao terminar, chame list_accounts e confira o companyAccountId do perfil conectado.'],
       };
     },
   }),
@@ -99,6 +102,21 @@ export const accountTools = [
       const result = await api.post('/accounts/select', { accountIds });
       return { message: result.message, activeAccounts: (result.accounts || []).map(compactAccount) };
     },
+  }),
+
+  defineTool({
+    name: 'link_account_to_company',
+    title: 'Vincular perfil a uma empresa',
+    category: 'accounts',
+    description: 'Define a empresa (conta do Instagram) dona de um perfil do Threads, do X ou de um canal do YouTube. Relatórios, painel e publicações de uma empresa usam só os perfis vinculados a ela. companyAccountId null desvincula. Confirme a empresa com o usuário antes.',
+    scopes: ['admin'],
+    annotations: WRITE,
+    inputSchema: {
+      network: z.enum(['threads', 'x', 'youtube']),
+      accountId: z.string().uuid().describe('id do perfil do Threads, do X ou do canal do YouTube (list_accounts).'),
+      companyAccountId: accountIdSchema.nullable().describe('id da conta do Instagram da empresa, ou null para desvincular.'),
+    },
+    handler: async ({ network, accountId, companyAccountId }, { api }) => api.patch(`/accounts/${network}/${encodePathSegment(accountId)}/workspace`, { workspaceAccountId: companyAccountId }),
   }),
 
   defineTool({
