@@ -9,6 +9,7 @@ import { ArrowUpRight, Calendar, Clock, Heart, MessageCircle, Bookmark, Sparkles
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StatsCards } from "@/components/dashboard/StatsCards"
+import { CompanyNetworks } from "@/components/dashboard/CompanyNetworks"
 import { GrowthChart } from "@/components/dashboard/GrowthChart"
 import { EngagementChart } from "@/components/dashboard/EngagementChart"
 import { api, fetchApi } from "@/lib/api"
@@ -57,9 +58,11 @@ export default function DashboardPage() {
   if (!accountsLoading && !activeAccount) return <Card className="mx-auto max-w-xl p-10 text-center"><Sparkles className="mx-auto mb-3 text-indigo-600" size={28}/><h2 className="text-xl font-bold text-slate-900">{t("Conecte sua primeira conta")}</h2><p className="mt-2 text-sm text-slate-500">{t("O dashboard deixa de usar demonstrações e passa a mostrar somente dados reais depois da conexão com a Meta.")}</p><Button asChild className="mt-5 bg-indigo-600 text-white"><Link href="/accounts">{t("Conectar conta")}</Link></Button></Card>
 
   return <div className="flex flex-col gap-6 animate-fade-in">
-    <PageHeader eyebrow={t("Visão geral")} title={t("Dashboard")} description={t("Os números principais da conta e o que vem a seguir.")} />
+    <PageHeader eyebrow={t("Visão geral")} title={t("Dashboard")} description={t("Os números de todas as redes da empresa e o que vem a seguir.")} />
     <div className="flex flex-col gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent p-4 sm:flex-row sm:items-center sm:justify-between md:p-5"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs"><Sparkles size={20}/></div><div><h2 className="text-sm font-bold text-slate-900">{t("Visão real de @{username}", { username: activeAccount?.igUsername })}</h2><p className="text-xs text-slate-600">{bestTime ? t("Melhor horário encontrado: {day} às {hour}h.", { day: t(bestTime.day), hour: String(bestTime.hour).padStart(2, "0") }) : t("Sincronize a conta para encontrar os melhores horários.")}</p></div></div><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={refreshAll} disabled={refreshing || dashboardQuery.isFetching} className="gap-2"><RefreshCw size={14} className={refreshing ? "animate-spin" : ""}/>{refreshing ? t("Sincronizando…") : t("Atualizar tudo")}</Button><Button asChild size="sm" className="bg-indigo-600 text-white"><Link href="/composer">{t("Criar publicação")}</Link></Button></div></div>
     {refreshError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{refreshError}</p>}
+    <CompanyNetworks accountId={accountId}/>
+    <h3 className="-mb-2 flex items-center gap-2 text-sm font-bold text-slate-700">{t("Instagram em detalhe")}</h3>
     <StatsCards stats={stats} loading={dashboardQuery.isLoading} error={dashboardQuery.isError} onRetry={() => dashboardQuery.refetch()}/>
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2"><GrowthChart data={growth} loading={growthQuery.isLoading} error={growthQuery.isError} onRetry={() => growthQuery.refetch()}/><EngagementChart data={engagement} loading={engagementQuery.isLoading} error={engagementQuery.isError} onRetry={() => engagementQuery.refetch()}/></div>
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

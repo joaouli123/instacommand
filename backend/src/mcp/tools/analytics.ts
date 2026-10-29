@@ -53,19 +53,34 @@ export const analyticsTools = [
 
   defineTool({
     name: 'get_network_report',
-    title: 'Relatório do Facebook, Threads ou X',
+    title: 'Relatório do Facebook, Threads, X ou YouTube',
     category: 'analytics',
-    description: 'Relatório da Página do Facebook (vinculada à conta do Instagram), de uma conta do Threads ou do X. Facebook aceita 7, 30, 90, 365 ou 730 dias; Threads e X aceitam 7, 30 ou 90. Todos trazem o período anterior para comparação.',
+    description: 'Relatório da Página do Facebook (vinculada à conta do Instagram), de uma conta do Threads, do X ou de um canal do YouTube. Facebook aceita 7, 30, 90, 365 ou 730 dias; YouTube aceita 7, 30, 90 ou 365; Threads e X aceitam 7, 30 ou 90. Use só perfis cujo companyAccountId é a empresa em análise (list_accounts).',
     scopes: ['read'],
     annotations: READ_LIVE,
     inputSchema: {
-      network: z.enum(['facebook', 'threads', 'x']),
-      accountId: z.string().uuid().describe('facebook: id da conta do Instagram dona da Página. threads: id da conta do Threads. x: id da conta do X.'),
+      network: z.enum(['facebook', 'threads', 'x', 'youtube']),
+      accountId: z.string().uuid().describe('facebook: id da conta do Instagram dona da Página. threads, x, youtube: id do perfil ou canal.'),
       days: daysSchema,
     },
     handler: async ({ network, accountId, days }, { api }) => {
-      if (network !== 'facebook' && ![7, 30, 90].includes(days)) throw new ValidationError('Os relatórios do Threads e do X aceitam 7, 30 ou 90 dias.');
+      if ((network === 'threads' || network === 'x') && ![7, 30, 90].includes(days)) throw new ValidationError('Os relatórios do Threads e do X aceitam 7, 30 ou 90 dias.');
+      if (network === 'youtube' && ![7, 30, 90, 365].includes(days)) throw new ValidationError('O relatório do YouTube aceita 7, 30, 90 ou 365 dias.');
       return api.get(`/analytics/networks/${network}/${encodePathSegment(accountId)}`, { days });
     },
+  }),
+
+  defineTool({
+    name: 'get_company_summary',
+    title: 'Resumo de todas as redes da empresa',
+    category: 'analytics',
+    description: 'Números principais de todas as redes de uma empresa (Instagram, Página do Facebook e os perfis do Threads, X e YouTube vinculados a ela) no período, com o período anterior quando disponível. Nunca inclui perfis de outra empresa.',
+    scopes: ['read'],
+    annotations: READ_LIVE,
+    inputSchema: {
+      accountId: z.string().uuid().describe('id da conta do Instagram da empresa.'),
+      days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(30),
+    },
+    handler: async ({ accountId, days }, { api }) => api.get(`/analytics/company/${encodePathSegment(accountId)}/summary`, { days }),
   }),
 ];

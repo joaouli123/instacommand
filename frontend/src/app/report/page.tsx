@@ -4,7 +4,9 @@ import { ofCompany } from "@/hooks/useCompanyProfiles"
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
-import { SiFacebook, SiInstagram, SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import { SiFacebook, SiInstagram, SiThreads, SiX, SiYoutube } from "@icons-pack/react-simple-icons"
+import { useYouTubeReport, type YouTubeReportData } from "@/components/dashboard/YouTubeReport"
+import { useYouTubeAccounts } from "@/components/accounts/YouTubeAccountsCard"
 import { useXAccounts } from "@/components/accounts/XAccountsCard"
 import { useXReport, X_METRICS, type XReportData } from "@/components/dashboard/XReport"
 import { ArrowLeft, Download, Loader2 } from "lucide-react"
@@ -65,7 +67,7 @@ export default function ReportPage() {
   const { activeAccount, isLoading } = useActiveAccount()
   const [days, setDays] = useState(30)
   const [compare, setCompare] = useState(true)
-  const [networks, setNetworks] = useState({ INSTAGRAM: true, FACEBOOK: true, THREADS: true, X: true })
+  const [networks, setNetworks] = useState({ INSTAGRAM: true, FACEBOOK: true, THREADS: true, X: true, YOUTUBE: true })
   const paperRef = useRef<HTMLElement>(null)
   const drafts = useRef<Record<string, PdfDraft>>({})
   const register = useRef((key: string, draft: PdfDraft | null) => { if (draft) drafts.current[key] = draft; else delete drafts.current[key] }).current
@@ -79,6 +81,9 @@ export default function ReportPage() {
   const companyX = ofCompany(xAccountsQuery.data?.accounts as Array<{ id: string; username?: string; workspaceAccountId?: string | null }> | undefined, id)
   const xId = companyX[0]?.id || ""
   const xr = useXReport(networks.X ? xId : "", days)
+  const youtubeAccountsQuery = useYouTubeAccounts()
+  const youtubeId = ofCompany(youtubeAccountsQuery.data?.accounts, id)[0]?.id || ""
+  const yt = useYouTubeReport(networks.YOUTUBE ? youtubeId : "", days)
 
   const ig = useQuery({
     queryKey: ["report-ig", id, days], enabled: !!id && networks.INSTAGRAM,
@@ -104,8 +109,8 @@ export default function ReportPage() {
   const xUsername = companyX[0]?.username
   const threadsUsername = companyThreads[0]?.username
   const handle = account?.igUsername || xUsername || threadsUsername || ""
-  const source = dataSource((["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).filter((key) => networks[key]))
-  const loading = (networks.INSTAGRAM && ig.isLoading) || (networks.FACEBOOK && fb.isLoading) || (networks.THREADS && th.isLoading) || (networks.X && !!xId && xr.isLoading)
+  const source = dataSource((["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"] as const).filter((key) => networks[key]))
+  const loading = (networks.INSTAGRAM && ig.isLoading) || (networks.FACEBOOK && fb.isLoading) || (networks.THREADS && th.isLoading) || (networks.X && !!xId && xr.isLoading) || (networks.YOUTUBE && !!youtubeId && yt.isLoading)
 
   const download = async () => {
     if (!handle || exporting) return
@@ -113,7 +118,7 @@ export default function ReportPage() {
     try {
       // The PDF builder (jsPDF, autotable, react-dom/server) loads only on click.
       const { downloadReportPdf, thumbnail } = await import("@/lib/report-pdf")
-      const order = (["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).filter((key) => networks[key] && drafts.current[key])
+      const order = (["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"] as const).filter((key) => networks[key] && drafts.current[key])
       const sections: PdfSection[] = await Promise.all(order.map(async (key) => {
         const draft = drafts.current[key]
         return {
@@ -150,11 +155,12 @@ export default function ReportPage() {
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
         {account && <label className="text-xs font-semibold text-slate-600">Empresa<select value={account.id} disabled aria-readonly="true" className="mt-1 block h-10 rounded-lg border border-slate-200 bg-slate-50 px-2 text-sm"><option value={account.id}>@{account.igUsername}</option></select></label>}
         <label className="text-xs font-semibold text-slate-600">Período<select value={days} onChange={(event) => setDays(Number(event.target.value))} className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm"><option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select></label>
-        <div className="flex flex-wrap gap-2">{(["INSTAGRAM", "FACEBOOK", "THREADS", "X"] as const).map((network) => <label key={network} className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm"><input type="checkbox" checked={networks[network]} onChange={(event) => setNetworks((current) => ({ ...current, [network]: event.target.checked }))} className="accent-indigo-600" />{{ INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X" }[network]}</label>)}</div>
+        <div className="flex flex-wrap gap-2">{(["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"] as const).map((network) => <label key={network} className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm"><input type="checkbox" checked={networks[network]} onChange={(event) => setNetworks((current) => ({ ...current, [network]: event.target.checked }))} className="accent-indigo-600" />{{ INSTAGRAM: "Instagram", FACEBOOK: "Facebook", THREADS: "Threads", X: "X", YOUTUBE: "YouTube" }[network]}</label>)}</div>
         <label className="flex h-10 items-center gap-2 text-sm text-slate-700"><Switch checked={compare} onCheckedChange={setCompare} />Comparar com o período anterior</label>
         {loading && <span className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 size={14} className="animate-spin" />Buscando dados…</span>}
       </div>
-      {networks.X && !xId && <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">Nenhuma conta do X conectada. <Link href="/accounts" className="font-semibold text-indigo-600 underline">Conecte em Contas</Link> para incluir o X no relatório.</p>}
+      {networks.X && !xId && <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">Esta empresa não tem conta do X. <Link href="/accounts" className="font-semibold text-indigo-600 underline">Conecte ou vincule em Contas</Link> para incluir o X no relatório.</p>}
+      {networks.YOUTUBE && !youtubeId && !youtubeAccountsQuery.isLoading && <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">Esta empresa não tem canal do YouTube. <Link href="/accounts" className="font-semibold text-indigo-600 underline">Conecte ou vincule em Contas</Link> para incluir o YouTube no relatório.</p>}
     </div>
 
     <PdfRegistry.Provider value={register}>
@@ -170,6 +176,7 @@ export default function ReportPage() {
       {networks.FACEBOOK && account?.pageId && <FacebookSection data={fb.data} loading={fb.isLoading} failed={fb.isError} compare={compare} />}
       {networks.THREADS && threadsId && <ThreadsSection data={th.data} loading={th.isLoading} failed={th.isError} compare={compare} />}
       {networks.X && xId && <XSection data={xr.data} loading={xr.isLoading} failed={xr.isError} compare={compare} />}
+      {networks.YOUTUBE && youtubeId && <YouTubeSection data={yt.data} loading={yt.isLoading} failed={yt.isError} compare={compare} />}
 
       <p data-pdf-block className="mt-10 bg-white text-center text-[11px] text-slate-400">Gerado pelo UX Code Social em {new Date().toLocaleString("pt-BR")} · {source}. “—” indica dado não fornecido pela rede.</p>
     </article>
@@ -341,6 +348,50 @@ function ThreadsSection({ data, loading, failed, compare }: { data?: ThReport; l
       <Analysis initial={summarize(compare ? kpis : [])} onText={setAnalysis} />
       <KpiGrid items={kpis} compare={compare} />
       <Table title="Publicações do período" head={["Publicação", "Data"]} rows={data.posts.slice(0, 8).map((post) => [<p key="t" className="line-clamp-2 min-w-[260px] text-xs font-medium text-slate-800">{post.text || "Sem texto"}</p>, new Date(post.timestamp).toLocaleDateString("pt-BR")])} />
+    </>}
+  </Section>
+}
+
+function YouTubeSection({ data, loading, failed, compare }: { data?: YouTubeReportData; loading: boolean; failed: boolean; compare: boolean }) {
+  const analytics = data?.analytics.available ? data.analytics : null
+  const hours = (minutes: number) => `${(minutes / 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`
+  const kpis: Kpi[] = data ? [
+    { label: "Inscritos", value: data.channel.subscribers },
+    ...(analytics ? [
+      { label: "Visualizações", value: analytics.totals.views, previous: data.previous?.views },
+      { label: "Tempo assistido", value: analytics.totals.watchMinutes, previous: data.previous?.watchMinutes, format: hours },
+      { label: "Inscritos ganhos", value: analytics.totals.subscribersGained, previous: data.previous?.subscribersGained },
+      { label: "Inscritos perdidos", value: analytics.totals.subscribersLost, previous: data.previous?.subscribersLost },
+      { label: "Curtidas", value: analytics.totals.likes, previous: data.previous?.likes },
+      { label: "Comentários", value: analytics.totals.comments, previous: data.previous?.comments },
+      { label: "Compartilhamentos", value: analytics.totals.shares, previous: data.previous?.shares },
+    ] : [
+      { label: "Views dos vídeos do período", value: data.totals.views },
+      { label: "Curtidas", value: data.totals.likes },
+      { label: "Comentários", value: data.totals.comments },
+    ]),
+    { label: "Vídeos publicados", value: data.totals.videos },
+  ] : []
+  const videos = [...(data?.posts || [])].sort((a, b) => (b.views ?? -1) - (a.views ?? -1)).slice(0, 8)
+  const [analysis, setAnalysis] = useState("")
+  const label = (value: string) => value.slice(8, 10) + "/" + value.slice(5, 7)
+  useRegisterPdf("YOUTUBE", data ? {
+    title: "YouTube", subtitle: data.account.title, color: [255, 0, 51], analysis, kpis,
+    daily: analytics?.daily.length ? { title: "YouTube · visualizações por dia", labels: analytics.daily.map((row) => label(row.date)), series: [{ name: "Visualizações", color: "#ff0033", values: analytics.daily.map((row) => row.views) }] } : null,
+    tables: [{ title: "Vídeos do período", head: ["Vídeo", "Visualiz.", "Curtidas", "Coment."], rows: videos.map((video) => ({
+      image: video.thumbnail, cells: [`${clip(video.title, 80)}\n${new Date(video.publishedAt).toLocaleDateString("pt-BR")}`, fmt(video.views), fmt(video.likes), fmt(video.comments)],
+    })) }],
+  } : null)
+  return <Section icon={<SiYoutube size={18} color="white" />} color="#ff0033" title="YouTube" subtitle={data ? data.account.title : "Canal do YouTube"}>
+    {failed ? <p className="text-sm text-slate-500">Não foi possível consultar o YouTube agora.</p> : loading || !data ? <Loading /> : <>
+      {!analytics && <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{data.analytics.available ? "" : data.analytics.message}</p>}
+      <Analysis initial={summarize(compare ? kpis : [])} onText={setAnalysis} />
+      <KpiGrid items={kpis} compare={compare} />
+      {analytics && analytics.daily.length > 0 && <div className="avoid-break bg-white"><h3 className="mb-3 text-center text-sm font-semibold text-slate-900">Visualizações por dia</h3><div className="h-56"><ResponsiveContainer><AreaChart data={analytics.daily} margin={{ left: -10, right: 8 }}><CartesianGrid stroke="#eef2f7" vertical={false} /><XAxis dataKey="date" tickFormatter={label} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} minTickGap={20} /><YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={44} /><Area type="monotone" dataKey="views" name="Visualizações" stroke="#ff0033" fill="#ff0033" fillOpacity={0.1} strokeWidth={2} isAnimationActive={false} /></AreaChart></ResponsiveContainer></div></div>}
+      <Table title="Vídeos do período" head={["Vídeo", "Visualizações", "Curtidas", "Comentários"]} rows={videos.map((video) => [
+        <div key="v" className="flex min-w-[220px] items-center gap-3">{video.thumbnail && <div className="aspect-video w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100"><MediaPreview src={video.thumbnail} fallback="" /></div>}<div className="min-w-0"><p className="line-clamp-2 text-xs font-medium text-slate-800">{video.title}</p><p className="text-[10px] text-slate-400">{new Date(video.publishedAt).toLocaleDateString("pt-BR")}</p></div></div>,
+        fmt(video.views), fmt(video.likes), fmt(video.comments),
+      ])} />
     </>}
   </Section>
 }

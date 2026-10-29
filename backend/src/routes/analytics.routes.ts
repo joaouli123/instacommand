@@ -16,6 +16,7 @@ import { MediaType } from '@prisma/client';
 import { InstagramApiError } from '../utils/errors';
 import { getFacebookReport } from '../services/facebook-report.service';
 import { getThreadsReport } from '../services/threads-report.service';
+import { failedSummary, summarizeFacebook, summarizeInstagram, summarizeThreads, summarizeX, summarizeYouTube, type CompanyNetworkSummary } from '../services/company-summary';
 import { analyticsDays } from '../services/analytics-period';
 import { readLimitedBody, safeGet } from '../utils/safe-fetch';
 import { detectMediaSignature } from '../utils/media-signature';
@@ -27,8 +28,8 @@ const REPORT_TTL_MS = 5 * 60_000;
 const router = Router();
 const prisma = getPrisma();
 
-// Meta CDN hosts that serve post thumbnails; nothing else is proxied.
-export const isMetaCdnHost = (host: string) => /(^|\.)(cdninstagram\.com|fbcdn\.net)$/i.test(host);
+// Meta and YouTube CDN hosts that serve post thumbnails; nothing else is proxied.
+export const isMetaCdnHost = (host: string) => /(^|\.)(cdninstagram\.com|fbcdn\.net|ytimg\.com)$/i.test(host);
 
 router.use(authenticate);
 
@@ -40,7 +41,7 @@ router.get('/media-preview', async (req: any, res, next) => {
     const raw = typeof req.query.url === 'string' ? req.query.url : '';
     let url: URL;
     try { url = new URL(raw); } catch { return res.status(400).json({ error: 'URL inválida.' }); }
-    if (url.protocol !== 'https:' || !isMetaCdnHost(url.hostname)) return res.status(400).json({ error: 'Somente imagens da Meta.' });
+    if (url.protocol !== 'https:' || !isMetaCdnHost(url.hostname)) return res.status(400).json({ error: 'Somente imagens da Meta ou do YouTube.' });
     const { response, abort } = await safeGet(url.toString(), { allowHttp: false, timeoutMs: 10_000, maxRedirects: 0 });
     try {
       if ((response.statusCode || 500) >= 400) return res.status(404).json({ error: 'Imagem indisponível.' });
@@ -53,19 +54,48 @@ router.get('/media-preview', async (req: any, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Report bodies shared by the per-network routes and the company summary, so both reuse the same cache.
+async function xBody(userId: string, accountId: string, days: number, refresh = false) {
+  // Loaded on demand: the X client is only needed here.
+  const { getXReport } = require('../services/x-report.service') as typeof import('../services/x-report.service');
+  const now = Date.now();
+  // Previous window of the same length for the comparison badges; it never blocks the current report.
+  // Current period first (it may refresh the stored numbers); the previous one is read from the database only.
+  const report = await getXReport(userId, accountId, days, { endAt: now, refresh });
+  const previous = report ? await getXReport(userId, accountId, days, { endAt: now - days * 86400000, skipSync: true }).catch(() => null) : null;
+  return report ? { ...report, previous: previous ? { period: previous.period, totals: previous.totals, engagementRate: previous.engagementRate } : null } : null;
+}
+
+const threadsBody = (userId: string, accountId: string, days: number, refresh = false) => cached(`threads:${userId}:${accountId}:${days}`, REPORT_TTL_MS, async () => {
+  const now = Date.now();
+  // The window of the same length right before, for "vs. período anterior"; never blocks the current report.
+  // Current report first; the previous window only after it, to avoid a burst of provider calls.
+  const report = await getThreadsReport(userId, accountId, days, now);
+  const previous = report ? await getThreadsReport(userId, accountId, days, now - days * 86400000).catch(() => null) : null;
+  return report ? { ...report, previous: previous ? { period: previous.period, metrics: previous.metrics, posts: previous.contentAvailable ? previous.posts.length : null } : null } : null;
+}, { refresh, keep: Boolean });
+
+const facebookBody = (userId: string, accountId: string, days: number, refresh = false) => cached(`facebook:${userId}:${accountId}:${days}`, REPORT_TTL_MS, async () => {
+  const now = Date.now();
+  const report = await getFacebookReport(userId, accountId, days, now);
+  // Comparing 1–2 years would page through years of posts; only up to 90 days is compared.
+  const previous = report && days <= 90 ? await getFacebookReport(userId, accountId, days, now - days * 86400000).catch(() => null) : null;
+  return report ? { ...report, previous: previous ? { period: previous.period, mediaViews: previous.insights.mediaViews, totals: previous.totals, posts: previous.contentAvailable ? previous.posts.length : null } : null } : null;
+}, { refresh, keep: Boolean });
+
+const youtubeBody = (userId: string, accountId: string, days: number, refresh = false) => cached(`youtube:${userId}:${accountId}:${days}`, REPORT_TTL_MS, () => {
+  // Loaded on demand like X: the Google client is only needed here.
+  const { getYouTubeReport } = require('../services/youtube-report.service') as typeof import('../services/youtube-report.service');
+  return getYouTubeReport(userId, accountId, days);
+}, { refresh, keep: Boolean });
+
 router.get('/networks/x/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);
   if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
   try {
-    // Loaded on demand: the X client is only needed for this route.
-    const { getXReport } = require('../services/x-report.service') as typeof import('../services/x-report.service');
-    const now = Date.now();
-    // Previous window of the same length for the comparison badges; it never blocks the current report.
-    // Current period first (it may refresh the stored numbers); the previous one is read from the database only.
-    const report = await getXReport(req.user.id, req.params.accountId, days, { endAt: now, refresh: req.query.refresh === '1' });
-    const previous = report ? await getXReport(req.user.id, req.params.accountId, days, { endAt: now - days * 86400000, skipSync: true }).catch(() => null) : null;
-    if (!report) return res.status(404).json({ error: 'Conta do X não encontrada.' });
-    return res.json({ ...report, previous: previous ? { period: previous.period, totals: previous.totals, engagementRate: previous.engagementRate } : null });
+    const body = await xBody(req.user.id, req.params.accountId, days, req.query.refresh === '1');
+    if (!body) return res.status(404).json({ error: 'Conta do X não encontrada.' });
+    return res.json(body);
   } catch (error) { next(error); }
 });
 
@@ -74,14 +104,7 @@ router.get('/networks/threads/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);
   if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
   try {
-    const body = await cached(`threads:${req.user.id}:${req.params.accountId}:${days}`, REPORT_TTL_MS, async () => {
-      const now = Date.now();
-      // The window of the same length right before, for "vs. período anterior"; never blocks the current report.
-      // Current report first; the previous window only after it, to avoid a burst of provider calls.
-      const report = await getThreadsReport(req.user.id, req.params.accountId, days, now);
-      const previous = report ? await getThreadsReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null) : null;
-      return report ? { ...report, previous: previous ? { period: previous.period, metrics: previous.metrics, posts: previous.contentAvailable ? previous.posts.length : null } : null } : null;
-    }, { refresh: req.query.refresh === '1', keep: Boolean });
+    const body = await threadsBody(req.user.id, req.params.accountId, days, req.query.refresh === '1');
     if (!body) return res.status(404).json({ error: 'Conta do Threads não encontrada.' });
     return res.json(body);
   } catch (error) { next(error); }
@@ -91,15 +114,51 @@ router.get('/networks/facebook/:accountId', async (req: any, res, next) => {
   const days = Number(req.query.days || 30);
   if (![7, 30, 90, 365, 730].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
   try {
-    const body = await cached(`facebook:${req.user.id}:${req.params.accountId}:${days}`, REPORT_TTL_MS, async () => {
-      const now = Date.now();
-      const report = await getFacebookReport(req.user.id, req.params.accountId, days, now);
-      // Comparing 1–2 years would page through years of posts; only up to 90 days is compared.
-      const previous = report && days <= 90 ? await getFacebookReport(req.user.id, req.params.accountId, days, now - days * 86400000).catch(() => null) : null;
-      return report ? { ...report, previous: previous ? { period: previous.period, mediaViews: previous.insights.mediaViews, totals: previous.totals, posts: previous.contentAvailable ? previous.posts.length : null } : null } : null;
-    }, { refresh: req.query.refresh === '1', keep: Boolean });
+    const body = await facebookBody(req.user.id, req.params.accountId, days, req.query.refresh === '1');
     if (!body) return res.status(404).json({ error: 'Conta não encontrada.' });
     return res.json(body);
+  } catch (error) { next(error); }
+});
+
+router.get('/networks/youtube/:accountId', async (req: any, res, next) => {
+  const days = Number(req.query.days || 30);
+  if (![7, 30, 90, 365].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível no relatório.' });
+  try {
+    const body = await youtubeBody(req.user.id, req.params.accountId, days, req.query.refresh === '1');
+    if (!body) return res.status(404).json({ error: 'Canal do YouTube não encontrado.' });
+    return res.json(body);
+  } catch (error) { next(error); }
+});
+
+/**
+ * Headline numbers of every network of one company for the dashboard: Instagram, its Facebook
+ * Page and the Threads, X and YouTube profiles linked to it. Never another company's profiles.
+ * A network that fails comes back with its error; the others still load.
+ */
+router.get('/company/:accountId/summary', async (req: any, res, next) => {
+  const days = Number(req.query.days || 30);
+  if (![7, 30, 90].includes(days)) return res.status(400).json({ error: 'Escolha um período disponível.' });
+  try {
+    const company = await prisma.instagramAccount.findFirst({ where: { id: req.params.accountId, userId: req.user.id, isActive: true } });
+    if (!company) return res.status(404).json({ error: 'Empresa não encontrada.' });
+    const linked = { workspaceAccountId: company.id, userId: req.user.id, isActive: true };
+    const [threads, xProfiles, channels] = await Promise.all([
+      prisma.threadsAccount.findMany({ where: linked, select: { id: true } }),
+      prisma.xAccount.findMany({ where: linked, select: { id: true } }),
+      prisma.youTubeAccount.findMany({ where: linked, select: { id: true } }),
+    ]);
+    const userId = req.user.id;
+    const labels = ['INSTAGRAM', ...(company.pageId ? ['FACEBOOK'] : []), ...threads.map(() => 'THREADS'), ...xProfiles.map(() => 'X'), ...channels.map(() => 'YOUTUBE')];
+    const settled = await Promise.allSettled<CompanyNetworkSummary>([
+      getDashboardStats(company.id, days).then((stats) => summarizeInstagram(company, stats)),
+      ...(company.pageId ? [facebookBody(userId, company.id, days).then((body) => summarizeFacebook(company, body))] : []),
+      ...threads.map((profile) => threadsBody(userId, profile.id, days).then(summarizeThreads)),
+      ...xProfiles.map((profile) => xBody(userId, profile.id, days).then(summarizeX)),
+      ...channels.map((profile) => youtubeBody(userId, profile.id, days).then(summarizeYouTube)),
+    ]);
+    const networks = settled.map((result, index) => result.status === 'fulfilled' ? result.value : failedSummary(labels[index], result.reason));
+    return res.json({ company: { id: company.id, igUsername: company.igUsername, pageName: company.pageName }, days, networks,
+      missing: (['THREADS', 'X', 'YOUTUBE'] as const).filter((network) => !labels.includes(network)) });
   } catch (error) { next(error); }
 });
 

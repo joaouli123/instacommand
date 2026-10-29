@@ -29,7 +29,7 @@ const { safeFetchPolicy } = require('../dist/utils/safe-fetch');
 
 const settings = { title: 'Bastidores do lançamento', privacyStatus: 'public', madeForKids: false };
 
-test('YouTube login asks Google for offline access with PKCE and only the upload and read scopes', () => {
+test('YouTube login asks Google for offline access with PKCE and only the upload, read and analytics-read scopes', () => {
   const { url } = youtube.createYouTubeAuthorization('user-1');
   const parsed = new URL(url);
   assert.equal(parsed.origin + parsed.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
@@ -38,7 +38,7 @@ test('YouTube login asks Google for offline access with PKCE and only the upload
   assert.equal(parsed.searchParams.get('prompt'), 'consent');
   assert.equal(parsed.searchParams.get('code_challenge_method'), 'S256');
   assert.deepEqual(parsed.searchParams.get('scope').split(' '), [
-    'https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly',
+    'https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/yt-analytics.readonly',
   ]);
   const decoded = youtube.readYouTubeState(parsed.searchParams.get('state'));
   assert.equal(decoded.userId, 'user-1');

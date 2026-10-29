@@ -18,9 +18,11 @@ export const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 export const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 export const YOUTUBE_API = 'https://www.googleapis.com/youtube/v3';
 export const YOUTUBE_UPLOAD_API = 'https://www.googleapis.com/upload/youtube/v3';
-// Upload and read the channel only. Managing or deleting videos would need the
-// broader `youtube` scope, which makes Google's app verification much heavier.
-export const YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly'];
+// Upload, read the channel and read its analytics only. Managing or deleting videos would
+// need the broader `youtube` scope, which makes Google's app verification much heavier.
+/** Read-only YouTube Analytics: daily views, watch time, subscribers, traffic and audience for reports. */
+export const YOUTUBE_ANALYTICS_SCOPE = 'https://www.googleapis.com/auth/yt-analytics.readonly';
+export const YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly', YOUTUBE_ANALYTICS_SCOPE];
 
 // Never answer 401 for YouTube problems: the web app treats 401 as "UX Code Social session expired" and signs the user out.
 export const isYouTubeConfigured = () => Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);

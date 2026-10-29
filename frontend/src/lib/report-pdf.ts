@@ -18,7 +18,7 @@ const INK: [number, number, number] = [15, 23, 42], MUTED: [number, number, numb
 import { clip, dataSource } from "@/lib/report-text"
 export { clip, dataSource }
 const hex = (value: string): [number, number, number] => { const v = value.replace("#", ""); return [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)] }
-const META_CDN = /(^|\.)(cdninstagram\.com|fbcdn\.net)$/i
+const META_CDN = /(^|\.)(cdninstagram\.com|fbcdn\.net|ytimg\.com)$/i
 
 // The built-in PDF font only has Latin characters: emoji and other symbols
 // would print as garbage ("Ø=Þá"), so they are removed from every text.

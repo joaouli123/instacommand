@@ -1,7 +1,7 @@
 "use client"
 import Link from "next/link"
 import { FileText } from "lucide-react"
-import { SiFacebook, SiInstagram, SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import { SiFacebook, SiInstagram, SiThreads, SiX, SiYoutube } from "@icons-pack/react-simple-icons"
 import dynamic from "next/dynamic"
 import { PageHeader } from "@/components/layout/PageHeader"
 
@@ -14,11 +14,12 @@ const InstagramAnalytics = dynamic(() => import("@/components/dashboard/Instagra
 const FacebookReport = dynamic(() => import("@/components/dashboard/FacebookReport").then((m) => m.FacebookReport), { ssr: false, loading: TabPlaceholder })
 const ThreadsReport = dynamic(() => import("@/components/dashboard/ThreadsReport").then((m) => m.ThreadsReport), { ssr: false, loading: TabPlaceholder })
 const XReport = dynamic(() => import("@/components/dashboard/XReport").then((m) => m.XReport), { ssr: false, loading: TabPlaceholder })
+const YouTubeReport = dynamic(() => import("@/components/dashboard/YouTubeReport").then((m) => m.YouTubeReport), { ssr: false, loading: TabPlaceholder })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useEffect, useState } from "react"
 import { useT } from "@/lib/i18n"
 
-const TABS = ["instagram", "facebook", "threads", "x"]
+const TABS = ["instagram", "facebook", "threads", "x", "youtube"]
 
 export default function AnalyticsPage() {
   const t = useT()
@@ -29,18 +30,20 @@ export default function AnalyticsPage() {
     if (requested && TABS.includes(requested)) setTab(requested)
   }, [])
   return <div className="space-y-6 animate-fade-in">
-    <PageHeader eyebrow={t("Desempenho")} title={t("Relatórios")} description={t("Métricas, público e conteúdos do Instagram, Facebook, Threads e X.")} actions={<Link href="/report" className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"><FileText size={16} />{t("Gerar relatório em PDF")}</Link>} />
+    <PageHeader eyebrow={t("Desempenho")} title={t("Relatórios")} description={t("Métricas, público e conteúdos do Instagram, Facebook, Threads, X e YouTube da empresa selecionada.")} actions={<Link href="/report" className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"><FileText size={16} />{t("Gerar relatório em PDF")}</Link>} />
     <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-    <TabsList aria-label={t("Rede social do relatório")}className="grid h-10 w-full grid-cols-4">
+    <TabsList aria-label={t("Rede social do relatório")}className="grid h-10 w-full grid-cols-5">
       <TabsTrigger value="instagram" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiInstagram size={14} color="currentColor" aria-hidden />Instagram</TabsTrigger>
       <TabsTrigger value="facebook" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiFacebook size={14} color="currentColor" aria-hidden />Facebook</TabsTrigger>
       <TabsTrigger value="threads" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiThreads size={14} color="currentColor" aria-hidden />Threads</TabsTrigger>
       <TabsTrigger value="x" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiX size={13} color="currentColor" aria-hidden />X</TabsTrigger>
+      <TabsTrigger value="youtube" className="min-w-0 gap-1.5 px-2 text-[11px] sm:px-4 sm:text-sm"><SiYoutube size={14} color="currentColor" aria-hidden />YouTube</TabsTrigger>
     </TabsList>
     <TabsContent value="instagram"><InstagramAnalytics /></TabsContent>
     <TabsContent value="facebook"><FacebookReport /></TabsContent>
     <TabsContent value="threads"><ThreadsReport /></TabsContent>
     <TabsContent value="x"><XReport /></TabsContent>
+    <TabsContent value="youtube"><YouTubeReport /></TabsContent>
   </Tabs>
   </div>
 }
