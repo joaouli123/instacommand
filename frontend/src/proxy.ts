@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { BACKEND_ORIGIN } from './lib/config';
 import { contentSecurityPolicy } from './lib/content-security';
+import { canonicalRedirect } from './lib/canonical-host';
 
 export function proxy(request: NextRequest) {
+  const redirect = process.env.NODE_ENV === 'production'
+    ? canonicalRedirect(request.url, request.headers.get('x-forwarded-host') || request.headers.get('host'), process.env.FRONTEND_URL)
+    : null;
+  if (redirect) return NextResponse.redirect(redirect, 308);
   const nonce = randomBytes(24).toString('base64');
   const policy = contentSecurityPolicy(nonce, BACKEND_ORIGIN, process.env.NODE_ENV !== 'production');
   const headers = new Headers(request.headers);

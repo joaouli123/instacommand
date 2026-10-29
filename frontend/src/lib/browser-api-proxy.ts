@@ -26,7 +26,7 @@ export async function proxyBrowserApi(request: Request, fetcher: typeof fetch = 
   }
   // Callbacks/webhooks stay on their registered API host, not this browser facade.
   if (!url.pathname.startsWith('/api/') || /%(?:2f|5c|2e)|\\/i.test(url.pathname) || url.pathname.includes('//') ||
-      /^\/api\/(?:webhooks(?:\/|$)|auth\/(?:facebook|threads|x)\/(?:callback|delete|uninstall)$)/.test(url.pathname)) {
+      /^\/api\/(?:webhooks(?:\/|$)|auth\/(?:facebook|threads|x|youtube)\/(?:callback|delete|uninstall)$)/.test(url.pathname)) {
     return fail(400, 'Endereço de API inválido.');
   }
   const headers = new Headers({ Origin: origin, Accept: request.headers.get('accept') || 'application/json' });

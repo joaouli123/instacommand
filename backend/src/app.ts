@@ -41,6 +41,8 @@ export function createApp() {
   const allowedOrigins = new Set([
     ...env.CORS_ORIGINS.filter((origin) => origin !== '*').map((origin) => origin.replace(/\/$/, '')),
     env.FRONTEND_URL.replace(/\/$/, ''),
+    'https://uxgram.com.br',
+    'https://www.uxgram.com.br',
     'http://instagram.uxcode.com.br',
     'https://instagram.uxcode.com.br',
     'http://instacommand.179.198.98.63.sslip.io',
