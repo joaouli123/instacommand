@@ -17,6 +17,7 @@ import accountsRoutes from './routes/accounts.routes';
 import postsRoutes from './routes/posts.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import competitorsRoutes from './routes/competitors.routes';
+import youtubeResearchRoutes from './routes/youtube-research.routes';
 import trendsRoutes from './routes/trends.routes';
 import schedulerRoutes from './routes/scheduler.routes';
 import settingsRoutes from './routes/settings.routes';
@@ -127,6 +128,7 @@ export function createApp() {
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/competitors', competitorsRoutes);
   app.use('/api/trends', trendsRoutes);
+  app.use('/api/youtube-research', youtubeResearchRoutes);
   app.use('/api/scheduler', schedulerRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/ai', aiRoutes);

@@ -1,6 +1,8 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useState, type ReactNode } from "react"
+import { ResearchNetworkTabs, UnavailableNetwork, useResearchNetwork } from "@/components/research/ResearchNetworkTabs"
+import { YouTubeTrends } from "@/components/research/YouTubeTrends"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,7 +31,7 @@ function Segmented<T extends string | number>({ options, value, onChange, label 
   return <div role="group" aria-label={label} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">{options.map((option) => <button key={String(option.value)} type="button" aria-pressed={value === option.value} onClick={() => onChange(option.value)} className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${value === option.value ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{option.label}</button>)}</div>
 }
 
-export default function TrendsPage() {
+function InstagramTrends({ tabs }: { tabs: ReactNode }) {
   const { accountId, activeAccount, isLoading: accountLoading } = useActiveAccount()
   const queryClient = useQueryClient()
   const [days, setDays] = useState(7)
@@ -88,6 +90,7 @@ export default function TrendsPage() {
   return <div className="space-y-6 animate-fade-in">
     <PageHeader eyebrow="Radar de conteúdo" title="Em alta no seu nicho" description="Os posts que mais estão performando nas hashtags que você acompanha e nos seus concorrentes, para usar como referência."
       actions={<Button variant="outline" size="sm" onClick={() => void refresh()} disabled={refreshing || !hasSources} className="gap-2"><RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />Atualizar agora</Button>} />
+    {tabs}
 
     <Card className="p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -120,5 +123,17 @@ export default function TrendsPage() {
       </>}
 
     <div className="flex items-center gap-1.5 text-xs text-slate-500"><span>Por que não aparece o “Explorar” do Instagram?</span><InfoTip label="Sobre o Explorar">A Meta não oferece a aba Explorar nem um ranking global de virais pela API oficial. O radar usa a busca de hashtags (destaques e últimas 24 h) e dados públicos de perfis profissionais. Visualizações de terceiros não são liberadas, por isso o ranking usa curtidas e comentários. Vídeos podem vir sem prévia.</InfoTip><Badge variant="secondary" className="ml-1">Dados oficiais da Meta</Badge></div>
+  </div>
+}
+
+/** What is trending, per network. */
+export default function TrendsPage() {
+  const [network, setNetwork] = useResearchNetwork()
+  const tabs = <ResearchNetworkTabs kind="trends" value={network} onChange={setNetwork} />
+  if (network === "INSTAGRAM") return <InstagramTrends tabs={tabs} />
+  return <div className="space-y-6 animate-fade-in">
+    <PageHeader eyebrow="Radar de conteúdo" title="Em alta no seu nicho" description="O que está performando em cada rede, para usar como referência nos seus conteúdos." />
+    {tabs}
+    {network === "YOUTUBE" ? <YouTubeTrends /> : <UnavailableNetwork kind="trends" network={network} />}
   </div>
 }

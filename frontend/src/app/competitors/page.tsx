@@ -1,6 +1,8 @@
 "use client"
 
-import { FormEvent, useMemo, useState } from "react"
+import { FormEvent, useMemo, useState, type ReactNode } from "react"
+import { ResearchNetworkTabs, UnavailableNetwork, useResearchNetwork } from "@/components/research/ResearchNetworkTabs"
+import { YouTubeCompetitors } from "@/components/research/YouTubeCompetitors"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import dynamic from "next/dynamic"
 
@@ -52,7 +54,7 @@ const followerGrowth = (history: Competitor["history"]) => {
   return { diff: last - first, days: Math.max(1, Math.round((new Date(history[history.length - 1].collectedAt).getTime() - new Date(history[0].collectedAt).getTime()) / 86_400_000)) }
 }
 
-export default function CompetitorsPage() {
+function InstagramCompetitors({ tabs }: { tabs: ReactNode }) {
   const { accountId, activeAccount, isLoading: accountLoading } = useActiveAccount()
   const queryClient = useQueryClient()
   const [username, setUsername] = useState("")
@@ -114,6 +116,7 @@ export default function CompetitorsPage() {
   return <div className="space-y-6 animate-fade-in">
     <PageHeader eyebrow="Inteligência competitiva" title="Análise de concorrentes" description={<>Compare @{activeAccount?.igUsername} com perfis públicos do seu nicho, com dados reais da Meta.</>}
       actions={<>{competitors.length > 0 && <Button variant="outline" size="sm" disabled={!!refreshing} onClick={() => void refresh(competitors.map((item) => item.id))} className="gap-2"><RefreshCw size={14} className={refreshing === "all" ? "animate-spin" : ""} />Atualizar todos</Button>}<Badge variant="secondary">{competitors.length}/20 monitorados</Badge></>} />
+    {tabs}
 
     <Card className="p-4">
       <form onSubmit={add} className="flex flex-col gap-2 sm:flex-row">
@@ -166,5 +169,17 @@ export default function CompetitorsPage() {
       </>}
 
     <Card className="border-indigo-100 bg-indigo-50/50 p-4 text-sm text-indigo-900"><p className="font-semibold">De onde vêm os dados</p><p className="mt-1 text-xs leading-5 text-indigo-800">Consultamos o Business Discovery da Meta: seguidores, total de posts e curtidas/comentários dos 25 posts mais recentes de cada perfil. Visualizações, alcance e salvamentos de concorrentes não são liberados pela Meta. Quando o perfil oculta curtidas, mostramos “—” em vez de inventar números. Engajamento = (curtidas + comentários) ÷ seguidores.</p></Card>
+  </div>
+}
+
+/** Competitors per network of the company chosen at the top. */
+export default function CompetitorsPage() {
+  const [network, setNetwork] = useResearchNetwork()
+  const tabs = <ResearchNetworkTabs kind="competitors" value={network} onChange={setNetwork} />
+  if (network === "INSTAGRAM") return <InstagramCompetitors tabs={tabs} />
+  return <div className="space-y-6 animate-fade-in">
+    <PageHeader eyebrow="Inteligência competitiva" title="Análise de concorrentes" description="Compare a empresa selecionada no topo com outros perfis e canais públicos do nicho." />
+    {tabs}
+    {network === "YOUTUBE" ? <YouTubeCompetitors /> : <UnavailableNetwork kind="competitors" network={network} />}
   </div>
 }

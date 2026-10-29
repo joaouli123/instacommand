@@ -3,6 +3,7 @@ import { Worker } from 'bullmq';
 import { redisConnection } from '../config/redis';
 
 import { collectCompetitorData } from '../services/instagram/discovery.service';
+import { refreshAllYouTubeCompetitors } from '../services/youtube-research.service';
 
 const prisma = getPrisma();
 
@@ -23,6 +24,7 @@ export const setupCollectCompetitorsWorker = () => {
         console.error(`Failed to collect data for competitor ${competitor.id}:`, error);
       }
     }
+    await refreshAllYouTubeCompetitors();
   }, {
     connection: redisConnection,
   });

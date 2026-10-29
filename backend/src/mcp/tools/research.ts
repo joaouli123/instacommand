@@ -110,4 +110,63 @@ export const researchTools = [
     inputSchema: { accountId: accountIdSchema, trackedHashtagId: z.string().uuid().describe('Campo id de list_tracked_hashtags.') },
     handler: async ({ accountId, trackedHashtagId }, { api }) => api.delete(`/trends/${encodePathSegment(accountId)}/hashtags/${encodePathSegment(trackedHashtagId)}`),
   }),
+  defineTool({
+    name: 'list_youtube_competitors',
+    title: 'Concorrentes no YouTube',
+    category: 'research',
+    description: 'Canal do YouTube da empresa ao lado dos canais concorrentes monitorados: inscritos, visualizações, médias dos últimos vídeos, engajamento, vídeos por semana e os vídeos mais vistos de cada um.',
+    scopes: ['read'],
+    annotations: READ,
+    inputSchema: { accountId: accountIdSchema },
+    handler: async ({ accountId }, { api }) => api.get(`/youtube-research/${encodePathSegment(accountId)}/competitors`),
+  }),
+
+  defineTool({
+    name: 'add_youtube_competitor',
+    title: 'Monitorar canal concorrente no YouTube',
+    category: 'research',
+    description: 'Passa a monitorar um canal público do YouTube para a empresa. Aceita @handle, link youtube.com/@canal ou ID UC…. Exige o canal do YouTube da empresa conectado (a consulta usa a cota dele).',
+    scopes: ['write'],
+    annotations: { ...WRITE, openWorldHint: true },
+    inputSchema: { accountId: accountIdSchema, channel: z.string().trim().min(1).max(300).describe('@handle, link ou ID do canal.') },
+    handler: async ({ accountId, channel }, { api }) => api.post(`/youtube-research/${encodePathSegment(accountId)}/competitors`, { channel }),
+  }),
+
+  defineTool({
+    name: 'refresh_youtube_competitor',
+    title: 'Atualizar canal concorrente',
+    category: 'research',
+    description: 'Lê de novo os números e os últimos vídeos de um canal concorrente do YouTube.',
+    scopes: ['write'],
+    annotations: { ...WRITE, openWorldHint: true },
+    inputSchema: { competitorId: z.string().uuid().describe('Campo id de list_youtube_competitors.') },
+    handler: async ({ competitorId }, { api }) => api.post(`/youtube-research/competitors/${encodePathSegment(competitorId)}/refresh`),
+  }),
+
+  defineTool({
+    name: 'remove_youtube_competitor',
+    title: 'Parar de monitorar canal',
+    category: 'research',
+    description: 'Remove um canal concorrente do YouTube e o histórico dele.',
+    scopes: ['write'],
+    annotations: { ...DESTRUCTIVE, openWorldHint: false },
+    inputSchema: { competitorId: z.string().uuid().describe('Campo id de list_youtube_competitors.') },
+    handler: async ({ competitorId }, { api }) => api.delete(`/youtube-research/competitors/${encodePathSegment(competitorId)}`),
+  }),
+
+  defineTool({
+    name: 'get_youtube_trends',
+    title: 'Em alta no YouTube',
+    category: 'research',
+    description: 'Vídeos em alta no YouTube Brasil (ranking oficial, por categoria) ou os mais vistos recentes para uma palavra-chave. Resultados ficam em cache por 1 hora; a busca por palavra-chave gasta mais cota.',
+    scopes: ['read'],
+    annotations: READ_LIVE,
+    inputSchema: {
+      accountId: accountIdSchema,
+      q: z.string().trim().max(100).optional().describe('Palavra-chave. Sem ela, traz o ranking oficial de em alta.'),
+      category: z.string().optional().describe('ID da categoria do YouTube (ex.: 27 Educação, 28 Ciência e tecnologia, 22 Pessoas e blogs).'),
+      days: z.union([z.literal(1), z.literal(7), z.literal(30)]).default(7).describe('Busca por palavra-chave: vídeos publicados nos últimos N dias.'),
+    },
+    handler: async ({ accountId, q, category, days }, { api }) => api.get(`/youtube-research/${encodePathSegment(accountId)}/trends`, { ...(q ? { q } : {}), ...(category ? { category } : {}), days }),
+  }),
 ];
