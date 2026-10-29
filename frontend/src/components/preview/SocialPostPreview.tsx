@@ -17,7 +17,8 @@ export type PreviewThreadsAccount = { username: string }
 export type PreviewXAccount = { username: string; name?: string | null; profilePicUrl?: string | null }
 export type PreviewYouTubeAccount = { title: string; handle?: string | null; thumbnailUrl?: string | null; subscriberCount?: number | null }
 export type YouTubePrivacy = "public" | "unlisted" | "private"
-export type PreviewYouTubeSettings = { title: string; privacyStatus: YouTubePrivacy; thumbnailUrl?: string | null }
+export type YouTubeFormat = "video" | "short"
+export type PreviewYouTubeSettings = { title: string; privacyStatus: YouTubePrivacy; thumbnailUrl?: string | null; format?: YouTubeFormat | null }
 export type MediaItem = {
   id: string
   src: string
@@ -27,10 +28,12 @@ export type MediaItem = {
   isObjectUrl: boolean
   width?: number
   height?: number
+  /** Video length in seconds, when the browser could read it. */
+  duration?: number
 }
 
 export function getMediaDimensions(src: string, kind: MediaItem["kind"]) {
-  return new Promise<{ width: number; height: number } | undefined>((resolve) => {
+  return new Promise<{ width: number; height: number; duration?: number } | undefined>((resolve) => {
     if (kind === "image") {
       const image = new Image()
       image.onload = () => resolve(image.naturalWidth && image.naturalHeight ? { width: image.naturalWidth, height: image.naturalHeight } : undefined)
@@ -41,7 +44,7 @@ export function getMediaDimensions(src: string, kind: MediaItem["kind"]) {
 
     const video = document.createElement("video")
     video.preload = "metadata"
-    video.onloadedmetadata = () => resolve(video.videoWidth && video.videoHeight ? { width: video.videoWidth, height: video.videoHeight } : undefined)
+    video.onloadedmetadata = () => resolve(video.videoWidth && video.videoHeight ? { width: video.videoWidth, height: video.videoHeight, ...(Number.isFinite(video.duration) ? { duration: video.duration } : {}) } : undefined)
     video.onerror = () => resolve(undefined)
     video.src = src
   })
@@ -279,8 +282,13 @@ const YOUTUBE_PRIVACY_LABEL: Record<YouTubePrivacy, { label: string; Icon: typeo
   private: { label: "Privado", Icon: RiLock2Line },
 }
 
-/** A video becomes a Short on YouTube when it is vertical or square (and up to 3 minutes). */
-export const isYouTubeShort = (media: MediaItem | null) => !media?.width || !media.height || media.width <= media.height
+/** YouTube's own Shorts rule: vertical or square and up to 3 minutes. */
+export const YOUTUBE_SHORT_MAX_SECONDS = 180
+export const fitsYouTubeShort = (media: MediaItem | null) => Boolean(media?.width && media.height && media.width <= media.height && (media.duration === undefined || media.duration <= YOUTUBE_SHORT_MAX_SECONDS))
+
+/** Format the post was set up as; older drafts without one follow the video's shape. */
+export const youtubeFormatOf = (settings: { format?: YouTubeFormat | null } | undefined, media: MediaItem | null): YouTubeFormat =>
+  settings?.format || (fitsYouTubeShort(media) ? "short" : "video")
 
 const formatSubscribers = (count?: number | null) => {
   if (count == null) return "Inscritos ocultos"
@@ -291,8 +299,8 @@ const formatSubscribers = (count?: number | null) => {
 const HASHTAG_PATTERN = new RegExp("^#[\\p{L}\\p{N}_]+$", "u")
 
 /**
- * YouTube preview: vertical videos as a Short in the Shorts player; horizontal
- * ones as the watch page plus the card shown in search and on the home feed.
+ * YouTube preview: a Short in the Shorts player, or a regular video as the watch
+ * page plus the card shown in search and on the home feed.
  */
 function YouTubePreview({ account, settings, media, caption, hashtags }: { account?: PreviewYouTubeAccount; settings?: PreviewYouTubeSettings; media: MediaItem | null; caption: string; hashtags: string[] }) {
   const channel = account?.title || "Seu canal"
@@ -303,7 +311,7 @@ function YouTubePreview({ account, settings, media, caption, hashtags }: { accou
   const video = media?.kind === "video" ? media : null
   const channelInitial = (channel[0] || "Y").toUpperCase()
 
-  if (isYouTubeShort(media)) {
+  if (youtubeFormatOf(settings, media) === "short") {
     return <article data-preview="youtube-short" aria-label="Prévia de YouTube Shorts" className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-xl bg-black text-white ring-1 ring-black/10 font-[Roboto,system-ui,-apple-system,'Segoe_UI',Arial,sans-serif]">
       <PreviewMedia media={video} emptyMessage="Seu Short aparecerá aqui" fill backgroundClassName="bg-[#0f0f0f]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/50 to-transparent" />

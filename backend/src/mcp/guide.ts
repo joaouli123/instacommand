@@ -13,7 +13,7 @@ export const PUBLISHING_GUIDE = {
   formats: {
     IMAGE: 'Uma imagem. Instagram (feed), Facebook (foto da Página), Threads e X.',
     CAROUSEL: 'De 2 a 10 mídias (no X, até 4). Instagram e Threads aceitam imagens e vídeos misturados; o álbum do Facebook aceita somente fotos.',
-    REEL: 'Um vídeo. Instagram (Reels), Facebook (vídeo da Página), Threads (vídeo), X (vídeo) e YouTube (vídeo; vertical de até 3 minutos vira Short).',
+    REEL: 'Um vídeo. Instagram (Reels), Facebook (vídeo da Página), Threads (vídeo), X (vídeo) e YouTube (youtubeSettings.format: video para vídeo comum, short para vertical ou quadrado de até 3 minutos).',
     STORY: 'Uma imagem ou vídeo. Somente Instagram.',
     TEXT: 'Somente Threads e/ou X, sem mídia. Até 500 caracteres no Threads e 280 no X.',
   },

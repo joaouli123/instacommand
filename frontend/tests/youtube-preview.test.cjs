@@ -6,6 +6,7 @@ const path = require('node:path');
 const read = (file) => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8');
 const composer = read('app/composer/page.tsx');
 const preview = read('components/preview/SocialPostPreview.tsx');
+const options = read('components/composer/YouTubeOptions.tsx');
 
 test('YouTube only takes the video format and choosing it moves the post to video', () => {
   assert.match(composer, /REEL: \["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"\]/);
@@ -17,13 +18,15 @@ test('YouTube only takes the video format and choosing it moves the post to vide
 test('composer requires the title and the made-for-kids declaration before sending to YouTube', () => {
   assert.match(composer, /Escreva o título do vídeo para o YouTube\./);
   assert.match(composer, /Informe se o vídeo do YouTube é feito para crianças\./);
-  assert.match(composer, /madeForKids: null/);
+  assert.match(options, /madeForKids: null/);
   assert.match(composer, /youtubeSettings: platforms\.includes\("YOUTUBE"\) \? youtubeSettings : undefined/);
-  assert.match(composer, /maxLength=\{100\}/);
+  assert.match(options, /maxLength=\{100\}/);
 });
 
-test('vertical or square videos preview as a Short, horizontal ones as the watch page and search card', () => {
-  assert.match(preview, /export const isYouTubeShort = \(media: MediaItem \| null\) => !media\?\.width \|\| !media\.height \|\| media\.width <= media\.height/);
+test('the chosen format drives the YouTube preview: Shorts player or watch page and search card', () => {
+  assert.match(preview, /if \(youtubeFormatOf\(settings, media\) === "short"\)/);
+  assert.match(preview, /settings\?\.format \|\| \(fitsYouTubeShort\(media\) \? "short" : "video"\)/);
+  assert.match(preview, /media\.width <= media\.height && \(media\.duration === undefined \|\| media\.duration <= YOUTUBE_SHORT_MAX_SECONDS\)/);
   assert.match(preview, /data-preview="youtube-short"/);
   assert.match(preview, /data-preview="youtube-video"/);
   assert.match(preview, /data-preview="youtube-search-card"/);
@@ -34,4 +37,13 @@ test('vertical or square videos preview as a Short, horizontal ones as the watch
 
 test('the YouTube preview tab only appears for video posts', () => {
   assert.match(composer, /tab\.id !== "YOUTUBE" \|\| postType === "REEL"/);
+});
+
+test('YouTube-only posts pick between a regular video and a Short, and a Short that YouTube would refuse is blocked', () => {
+  assert.match(composer, /platforms\.length === 1 && platforms\[0\] === "YOUTUBE" \? <YouTubeFormatPicker/);
+  assert.match(composer, /const mediaProblem = youtubeMediaProblem\(youtubeSettings\.format, mediaItems\[0\]\)/);
+  assert.match(composer, /aria-label="Formato no YouTube"/);
+  assert.match(options, /Este vídeo é horizontal/);
+  assert.match(options, /Shorts vão até 3 minutos/);
+  assert.match(options, /Configurações avançadas/);
 });

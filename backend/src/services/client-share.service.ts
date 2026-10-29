@@ -247,6 +247,7 @@ export function toPublicPost(post: any, link: Pick<ShareLinkRecord, 'platforms'>
       title: String((post.youtubeSettings as any).title || ''),
       privacyStatus: ['public', 'unlisted', 'private'].includes((post.youtubeSettings as any).privacyStatus) ? (post.youtubeSettings as any).privacyStatus : 'public',
       thumbnailUrl: typeof (post.youtubeSettings as any).thumbnailUrl === 'string' && /^https?:\/\//i.test((post.youtubeSettings as any).thumbnailUrl) ? (post.youtubeSettings as any).thumbnailUrl : null,
+      format: (post.youtubeSettings as any).format === 'short' ? 'short' : (post.youtubeSettings as any).format === 'video' ? 'video' : null,
     } : null,
   };
 }

@@ -217,15 +217,28 @@ async function download(url: string, maxBytes: number) {
 /** Snippet and status sent to YouTube. The description is the post caption. */
 export function buildYouTubeMetadata(settings: YouTubeSettings, caption?: string | null) {
   return {
-    snippet: { title: settings.title, description: (caption || '').trim(), categoryId: settings.categoryId },
+    snippet: {
+      title: settings.title,
+      description: (caption || '').trim(),
+      categoryId: settings.categoryId,
+      ...(settings.tags.length ? { tags: settings.tags } : {}),
+      ...(settings.defaultLanguage ? { defaultLanguage: settings.defaultLanguage } : {}),
+      ...(settings.defaultAudioLanguage ? { defaultAudioLanguage: settings.defaultAudioLanguage } : {}),
+    },
     status: {
       privacyStatus: settings.privacyStatus,
       selfDeclaredMadeForKids: settings.madeForKids === true,
       containsSyntheticMedia: settings.alteredContent,
-      embeddable: true,
+      embeddable: settings.embeddable,
+      publicStatsViewable: settings.publicStatsViewable,
+      license: settings.license,
     },
+    ...(settings.recordingDate ? { recordingDetails: { recordingDate: `${settings.recordingDate}T00:00:00Z` } } : {}),
   };
 }
+
+/** Parts of the video resource the upload writes; recordingDetails only when a date was chosen. */
+export const youtubeUploadParts = (settings: YouTubeSettings) => ['snippet', 'status', ...(settings.recordingDate ? ['recordingDetails'] : [])].join(',');
 
 export type YouTubePublishResult = { id: string; url: string; privacyStatus?: string; warnings: string[] };
 
@@ -246,7 +259,8 @@ export async function publishYouTubeVideo(
   const { body, type } = await download(normalizeMediaUrl(videoUrl), MAX_VIDEO_BYTES);
   const contentType = type.startsWith('video/') ? type : 'video/mp4';
 
-  const session = await fetch(`${YOUTUBE_UPLOAD_API}/videos?uploadType=resumable&part=snippet,status`, {
+  const query = new URLSearchParams({ uploadType: 'resumable', part: youtubeUploadParts(settings), notifySubscribers: String(settings.notifySubscribers) });
+  const session = await fetch(`${YOUTUBE_UPLOAD_API}/videos?${query}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8',
@@ -272,7 +286,8 @@ export async function publishYouTubeVideo(
   if (video.status?.privacyStatus && video.status.privacyStatus !== settings.privacyStatus) {
     warnings.push('O YouTube manteve o vídeo como privado: o app ainda não passou pela auditoria da API do YouTube. Altere a visibilidade no YouTube Studio.');
   }
-  if (settings.thumbnailUrl) {
+  // The YouTube API does not set custom thumbnails on Shorts: they use a frame chosen in the app.
+  if (settings.thumbnailUrl && settings.format === 'video') {
     try {
       const image = await download(normalizeMediaUrl(settings.thumbnailUrl), MAX_THUMBNAIL_BYTES);
       await youtubeRequest(`${YOUTUBE_UPLOAD_API}/thumbnails/set?videoId=${encodeURIComponent(video.id)}`, token, {
@@ -282,5 +297,6 @@ export async function publishYouTubeVideo(
       warnings.push(`O vídeo foi publicado, mas a miniatura não foi aplicada: ${error instanceof Error ? error.message : 'erro desconhecido'} (miniaturas exigem canal verificado por telefone).`);
     }
   }
-  return { id: video.id, url: `https://www.youtube.com/watch?v=${video.id}`, privacyStatus: video.status?.privacyStatus, warnings };
+  const url = settings.format === 'short' ? `https://www.youtube.com/shorts/${video.id}` : `https://www.youtube.com/watch?v=${video.id}`;
+  return { id: video.id, url, privacyStatus: video.status?.privacyStatus, warnings };
 }

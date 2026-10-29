@@ -55,7 +55,8 @@ test('YouTube login is refused with a clear code when the server has no Google c
 test('YouTube settings: drafts may be incomplete, scheduling needs a title and the audience declaration', () => {
   assert.equal(validateYouTubeSettings(undefined), null);
   assert.deepEqual(validateYouTubeSettings({ title: '  Meu   vídeo ' }), {
-    title: 'Meu vídeo', privacyStatus: 'public', madeForKids: null, alteredContent: false, categoryId: '22', thumbnailUrl: null,
+    format: 'video', title: 'Meu vídeo', privacyStatus: 'public', madeForKids: null, alteredContent: false, categoryId: '22', thumbnailUrl: null,
+    tags: [], defaultLanguage: null, defaultAudioLanguage: null, license: 'youtube', embeddable: true, publicStatsViewable: true, notifySubscribers: true, recordingDate: null,
   });
   assert.throws(() => validateYouTubeSettings({ title: 'a'.repeat(101) }), /100/);
   assert.throws(() => validateYouTubeSettings({ title: 'a <b>' }), /< ou >/);
@@ -64,6 +65,30 @@ test('YouTube settings: drafts may be incomplete, scheduling needs a title and t
   assert.throws(() => validateYouTubeSettings({ title: '' }, { requireComplete: true }), /título/);
   assert.throws(() => validateYouTubeSettings({ title: 'ok' }, { requireComplete: true }), /crianças/);
   assert.doesNotThrow(() => validateYouTubeSettings(settings, { requireComplete: true }));
+});
+
+test('YouTube settings: format, tags, languages and Studio options are checked before they reach YouTube', () => {
+  const full = validateYouTubeSettings({ ...settings, format: 'short', tags: ['#finanças', 'fluxo de caixa', 'Finanças', ' '], defaultLanguage: 'pt-BR', defaultAudioLanguage: 'en', license: 'creativeCommon', embeddable: false, publicStatsViewable: false, notifySubscribers: false, recordingDate: '2026-01-15' });
+  assert.equal(full.format, 'short');
+  assert.deepEqual(full.tags, ['finanças', 'fluxo de caixa']);
+  assert.equal(full.license, 'creativeCommon');
+  assert.equal(full.notifySubscribers, false);
+  assert.throws(() => validateYouTubeSettings({ ...settings, format: 'live' }), /Formato/);
+  assert.throws(() => validateYouTubeSettings({ ...settings, tags: ['a,b'] }), /vírgula/);
+  assert.throws(() => validateYouTubeSettings({ ...settings, tags: Array.from({ length: 60 }, (_, i) => `tag numero ${i}`) }), /500/);
+  assert.throws(() => validateYouTubeSettings({ ...settings, defaultLanguage: 'xx' }), /Idioma/);
+  assert.throws(() => validateYouTubeSettings({ ...settings, license: 'mit' }), /Licença/);
+  assert.throws(() => validateYouTubeSettings({ ...settings, recordingDate: '2026-02-30' }), /gravação/);
+  assert.throws(() => validateYouTubeSettings({ ...settings, recordingDate: '2999-01-01' }), /futuro/);
+  assert.throws(() => validateYouTubeSettings({ ...settings, embeddable: 'sim' }), /incorporação/);
+
+  assert.deepEqual(youtube.buildYouTubeMetadata(full, 'Descrição'), {
+    snippet: { title: settings.title, description: 'Descrição', categoryId: '22', tags: ['finanças', 'fluxo de caixa'], defaultLanguage: 'pt-BR', defaultAudioLanguage: 'en' },
+    status: { privacyStatus: 'public', selfDeclaredMadeForKids: false, containsSyntheticMedia: false, embeddable: false, publicStatsViewable: false, license: 'creativeCommon' },
+    recordingDetails: { recordingDate: '2026-01-15T00:00:00Z' },
+  });
+  assert.equal(youtube.youtubeUploadParts(full), 'snippet,status,recordingDetails');
+  assert.equal(youtube.youtubeUploadParts({ ...full, recordingDate: null }), 'snippet,status');
 });
 
 test('posting rules: YouTube takes exactly one video, a title and a description without < or >', () => {
@@ -105,8 +130,9 @@ test('publishing uploads the video through a resumable session and reports when 
     assert.equal(session.init.headers['X-Upload-Content-Length'], String(video.length));
     assert.deepEqual(JSON.parse(session.init.body), {
       snippet: { title: settings.title, description: 'Descrição #marca', categoryId: '22' },
-      status: { privacyStatus: 'public', selfDeclaredMadeForKids: false, containsSyntheticMedia: false, embeddable: true },
+      status: { privacyStatus: 'public', selfDeclaredMadeForKids: false, containsSyntheticMedia: false, embeddable: true, publicStatsViewable: true, license: 'youtube' },
     });
+    assert.match(session.url, /part=snippet%2Cstatus&notifySubscribers=true$/);
     const upload = calls.find((call) => call.url === 'https://upload.example.test/session-1');
     assert.equal(upload.init.method, 'PUT');
     assert.equal(Buffer.from(upload.init.body).toString(), 'fake-mp4-bytes');

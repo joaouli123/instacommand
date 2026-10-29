@@ -73,12 +73,21 @@ export const threadsAccountIdSchema = z.string().uuid().describe('ID interno da 
 export const xAccountIdSchema = z.string().uuid().describe('ID interno da conta do X (campo "id" em x de list_accounts).');
 export const youtubeAccountIdSchema = z.string().uuid().describe('ID interno do canal do YouTube (campo "id" em youtube de list_accounts).');
 export const youtubeSettingsSchema = z.object({
+  format: z.enum(['video', 'short']).default('video').describe('video: vídeo comum (horizontal 16:9 recomendado). short: vertical ou quadrado de até 3 minutos.'),
   title: z.string().max(100).describe('Título do vídeo (obrigatório para agendar), até 100 caracteres, sem < ou >.'),
   privacyStatus: z.enum(['public', 'unlisted', 'private']).default('public'),
   madeForKids: z.boolean().describe('Declaração obrigatória do YouTube: o vídeo é feito para crianças? Pergunte ao usuário; nunca presuma.'),
   alteredContent: z.boolean().optional().describe('Conteúdo realista alterado ou sintético (IA).'),
   categoryId: z.string().optional().describe('Categoria do YouTube. Padrão 22 (Pessoas e blogs).'),
-  thumbnailUrl: z.string().url().optional().describe('Miniatura JPG/PNG até 2 MB, importada com import_media_from_url. Exige canal verificado.'),
+  thumbnailUrl: z.string().url().optional().describe('Miniatura JPG/PNG até 2 MB, importada com import_media_from_url. Só para format video; exige canal verificado.'),
+  tags: z.array(z.string()).optional().describe('Tags do vídeo, sem # e sem vírgula; no total até 500 caracteres.'),
+  defaultLanguage: z.enum(['pt-BR', 'pt-PT', 'en', 'es', 'es-419', 'fr', 'de', 'it', 'ja']).optional().describe('Idioma do título e da descrição.'),
+  defaultAudioLanguage: z.enum(['pt-BR', 'pt-PT', 'en', 'es', 'es-419', 'fr', 'de', 'it', 'ja']).optional().describe('Idioma falado no vídeo.'),
+  license: z.enum(['youtube', 'creativeCommon']).optional().describe('Licença. Padrão youtube (licença padrão do YouTube).'),
+  embeddable: z.boolean().optional().describe('Permitir incorporar em outros sites. Padrão true.'),
+  publicStatsViewable: z.boolean().optional().describe('Mostrar o número de curtidas. Padrão true.'),
+  notifySubscribers: z.boolean().optional().describe('Notificar os inscritos. Padrão true.'),
+  recordingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data de gravação, AAAA-MM-DD.'),
 }).describe('Opções do vídeo no YouTube. A descrição é a própria legenda.');
 export const postIdSchema = z.string().uuid().describe('ID da publicação no UX Code Social (campo "id" de list_posts).');
 

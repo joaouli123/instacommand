@@ -87,7 +87,7 @@ test('public payload whitelists fields and hides drafts unless allowed', async (
   assert.deepEqual(Object.keys(payload.posts[0]).sort(), ['accountKey', 'caption', 'hashtags', 'id', 'mediaType', 'mediaUrls', 'platforms', 'scheduledAt', 'status', 'thumbnailUrl', 'threadsAccount', 'xAccount', 'youtubeAccount', 'youtubeSettings'].sort());
   assert.equal(payload.accounts[0].igUsername, 'marca');
   const youtube = share.toPublicPost({ id: 'yt', platforms: ['YOUTUBE'], status: 'SCHEDULED', youtubeAccount: { title: 'Canal', handle: '@canal', thumbnailUrl: null, accessToken: 'TOKEN-SECRET' }, youtubeSettings: { title: 'Vídeo', privacyStatus: 'unlisted', madeForKids: false, alteredContent: true, thumbnailUrl: 'javascript:alert(1)' } }, { platforms: [] });
-  assert.deepEqual(youtube.youtubeSettings, { title: 'Vídeo', privacyStatus: 'unlisted', thumbnailUrl: null });
+  assert.deepEqual(youtube.youtubeSettings, { title: 'Vídeo', privacyStatus: 'unlisted', thumbnailUrl: null, format: null });
   assert.deepEqual(youtube.youtubeAccount, { title: 'Canal', handle: '@canal', thumbnailUrl: null });
   assert.equal(payload.posts[0].accountKey, payload.accounts[0].key);
   links[0].includeDrafts = true;

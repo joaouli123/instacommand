@@ -27,7 +27,7 @@ type PublicPost = {
   threadsAccount: { username: string } | null
   xAccount: { username: string; name: string | null; profilePicUrl: string | null } | null
   youtubeAccount?: { title: string; handle: string | null; thumbnailUrl: string | null } | null
-  youtubeSettings?: { title: string; privacyStatus: "public" | "unlisted" | "private"; thumbnailUrl: string | null } | null
+  youtubeSettings?: { title: string; privacyStatus: "public" | "unlisted" | "private"; thumbnailUrl: string | null; format?: "video" | "short" | null } | null
 }
 type Payload = { link: { name: string; includeDrafts: boolean; expiresAt: string | null }; accounts: PublicAccount[]; posts: PublicPost[]; comments: ClientComment[] }
 type PendingPin = { mediaIndex: number; x: number; y: number }
