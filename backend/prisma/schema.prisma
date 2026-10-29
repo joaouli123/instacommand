@@ -330,7 +330,6 @@ model InstagramAgentSettings {
   @@unique([accountId, platform])
   @@unique([threadsAccountId, platform])
   @@unique([xAccountId, platform])
-  @@unique([youtubeAccountId, platform])
   @@index([userId, accountId])
 }
 

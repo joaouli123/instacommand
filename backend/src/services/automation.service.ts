@@ -15,13 +15,9 @@ export type InstagramAutomationEvent = {
   sourceMessageId?: string; timestamp?: number;
 };
 const permissionsCache = new Map<string, { expiresAt: number; grantedPermissions: string[]; permissionCheckError: string | null }>();
-const agentKey = (accountId: string, platform: Platform) => platform === 'YOUTUBE'
-  ? { youtubeAccountId_platform: { youtubeAccountId: accountId, platform } }
-  : platform === 'THREADS'
-  ? { threadsAccountId_platform: { threadsAccountId: accountId, platform } }
-  : platform === 'X'
-    ? { xAccountId_platform: { xAccountId: accountId, platform } }
-    : { accountId_platform: { accountId, platform } };
+// One assistant per account and network. Looked up by the account scope rather than a unique key,
+// so adding a network never needs a new unique index (db push refuses those without data-loss approval).
+const findAgent = (accountId: string, platform: Platform) => prisma.instagramAgentSettings.findFirst({ where: accountScope(accountId, platform) });
 const diagnostic = (error: unknown) => error instanceof ValidationError || error instanceof NotFoundError || error instanceof ConflictError || error instanceof ThreadsAutomationError
   ? error.message.slice(0, 500) : 'Não foi possível concluir a operação com o provedor. Confira a conexão; não repetimos envios de resultado incerto.';
 
@@ -60,7 +56,7 @@ export const getAutomationWorkspace = async (userId: string, accountId: string, 
   const [automations, templates, agent, executions, conversations, status] = await Promise.all([
     prisma.socialAutomation.findMany({ where: { ...scope, userId }, orderBy: { createdAt: 'desc' } }),
     prisma.automationTemplate.findMany({ where: { ...scope, userId }, orderBy: { updatedAt: 'desc' } }),
-    prisma.instagramAgentSettings.findUnique({ where: agentKey(accountId, platform) }),
+    findAgent(accountId, platform),
     prisma.automationExecution.findMany({ where: scope, orderBy: { createdAt: 'desc' }, take: 100 }),
     prisma.automationConversation.findMany({ where: { ...scope, userId }, orderBy: { updatedAt: 'desc' }, take: 100,
       select: { id: true, senderId: true, senderUsername: true, kind: true, state: true, stateReason: true, lastInboundAt: true, updatedAt: true,
@@ -101,7 +97,7 @@ export const updateAutomation = async (userId: string, id: string, data: RuleInp
     const status = await getAutomationStatus(userId, data.accountId, true, platform);
     if (data.trigger.startsWith('COMMENT_') ? !status.canAutomateComments : !status.canAutomateMessages) throw new ValidationError('A Meta ainda não concedeu as permissões necessárias para este tipo de resposta.');
     if (data.replyMode === 'AI') {
-      const agent = await prisma.instagramAgentSettings.findUnique({ where: agentKey(data.accountId, platform) });
+      const agent = await findAgent(data.accountId, platform);
       if (!agent?.enabled) throw new ValidationError('Configure e ative o agente antes desta regra.');
     }
   }
@@ -134,7 +130,10 @@ export const saveAgentSettings = async (userId: string, data: { accountId: strin
   await ownedAutomationAccount(userId, data.accountId, platform);
   if (data.autoSend && !data.enabled) throw new ValidationError('Ative o agente antes de habilitar o envio automático.');
   const { accountId, platform: ignored, ...values } = data;
-  return prisma.instagramAgentSettings.upsert({ where: agentKey(accountId, platform), create: { ...values, userId, ...accountScope(accountId, platform) }, update: values });
+  const existing = await findAgent(accountId, platform);
+  return existing
+    ? prisma.instagramAgentSettings.update({ where: { id: existing.id }, data: values })
+    : prisma.instagramAgentSettings.create({ data: { ...values, userId, ...accountScope(accountId, platform) } });
 };
 
 export async function getAutomationConversation(userId: string, accountId: string, id: string, platform: Platform = 'INSTAGRAM') {
@@ -227,7 +226,7 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
     if (conversation.state !== 'BOT') { await update({ status: conversation.state === 'STOPPED' ? 'SKIPPED' : 'NEEDS_REVIEW', error: conversation.state === 'STOPPED' ? 'A pessoa pediu para parar. Não enviaremos novas respostas.' : 'Conversa reservada para atendimento humano.' }); return; }
     const [rules, agent] = await Promise.all([
       prisma.socialAutomation.findMany({ where: { ...scope, enabled: true }, orderBy: { createdAt: 'asc' } }),
-      prisma.instagramAgentSettings.findUnique({ where: agentKey(account.id, platform) }),
+      findAgent(account.id, platform),
     ]);
     const candidates = rules.filter(rule => matchesEvent(rule.trigger, event.type) && (!rule.enabledAt || execution.eventAt >= rule.enabledAt));
     const direct = candidates.filter(rule => hasKeywordMatch(rule, event.text || '')).sort((a, b) => Number(b.trigger.endsWith('_KEYWORD')) - Number(a.trigger.endsWith('_KEYWORD')));
@@ -278,7 +277,7 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
         await update({ status: currentConversation.state === 'STOPPED' ? 'SKIPPED' : 'NEEDS_REVIEW', responseText: response, error: 'A conversa foi pausada antes do envio.' }); return;
       }
       if (rule.replyMode === 'AI') {
-        const currentAgent = await prisma.instagramAgentSettings.findUnique({ where: agentKey(account.id, platform) });
+        const currentAgent = await findAgent(account.id, platform);
         if (!currentAgent?.enabled || !currentAgent.autoSend) { await handoff('O agente ou seu envio automático foi pausado antes do envio.', response); return; }
       }
       await ownedAutomationAccount(account.userId, account.id, platform);
@@ -291,7 +290,7 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
           const [currentRule, currentConversation, currentAgent] = await Promise.all([
             prisma.socialAutomation.findFirst({ where: { id: rule.id, ...scope, enabled: true } }),
             prisma.automationConversation.findUniqueOrThrow({ where: { id: conversation.id } }),
-            rule.replyMode === 'AI' ? prisma.instagramAgentSettings.findUnique({ where: agentKey(account.id, platform) }) : null,
+            rule.replyMode === 'AI' ? findAgent(account.id, platform) : null,
           ]);
           if (!currentRule || currentConversation.state !== 'BOT' || (rule.replyMode === 'AI' && (!currentAgent?.enabled || !currentAgent.autoSend))) {
             throw new ValidationError('O atendimento foi pausado antes da publicação da resposta.');

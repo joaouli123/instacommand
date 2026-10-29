@@ -16,7 +16,7 @@ require.cache[require.resolve('@prisma/client')] = { exports: { PrismaClient: cl
     findUnique: async ({ where }) => account && where.igUserId === account.igUserId ? account : null,
   };
   socialAutomation = { findMany: async () => rules, findFirst: async ({ where }) => rules.find(item => item.id === where.id) };
-  instagramAgentSettings = { findUnique: async () => agent };
+  instagramAgentSettings = { findUnique: async () => agent, findFirst: async () => agent };
   privateReplyClaim = { create: async () => ({}), update: async () => ({}) };
   automationConversation = {
     upsert: async ({ where, create, update }) => {
