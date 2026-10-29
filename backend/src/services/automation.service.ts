@@ -15,7 +15,9 @@ export type InstagramAutomationEvent = {
   sourceMessageId?: string; timestamp?: number;
 };
 const permissionsCache = new Map<string, { expiresAt: number; grantedPermissions: string[]; permissionCheckError: string | null }>();
-const agentKey = (accountId: string, platform: Platform) => platform === 'THREADS'
+const agentKey = (accountId: string, platform: Platform) => platform === 'YOUTUBE'
+  ? { youtubeAccountId_platform: { youtubeAccountId: accountId, platform } }
+  : platform === 'THREADS'
   ? { threadsAccountId_platform: { threadsAccountId: accountId, platform } }
   : platform === 'X'
     ? { xAccountId_platform: { xAccountId: accountId, platform } }
@@ -39,7 +41,8 @@ export const getAutomationStatus = async (userId: string, accountId: string, ref
     prisma.automationExecution.findFirst({ where: scope, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
     prisma.automationExecution.findFirst({ where: { ...scope, OR: [{ publicReplySent: true }, { privateReplySent: true }] }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
     platform === 'THREADS' ? prisma.threadsAccount.findUnique({ where: { id: accountId }, select: { automationSyncAt: true, automationSyncError: true } })
-      : platform === 'X' ? prisma.xAccount.findUnique({ where: { id: accountId }, select: { automationSyncAt: true, automationSyncError: true } }) : null,
+      : platform === 'X' ? prisma.xAccount.findUnique({ where: { id: accountId }, select: { automationSyncAt: true, automationSyncError: true } })
+      : platform === 'YOUTUBE' ? prisma.youTubeAccount.findUnique({ where: { id: accountId }, select: { automationSyncAt: true, automationSyncError: true } }) : null,
   ]);
   return { platform, webhookConfigured: isPublicReplyPlatform(platform) || Boolean(env.WEBHOOK_VERIFY_TOKEN && env.FB_APP_SECRET),
     callbackUrl: `${env.BACKEND_URL.replace(/\/$/, '')}/api/webhooks/${platform === 'FACEBOOK' ? 'facebook' : 'instagram'}`,
@@ -168,6 +171,8 @@ export const processInstagramAutomationEvent = async (event: InstagramAutomation
     ? await prisma.threadsAccount.findUnique({ where: { threadsUserId: event.accountIgId } })
     : platform === 'X'
       ? await prisma.xAccount.findUnique({ where: { xUserId: event.accountIgId } })
+    : platform === 'YOUTUBE'
+      ? await prisma.youTubeAccount.findUnique({ where: { channelId: event.accountIgId } })
     : platform === 'FACEBOOK'
       ? await prisma.instagramAccount.findFirst({ where: { pageId: event.accountIgId, isActive: true, selectionPending: false } })
       : await prisma.instagramAccount.findUnique({ where: { igUserId: event.accountIgId } });

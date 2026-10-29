@@ -10,7 +10,7 @@ export const automationDb = getPrisma();
 export type Platform = AutomationPlatform;
 export type AutomationAccount = { id: string; userId: string; platform: Platform; externalId: string; username: string; pageId?: string; igUserId?: string };
 /** Networks where automations only answer publicly and new items are collected by polling. */
-export const isPublicReplyPlatform = (platform: Platform) => platform === 'THREADS' || platform === 'X';
+export const isPublicReplyPlatform = (platform: Platform) => platform === 'THREADS' || platform === 'X' || platform === 'YOUTUBE';
 /** Longest automatic reply each network accepts. */
 export const replyLimit = (platform: Platform) => platform === 'X' ? 280 : platform === 'THREADS' ? 500 : 1000;
 
@@ -18,9 +18,15 @@ export const accountScope = (accountId: string, platform: Platform = 'INSTAGRAM'
   platform, accountId: isPublicReplyPlatform(platform) ? null : accountId,
   threadsAccountId: platform === 'THREADS' ? accountId : null,
   xAccountId: platform === 'X' ? accountId : null,
+  youtubeAccountId: platform === 'YOUTUBE' ? accountId : null,
 });
 
 export async function ownedAutomationAccount(userId: string, accountId: string, platform: Platform = 'INSTAGRAM'): Promise<AutomationAccount> {
+  if (platform === 'YOUTUBE') {
+    const account = await automationDb.youTubeAccount.findFirst({ where: { id: accountId, userId, isActive: true } });
+    if (!account) throw new NotFoundError('Canal do YouTube não encontrado.');
+    return { id: account.id, userId, platform, externalId: account.channelId, username: account.title };
+  }
   if (platform === 'X') {
     const account = await automationDb.xAccount.findFirst({ where: { id: accountId, userId, isActive: true } });
     if (!account) throw new NotFoundError('Conta do X não encontrada.');
@@ -80,6 +86,11 @@ export async function waitForThreadsReplyContainer(containerId: string, token: s
 }
 
 export async function automationPermissions(account: AutomationAccount): Promise<string[]> {
+  if (account.platform === 'YOUTUBE') {
+    // Scopes granted on Google's consent screen are stored with the connection.
+    const stored = await automationDb.youTubeAccount.findUnique({ where: { id: account.id }, select: { scopes: true } });
+    return (stored?.scopes || '').split(/\s+/).filter(Boolean);
+  }
   if (account.platform === 'X') {
     // Scopes granted on the X consent screen are stored with the connection.
     const stored = await automationDb.xAccount.findUnique({ where: { id: account.id }, select: { scopes: true } });
@@ -96,7 +107,10 @@ export async function automationPermissions(account: AutomationAccount): Promise
   return Array.isArray(debug.data.scopes) ? debug.data.scopes.filter((scope: unknown): scope is string => typeof scope === 'string') : [];
 }
 
-export const permissionCapabilities = (platform: Platform, scopes: string[]) => platform === 'X' ? ({
+export const permissionCapabilities = (platform: Platform, scopes: string[]) => platform === 'YOUTUBE' ? ({
+  canAutomateComments: scopes.includes('https://www.googleapis.com/auth/youtube.force-ssl'),
+  canAutomateMessages: false,
+}) : platform === 'X' ? ({
   canAutomateComments: ['tweet.read', 'tweet.write', 'users.read'].every(scope => scopes.includes(scope)),
   canAutomateMessages: false,
 }) : ({
@@ -107,6 +121,14 @@ export const permissionCapabilities = (platform: Platform, scopes: string[]) => 
 });
 
 export async function sendAutomationResponse(account: AutomationAccount, target: { commentId?: string | null; senderId?: string | null }, text: string, assertCanSend: () => Promise<void> = async () => {}) {
+  if (account.platform === 'YOUTUBE') {
+    if (!target.commentId) throw new ValidationError('No YouTube, a automação responde publicamente aos comentários.');
+    if ([...text].length > 1000) throw new ValidationError('A resposta no YouTube deve ter até 1.000 caracteres.');
+    // Loaded on demand so the other networks never depend on the Google client.
+    const { replyToYouTubeComment } = require('./youtube-community.service') as typeof import('./youtube-community.service');
+    await assertCanSend();
+    return replyToYouTubeComment(account.id, target.commentId, text);
+  }
   if (account.platform === 'X') {
     if (!target.commentId) throw new ValidationError('No X, a automação responde publicamente às menções.');
     if ([...text].length > 280) throw new ValidationError('A resposta no X deve ter até 280 caracteres.');

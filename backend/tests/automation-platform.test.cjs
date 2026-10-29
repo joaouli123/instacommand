@@ -106,9 +106,14 @@ test('capabilities and database scopes cannot bleed between the three channels',
   assert.equal(permissionCapabilities('THREADS', ['threads_read_replies', 'threads_content_publish']).canAutomateComments, false);
   assert.equal(permissionCapabilities('THREADS', ['threads_read_replies', 'threads_manage_replies', 'threads_content_publish']).canAutomateComments, true);
   assert.equal(permissionCapabilities('THREADS', ['pages_messaging']).canAutomateMessages, false);
-  assert.deepEqual(accountScope('id', 'THREADS'), { accountId: null, threadsAccountId: 'id', xAccountId: null, platform: 'THREADS' });
-  assert.deepEqual(accountScope('id', 'X'), { accountId: null, threadsAccountId: null, xAccountId: 'id', platform: 'X' });
-  assert.deepEqual(accountScope('id', 'INSTAGRAM'), { accountId: 'id', threadsAccountId: null, xAccountId: null, platform: 'INSTAGRAM' });
+  assert.deepEqual(accountScope('id', 'THREADS'), { accountId: null, threadsAccountId: 'id', xAccountId: null, youtubeAccountId: null, platform: 'THREADS' });
+  assert.deepEqual(accountScope('id', 'X'), { accountId: null, threadsAccountId: null, xAccountId: 'id', youtubeAccountId: null, platform: 'X' });
+  assert.deepEqual(accountScope('id', 'YOUTUBE'), { accountId: null, threadsAccountId: null, xAccountId: null, youtubeAccountId: 'id', platform: 'YOUTUBE' });
+  // YouTube: public replies to comments only, and only with the comment-management consent.
+  assert.equal(permissionCapabilities('YOUTUBE', ['https://www.googleapis.com/auth/youtube.readonly']).canAutomateComments, false);
+  assert.equal(permissionCapabilities('YOUTUBE', ['https://www.googleapis.com/auth/youtube.force-ssl']).canAutomateComments, true);
+  assert.equal(permissionCapabilities('YOUTUBE', ['https://www.googleapis.com/auth/youtube.force-ssl']).canAutomateMessages, false);
+  assert.deepEqual(accountScope('id', 'INSTAGRAM'), { accountId: 'id', threadsAccountId: null, xAccountId: null, youtubeAccountId: null, platform: 'INSTAGRAM' });
   // X: public replies only, and only with read + write consent.
   assert.equal(permissionCapabilities('X', ['tweet.read', 'tweet.write', 'users.read']).canAutomateComments, true);
   assert.equal(permissionCapabilities('X', ['tweet.read', 'users.read']).canAutomateComments, false);

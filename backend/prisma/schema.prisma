@@ -162,22 +162,22 @@ model InstagramAccount {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  user                 User                     @relation(fields: [userId], references: [id])
-  scheduledPosts       ScheduledPost[]
-  publishedPosts       PublishedPost[]
-  profileInsights      ProfileInsight[]
-  audienceDemographics AudienceDemographic[]
-  competitors          Competitor[]
-  socialAutomations    SocialAutomation[]
-  automationTemplates  AutomationTemplate[]
-  instagramAgents      InstagramAgentSettings[]
-  automationExecutions AutomationExecution[]
-  privateReplyClaims   PrivateReplyClaim[]
-  conversations        AutomationConversation[]
-  dailyInsights        AccountDailyInsight[]
-  linkedThreadsAccounts ThreadsAccount[]      @relation("ThreadsWorkspace")
-  linkedXAccounts       XAccount[]            @relation("XWorkspace")
-  linkedYouTubeAccounts YouTubeAccount[]      @relation("YouTubeWorkspace")
+  user                  User                     @relation(fields: [userId], references: [id])
+  scheduledPosts        ScheduledPost[]
+  publishedPosts        PublishedPost[]
+  profileInsights       ProfileInsight[]
+  audienceDemographics  AudienceDemographic[]
+  competitors           Competitor[]
+  socialAutomations     SocialAutomation[]
+  automationTemplates   AutomationTemplate[]
+  instagramAgents       InstagramAgentSettings[]
+  automationExecutions  AutomationExecution[]
+  privateReplyClaims    PrivateReplyClaim[]
+  conversations         AutomationConversation[]
+  dailyInsights         AccountDailyInsight[]
+  linkedThreadsAccounts ThreadsAccount[]         @relation("ThreadsWorkspace")
+  linkedXAccounts       XAccount[]               @relation("XWorkspace")
+  linkedYouTubeAccounts YouTubeAccount[]         @relation("YouTubeWorkspace")
   youtubeCompetitors    YouTubeCompetitor[]
 
   @@index([userId])
@@ -216,6 +216,7 @@ enum AutomationPlatform {
   FACEBOOK
   THREADS
   X
+  YOUTUBE
 }
 
 enum ConversationState {
@@ -264,12 +265,14 @@ model SocialAutomation {
   createdAt            DateTime                  @default(now())
   updatedAt            DateTime                  @updatedAt
 
-  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account        InstagramAccount?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  threadsAccount ThreadsAccount?       @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
-  xAccountId     String?
-  xAccount       XAccount?             @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
-  executions     AutomationExecution[]
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account          InstagramAccount?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  threadsAccount   ThreadsAccount?       @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId       String?
+  xAccount         XAccount?             @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  youtubeAccountId String?
+  youtubeAccount   YouTubeAccount?       @relation(fields: [youtubeAccountId], references: [id], onDelete: Cascade)
+  executions       AutomationExecution[]
 
   @@index([userId, accountId, enabled])
   @@index([accountId, trigger, enabled])
@@ -288,11 +291,13 @@ model AutomationTemplate {
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 
-  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account        InstagramAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  threadsAccount ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
-  xAccountId     String?
-  xAccount       XAccount?         @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account          InstagramAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  threadsAccount   ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId       String?
+  xAccount         XAccount?         @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  youtubeAccountId String?
+  youtubeAccount   YouTubeAccount?   @relation(fields: [youtubeAccountId], references: [id], onDelete: Cascade)
 
   @@index([userId, accountId, type])
 }
@@ -314,15 +319,18 @@ model InstagramAgentSettings {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
-  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account        InstagramAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  threadsAccount ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
-  xAccountId     String?
-  xAccount       XAccount?         @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account          InstagramAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  threadsAccount   ThreadsAccount?   @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId       String?
+  xAccount         XAccount?         @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  youtubeAccountId String?
+  youtubeAccount   YouTubeAccount?   @relation(fields: [youtubeAccountId], references: [id], onDelete: Cascade)
 
   @@unique([accountId, platform])
   @@unique([threadsAccountId, platform])
   @@unique([xAccountId, platform])
+  @@unique([youtubeAccountId, platform])
   @@index([userId, accountId])
 }
 
@@ -352,12 +360,14 @@ model AutomationExecution {
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
 
-  account        InstagramAccount?       @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  threadsAccount ThreadsAccount?         @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
-  xAccountId     String?
-  xAccount       XAccount?               @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
-  conversation   AutomationConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  automation     SocialAutomation?       @relation(fields: [automationId], references: [id], onDelete: SetNull)
+  account          InstagramAccount?       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  threadsAccount   ThreadsAccount?         @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId       String?
+  xAccount         XAccount?               @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  youtubeAccountId String?
+  youtubeAccount   YouTubeAccount?         @relation(fields: [youtubeAccountId], references: [id], onDelete: Cascade)
+  conversation     AutomationConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  automation       SocialAutomation?       @relation(fields: [automationId], references: [id], onDelete: SetNull)
 
   @@index([accountId, createdAt])
   @@index([automationId, status, createdAt])
@@ -384,12 +394,14 @@ model AutomationConversation {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account        InstagramAccount?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  threadsAccount ThreadsAccount?       @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
-  xAccountId     String?
-  xAccount       XAccount?             @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
-  executions     AutomationExecution[]
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account          InstagramAccount?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  threadsAccount   ThreadsAccount?       @relation(fields: [threadsAccountId], references: [id], onDelete: Cascade)
+  xAccountId       String?
+  xAccount         XAccount?             @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  youtubeAccountId String?
+  youtubeAccount   YouTubeAccount?       @relation(fields: [youtubeAccountId], references: [id], onDelete: Cascade)
+  executions       AutomationExecution[]
 
   @@index([userId, platform, updatedAt])
   @@index([accountId, platform, updatedAt])
@@ -439,8 +451,8 @@ model XAccount {
   updatedAt           DateTime  @updatedAt
 
   /// Company (Instagram account) this profile belongs to; screens and posts never mix companies.
-  workspaceAccountId String?
-  workspaceAccount   InstagramAccount? @relation("XWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
+  workspaceAccountId   String?
+  workspaceAccount     InstagramAccount?        @relation("XWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
   user                 User                     @relation(fields: [userId], references: [id])
   scheduledPosts       ScheduledPost[]
   postMetrics          XPostMetric[]
@@ -479,28 +491,37 @@ model XPostMetric {
 
 // One YouTube channel connected through Google OAuth. Posting only: no reports yet.
 model YouTubeAccount {
-  id              String    @id @default(uuid())
-  userId          String
-  channelId       String    @unique
-  title           String
-  handle          String?
-  thumbnailUrl    String?
-  subscriberCount Int?
-  accessToken     String
-  refreshToken    String?
-  tokenExpiresAt  DateTime?
-  scopes          String?
-  isActive        Boolean   @default(true)
-  connectedAt     DateTime  @default(now())
-  lastSyncAt      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                      String    @id @default(uuid())
+  userId                  String
+  channelId               String    @unique
+  title                   String
+  handle                  String?
+  thumbnailUrl            String?
+  subscriberCount         Int?
+  accessToken             String
+  refreshToken            String?
+  tokenExpiresAt          DateTime?
+  scopes                  String?
+  isActive                Boolean   @default(true)
+  connectedAt             DateTime  @default(now())
+  lastSyncAt              DateTime?
+  /// Newest comment already read by the automations, so each check only reads new ones.
+  automationLastCommentAt DateTime?
+  automationSyncAt        DateTime?
+  automationSyncError     String?   @db.VarChar(500)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   /// Company (Instagram account) this profile belongs to; screens and posts never mix companies.
-  workspaceAccountId String?
-  workspaceAccount   InstagramAccount? @relation("YouTubeWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
-  user           User            @relation(fields: [userId], references: [id])
-  scheduledPosts ScheduledPost[]
+  workspaceAccountId   String?
+  workspaceAccount     InstagramAccount?        @relation("YouTubeWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
+  user                 User                     @relation(fields: [userId], references: [id])
+  scheduledPosts       ScheduledPost[]
+  socialAutomations    SocialAutomation[]
+  automationTemplates  AutomationTemplate[]
+  instagramAgents      InstagramAgentSettings[]
+  automationExecutions AutomationExecution[]
+  conversations        AutomationConversation[]
 
   @@index([userId])
   @@index([workspaceAccountId])
@@ -524,8 +545,8 @@ model ThreadsAccount {
   updatedAt           DateTime  @updatedAt
 
   /// Company (Instagram account) this profile belongs to; screens and posts never mix companies.
-  workspaceAccountId String?
-  workspaceAccount   InstagramAccount? @relation("ThreadsWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
+  workspaceAccountId   String?
+  workspaceAccount     InstagramAccount?        @relation("ThreadsWorkspace", fields: [workspaceAccountId], references: [id], onDelete: SetNull)
   user                 User                     @relation(fields: [userId], references: [id])
   scheduledPosts       ScheduledPost[]
   socialAutomations    SocialAutomation[]

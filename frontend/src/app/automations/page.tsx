@@ -13,12 +13,12 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useLang, useT, withAuthLocale } from "@/lib/i18n"
-import { formatDate, NETWORKS, NetworkBadge, type Platform, type Workspace } from "@/components/automations/shared"
+import { formatDate, NETWORKS, NetworkBadge, type Platform, type Workspace, isPublicReplyPlatform } from "@/components/automations/shared"
 import { RulesPanel } from "@/components/automations/RulesPanel"
 import { ConversationsPanel } from "@/components/automations/ConversationsPanel"
 import { AgentPanel, HistoryPanel, TemplatesPanel } from "@/components/automations/SupportPanels"
 
-const PLATFORMS: Platform[] = ["INSTAGRAM", "FACEBOOK", "THREADS", "X"]
+const PLATFORMS: Platform[] = ["INSTAGRAM", "FACEBOOK", "THREADS", "X", "YOUTUBE"]
 
 export default function AutomationsPage() {
   const { activeAccount, isLoading } = useActiveAccount()
@@ -34,8 +34,12 @@ export default function AutomationsPage() {
   const xAccounts = { data: ofCompany(xQuery.data?.accounts, activeAccount?.id || ""), isLoading: xQuery.isLoading }
   const [xId, setXId] = useState("")
   const selectedX = xAccounts.data?.find((account) => account.id === xId) || xAccounts.data?.[0]
-  const accountId = platform === "THREADS" ? selectedThread?.id : platform === "X" ? selectedX?.id : activeAccount?.id
-  const username = platform === "THREADS" ? selectedThread?.username : platform === "X" ? selectedX?.username : platform === "FACEBOOK" ? activeAccount?.pageName || activeAccount?.igUsername : activeAccount?.igUsername
+  const youtubeQuery = useQuery({ queryKey: ["youtube-accounts"], queryFn: () => api.getYouTubeAccounts() as Promise<{ accounts?: Array<{ id: string; title: string; workspaceAccountId?: string | null }> }> })
+  const channels = { data: ofCompany(youtubeQuery.data?.accounts, activeAccount?.id || ""), isLoading: youtubeQuery.isLoading }
+  const [channelId, setChannelId] = useState("")
+  const selectedChannel = channels.data.find((account) => account.id === channelId) || channels.data[0]
+  const accountId = platform === "THREADS" ? selectedThread?.id : platform === "X" ? selectedX?.id : platform === "YOUTUBE" ? selectedChannel?.id : activeAccount?.id
+  const username = platform === "THREADS" ? selectedThread?.username : platform === "X" ? selectedX?.username : platform === "YOUTUBE" ? selectedChannel?.title : platform === "FACEBOOK" ? activeAccount?.pageName || activeAccount?.igUsername : activeAccount?.igUsername
 
   return <div className="space-y-6 animate-fade-in pb-8">
     <header>
@@ -44,7 +48,7 @@ export default function AutomationsPage() {
       <p className="page-subtitle">{t("Responda comentários e mensagens automaticamente — com respostas prontas ou com um assistente de IA — e assuma a conversa quando quiser.")}</p>
     </header>
 
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label={t("Rede social")}>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="radiogroup" aria-label={t("Rede social")}>
       {PLATFORMS.map((item) => {
         const network = NETWORKS[item]
         const selected = platform === item
@@ -59,8 +63,9 @@ export default function AutomationsPage() {
 
     {platform === "THREADS" && (threads.data?.length || 0) > 1 && <label className="block max-w-sm text-xs font-semibold text-slate-600">{t("Conta do Threads")}<select className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" value={selectedThread?.id || ""} onChange={(event) => setThreadId(event.target.value)}>{threads.data?.map((account) => <option key={account.id} value={account.id}>@{account.username}</option>)}</select></label>}
 
+    {platform === "YOUTUBE" && channels.data.length > 1 && <label className="block max-w-sm text-xs font-semibold text-slate-600">{t("Canal do YouTube")}<select className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" value={selectedChannel?.id || ""} onChange={(event) => setChannelId(event.target.value)}>{channels.data.map((account) => <option key={account.id} value={account.id}>{account.title}</option>)}</select></label>}
     {platform === "X" && (xAccounts.data?.length || 0) > 1 && <label className="block max-w-sm text-xs font-semibold text-slate-600">{t("Conta do X")}<select className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" value={selectedX?.id || ""} onChange={(event) => setXId(event.target.value)}>{xAccounts.data?.map((account) => <option key={account.id} value={account.id}>@{account.username}</option>)}</select></label>}
-    {(isLoading || (platform === "THREADS" && threads.isLoading) || (platform === "X" && xAccounts.isLoading)) ? <Card className="p-6 text-sm text-slate-500">{t("Carregando contas…")}</Card>
+    {(isLoading || (platform === "THREADS" && threads.isLoading) || (platform === "X" && xAccounts.isLoading) || (platform === "YOUTUBE" && channels.isLoading)) ? <Card className="p-6 text-sm text-slate-500">{t("Carregando contas…")}</Card>
       : accountId ? <AutomationWorkspace key={`${platform}:${accountId}`} accountId={accountId} username={username || t("Conta conectada")} platform={platform} />
         : <Card className="flex flex-col items-center gap-3 p-8 text-center"><NetworkBadge platform={platform} size={48} /><p className="font-semibold text-slate-900">{t("Conecte sua conta do {network}", { network: NETWORKS[platform].label })}</p><p className="max-w-sm text-sm text-slate-500">{t("Depois de conectar, você cria as respostas automáticas aqui.")}</p><Button asChild className="bg-indigo-600 text-white hover:bg-indigo-700"><Link href="/accounts">{t("Ir para Contas")}</Link></Button></Card>}
   </div>
@@ -105,8 +110,8 @@ function AutomationWorkspace({ accountId, username, platform }: { accountId: str
   const needsYou = waitingHuman + toReview
   const currentTab: Tab = tab ?? (needsYou ? "conversas" : "regras")
 
-  const permissionOk = platform === "THREADS" || platform === "X" ? status.canAutomateComments : platform === "FACEBOOK" ? status.canAutomateMessages : status.canAutomateMessages || status.canAutomateComments
-  const receivingOk = platform === "THREADS" || platform === "X" || status.webhookConfigured
+  const permissionOk = isPublicReplyPlatform(platform) ? status.canAutomateComments : platform === "FACEBOOK" ? status.canAutomateMessages : status.canAutomateMessages || status.canAutomateComments
+  const receivingOk = isPublicReplyPlatform(platform) || status.webhookConfigured
   const problem = status.permissionCheckError || status.syncError
   const ready = permissionOk && receivingOk && !problem
 
@@ -129,13 +134,15 @@ function AutomationWorkspace({ accountId, username, platform }: { accountId: str
             <p className={cn("mt-0.5 text-xs leading-5", ready ? "text-emerald-800" : "text-amber-900")}>
               {ready ? (activeRules ? t("{count} regra(s) ativa(s). Última atividade: {date}.", { count: activeRules, date: formatDate(status.activity.lastEventProcessedAt) }) : t("Crie e ative uma regra para começar a responder."))
                 : problem ? problem
-                : !permissionOk ? (platform === "X" ? t("Reconecte a conta do X em Contas para liberar leitura e publicação de respostas.") : platform === "THREADS" ? t("Autorize o UX Code Social a responder comentários no Threads.") : t("A Meta ainda não liberou as permissões de comentários/mensagens para esta conta. Reconecte a conta em Contas depois da liberação."))
+                : !permissionOk ? (platform === "YOUTUBE" ? t("Reconecte o canal do YouTube em Contas e aceite a permissão de gerenciar comentários.") : platform === "X" ? t("Reconecte a conta do X em Contas para liberar leitura e publicação de respostas.") : platform === "THREADS" ? t("Autorize o UX Code Social a responder comentários no Threads.") : t("A Meta ainda não liberou as permissões de comentários/mensagens para esta conta. Reconecte a conta em Contas depois da liberação."))
                 : t("Ative o recebimento de comentários e mensagens desta conta.")}
             </p>
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          {platform === "X"
+          {platform === "YOUTUBE"
+            ? <><Button size="sm" variant="outline" disabled={busy || !status.canAutomateComments} onClick={() => void run(() => api.syncYouTubeAutomation(accountId), t("Comentários verificados agora."))} className="gap-1.5"><RefreshCw size={14} />{t("Verificar agora")}</Button></>
+            : platform === "X"
             ? <><Button size="sm" variant="outline" disabled={busy || !status.canAutomateComments} onClick={() => void run(() => api.syncXAutomation(accountId), t("Menções verificadas agora."))} className="gap-1.5"><RefreshCw size={14} />{t("Verificar agora")}</Button></>
             : platform === "THREADS"
             ? <>{!status.canAutomateComments && <Button size="sm" onClick={() => void authorizeReplies()} className="bg-indigo-600 text-white hover:bg-indigo-700">{t("Autorizar respostas")}</Button>}<Button size="sm" variant="outline" disabled={busy || !status.canAutomateComments} onClick={() => void run(() => api.syncThreadsAutomation(accountId), t("Comentários verificados agora."))} className="gap-1.5"><RefreshCw size={14} />{t("Verificar agora")}</Button></>
@@ -146,9 +153,9 @@ function AutomationWorkspace({ accountId, username, platform }: { accountId: str
       <details className="group border-t border-slate-100 px-4 py-2.5">
         <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-semibold text-slate-500">{t("Detalhes técnicos")}<ChevronDown size={14} className="transition group-open:rotate-180" /></summary>
         <div className="mt-2 space-y-2 text-xs leading-5 text-slate-600">
-          <p>{platform === "X" ? t("Respostas a menções: {state}. Verificamos a cada 2 minutos as menções novas feitas depois da ativação da regra. Cada leitura e resposta consome créditos da API do X.", { state: permissionText }) : platform === "THREADS" ? t("Respostas públicas: {state}. Verificamos a cada 2 minutos as 100 publicações mais recentes dos últimos 30 dias, só comentários feitos depois da ativação da regra.", { state: permissionText }) : `${t("Recebimento no servidor: {webhook}. Mensagens: {messages}.", { webhook: status.webhookConfigured ? t("configurado") : t("pendente"), messages: status.canAutomateMessages ? t("permissão detectada") : t("autorização pendente") })}${platform === "INSTAGRAM" ? ` ${t("Comentários: {comments}.", { comments: permissionText })}` : ""}`}</p>
+          <p>{platform === "YOUTUBE" ? t("Respostas a comentários: {state}. Verificamos a cada 5 minutos os comentários novos feitos nos vídeos depois da ativação da regra. Cada leitura usa a cota da API do YouTube do canal.", { state: permissionText }) : platform === "X" ? t("Respostas a menções: {state}. Verificamos a cada 2 minutos as menções novas feitas depois da ativação da regra. Cada leitura e resposta consome créditos da API do X.", { state: permissionText }) : platform === "THREADS" ? t("Respostas públicas: {state}. Verificamos a cada 2 minutos as 100 publicações mais recentes dos últimos 30 dias, só comentários feitos depois da ativação da regra.", { state: permissionText }) : `${t("Recebimento no servidor: {webhook}. Mensagens: {messages}.", { webhook: status.webhookConfigured ? t("configurado") : t("pendente"), messages: status.canAutomateMessages ? t("permissão detectada") : t("autorização pendente") })}${platform === "INSTAGRAM" ? ` ${t("Comentários: {comments}.", { comments: permissionText })}` : ""}`}</p>
           <dl className="grid gap-2 sm:grid-cols-2"><div className="rounded-lg bg-slate-50 p-2.5"><dt className="text-slate-500">{t("Último evento processado")}</dt><dd className="font-medium text-slate-800">{formatDate(status.activity.lastEventProcessedAt)}</dd></div><div className="rounded-lg bg-slate-50 p-2.5"><dt className="text-slate-500">{t("Última resposta aceita pela Meta")}</dt><dd className="font-medium text-slate-800">{formatDate(status.activity.lastReplyAcceptedAt)}</dd></div></dl>
-          <p className="text-[11px] text-slate-500">{t("Permissão não garante recebimento, e envio aceito não garante leitura. Contas de clientes dependem da aprovação da Meta.")} {platform === "X" ? t("Mensagens diretas do X ainda não estão disponíveis; respostas têm até 280 caracteres.") : platform === "THREADS" ? t("Mensagens privadas do Threads não estão disponíveis.") : t("Respostas privadas só podem ser enviadas até 24 horas depois da mensagem recebida.")}</p>
+          <p className="text-[11px] text-slate-500">{t("Permissão não garante recebimento, e envio aceito não garante leitura. Contas de clientes dependem da aprovação da Meta.")} {platform === "YOUTUBE" ? t("O YouTube não tem mensagens diretas; as respostas são públicas, abaixo do comentário, com até 1.000 caracteres.") : platform === "X" ? t("Mensagens diretas do X ainda não estão disponíveis; respostas têm até 280 caracteres.") : platform === "THREADS" ? t("Mensagens privadas do Threads não estão disponíveis.") : t("Respostas privadas só podem ser enviadas até 24 horas depois da mensagem recebida.")}</p>
         </div>
       </details>
     </Card>

@@ -60,9 +60,9 @@ export const DESTRUCTIVE: ToolAnnotations = { readOnlyHint: false, destructiveHi
 
 // ---------------------------------------------------------------- shared schemas
 
-export const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X'] as const;
-/** Publishing networks. YouTube has no automations, so it stays out of PLATFORMS. */
-export const PUBLISH_PLATFORMS = [...PLATFORMS, 'YOUTUBE'] as const;
+export const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X', 'YOUTUBE'] as const;
+/** Publishing networks: every network also publishes. */
+export const PUBLISH_PLATFORMS = PLATFORMS;
 export const MEDIA_TYPES = ['IMAGE', 'CAROUSEL', 'REEL', 'STORY', 'TEXT'] as const;
 export const POST_STATUSES = ['DRAFT', 'SCHEDULED', 'PROCESSING', 'PUBLISHED', 'FAILED'] as const;
 export const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
@@ -103,9 +103,9 @@ export const confirmSchema = z.literal(true)
 export const platformSchema = z.enum(PLATFORMS);
 export const publishPlatformSchema = z.enum(PUBLISH_PLATFORMS);
 export const automationPlatformSchema = z.enum(PLATFORMS).default('INSTAGRAM')
-  .describe('Rede da automação. INSTAGRAM (comentários e DMs), FACEBOOK (Messenger da Página) ou THREADS (respostas públicas).');
+  .describe('Rede da automação. INSTAGRAM (comentários e DMs), FACEBOOK (Messenger da Página), THREADS (respostas públicas), X (respostas a menções) ou YOUTUBE (respostas a comentários dos vídeos).');
 export const automationAccountIdSchema = z.string().uuid()
-  .describe('Para INSTAGRAM e FACEBOOK: id da conta do Instagram. Para THREADS: id da conta do Threads.');
+  .describe('Para INSTAGRAM e FACEBOOK: id da conta do Instagram. Para THREADS, X e YOUTUBE: id do perfil ou canal (list_accounts), que precisa pertencer à empresa em uso.');
 
 export const daysSchema = z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365), z.literal(730)]).default(30)
   .describe('Período do relatório em dias: 7, 30, 90, 365 ou 730.');

@@ -30,6 +30,11 @@ const PRESETS: Record<Platform, Preset[]> = {
     { title: "Agradecer menções", description: "Uma resposta pública curta para quem mencionar sua conta.", draft: { name: "Agradecimento", trigger: "COMMENT_ANY", replyMode: "TEMPLATE", publicCommentReply: "Valeu pela menção! 💜" } },
     { title: "Responder dúvidas de preço", description: "Quem mencionar preço ou valor recebe a resposta pública.", draft: { name: "Dúvidas de preço", trigger: "COMMENT_KEYWORD", keywords: ["preço", "valor"], replyMode: "TEMPLATE", publicCommentReply: "Os valores estão no link da bio! 😉" } },
   ],
+  YOUTUBE: [
+    { title: "Agradecer quem comentar", description: "Uma resposta pública de agradecimento em cada comentário dos vídeos.", draft: { name: "Agradecimento", trigger: "COMMENT_ANY", replyMode: "TEMPLATE", publicCommentReply: "Obrigado por assistir e comentar! 💜" } },
+    { title: "Responder dúvidas de preço", description: "Quem comentar preço ou valor recebe a resposta pública.", draft: { name: "Dúvidas de preço", trigger: "COMMENT_KEYWORD", keywords: ["preço", "valor"], replyMode: "TEMPLATE", publicCommentReply: "Oi! Os valores estão no link da descrição do vídeo 😉" } },
+    { title: "Responder com IA", description: "O assistente de IA responde as dúvidas dos comentários usando as informações da sua empresa.", draft: { name: "Respostas com IA", trigger: "COMMENT_ANY", replyMode: "AI" } },
+  ],
   THREADS: [
     { title: "Agradecer quem comentar", description: "Uma resposta pública de agradecimento em cada comentário.", draft: { name: "Agradecimento", trigger: "COMMENT_ANY", replyMode: "TEMPLATE", publicCommentReply: "Obrigado pelo comentário! 💜" } },
     { title: "Responder dúvidas de preço", description: "Quem comentar preço ou valor recebe a resposta pública.", draft: { name: "Dúvidas de preço", trigger: "COMMENT_KEYWORD", keywords: ["preço", "valor"], replyMode: "TEMPLATE", publicCommentReply: "Os valores estão no link da bio! 😉" } },

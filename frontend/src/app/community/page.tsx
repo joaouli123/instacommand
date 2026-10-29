@@ -1,5 +1,7 @@
 "use client"
 
+import type { ReactNode } from "react"
+import { ResearchNetworkTabs, UnavailableNetwork, useResearchNetwork } from "@/components/research/ResearchNetworkTabs"
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, CheckCircle2, Clock, ExternalLink, Heart, HelpCircle, LayoutGrid, List, MessageCircle, Plus, RefreshCw, Search, Send, Smile, Sparkles, Trash2, Users, X, Zap } from "lucide-react"
@@ -147,7 +149,7 @@ export default function CommunityPage() {
   const t = useT()
   if (accountLoading) return <CommunitySkeleton />
   if (!activeAccount) return <Card className="mx-auto max-w-xl p-10 text-center"><Users className="mx-auto mb-3 text-indigo-600" size={28}/><h2 className="text-xl font-bold text-slate-900">{t("Conecte uma conta para abrir a comunidade")}</h2><p className="mt-2 text-sm text-slate-500">{t("Os comentários são carregados diretamente da conta profissional selecionada.")}</p></Card>
-  return <AccountCommunity key={accountId} accountId={accountId} username={activeAccount.igUsername} />
+  return <CommunityNetworks accountId={accountId} username={activeAccount.igUsername} />
 }
 
 function CommunitySkeleton() {
@@ -159,13 +161,13 @@ function CommunitySkeleton() {
   </div>
 }
 
-function AccountCommunity({ accountId, username }: { accountId: string; username: string }) {
+function AccountCommunity({ accountId, username, network, tabs }: { accountId: string; username: string; network: CommunityNetwork; tabs: ReactNode }) {
   const queryClient = useQueryClient()
   const t = useT()
-  const queryKey = useMemo(() => ["community-comments", accountId], [accountId])
+  const queryKey = useMemo(() => ["community-comments", accountId, network], [accountId, network])
   const query = useQuery({
     queryKey,
-    queryFn: () => api.getComments(accountId) as Promise<CommentsResponse>,
+    queryFn: () => api.getComments(accountId, network) as Promise<CommentsResponse>,
     staleTime: 60_000,
     retry: 1,
   })
@@ -216,7 +218,7 @@ function AccountCommunity({ accountId, username }: { accountId: string; username
   }
 
   const replyMutation = useMutation({
-    mutationFn: ({ comment, message }: { comment: CommentItem; message: string }) => api.replyComment({ accountId, mediaId: comment.mediaId, commentId: comment.id, message }),
+    mutationFn: ({ comment, message }: { comment: CommentItem; message: string }) => api.replyComment({ accountId, mediaId: comment.mediaId, commentId: comment.id, message, network }),
     onMutate: async ({ comment }) => {
       await queryClient.cancelQueries({ queryKey })
       const previous = queryClient.getQueryData<CommentsResponse>(queryKey)
@@ -228,11 +230,11 @@ function AccountCommunity({ accountId, username }: { accountId: string; username
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
       toast.error(error instanceof Error ? error.message : t("Não foi possível responder este comentário."))
     },
-    onSuccess: () => toast.success(t("Resposta publicada no Instagram.")),
+    onSuccess: () => toast.success(network === "youtube" ? t("Resposta publicada no YouTube.") : t("Resposta publicada no Instagram.")),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (comment: CommentItem) => api.deleteComment({ accountId, mediaId: comment.mediaId, commentId: comment.id }),
+    mutationFn: (comment: CommentItem) => api.deleteComment({ accountId, mediaId: comment.mediaId, commentId: comment.id, network }),
     onMutate: async (comment) => {
       await queryClient.cancelQueries({ queryKey })
       const previous = queryClient.getQueryData<CommentsResponse>(queryKey)
@@ -250,7 +252,7 @@ function AccountCommunity({ accountId, username }: { accountId: string; username
     try { await replyMutation.mutateAsync({ comment, message }); return true } catch { return false }
   }
   const remove = (comment: CommentItem) => {
-    if (window.confirm(t("Excluir o comentário de @{name} no Instagram? Essa ação não pode ser desfeita.", { name: comment.username || t("usuário") }))) deleteMutation.mutate(comment)
+    if (window.confirm(network === "youtube" ? t("Ocultar o comentário de {name} no YouTube? Ele deixa de aparecer para o público.", { name: comment.username || t("usuário") }) : t("Excluir o comentário de @{name} no Instagram? Essa ação não pode ser desfeita.", { name: comment.username || t("usuário") }))) deleteMutation.mutate(comment)
   }
 
   const available = !query.isError && query.data?.available !== false
@@ -262,9 +264,10 @@ function AccountCommunity({ accountId, username }: { accountId: string; username
     <PageHeader
       eyebrow={t("Relacionamento")}
       title={t("Comunidade")}
-      description={<>{t("Comentários das publicações recentes de")} <strong className="font-semibold text-slate-700">@{username}</strong> {t("no Instagram, organizados por post e prioridade.")}</>}
+      description={network === "youtube" ? <>{t("Comentários dos vídeos recentes do canal de")} <strong className="font-semibold text-slate-700">@{username}</strong> {t("no YouTube, organizados por vídeo e prioridade.")}</> : <>{t("Comentários das publicações recentes de")} <strong className="font-semibold text-slate-700">@{username}</strong> {t("no Instagram, organizados por post e prioridade.")}</>}
       actions={<Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching} className="gap-2"><RefreshCw size={15} className={query.isFetching ? "animate-spin" : ""}/>{t("Atualizar")}</Button>}
     />
+    {tabs}
 
     {query.isLoading ? <CommunitySkeleton /> : !available ? (
       <Card className="border-amber-200 bg-amber-50/80 p-5"><div className="flex gap-3"><AlertTriangle className="mt-0.5 shrink-0 text-amber-600"/><div className="min-w-0"><h3 className="font-bold text-amber-900">{t("Não foi possível carregar os comentários")}</h3><p className="mt-1 text-sm leading-6 text-amber-800">{errorMessage || t("Tente atualizar novamente. Se o erro persistir, confira a conexão e as permissões da conta.")}</p><Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => void query.refetch()}><RefreshCw size={14}/>{t("Tentar de novo")}</Button></div></div></Card>
@@ -303,9 +306,9 @@ function AccountCommunity({ accountId, username }: { accountId: string; username
           ) : !filtered.length ? (
             <Card className="p-10 text-center"><Search className="mx-auto mb-3 text-slate-300" size={30}/><h3 className="section-title">{t("Nada encontrado com esses filtros")}</h3>{hasFilters && <Button variant="outline" size="sm" className="mt-3" onClick={clearFilters}>{t("Limpar filtros")}</Button>}</Card>
           ) : view === "posts" ? (
-            groups.map((group) => <PostGroup key={group.mediaId} group={group} comments={sortComments(group.items)} quickReplies={quick.replies} accountId={accountId} onReply={reply} onDelete={remove}/>)
+            groups.map((group) => <PostGroup key={group.mediaId} group={group} comments={sortComments(group.items)} quickReplies={quick.replies} accountId={accountId} onReply={reply} onDelete={remove} network={network}/>)
           ) : (
-            <Card className="divide-y divide-slate-100 overflow-hidden">{sortComments(filtered).map((comment) => <CommentRow key={comment.id} comment={comment} showPost quickReplies={quick.replies} accountId={accountId} onReply={reply} onDelete={remove}/>)}</Card>
+            <Card className="divide-y divide-slate-100 overflow-hidden">{sortComments(filtered).map((comment) => <CommentRow key={comment.id} comment={comment} showPost quickReplies={quick.replies} accountId={accountId} onReply={reply} onDelete={remove} network={network}/>)}</Card>
           )}
         </div>
 
@@ -348,7 +351,7 @@ function IntentBadge({ intent }: { intent?: Intent }) {
 }
 
 type Group = { mediaId: string; first: CommentItem; items: CommentItem[]; unanswered: number }
-type RowActions = { quickReplies: string[]; accountId: string; onReply: (comment: CommentItem, message: string) => Promise<boolean>; onDelete: (comment: CommentItem) => void }
+type RowActions = { quickReplies: string[]; accountId: string; onReply: (comment: CommentItem, message: string) => Promise<boolean>; onDelete: (comment: CommentItem) => void; network?: CommunityNetwork }
 
 function PostGroup({ group, comments, ...actions }: { group: Group; comments: CommentItem[] } & RowActions) {
   const [expanded, setExpanded] = useState(false)
@@ -375,7 +378,7 @@ function PostGroup({ group, comments, ...actions }: { group: Group; comments: Co
   </Card>
 }
 
-function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDelete }: { comment: CommentItem; showPost?: boolean } & RowActions) {
+function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDelete, network }: { comment: CommentItem; showPost?: boolean } & RowActions) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState("")
   const [sending, setSending] = useState(false)
@@ -420,7 +423,7 @@ function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDel
           {typeof comment.like_count === "number" && <span className="mr-2 inline-flex items-center gap-1 text-xs text-slate-500"><Heart size={12}/>{comment.like_count.toLocaleString(locale)}</span>}
           {!!comment.replyCount && <span className="mr-2 text-xs text-slate-500">{comment.replyCount === 1 ? t("1 resposta(s)") : t("{count} resposta(s)", { count: comment.replyCount })}</span>}
           <Button type="button" size="sm" variant={open ? "secondary" : "ghost"} onClick={() => setOpen(!open)} className="h-8 gap-1.5 text-indigo-700"><Send size={13}/>{t("Responder")}</Button>
-          <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(comment)} className="h-8 gap-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={13}/>{t("Excluir")}</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(comment)} className="h-8 gap-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={13}/>{network === "youtube" ? t("Ocultar") : t("Excluir")}</Button>
           {comment.permalink && showPost && <a href={comment.permalink} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 px-2 text-xs font-semibold text-slate-500 hover:text-indigo-600">{t("Post")} <ExternalLink size={11}/></a>}
         </div>
         {open && <div className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-white p-2.5">
@@ -478,4 +481,22 @@ function QuickRepliesManager({ replies, onAdd, onRemove }: { replies: string[]; 
     <ul className="mt-3 space-y-1.5">{replies.map((reply, index) => <li key={index} className="group flex items-start gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700"><span className="min-w-0 flex-1 break-words">{reply}</span><button type="button" onClick={() => onRemove(index)} aria-label={t("Remover resposta rápida")} className="text-slate-400 hover:text-rose-600"><X size={13}/></button></li>)}</ul>
     <div className="mt-2 flex gap-2"><Input value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") add() }} maxLength={300} placeholder={t("Nova resposta...")} className="h-9 text-xs"/><Button type="button" size="sm" variant="outline" onClick={add} className="h-9 shrink-0" aria-label={t("Adicionar resposta rápida")}><Plus size={14}/></Button></div>
   </Card>
+}
+
+type CommunityNetwork = "instagram" | "youtube"
+
+/** Community per network of the company chosen at the top. */
+function CommunityNetworks({ accountId, username }: { accountId: string; username: string }) {
+  const [network, setNetwork] = useResearchNetwork()
+  const t = useT()
+  const tabs = <ResearchNetworkTabs kind="community" value={network} onChange={setNetwork} />
+  if (network === "INSTAGRAM" || network === "YOUTUBE") {
+    const key = network === "YOUTUBE" ? "youtube" : "instagram"
+    return <AccountCommunity key={`${accountId}:${key}`} accountId={accountId} username={username} network={key} tabs={tabs} />
+  }
+  return <div className="space-y-6 animate-fade-in">
+    <PageHeader eyebrow={t("Relacionamento")} title={t("Comunidade")} description={t("Comentários e conversas de cada rede da empresa selecionada no topo.")} />
+    {tabs}
+    <UnavailableNetwork kind="community" network={network} />
+  </div>
 }

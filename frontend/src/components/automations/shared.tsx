@@ -1,9 +1,11 @@
 import type { ComponentType, ReactNode } from "react"
-import { SiInstagram, SiMessenger, SiThreads, SiX } from "@icons-pack/react-simple-icons"
+import { SiInstagram, SiMessenger, SiThreads, SiX , SiYoutube } from "@icons-pack/react-simple-icons"
 import { cn } from "@/lib/utils"
 import { currentLocale, tr } from "@/lib/i18n"
 
-export type Platform = "INSTAGRAM" | "FACEBOOK" | "THREADS" | "X"
+export type Platform = "INSTAGRAM" | "FACEBOOK" | "THREADS" | "X" | "YOUTUBE"
+/** Networks where automations only answer comments publicly, collected by polling. */
+export const isPublicReplyPlatform = (platform: Platform): boolean => platform === "THREADS" || platform === "X" || platform === "YOUTUBE"
 export type Trigger = "COMMENT_ANY" | "COMMENT_KEYWORD" | "MESSAGE_ANY" | "MESSAGE_KEYWORD"
 export type ReplyMode = "TEMPLATE" | "AI"
 export type Rule = { id: string; name: string; trigger: Trigger; keywords: string[]; replyMode: ReplyMode; enabled: boolean; continueConversation: boolean; publicCommentReply?: string | null; privateCommentReply?: string | null; directMessageReply?: string | null }
@@ -25,6 +27,7 @@ export const NETWORKS: Record<Platform, Network> = {
   FACEBOOK: { label: "Facebook", channel: "Messenger da Página", description: "Responda mensagens que chegam no Messenger da sua Página.", Icon: SiMessenger, brand: "#0866FF", tint: "from-sky-500 to-blue-600" },
   X: { label: "X", channel: "Respostas a menções", description: "Responda publicamente quem mencionar sua conta no X.", Icon: SiX, brand: "#000000", tint: "from-neutral-800 to-black" },
   THREADS: { label: "Threads", channel: "Respostas públicas", description: "Responda publicamente quem comentar nos seus posts.", Icon: SiThreads, brand: "#101010", tint: "from-slate-700 to-black" },
+  YOUTUBE: { label: "YouTube", channel: "Respostas a comentários", description: "Responda publicamente quem comentar nos vídeos do canal.", Icon: SiYoutube, brand: "#FF0033", tint: "from-red-500 to-red-700" },
 }
 
 export function NetworkBadge({ platform, size = 34 }: { platform: Platform; size?: number }) {
@@ -39,10 +42,10 @@ export const usesKeywords = (trigger: Trigger) => trigger.endsWith("_KEYWORD")
 export const triggerFor = (kind: "COMMENT" | "MESSAGE", keywords: boolean) => `${kind}_${keywords ? "KEYWORD" : "ANY"}` as Trigger
 
 export const allowedKinds = (platform: Platform): Array<"COMMENT" | "MESSAGE"> =>
-  platform === "THREADS" || platform === "X" ? ["COMMENT"] : platform === "FACEBOOK" ? ["MESSAGE"] : ["COMMENT", "MESSAGE"]
+  isPublicReplyPlatform(platform) ? ["COMMENT"] : platform === "FACEBOOK" ? ["MESSAGE"] : ["COMMENT", "MESSAGE"]
 
 export const templateTypesFor = (platform: Platform): TemplateType[] =>
-  platform === "THREADS" || platform === "X" ? ["PUBLIC_COMMENT"] : platform === "FACEBOOK" ? ["DIRECT_MESSAGE"] : ["DIRECT_MESSAGE", "PUBLIC_COMMENT", "PRIVATE_COMMENT"]
+  isPublicReplyPlatform(platform) ? ["PUBLIC_COMMENT"] : platform === "FACEBOOK" ? ["DIRECT_MESSAGE"] : ["DIRECT_MESSAGE", "PUBLIC_COMMENT", "PRIVATE_COMMENT"]
 
 export const TEMPLATE_TYPE_NAMES: Record<TemplateType, string> = {
   PUBLIC_COMMENT: "Resposta pública no comentário",
@@ -61,7 +64,7 @@ export const EXECUTION_STATUS: Record<string, { label: string; tone: string }> =
 }
 
 export const blankAgent: Agent = { enabled: false, autoSend: false, tone: "Humano, cordial e direto", instructions: "", knowledgeBase: "", fallback: "Vou chamar alguém da equipe para continuar com você.", memoryDays: 7, maxRepliesPerHour: 10 }
-export const blankRule = (platform: Platform): RuleDraft => ({ name: "", trigger: platform === "THREADS" || platform === "X" ? "COMMENT_KEYWORD" : "MESSAGE_KEYWORD", keywords: [], replyMode: "TEMPLATE", publicCommentReply: "", privateCommentReply: "", directMessageReply: "", continueConversation: false })
+export const blankRule = (platform: Platform): RuleDraft => ({ name: "", trigger: isPublicReplyPlatform(platform) ? "COMMENT_KEYWORD" : "MESSAGE_KEYWORD", keywords: [], replyMode: "TEMPLATE", publicCommentReply: "", privateCommentReply: "", directMessageReply: "", continueConversation: false })
 
 export const inputClass = "mt-1.5 w-full min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100"
 export const formatDate = (value?: string | null) => value ? new Date(value).toLocaleString(currentLocale(), { dateStyle: "short", timeStyle: "short" }) : tr("Ainda não houve")

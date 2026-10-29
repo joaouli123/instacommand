@@ -8,7 +8,7 @@ import { SiFacebook, SiInstagram, SiThreads, SiX, SiYoutube } from "@icons-pack/
 import { Card } from "@/components/ui/card"
 
 export type ResearchNetwork = "INSTAGRAM" | "YOUTUBE" | "FACEBOOK" | "THREADS" | "X"
-type Kind = "competitors" | "trends"
+type Kind = "competitors" | "trends" | "community"
 
 const NETWORKS: Array<{ id: ResearchNetwork; label: string; Icon: typeof SiInstagram; color: string }> = [
   { id: "INSTAGRAM", label: "Instagram", Icon: SiInstagram, color: "#E1306C" },
@@ -24,6 +24,11 @@ export const UNAVAILABLE: Record<Kind, Partial<Record<ResearchNetwork, { title: 
     FACEBOOK: { title: "Depende de uma aprovação da Meta", text: "Ler Páginas de outras empresas exige a permissão Page Public Content Access, aprovada pela Meta numa revisão própria. Ela será pedida quando a revisão atual do app terminar." },
     THREADS: { title: "A API do Threads não abre perfis de terceiros", text: "O Threads só entrega os números do próprio perfil. Quando a Meta liberar a busca por palavra-chave para o app, dará para acompanhar os posts públicos dos concorrentes." },
     X: { title: "Depende do plano pago da API do X", text: "Ler perfis e posts de outras contas exige o plano Basic ou superior da API do X. Com o plano contratado e uma conta do X conectada, os concorrentes passam a funcionar aqui." },
+  },
+  community: {
+    FACEBOOK: { title: "Chega na próxima etapa", text: "Os comentários da Página do Facebook vão entrar nesta tela na próxima etapa da integração. Por enquanto, as mensagens do Messenger já podem ser respondidas em Automações." },
+    THREADS: { title: "Chega na próxima etapa", text: "As respostas aos seus posts do Threads vão entrar nesta tela na próxima etapa. As respostas automáticas do Threads já funcionam em Automações." },
+    X: { title: "Depende do plano pago da API do X", text: "Ler as menções e respostas do X em volume exige o plano Basic ou superior da API do X. As respostas automáticas a menções ficam em Automações." },
   },
   trends: {
     FACEBOOK: { title: "Depende de uma aprovação da Meta", text: "Ver o que está em alta em Páginas públicas exige a permissão Page Public Content Access, aprovada pela Meta numa revisão própria." },

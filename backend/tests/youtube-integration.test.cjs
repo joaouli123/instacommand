@@ -38,7 +38,7 @@ test('YouTube login asks Google for offline access with PKCE and only the upload
   assert.equal(parsed.searchParams.get('prompt'), 'consent');
   assert.equal(parsed.searchParams.get('code_challenge_method'), 'S256');
   assert.deepEqual(parsed.searchParams.get('scope').split(' '), [
-    'https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/yt-analytics.readonly',
+    'https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/yt-analytics.readonly', 'https://www.googleapis.com/auth/youtube.force-ssl',
   ]);
   const decoded = youtube.readYouTubeState(parsed.searchParams.get('state'));
   assert.equal(decoded.userId, 'user-1');

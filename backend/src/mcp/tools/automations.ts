@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { encodePathSegment, type InternalApi } from '../internal-api';
 import { NotFoundError } from '../../utils/errors';
 import {
-  automationAccountIdSchema, automationPlatformSchema, confirmSchema, defineTool, DESTRUCTIVE, EXTERNAL, preview, READ, READ_LIVE,
+  automationAccountIdSchema, automationPlatformSchema, youtubeAccountIdSchema, confirmSchema, defineTool, DESTRUCTIVE, EXTERNAL, preview, READ, READ_LIVE,
   threadsAccountIdSchema, WRITE, WRITE_IDEMPOTENT,
 } from '../tool-kit';
 
@@ -298,5 +298,16 @@ export const automationTools = [
     annotations: { ...WRITE, openWorldHint: true },
     inputSchema: { threadsAccountId: threadsAccountIdSchema },
     handler: async ({ threadsAccountId }, { api }) => api.post('/automations/threads/sync', { accountId: threadsAccountId, platform: 'THREADS' }),
+  }),
+
+  defineTool({
+    name: 'sync_youtube_automation',
+    title: 'Sincronizar comentários do YouTube',
+    category: 'automations',
+    description: 'Lê agora os comentários novos do canal e processa as regras do YouTube (a coleta automática roda a cada 5 minutos).',
+    scopes: ['write'],
+    annotations: { ...WRITE, openWorldHint: true },
+    inputSchema: { youtubeAccountId: youtubeAccountIdSchema },
+    handler: async ({ youtubeAccountId }, { api }) => api.post('/automations/youtube/sync', { accountId: youtubeAccountId, platform: 'YOUTUBE' }),
   }),
 ];

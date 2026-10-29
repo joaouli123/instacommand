@@ -12,7 +12,7 @@ import { syncThreadsAutomation } from '../services/threads-automation.service';
 
 const router = Router();
 router.use(authenticate);
-const platformSchema = z.enum(['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X']);
+const platformSchema = z.enum(['INSTAGRAM', 'FACEBOOK', 'THREADS', 'X', 'YOUTUBE']);
 const scopeSchema = z.object({ accountId: z.string().uuid(), platform: platformSchema.default('INSTAGRAM') });
 
 const ruleSchema = z.object({
@@ -134,6 +134,15 @@ router.post('/x/sync', async (req: AuthRequest, res, next) => {
     // Loaded on demand: the X client is only needed for this route.
     const { syncXAutomation } = require('../services/x-automation.service') as typeof import('../services/x-automation.service');
     res.json(await syncXAutomation(req.user!.id, input.accountId));
+  } catch (error) { next(error); }
+});
+
+router.post('/youtube/sync', async (req: AuthRequest, res, next) => {
+  try {
+    const input = scopeSchema.parse(req.body);
+    // Loaded on demand: the Google client is only needed for this route.
+    const { syncYouTubeAutomation } = require('../services/youtube-community.service') as typeof import('../services/youtube-community.service');
+    res.json(await syncYouTubeAutomation(req.user!.id, input.accountId));
   } catch (error) { next(error); }
 });
 
