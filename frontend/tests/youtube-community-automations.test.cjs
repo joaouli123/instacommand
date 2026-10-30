@@ -11,8 +11,17 @@ test('Community has a YouTube tab that reads, replies and hides comments of the 
   assert.match(page, /api\.getComments\(accountId, network\)/);
   assert.match(page, /api\.replyComment\(\{ accountId, mediaId: comment\.mediaId, commentId: comment\.id, message, network \}\)/);
   assert.match(page, /api\.deleteComment\(\{ accountId, mediaId: comment\.mediaId, commentId: comment\.id, network \}\)/);
-  assert.match(page, /network === "youtube" \? t\("Ocultar"\) : t\("Excluir"\)/);
+  assert.match(page, /const hidesComments = \(network\?: CommunityNetwork\) => network === "youtube" \|\| network === "facebook" \|\| network === "threads"/);
+  assert.match(page, /hidesComments\(network\) \? t\("Ocultar"\) : t\("Excluir"\)/);
   assert.match(read('lib/api.ts'), /&network=\$\{network\}/);
+});
+
+test('Community Facebook and Threads tabs are live, not "em breve"', () => {
+  const tabs = read('components/research/ResearchNetworkTabs.tsx');
+  const community = tabs.slice(tabs.indexOf('community: {'), tabs.indexOf('trends: {'));
+  assert.doesNotMatch(community, /FACEBOOK:|THREADS:/);
+  assert.match(read('app/community/page.tsx'), /if \(network !== "X"\)/);
+  assert.match(read('lib/api.ts'), /'instagram' \| 'youtube' \| 'facebook' \| 'threads'/);
 });
 
 test('Automations offer YouTube with the company channels and a manual check', () => {

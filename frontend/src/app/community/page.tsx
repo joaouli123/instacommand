@@ -230,7 +230,7 @@ function AccountCommunity({ accountId, username, network, tabs }: { accountId: s
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
       toast.error(error instanceof Error ? error.message : t("Não foi possível responder este comentário."))
     },
-    onSuccess: () => toast.success(network === "youtube" ? t("Resposta publicada no YouTube.") : t("Resposta publicada no Instagram.")),
+    onSuccess: () => toast.success(t("Resposta publicada no {network}.", { network: NETWORK_LABEL[network] })),
   })
 
   const deleteMutation = useMutation({
@@ -243,16 +243,16 @@ function AccountCommunity({ accountId, username, network, tabs }: { accountId: s
     },
     onError: (error, _comment, context) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
-      toast.error(error instanceof Error ? error.message : t("Não foi possível excluir o comentário."))
+      toast.error(error instanceof Error ? error.message : hidesComments(network) ? t("Não foi possível ocultar o comentário.") : t("Não foi possível excluir o comentário."))
     },
-    onSuccess: () => toast.success(t("Comentário excluído.")),
+    onSuccess: () => toast.success(hidesComments(network) ? t("Comentário ocultado.") : t("Comentário excluído.")),
   })
 
   const reply = async (comment: CommentItem, message: string) => {
     try { await replyMutation.mutateAsync({ comment, message }); return true } catch { return false }
   }
   const remove = (comment: CommentItem) => {
-    if (window.confirm(network === "youtube" ? t("Ocultar o comentário de {name} no YouTube? Ele deixa de aparecer para o público.", { name: comment.username || t("usuário") }) : t("Excluir o comentário de @{name} no Instagram? Essa ação não pode ser desfeita.", { name: comment.username || t("usuário") }))) deleteMutation.mutate(comment)
+    if (window.confirm(hidesComments(network) ? t("Ocultar o comentário de {name} no {network}? Ele deixa de aparecer para o público.", { name: comment.username || t("usuário"), network: NETWORK_LABEL[network] }) : t("Excluir o comentário de @{name} no Instagram? Essa ação não pode ser desfeita.", { name: comment.username || t("usuário") }))) deleteMutation.mutate(comment)
   }
 
   const available = !query.isError && query.data?.available !== false
@@ -264,7 +264,7 @@ function AccountCommunity({ accountId, username, network, tabs }: { accountId: s
     <PageHeader
       eyebrow={t("Relacionamento")}
       title={t("Comunidade")}
-      description={network === "youtube" ? <>{t("Comentários dos vídeos recentes do canal de")} <strong className="font-semibold text-slate-700">@{username}</strong> {t("no YouTube, organizados por vídeo e prioridade.")}</> : <>{t("Comentários das publicações recentes de")} <strong className="font-semibold text-slate-700">@{username}</strong> {t("no Instagram, organizados por post e prioridade.")}</>}
+      description={network === "facebook" ? <>{t("Comentários das publicações recentes da Página do Facebook de")} <strong className="font-semibold text-slate-700">@{username}</strong>{t(", organizados por post e prioridade.")}</> : network === "threads" ? <>{t("Respostas aos posts recentes do Threads de")} <strong className="font-semibold text-slate-700">@{username}</strong>{t(", organizadas por post e prioridade.")}</> : network === "youtube" ? <>{t("Comentários dos vídeos recentes do canal de")} <strong className="font-semibold text-slate-700">@{username}</strong> {t("no YouTube, organizados por vídeo e prioridade.")}</> : <>{t("Comentários das publicações recentes de")} <strong className="font-semibold text-slate-700">@{username}</strong> {t("no Instagram, organizados por post e prioridade.")}</>}
       actions={<Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching} className="gap-2"><RefreshCw size={15} className={query.isFetching ? "animate-spin" : ""}/>{t("Atualizar")}</Button>}
     />
     {tabs}
@@ -423,7 +423,7 @@ function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDel
           {typeof comment.like_count === "number" && <span className="mr-2 inline-flex items-center gap-1 text-xs text-slate-500"><Heart size={12}/>{comment.like_count.toLocaleString(locale)}</span>}
           {!!comment.replyCount && <span className="mr-2 text-xs text-slate-500">{comment.replyCount === 1 ? t("1 resposta(s)") : t("{count} resposta(s)", { count: comment.replyCount })}</span>}
           <Button type="button" size="sm" variant={open ? "secondary" : "ghost"} onClick={() => setOpen(!open)} className="h-8 gap-1.5 text-indigo-700"><Send size={13}/>{t("Responder")}</Button>
-          <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(comment)} className="h-8 gap-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={13}/>{network === "youtube" ? t("Ocultar") : t("Excluir")}</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(comment)} className="h-8 gap-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={13}/>{hidesComments(network) ? t("Ocultar") : t("Excluir")}</Button>
           {comment.permalink && showPost && <a href={comment.permalink} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 px-2 text-xs font-semibold text-slate-500 hover:text-indigo-600">{t("Post")} <ExternalLink size={11}/></a>}
         </div>
         {open && <div className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-white p-2.5">
@@ -483,15 +483,18 @@ function QuickRepliesManager({ replies, onAdd, onRemove }: { replies: string[]; 
   </Card>
 }
 
-type CommunityNetwork = "instagram" | "youtube"
+type CommunityNetwork = "instagram" | "youtube" | "facebook" | "threads"
+const NETWORK_LABEL: Record<CommunityNetwork, string> = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook", threads: "Threads" }
+/** Networks whose API hides other people's comments instead of deleting them. */
+const hidesComments = (network?: CommunityNetwork) => network === "youtube" || network === "facebook" || network === "threads"
 
 /** Community per network of the company chosen at the top. */
 function CommunityNetworks({ accountId, username }: { accountId: string; username: string }) {
   const [network, setNetwork] = useResearchNetwork()
   const t = useT()
   const tabs = <ResearchNetworkTabs kind="community" value={network} onChange={setNetwork} />
-  if (network === "INSTAGRAM" || network === "YOUTUBE") {
-    const key = network === "YOUTUBE" ? "youtube" : "instagram"
+  if (network !== "X") {
+    const key = network.toLowerCase() as CommunityNetwork
     return <AccountCommunity key={`${accountId}:${key}`} accountId={accountId} username={username} network={key} tabs={tabs} />
   }
   return <div className="space-y-6 animate-fade-in">

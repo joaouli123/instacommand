@@ -26,8 +26,6 @@ export const UNAVAILABLE: Record<Kind, Partial<Record<ResearchNetwork, { title: 
     X: { title: "Depende do plano pago da API do X", text: "Ler perfis e posts de outras contas exige o plano Basic ou superior da API do X. Com o plano contratado e uma conta do X conectada, os concorrentes passam a funcionar aqui." },
   },
   community: {
-    FACEBOOK: { title: "Chega na próxima etapa", text: "Os comentários da Página do Facebook vão entrar nesta tela na próxima etapa da integração. Por enquanto, as mensagens do Messenger já podem ser respondidas em Automações." },
-    THREADS: { title: "Chega na próxima etapa", text: "As respostas aos seus posts do Threads vão entrar nesta tela na próxima etapa. As respostas automáticas do Threads já funcionam em Automações." },
     X: { title: "Depende do plano pago da API do X", text: "Ler as menções e respostas do X em volume exige o plano Basic ou superior da API do X. As respostas automáticas a menções ficam em Automações." },
   },
   trends: {
