@@ -32,7 +32,7 @@ test('the chosen format drives the YouTube preview: Shorts player or watch page 
   assert.match(preview, /data-preview="youtube-short"/);
   assert.match(preview, /data-preview="youtube-video"/);
   assert.match(preview, /data-preview="youtube-search-card"/);
-  assert.match(preview, /emptyMessage="Seu Short aparecerá aqui" fill backgroundClassName="bg-\[#0f0f0f\]"/);
+  assert.match(preview, /emptyMessage=\{t\("Seu Short aparecerá aqui"\)\} fill backgroundClassName="bg-\[#0f0f0f\]"/);
   assert.match(preview, /aspectRatioOverride="16 \/ 9"/);
   assert.match(preview, /if \(previewPlatform === "YOUTUBE"\) return <YouTubePreview/);
 });
@@ -44,7 +44,7 @@ test('the YouTube preview tab only appears for video posts', () => {
 test('YouTube-only posts pick between a regular video and a Short, and a Short that YouTube would refuse is blocked', () => {
   assert.match(composer, /platforms\.length === 1 && platforms\[0\] === "YOUTUBE" \? <YouTubeFormatPicker/);
   assert.match(composer, /const mediaProblem = youtubeMediaProblem\(youtubeSettings\.format, mediaItems\[0\]\)/);
-  assert.match(composer, /aria-label="Formato no YouTube"/);
+  assert.match(composer, /aria-label=\{t\("Formato no YouTube"\)\}/);
   assert.match(options, /Este vídeo é horizontal/);
   assert.match(options, /Shorts vão até 3 minutos/);
   assert.match(options, /Configurações avançadas/);

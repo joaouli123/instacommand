@@ -10,8 +10,8 @@ const source = fs.readFileSync(path.join(__dirname, '../src/app/composer/page.ts
 test('Reel and Story video previews autoplay muted and expose manual playback and sound controls', () => {
   assert.match(source, /<video[\s\S]*?autoPlay[\s\S]*?muted=\{isMuted\}[\s\S]*?loop[\s\S]*?playsInline[\s\S]*?preload="auto"/);
   assert.match(source, /<video[\s\S]*?className="absolute inset-0 h-full w-full object-contain"/);
-  assert.match(source, /aria-label=\{isPlaying \? "Pausar prévia do vídeo" : "Reproduzir prévia do vídeo"\}/);
-  assert.match(source, /aria-label=\{isMuted \? "Ativar som do vídeo" : "Desativar som do vídeo"\}/);
+  assert.match(source, /aria-label=\{isPlaying \? t\("Pausar prévia do vídeo"\) : t\("Reproduzir prévia do vídeo"\)\}/);
+  assert.match(source, /aria-label=\{isMuted \? t\("Ativar som do vídeo"\) : t\("Desativar som do vídeo"\)\}/);
   assert.match(source, /video\.play\(\)/);
   assert.match(source, /video\.pause\(\)/);
   assert.match(source, /onError=\{\(event\) => \{/);
@@ -24,10 +24,10 @@ test('immersive Reel and Story previews fill the 9:16 stage and preserve source 
   assert.match(source, /overflow-hidden \$\{backgroundClassName\}/);
 
   for (const previewCall of [
-    'emptyMessage="Sua mídia de Story aparecerá aqui" fill backgroundClassName="bg-[#16171b]"',
-    'emptyMessage="Sua mídia do Story aparecerá aqui" fill backgroundClassName="bg-[#25262a]"',
-    'emptyMessage="Sua capa do Reel aparecerá aqui" fill backgroundClassName="bg-[#202126]"',
-    'emptyMessage="Seu vídeo do Reel aparecerá aqui" fill backgroundClassName="bg-[#202126]"',
+    'emptyMessage={t("Sua mídia de Story aparecerá aqui")} fill backgroundClassName="bg-[#16171b]"',
+    'emptyMessage={t("Sua mídia do Story aparecerá aqui")} fill backgroundClassName="bg-[#25262a]"',
+    'emptyMessage={t("Sua capa do Reel aparecerá aqui")} fill backgroundClassName="bg-[#202126]"',
+    'emptyMessage={t("Seu vídeo do Reel aparecerá aqui")} fill backgroundClassName="bg-[#202126]"',
   ]) {
     assert.ok(source.includes(previewCall), `Expected immersive preview to fill its stage: ${previewCall}`);
   }

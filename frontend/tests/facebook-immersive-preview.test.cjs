@@ -26,15 +26,15 @@ test('Instagram and Facebook Reels use a larger official 9:16 stage without phon
 });
 
 test('Facebook Reels and Stories retain distinct platform previews and relevant icons', () => {
-  assert.match(source, /aria-label="Prévia de Facebook Reels"/);
-  assert.match(source, /aria-label="Navegação do Facebook Reels"/);
-  assert.match(source, /aria-label="Ações do Facebook Reel"/);
+  assert.match(source, /aria-label=\{t\("Prévia de Facebook Reels"\)\}/);
+  assert.match(source, /aria-label=\{t\("Navegação do Facebook Reels"\)\}/);
+  assert.match(source, /aria-label=\{t\("Ações do Facebook Reel"\)\}/);
   assert.match(source, /RiThumbUpLine/);
   assert.match(source, /RiBookmarkLine/);
   assert.match(source, /RiMusic2Line/);
   assert.match(source, /data-preview="facebook-story"/);
   assert.match(source, /data-preview="facebook-story"[^\n]*aspect-\[9\/16\][^\n]*max-w-\[340px\]/);
-  assert.match(source, /aria-label="Prévia visual de Facebook Stories"/);
+  assert.match(source, /aria-label=\{t\("Prévia visual de Facebook Stories"\)\}/);
   assert.match(source, /Enviar mensagem\.\.\./);
   assert.match(source, /Reagir com coração/);
   assert.match(source, /Reagir com curtir/);

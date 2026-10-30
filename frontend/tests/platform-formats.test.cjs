@@ -39,8 +39,8 @@ test('format options derive compatible connected destinations and explain destin
   assert.match(source, /connectedPlatforms\.filter\(\(platform\) => formatPlatforms\[format\]\.includes\(platform\)\)/);
   assert.match(source, /selected\.length \? selected : connected/);
   assert.match(source, /const targetPlatforms = compatiblePlatformsFor\(type\.id\)/);
-  assert.match(source, /Publica em \{targetPlatforms\.map\(platform => platformNames\[platform\] \|\| platform\)\.join\(", "\)\}/);
-  assert.match(source, /Fica de fora: /);
+  assert.match(source, /\{t\("Publica em"\)\} \{targetPlatforms\.map\(platform => platformNames\[platform\] \|\| platform\)\.join\(", "\)\}/);
+  assert.match(source, /Fica de fora:/);
   assert.match(source, /Não disponível para todas as redes escolhidas/);
   assert.match(source, /postType === "TEXT" \? "500" : "2\.200"/);
 });

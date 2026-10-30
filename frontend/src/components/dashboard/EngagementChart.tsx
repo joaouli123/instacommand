@@ -7,5 +7,5 @@ type Point = { date: string; engagement: number | null; interactions: number | n
 export function EngagementChart({ data, loading = false, error = false, onRetry }: { data: Point[]; loading?: boolean; error?: boolean; onRetry?: () => void }) {
   const t = useT()
   if (loading || error) return <Card className="flex min-h-64 flex-col items-center justify-center gap-3 p-5" role={error ? "alert" : "status"}><p className="text-sm text-slate-500">{t(error ? "Não foi possível carregar as métricas." : "Carregando métricas…")}</p>{error && onRetry && <Button variant="outline" onClick={onRetry}>{t("Tentar novamente")}</Button>}</Card>
-  return <ReportChart title="Interações nas publicações" description="Contadores conhecidos dos posts publicados em cada data, acumulados até a coleta. Totais podem ser parciais." rows={data} series={[{ key: "interactions", label: "Interações", color: "#4f46e5" }]} kind="bar" filename="interacoes"/>
+  return <ReportChart title={t("Interações nas publicações")} description={t("Contadores conhecidos dos posts publicados em cada data, acumulados até a coleta. Totais podem ser parciais.")} rows={data} series={[{ key: "interactions", label: t("Interações"), color: "#4f46e5" }]} kind="bar" filename="interacoes"/>
 }

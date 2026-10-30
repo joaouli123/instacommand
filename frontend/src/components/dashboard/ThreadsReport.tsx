@@ -23,7 +23,6 @@ type Report = {
   issues: Array<{ section: string; reason: string; status?: number; code?: number; subcode?: number; message?: string }>
 }
 const labels: Record<string, string> = { views: 'Visualizações', likes: 'Curtidas', replies: 'Respostas', reposts: 'Republicações', quotes: 'Citações', followers_count: 'Seguidores atuais' }
-const number = (value: number) => value.toLocaleString('pt-BR')
 
 export function ThreadsReport() {
   const t = useT()
@@ -81,7 +80,7 @@ export function ThreadsReport() {
     downloadReport(rows, `threads-${report.account.username}-${t('{days}dias', { days })}.csv`)
   }
   if (profilesLoading) return <p role="status">{t('Carregando contas do Threads...')}</p>
-  if (!accountId) return <Card className="p-8 text-center"><h2 className="text-xl font-bold">Nenhum perfil do Threads nesta empresa</h2><p className="mx-auto my-3 max-w-md text-sm text-slate-600">Os relatórios mostram só os perfis da empresa selecionada no topo{company ? ` (@${company.igUsername})` : ''}. Conecte o perfil desta empresa ou vincule um perfil já conectado em Contas.</p><div className="flex flex-wrap justify-center gap-3"><Button onClick={connect} disabled={connecting || !companyId}>{connecting ? t('Abrindo...') : t('Conectar Threads')}</Button><a className="inline-flex h-10 items-center text-sm font-semibold text-indigo-600 underline" href="/accounts">Vincular em Contas</a></div></Card>
+  if (!accountId) return <Card className="p-8 text-center"><h2 className="text-xl font-bold">{t('Nenhum perfil do Threads nesta empresa')}</h2><p className="mx-auto my-3 max-w-md text-sm text-slate-600">{t('Os relatórios mostram só os perfis da empresa selecionada no topo{company}. Conecte o perfil desta empresa ou vincule um perfil já conectado em Contas.', { company: company ? ` (@${company.igUsername})` : '' })}</p><div className="flex flex-wrap justify-center gap-3"><Button onClick={connect} disabled={connecting || !companyId}>{connecting ? t('Abrindo...') : t('Conectar Threads')}</Button><a className="inline-flex h-10 items-center text-sm font-semibold text-indigo-600 underline" href="/accounts">{t('Vincular em Contas')}</a></div></Card>
   const reasons = new Set(report?.issues.map(issue => issue.reason))
   const requiresReconnect = reasons.has('permission') || reasons.has('expired')
   const metaInternalError = report?.issues.some(issue => issue.status === 500 && issue.code === 1)

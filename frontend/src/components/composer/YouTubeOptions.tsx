@@ -10,6 +10,7 @@ import { SiYoutube } from "@icons-pack/react-simple-icons"
 import { Input } from "@/components/ui/input"
 import { fitsYouTubeShort, type MediaItem, type YouTubeFormat, type YouTubePrivacy } from "@/components/preview/SocialPostPreview"
 import { youtubeShortProblem } from "@/lib/publish-compat"
+import { useT } from "@/lib/i18n"
 
 export type YouTubeLicense = "youtube" | "creativeCommon"
 export type YouTubeSettings = {
@@ -56,12 +57,13 @@ export const youtubeMediaProblem = (format: YouTubeFormat, media: MediaItem | nu
 
 /** Two big cards to choose between a regular video and a Short. */
 export function YouTubeFormatPicker({ value, onChange, media, compact = false }: { value: YouTubeFormat; onChange: (format: YouTubeFormat) => void; media?: MediaItem | null; compact?: boolean }) {
+  const t = useT()
   const options = [
     { id: "video" as const, Icon: MonitorPlay, frame: "aspect-video w-14" },
     { id: "short" as const, Icon: Smartphone, frame: "aspect-[9/16] w-8" },
   ]
   const suggested = media?.kind === "video" && media.width && media.height ? (fitsYouTubeShort(media) ? "short" : "video") : null
-  return <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Formato no YouTube">
+  return <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label={t("Formato no YouTube")}>
     {options.map(({ id, Icon, frame }) => {
       const detail = YOUTUBE_FORMAT_DETAILS[id]
       const selected = value === id
@@ -70,9 +72,9 @@ export function YouTubeFormatPicker({ value, onChange, media, compact = false }:
           <span className={`flex items-center justify-center rounded-[5px] bg-[#ff0033] text-white ${frame}`}><Icon size={14} aria-hidden="true" /></span>
         </span>
         <span className="min-w-0">
-          <span className="flex flex-wrap items-center gap-1.5 text-sm font-bold text-slate-900">{detail.name}{suggested === id && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Combina com o seu vídeo</span>}</span>
-          <span className="mt-0.5 block text-xs font-medium text-slate-600">{detail.shape} · {detail.dimensions}</span>
-          {!compact && <span className="mt-1 block text-[11px] leading-4 text-slate-500">{detail.note}</span>}
+          <span className="flex flex-wrap items-center gap-1.5 text-sm font-bold text-slate-900">{t(detail.name)}{suggested === id && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{t("Combina com o seu vídeo")}</span>}</span>
+          <span className="mt-0.5 block text-xs font-medium text-slate-600">{t(detail.shape)} · {t(detail.dimensions)}</span>
+          {!compact && <span className="mt-1 block text-[11px] leading-4 text-slate-500">{t(detail.note)}</span>}
         </span>
       </button>
     })}
@@ -100,6 +102,7 @@ export function YouTubeOptions({ settings, onChange, media, hashtags, onUploadTh
   onUploadThumbnail: (file: File | undefined) => void
   thumbnailUploading: boolean
 }) {
+  const t = useT()
   const [tagInput, setTagInput] = useState("")
   const set = <K extends keyof YouTubeSettings>(key: K, value: YouTubeSettings[K]) => onChange(current => ({ ...current, [key]: value }))
   const isShort = settings.format === "short"
@@ -121,97 +124,97 @@ export function YouTubeOptions({ settings, onChange, media, hashtags, onUploadTh
   return <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 md:p-5" aria-labelledby="youtube-options-heading">
     <div className="flex items-start gap-3">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#ff0033]"><SiYoutube size={22} color="#fff" title="YouTube" /></span>
-      <div className="min-w-0"><h3 id="youtube-options-heading" className="text-sm font-semibold text-slate-800">Publicação no YouTube</h3><p className="mt-1 text-xs leading-5 text-slate-500">O texto do post vira a descrição do vídeo. Os campos com <span className="text-rose-600">*</span> são obrigatórios.</p></div>
+      <div className="min-w-0"><h3 id="youtube-options-heading" className="text-sm font-semibold text-slate-800">{t("Publicação no YouTube")}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{t("O texto do post vira a descrição do vídeo. Os campos com")} <span className="text-rose-600">*</span> {t("são obrigatórios.")}</p></div>
     </div>
 
     <div className="space-y-2">
-      <p className={sectionTitle}>Formato</p>
+      <p className={sectionTitle}>{t("Formato")}</p>
       <YouTubeFormatPicker value={settings.format} onChange={(format) => set("format", format)} media={media} compact />
       {mediaProblem && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-800">{mediaProblem}</p>}
-      {becomesShort && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Este vídeo é vertical e tem até 3 minutos: o YouTube vai exibi-lo como Short, mesmo escolhendo vídeo. <button type="button" onClick={() => set("format", "short")} className="font-semibold underline">Publicar como Short</button></p>}
+      {becomesShort && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">{t("Este vídeo é vertical e tem até 3 minutos: o YouTube vai exibi-lo como Short, mesmo escolhendo vídeo.")} <button type="button" onClick={() => set("format", "short")} className="font-semibold underline">{t("Publicar como Short")}</button></p>}
     </div>
 
     <div className="space-y-3">
-      <p className={sectionTitle}>Título{isShort ? "" : " e miniatura"}</p>
-      <label className="block text-xs font-medium text-slate-700">Título <span className="text-rose-600">*</span>
-        <Input value={settings.title} maxLength={100} onChange={(event) => set("title", event.target.value)} placeholder={isShort ? "Ex.: 3 erros que travam o seu caixa" : "Ex.: Como organizar as finanças do seu negócio em 3 passos"} aria-label="Título do vídeo no YouTube" className="mt-1.5 h-10 rounded-lg text-sm font-normal" />
+      <p className={sectionTitle}>{isShort ? t("Título") : t("Título e miniatura")}</p>
+      <label className="block text-xs font-medium text-slate-700">{t("Título")} <span className="text-rose-600">*</span>
+        <Input value={settings.title} maxLength={100} onChange={(event) => set("title", event.target.value)} placeholder={isShort ? t("Ex.: 3 erros que travam o seu caixa") : t("Ex.: Como organizar as finanças do seu negócio em 3 passos")} aria-label={t("Título do vídeo no YouTube")} className="mt-1.5 h-10 rounded-lg text-sm font-normal" />
         <span className={`mt-1 block text-right text-[10px] ${settings.title.length > 90 ? "text-amber-700" : "text-slate-400"}`}>{settings.title.length}/100</span>
       </label>
       {isShort
-        ? <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-4 text-slate-500">Nos Shorts, a capa é um quadro do próprio vídeo, escolhido no app do YouTube depois da publicação. A API do YouTube não troca a capa de Shorts.</p>
-        : <div className="text-xs font-medium text-slate-700">Miniatura <span className="font-normal text-slate-400">· opcional</span>
+        ? <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-4 text-slate-500">{t("Nos Shorts, a capa é um quadro do próprio vídeo, escolhido no app do YouTube depois da publicação. A API do YouTube não troca a capa de Shorts.")}</p>
+        : <div className="text-xs font-medium text-slate-700">{t("Miniatura")} <span className="font-normal text-slate-400">{t("· opcional")}</span>
           <div className="mt-1.5 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 sm:w-48">
               {settings.thumbnailUrl
-                ? <img src={settings.thumbnailUrl} alt="Miniatura escolhida para o YouTube" className="absolute inset-0 h-full w-full object-cover" />
-                : <span className="absolute inset-0 flex items-center justify-center px-3 text-center text-[11px] font-normal text-slate-500">Sem miniatura: o YouTube usa um quadro do vídeo</span>}
+                ? <img src={settings.thumbnailUrl} alt={t("Miniatura escolhida para o YouTube")} className="absolute inset-0 h-full w-full object-cover" />
+                : <span className="absolute inset-0 flex items-center justify-center px-3 text-center text-[11px] font-normal text-slate-500">{t("Sem miniatura: o YouTube usa um quadro do vídeo")}</span>}
             </div>
             <div className="flex flex-col gap-2">
-              <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-indigo-700 hover:border-indigo-300">{thumbnailUploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}{settings.thumbnailUrl ? "Trocar imagem" : "Enviar imagem"}<input type="file" accept="image/jpeg,image/png" className="sr-only" disabled={thumbnailUploading} onChange={(event) => { onUploadThumbnail(event.target.files?.[0]); event.target.value = "" }} /></label>
-              {settings.thumbnailUrl && <button type="button" onClick={() => set("thumbnailUrl", null)} className="text-left text-xs font-normal text-slate-500 underline">Remover miniatura</button>}
-              <span className="text-[10px] font-normal leading-4 text-slate-400">JPG ou PNG, 1280 × 720 px, até 2 MB. Exige canal verificado por telefone.</span>
+              <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-indigo-700 hover:border-indigo-300">{thumbnailUploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}{settings.thumbnailUrl ? t("Trocar imagem") : t("Enviar imagem")}<input type="file" accept="image/jpeg,image/png" className="sr-only" disabled={thumbnailUploading} onChange={(event) => { onUploadThumbnail(event.target.files?.[0]); event.target.value = "" }} /></label>
+              {settings.thumbnailUrl && <button type="button" onClick={() => set("thumbnailUrl", null)} className="text-left text-xs font-normal text-slate-500 underline">{t("Remover miniatura")}</button>}
+              <span className="text-[10px] font-normal leading-4 text-slate-400">{t("JPG ou PNG, 1280 × 720 px, até 2 MB. Exige canal verificado por telefone.")}</span>
             </div>
           </div>
         </div>}
     </div>
 
     <div className="space-y-3">
-      <p className={sectionTitle}>Visibilidade e público</p>
-      <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Visibilidade do vídeo no YouTube">
-        {([["public", "Público", "Qualquer pessoa pode encontrar"], ["unlisted", "Não listado", "Só quem tiver o link"], ["private", "Privado", "Só você"]] as const).map(([value, label, help]) => <button key={value} type="button" role="radio" aria-checked={settings.privacyStatus === value} onClick={() => set("privacyStatus", value)} className={`flex flex-col items-start rounded-lg border px-3 py-2 text-left ${settings.privacyStatus === value ? "border-indigo-600 bg-indigo-50/60 ring-1 ring-indigo-600" : "border-slate-200 bg-white hover:border-slate-300"}`}><span className="text-xs font-semibold text-slate-800">{label}</span><span className="text-[11px] text-slate-500">{help}</span></button>)}
+      <p className={sectionTitle}>{t("Visibilidade e público")}</p>
+      <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label={t("Visibilidade do vídeo no YouTube")}>
+        {([["public", "Público", "Qualquer pessoa pode encontrar"], ["unlisted", "Não listado", "Só quem tiver o link"], ["private", "Privado", "Só você"]] as const).map(([value, label, help]) => <button key={value} type="button" role="radio" aria-checked={settings.privacyStatus === value} onClick={() => set("privacyStatus", value)} className={`flex flex-col items-start rounded-lg border px-3 py-2 text-left ${settings.privacyStatus === value ? "border-indigo-600 bg-indigo-50/60 ring-1 ring-indigo-600" : "border-slate-200 bg-white hover:border-slate-300"}`}><span className="text-xs font-semibold text-slate-800">{t(label)}</span><span className="text-[11px] text-slate-500">{t(help)}</span></button>)}
       </div>
       <fieldset>
-        <legend className="text-xs font-medium text-slate-700">É feito para crianças? <span className="text-rose-600">*</span></legend>
-        <p className="mt-0.5 text-[11px] leading-4 text-slate-500">Exigência do YouTube. Vídeos para crianças não têm comentários nem anúncios personalizados.</p>
-        <div className="mt-1.5 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="O vídeo é feito para crianças?">
-          {([[false, "Não é conteúdo para crianças"], [true, "Sim, é feito para crianças"]] as const).map(([value, label]) => <button key={String(value)} type="button" role="radio" aria-checked={settings.madeForKids === value} onClick={() => set("madeForKids", value)} className={`rounded-lg border px-3 py-2 text-left text-xs font-semibold ${settings.madeForKids === value ? "border-indigo-600 bg-indigo-50/60 text-indigo-800 ring-1 ring-indigo-600" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>{label}</button>)}
+        <legend className="text-xs font-medium text-slate-700">{t("É feito para crianças?")} <span className="text-rose-600">*</span></legend>
+        <p className="mt-0.5 text-[11px] leading-4 text-slate-500">{t("Exigência do YouTube. Vídeos para crianças não têm comentários nem anúncios personalizados.")}</p>
+        <div className="mt-1.5 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={t("O vídeo é feito para crianças?")}>
+          {([[false, "Não é conteúdo para crianças"], [true, "Sim, é feito para crianças"]] as const).map(([value, label]) => <button key={String(value)} type="button" role="radio" aria-checked={settings.madeForKids === value} onClick={() => set("madeForKids", value)} className={`rounded-lg border px-3 py-2 text-left text-xs font-semibold ${settings.madeForKids === value ? "border-indigo-600 bg-indigo-50/60 text-indigo-800 ring-1 ring-indigo-600" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>{t(label)}</button>)}
         </div>
       </fieldset>
-      <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-slate-50 p-3"><input type="checkbox" checked={settings.alteredContent} onChange={(event) => set("alteredContent", event.target.checked)} className="mt-0.5 h-4 w-4 accent-indigo-600" /><span><span className="block text-xs font-semibold text-slate-800">Conteúdo alterado ou sintético</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">Marque se o vídeo mostra pessoas, lugares ou eventos realistas criados ou modificados (por exemplo, com IA). Edições comuns e efeitos claramente irreais não precisam.</span></span></label>
+      <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-slate-50 p-3"><input type="checkbox" checked={settings.alteredContent} onChange={(event) => set("alteredContent", event.target.checked)} className="mt-0.5 h-4 w-4 accent-indigo-600" /><span><span className="block text-xs font-semibold text-slate-800">{t("Conteúdo alterado ou sintético")}</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">Marque se o vídeo mostra pessoas, lugares ou eventos realistas criados ou modificados (por exemplo, com IA). Edições comuns e efeitos claramente irreais não precisam.</span></span></label>
     </div>
 
     <div className="space-y-3">
-      <p className={sectionTitle}>Detalhes</p>
+      <p className={sectionTitle}>{t("Detalhes")}</p>
       <div className="grid gap-3 sm:grid-cols-3">
-        <label className="block text-xs font-medium text-slate-700">Categoria
-          <select value={settings.categoryId} onChange={(event) => set("categoryId", event.target.value)} className={selectClass}>{YOUTUBE_CATEGORIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <label className="block text-xs font-medium text-slate-700">{t("Categoria")}
+          <select value={settings.categoryId} onChange={(event) => set("categoryId", event.target.value)} className={selectClass}>{YOUTUBE_CATEGORIES.map(([id, label]) => <option key={id} value={id}>{t(label)}</option>)}</select>
         </label>
-        <label className="block text-xs font-medium text-slate-700">Idioma do título e da descrição
-          <select value={settings.defaultLanguage || ""} onChange={(event) => set("defaultLanguage", event.target.value || null)} className={selectClass}><option value="">Não informar</option>{YOUTUBE_LANGUAGES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <label className="block text-xs font-medium text-slate-700">{t("Idioma do título e da descrição")}
+          <select value={settings.defaultLanguage || ""} onChange={(event) => set("defaultLanguage", event.target.value || null)} className={selectClass}><option value="">{t("Não informar")}</option>{YOUTUBE_LANGUAGES.map(([id, label]) => <option key={id} value={id}>{t(label)}</option>)}</select>
         </label>
-        <label className="block text-xs font-medium text-slate-700">Idioma falado no vídeo
-          <select value={settings.defaultAudioLanguage || ""} onChange={(event) => set("defaultAudioLanguage", event.target.value || null)} className={selectClass}><option value="">Não informar</option>{YOUTUBE_LANGUAGES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <label className="block text-xs font-medium text-slate-700">{t("Idioma falado no vídeo")}
+          <select value={settings.defaultAudioLanguage || ""} onChange={(event) => set("defaultAudioLanguage", event.target.value || null)} className={selectClass}><option value="">{t("Não informar")}</option>{YOUTUBE_LANGUAGES.map(([id, label]) => <option key={id} value={id}>{t(label)}</option>)}</select>
         </label>
       </div>
       <div className="text-xs font-medium text-slate-700">
-        <div className="flex items-center justify-between gap-2"><span>Tags <span className="font-normal text-slate-400">· ajudam na busca quando a palavra costuma ser escrita errado</span></span><span className={`text-[10px] font-normal ${usedTags > 450 ? "text-amber-700" : "text-slate-400"}`}>{usedTags}/{TAGS_LIMIT}</span></div>
+        <div className="flex items-center justify-between gap-2"><span>{t("Tags")} <span className="font-normal text-slate-400">{t("· ajudam na busca quando a palavra costuma ser escrita errado")}</span></span><span className={`text-[10px] font-normal ${usedTags > 450 ? "text-amber-700" : "text-slate-400"}`}>{usedTags}/{TAGS_LIMIT}</span></div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-1.5 focus-within:border-indigo-400">
-          {settings.tags.map(tag => <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-slate-100 py-1 pl-2.5 pr-1 text-xs font-medium text-slate-700">{tag}<button type="button" aria-label={`Remover tag ${tag}`} onClick={() => set("tags", settings.tags.filter(item => item !== tag))} className="rounded-full p-0.5 text-slate-500 hover:bg-slate-200"><X size={12} /></button></span>)}
-          <input value={tagInput} onChange={(event) => { const value = event.target.value; if (value.includes(",")) { addTags(value.split(",").slice(0, -1)); setTagInput(value.split(",").at(-1) || "") } else setTagInput(value) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitTagInput() } else if (event.key === "Backspace" && !tagInput && settings.tags.length) set("tags", settings.tags.slice(0, -1)) }} onBlur={commitTagInput} placeholder={settings.tags.length ? "" : "Digite e aperte Enter ou vírgula"} aria-label="Adicionar tag do YouTube" className="h-7 min-w-[140px] flex-1 bg-transparent px-1.5 text-sm font-normal text-slate-800 outline-none" />
+          {settings.tags.map(tag => <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-slate-100 py-1 pl-2.5 pr-1 text-xs font-medium text-slate-700">{tag}<button type="button" aria-label={t("Remover tag {tag}", { tag })} onClick={() => set("tags", settings.tags.filter(item => item !== tag))} className="rounded-full p-0.5 text-slate-500 hover:bg-slate-200"><X size={12} /></button></span>)}
+          <input value={tagInput} onChange={(event) => { const value = event.target.value; if (value.includes(",")) { addTags(value.split(",").slice(0, -1)); setTagInput(value.split(",").at(-1) || "") } else setTagInput(value) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitTagInput() } else if (event.key === "Backspace" && !tagInput && settings.tags.length) set("tags", settings.tags.slice(0, -1)) }} onBlur={commitTagInput} placeholder={settings.tags.length ? "" : t("Digite e aperte Enter ou vírgula")} aria-label={t("Adicionar tag do YouTube")} className="h-7 min-w-[140px] flex-1 bg-transparent px-1.5 text-sm font-normal text-slate-800 outline-none" />
         </div>
-        {hashtags.some(tag => !settings.tags.some(item => item.toLowerCase() === tag.toLowerCase())) && <button type="button" onClick={() => addTags(hashtags)} className="mt-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900">Usar as hashtags do post como tags</button>}
+        {hashtags.some(tag => !settings.tags.some(item => item.toLowerCase() === tag.toLowerCase())) && <button type="button" onClick={() => addTags(hashtags)} className="mt-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900">{t("Usar as hashtags do post como tags")}</button>}
       </div>
     </div>
 
     <PlaylistPicker channelId={channelId} settings={settings} onChange={onChange} />
 
     <details className="group rounded-xl border border-slate-200 bg-slate-50/70">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-xs font-semibold text-slate-800 marker:hidden">Configurações avançadas<ChevronDown size={16} className="text-slate-500 transition group-open:rotate-180" /></summary>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-xs font-semibold text-slate-800 marker:hidden">{t("Configurações avançadas")}<ChevronDown size={16} className="text-slate-500 transition group-open:rotate-180" /></summary>
       <div className="space-y-1 border-t border-slate-200 bg-white px-3 pb-3 pt-1">
         <div className="divide-y divide-slate-100">
-          <Toggle checked={settings.notifySubscribers} onChange={(value) => set("notifySubscribers", value)} label="Notificar inscritos" help="Os inscritos recebem o aviso de vídeo novo. Desligue para publicações discretas." />
-          <Toggle checked={settings.embeddable} onChange={(value) => set("embeddable", value)} label="Permitir incorporação" help="Outros sites podem exibir o vídeo no player do YouTube." />
-          <Toggle checked={settings.publicStatsViewable} onChange={(value) => set("publicStatsViewable", value)} label="Mostrar quantas pessoas curtiram" help="O número de curtidas fica visível na página do vídeo." />
+          <Toggle checked={settings.notifySubscribers} onChange={(value) => set("notifySubscribers", value)} label={t("Notificar inscritos")} help={t("Os inscritos recebem o aviso de vídeo novo. Desligue para publicações discretas.")} />
+          <Toggle checked={settings.embeddable} onChange={(value) => set("embeddable", value)} label={t("Permitir incorporação")} help={t("Outros sites podem exibir o vídeo no player do YouTube.")} />
+          <Toggle checked={settings.publicStatsViewable} onChange={(value) => set("publicStatsViewable", value)} label={t("Mostrar quantas pessoas curtiram")} help={t("O número de curtidas fica visível na página do vídeo.")} />
         </div>
         <div className="grid gap-3 pt-2 sm:grid-cols-2">
-          <label className="block text-xs font-medium text-slate-700">Licença
-            <select value={settings.license} onChange={(event) => set("license", event.target.value as YouTubeLicense)} className={selectClass}><option value="youtube">Licença padrão do YouTube</option><option value="creativeCommon">Creative Commons (atribuição)</option></select>
+          <label className="block text-xs font-medium text-slate-700">{t("Licença")}
+            <select value={settings.license} onChange={(event) => set("license", event.target.value as YouTubeLicense)} className={selectClass}><option value="youtube">{t("Licença padrão do YouTube")}</option><option value="creativeCommon">{t("Creative Commons (atribuição)")}</option></select>
           </label>
-          <label className="block text-xs font-medium text-slate-700">Data de gravação <span className="font-normal text-slate-400">· opcional</span>
-            <span className="mt-1.5 flex items-center gap-2"><input type="date" max={today} value={settings.recordingDate || ""} onChange={(event) => set("recordingDate", event.target.value || null)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-normal text-slate-800" />{settings.recordingDate && <button type="button" onClick={() => set("recordingDate", null)} className="shrink-0 text-xs font-normal text-slate-500 underline">Limpar</button>}</span>
+          <label className="block text-xs font-medium text-slate-700">{t("Data de gravação")} <span className="font-normal text-slate-400">{t("· opcional")}</span>
+            <span className="mt-1.5 flex items-center gap-2"><input type="date" max={today} value={settings.recordingDate || ""} onChange={(event) => set("recordingDate", event.target.value || null)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-normal text-slate-800" />{settings.recordingDate && <button type="button" onClick={() => set("recordingDate", null)} className="shrink-0 text-xs font-normal text-slate-500 underline">{t("Limpar")}</button>}</span>
           </label>
         </div>
-        <p className="pt-2 text-[10px] leading-4 text-slate-400">Legendas, telas finais e a configuração de comentários ficam no YouTube Studio.</p>
+        <p className="pt-2 text-[10px] leading-4 text-slate-400">{t("Legendas, telas finais e a configuração de comentários ficam no YouTube Studio.")}</p>
       </div>
     </details>
   </section>
@@ -222,6 +225,7 @@ const PRIVACY_LABEL: Record<string, string> = { public: "Pública", unlisted: "N
 
 /** Existing playlists of the channel, plus an optional new one created when the video is published. */
 function PlaylistPicker({ channelId, settings, onChange }: { channelId?: string; settings: YouTubeSettings; onChange: (update: (current: YouTubeSettings) => YouTubeSettings) => void }) {
+  const t = useT()
   const query = useQuery({ queryKey: ["youtube-playlists", channelId], enabled: !!channelId, staleTime: 5 * 60_000, retry: false,
     queryFn: ({ signal }) => fetchApi(`/accounts/youtube/${encodeURIComponent(channelId!)}/playlists`, { signal }) as Promise<{ playlists: Playlist[] }> })
   const playlists = query.data?.playlists || []
@@ -229,25 +233,25 @@ function PlaylistPicker({ channelId, settings, onChange }: { channelId?: string;
   const creating = settings.newPlaylist !== null
   return <div className="space-y-3">
     <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Playlists</p>
-    {!channelId ? <p className="text-xs text-slate-500">Escolha o canal do YouTube para ver as playlists.</p>
-      : query.isLoading ? <div className="flex items-center gap-2 text-xs text-slate-500"><Loader2 size={14} className="animate-spin" />Carregando playlists do canal…</div>
-      : query.isError ? <p className="text-xs text-rose-700">Não foi possível carregar as playlists: {query.error.message} <button type="button" onClick={() => void query.refetch()} className="font-semibold underline">Tentar de novo</button></p>
-      : playlists.length ? <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5" role="group" aria-label="Playlists do canal">
+    {!channelId ? <p className="text-xs text-slate-500">{t("Escolha o canal do YouTube para ver as playlists.")}</p>
+      : query.isLoading ? <div className="flex items-center gap-2 text-xs text-slate-500"><Loader2 size={14} className="animate-spin" />{t("Carregando playlists do canal…")}</div>
+      : query.isError ? <p className="text-xs text-rose-700">{t("Não foi possível carregar as playlists: {message}", { message: query.error.message })} <button type="button" onClick={() => void query.refetch()} className="font-semibold underline">{t("Tentar de novo")}</button></p>
+      : playlists.length ? <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5" role="group" aria-label={t("Playlists do canal")}>
         {playlists.map((playlist) => <label key={playlist.id} className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-slate-50">
           <input type="checkbox" checked={settings.playlistIds.includes(playlist.id)} onChange={() => toggle(playlist.id)} className="h-4 w-4 accent-indigo-600" />
           <ListVideo size={15} className="shrink-0 text-slate-400" aria-hidden="true" />
           <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{playlist.title}</span>
-          <span className="shrink-0 text-[11px] text-slate-500">{PRIVACY_LABEL[playlist.privacyStatus] || playlist.privacyStatus}{playlist.itemCount != null ? ` · ${playlist.itemCount} vídeos` : ""}</span>
+          <span className="shrink-0 text-[11px] text-slate-500">{PRIVACY_LABEL[playlist.privacyStatus] ? t(PRIVACY_LABEL[playlist.privacyStatus]) : playlist.privacyStatus}{playlist.itemCount != null ? t(" · {count} vídeos", { count: playlist.itemCount }) : ""}</span>
         </label>)}
-      </div> : <p className="text-xs text-slate-500">Este canal ainda não tem playlists.</p>}
+      </div> : <p className="text-xs text-slate-500">{t("Este canal ainda não tem playlists.")}</p>}
     {creating ? <div className="space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
-      <div className="flex items-center justify-between"><span className="text-xs font-semibold text-slate-800">Nova playlist</span><button type="button" onClick={() => onChange(current => ({ ...current, newPlaylist: null }))} className="text-xs text-slate-500 underline">Cancelar</button></div>
+      <div className="flex items-center justify-between"><span className="text-xs font-semibold text-slate-800">{t("Nova playlist")}</span><button type="button" onClick={() => onChange(current => ({ ...current, newPlaylist: null }))} className="text-xs text-slate-500 underline">{t("Cancelar")}</button></div>
       <div className="grid gap-2 sm:grid-cols-[1fr_150px]">
-        <Input value={settings.newPlaylist?.title || ""} maxLength={150} onChange={(event) => onChange(current => ({ ...current, newPlaylist: { title: event.target.value, privacyStatus: current.newPlaylist?.privacyStatus || "public" } }))} placeholder="Nome da playlist" aria-label="Nome da nova playlist" className="h-9 bg-white text-sm" />
-        <select value={settings.newPlaylist?.privacyStatus || "public"} onChange={(event) => onChange(current => ({ ...current, newPlaylist: { title: current.newPlaylist?.title || "", privacyStatus: event.target.value as YouTubePrivacy } }))} aria-label="Visibilidade da nova playlist" className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm"><option value="public">Pública</option><option value="unlisted">Não listada</option><option value="private">Privada</option></select>
+        <Input value={settings.newPlaylist?.title || ""} maxLength={150} onChange={(event) => onChange(current => ({ ...current, newPlaylist: { title: event.target.value, privacyStatus: current.newPlaylist?.privacyStatus || "public" } }))} placeholder={t("Nome da playlist")} aria-label={t("Nome da nova playlist")} className="h-9 bg-white text-sm" />
+        <select value={settings.newPlaylist?.privacyStatus || "public"} onChange={(event) => onChange(current => ({ ...current, newPlaylist: { title: current.newPlaylist?.title || "", privacyStatus: event.target.value as YouTubePrivacy } }))} aria-label={t("Visibilidade da nova playlist")} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm"><option value="public">{t("Pública")}</option><option value="unlisted">{t("Não listada")}</option><option value="private">{t("Privada")}</option></select>
       </div>
-      <p className="text-[11px] text-slate-500">A playlist é criada no canal quando o vídeo for publicado, já com o vídeo dentro.</p>
-    </div> : <button type="button" onClick={() => onChange(current => ({ ...current, newPlaylist: { title: "", privacyStatus: "public" } }))} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900"><Plus size={14} />Criar nova playlist</button>}
-    {(settings.playlistIds.length > 0 || creating) && <p className="text-[11px] leading-4 text-slate-500">Adicionar a playlists exige o canal reconectado com todas as permissões. Se uma playlist falhar, o vídeo continua publicado e você recebe um aviso.</p>}
+      <p className="text-[11px] text-slate-500">{t("A playlist é criada no canal quando o vídeo for publicado, já com o vídeo dentro.")}</p>
+    </div> : <button type="button" onClick={() => onChange(current => ({ ...current, newPlaylist: { title: "", privacyStatus: "public" } }))} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900"><Plus size={14} />{t("Criar nova playlist")}</button>}
+    {(settings.playlistIds.length > 0 || creating) && <p className="text-[11px] leading-4 text-slate-500">{t("Adicionar a playlists exige o canal reconectado com todas as permissões. Se uma playlist falhar, o vídeo continua publicado e você recebe um aviso.")}</p>}
   </div>
 }

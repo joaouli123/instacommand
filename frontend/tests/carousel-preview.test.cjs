@@ -16,8 +16,8 @@ test('compact Instagram carousel preview shows the selected media and dot naviga
   assert.match(source, /src=\{media\.src\}/);
   assert.match(source, /aspect-\[4\/5\]/);
   assert.doesNotMatch(preview, /rounded-\[2\.7rem\]|border-\[7px\]/);
-  assert.match(source, /aria-label="Itens do carrossel"/);
-  assert.match(source, /aria-label=\{`Pré-visualizar item \$\{index \+ 1\} de \$\{mediaItems\.length\}`\}/);
+  assert.match(source, /aria-label=\{t\("Itens do carrossel"\)\}/);
+  assert.match(source, /aria-label=\{t\("Pré-visualizar item \{index\} de \{total\}", \{ index: index \+ 1, total: mediaItems\.length \}\)\}/);
   assert.match(source, /aria-pressed=\{index === activeMediaIndex\}/);
   assert.match(source, /onClick=\{\(\) => onSelectMedia\(index\)\}/);
   assert.match(source, /onSwipe=\{carouselSwipe\}/);
@@ -28,8 +28,8 @@ test('compact Instagram carousel preview shows the selected media and dot naviga
 
 test('Facebook carousel preview navigates all album items and explains the single-post model', () => {
   assert.match(source, /data-preview=\{postType === "CAROUSEL" \? "facebook-carousel" : "facebook-feed"\}/);
-  assert.match(source, /aria-label="Itens do álbum do Facebook"/);
-  assert.match(source, /Pré-visualizar foto \$\{index \+ 1\} de \$\{mediaItems\.length\}/);
+  assert.match(source, /aria-label=\{t\("Itens do álbum do Facebook"\)\}/);
+  assert.match(source, /Pré-visualizar foto \{index\} de \{total\}", \{ index: index \+ 1, total: mediaItems\.length \}/);
   assert.match(source, /onSwipe=\{carouselSwipe\}/);
   assert.match(source, /As fotos serão publicadas juntas em uma única publicação da Página/);
 });

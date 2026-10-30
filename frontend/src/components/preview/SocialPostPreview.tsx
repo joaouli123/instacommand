@@ -11,6 +11,7 @@ import { RiAccountCircleLine, RiAddLine, RiArrowLeftLine, RiBookmarkLine, RiChat
 import { RiDownload2Line, RiGlobalLine, RiLinkM, RiLock2Line, RiThumbDownLine } from "@remixicon/react"
 import { AvatarImage } from "@/components/ui/avatar-image"
 import { YOUTUBE_SHORT_MAX_SECONDS } from "@/lib/publish-compat"
+import { currentLocale, tr, useT } from "@/lib/i18n"
 
 export type PostType = "FEED" | "CAROUSEL" | "REEL" | "STORY" | "TEXT"
 export type PreviewAccount = { igUsername: string; pageName?: string | null; igProfilePicUrl?: string | null }
@@ -74,6 +75,7 @@ export type SocialPreviewProps = {
 }
 
 export function PreviewMedia({ media, emptyMessage, className = "", backgroundClassName = "bg-[#eef1f4]", preserveSourceRatio = false, aspectRatioOverride, onSwipe, fill = false }: { media: MediaItem | null; emptyMessage: string; className?: string; backgroundClassName?: string; preserveSourceRatio?: boolean; aspectRatioOverride?: string; onSwipe?: (direction: -1 | 1) => void; fill?: boolean }) {
+  const t = useT()
   const videoRef = useRef<HTMLVideoElement>(null)
   const swipeStart = useRef<{ x: number; y: number } | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -197,19 +199,19 @@ export function PreviewMedia({ media, emptyMessage, className = "", backgroundCl
             setVideoError(true)
             setIsPlaying(false)
             setVideoErrorMessage(code === 4
-              ? "O navegador não reconhece o formato ou codec deste vídeo. Exporte como MP4 (H.264 + AAC) e tente novamente."
-              : "Não foi possível carregar este vídeo. Confira se o arquivo está íntegro e tente novamente.")
+              ? t("O navegador não reconhece o formato ou codec deste vídeo. Exporte como MP4 (H.264 + AAC) e tente novamente.")
+              : t("Não foi possível carregar este vídeo. Confira se o arquivo está íntegro e tente novamente."))
           }}
           onLoadedData={() => { setIsVideoReady(true); setVideoError(false); setVideoErrorMessage("") }}
           className="absolute inset-0 h-full w-full object-contain"
-          aria-label="Prévia do vídeo"
+          aria-label={t("Prévia do vídeo")}
           src={media.src}
         />
-        {!isVideoReady && !videoError && <div role="status" className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 text-center text-xs font-medium text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]"><span className="mx-auto mb-2 block h-5 w-5 animate-spin rounded-full border-2 border-white/35 border-t-white" />Carregando vídeo…</div>}
+        {!isVideoReady && !videoError && <div role="status" className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 text-center text-xs font-medium text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]"><span className="mx-auto mb-2 block h-5 w-5 animate-spin rounded-full border-2 border-white/35 border-t-white" />{t("Carregando vídeo…")}</div>}
         {isVideoReady && !isPlaying && !videoError && <button
           type="button"
           onClick={togglePlayback}
-          aria-label={isPlaying ? "Pausar prévia do vídeo" : "Reproduzir prévia do vídeo"}
+          aria-label={isPlaying ? t("Pausar prévia do vídeo") : t("Reproduzir prévia do vídeo")}
           aria-pressed={isPlaying}
           className={`absolute left-1/2 top-1/2 z-20 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white shadow-lg ring-1 ring-white/50 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${isPlaying ? "opacity-0 group-hover/video:opacity-100" : "opacity-100"}`}
         >
@@ -218,21 +220,22 @@ export function PreviewMedia({ media, emptyMessage, className = "", backgroundCl
         <button
           type="button"
           onClick={toggleMute}
-          aria-label={isMuted ? "Ativar som do vídeo" : "Desativar som do vídeo"}
+          aria-label={isMuted ? t("Ativar som do vídeo") : t("Desativar som do vídeo")}
           aria-pressed={!isMuted}
           className="absolute left-3 top-[19%] z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/30 transition hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           {isMuted ? <RiVolumeMuteLine size={20} aria-hidden="true" /> : <RiVolumeUpLine size={20} aria-hidden="true" />}
         </button>
-        {videoError && <p role="alert" className="absolute inset-x-3 bottom-3 z-20 rounded-lg bg-black/85 px-3 py-2 text-center text-[11px] leading-4 text-white shadow-lg">{videoErrorMessage || "Não foi possível reproduzir este vídeo. Tente MP4 com vídeo H.264 e áudio AAC."}</p>}
+        {videoError && <p role="alert" className="absolute inset-x-3 bottom-3 z-20 rounded-lg bg-black/85 px-3 py-2 text-center text-[11px] leading-4 text-white shadow-lg">{videoErrorMessage || t("Não foi possível reproduzir este vídeo. Tente MP4 com vídeo H.264 e áudio AAC.")}</p>}
       </>
-      : <img src={media.src} alt="Prévia da publicação" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
-      : <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#eef1f4] px-5 text-center text-[#536171]"><RiImageLine size={27} className="text-[#7b8da3]" aria-hidden="true" /><p className="mt-3 text-sm font-medium">{emptyMessage}</p><p className="mt-1 text-xs text-[#728197]">Adicione uma mídia para ver a prévia real.</p></div>}
+      : <img src={media.src} alt={t("Prévia da publicação")} draggable={false} className="absolute inset-0 h-full w-full object-cover" />
+      : <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#eef1f4] px-5 text-center text-[#536171]"><RiImageLine size={27} className="text-[#7b8da3]" aria-hidden="true" /><p className="mt-3 text-sm font-medium">{emptyMessage}</p><p className="mt-1 text-xs text-[#728197]">{t("Adicione uma mídia para ver a prévia real.")}</p></div>}
   </div>
 }
 
 export function PreviewAvatar({ src, name, ring = false, facebook = false, compact = false }: { src?: string | null; name: string; ring?: boolean; facebook?: boolean; compact?: boolean }) {
-  return <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e9edf2] font-semibold text-[#43536a] ${compact ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm"} ${ring ? compact ? "ring ring-[#c13584] ring-offset-1 ring-offset-white" : "ring-2 ring-[#c13584] ring-offset-2 ring-offset-white" : ""} ${facebook ? "bg-[#1877f2] text-white" : ""}`} aria-label={`Foto de ${name}`}>
+  const t = useT()
+  return <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e9edf2] font-semibold text-[#43536a] ${compact ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm"} ${ring ? compact ? "ring ring-[#c13584] ring-offset-1 ring-offset-white" : "ring-2 ring-[#c13584] ring-offset-2 ring-offset-white" : ""} ${facebook ? "bg-[#1877f2] text-white" : ""}`} aria-label={t("Foto de {name}", { name })}>
     <AvatarImage src={src} fallback={(name.replace(/^@/, "")[0] || "?").toUpperCase()} />
   </span>
 }
@@ -242,7 +245,8 @@ const TAG_PATTERN = new RegExp("^[#@][\\p{L}\\p{N}_]+", "u")
 
 /** Post as it appears in the X timeline: header, text, up to 4 media in a grid and the action bar. */
 function XPostPreview({ account, caption, hashtags, mediaItems, postType }: { account?: PreviewXAccount; caption: string; hashtags: string[]; mediaItems: MediaItem[]; postType: PostType }) {
-  const handle = account?.username || "sua_conta"
+  const t = useT()
+  const handle = account?.username || t("sua_conta")
   const name = account?.name || handle
   const text = [caption, hashtags.map((tag) => `#${tag}`).join(" ")].filter(Boolean).join("\n\n")
   const length = twitterText.parseTweet(text).weightedLength
@@ -250,32 +254,32 @@ function XPostPreview({ account, caption, hashtags, mediaItems, postType }: { ac
   // Hashtags and @mentions are blue on X.
   const rich = text.split(/(\s+)/).map((part, index) => TAG_PATTERN.test(part) ? <span key={index} className="text-[#1d9bf0]">{part}</span> : part)
   const grid = items.length === 1 ? "grid-cols-1" : "grid-cols-2"
-  return <article data-preview="x-post" aria-label="Prévia de publicação no X" className="w-full max-w-[400px] border border-[#eff3f4] bg-white px-4 py-3 text-[#0f1419] font-[system-ui,-apple-system,'Segoe_UI',Roboto,Helvetica,Arial,sans-serif]">
+  return <article data-preview="x-post" aria-label={t("Prévia de publicação no X")} className="w-full max-w-[400px] border border-[#eff3f4] bg-white px-4 py-3 text-[#0f1419] font-[system-ui,-apple-system,'Segoe_UI',Roboto,Helvetica,Arial,sans-serif]">
     <div className="flex gap-3">
       <span className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-[#cfd9de]"><AvatarImage src={account?.profilePicUrl} fallback={(handle[0] || "X").toUpperCase()} /></span>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1 text-[15px] leading-5">
           <span className="truncate font-bold">{name}</span>
           <span className="truncate text-[#536471]">@{handle}</span>
-          <span className="shrink-0 text-[#536471]">· agora</span>
+          <span className="shrink-0 text-[#536471]">{t("· agora")}</span>
           <SiX className="ml-auto h-4 w-4 shrink-0 text-[#0f1419]" title="X" />
         </div>
-        <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-5">{text ? rich : <span className="text-[#536471]">O texto do seu post aparecerá aqui.</span>}</p>
+        <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-5">{text ? rich : <span className="text-[#536471]">{t("O texto do seu post aparecerá aqui.")}</span>}</p>
         {items.length > 0 && <div className={`mt-3 grid ${grid} gap-0.5 overflow-hidden rounded-2xl border border-[#cfd9de]`}>
           {items.map((item, index) => <div key={item.id} className={`relative bg-[#f7f9f9] ${items.length === 1 ? (postType === "REEL" ? "aspect-[9/16] max-h-[420px]" : "aspect-[4/3]") : items.length === 3 && index === 0 ? "row-span-2 aspect-auto" : "aspect-square"}`}>
             {item.kind === "video" ? <video src={item.src} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" /> : <img src={item.src} alt="" className="absolute inset-0 h-full w-full object-cover" />}
-            {item.kind === "video" && <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">Vídeo</span>}
+            {item.kind === "video" && <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">{t("Vídeo")}</span>}
           </div>)}
         </div>}
-        <div className="mt-3 flex max-w-[360px] items-center justify-between text-[13px] text-[#536471]" aria-label="Ações do post no X">
+        <div className="mt-3 flex max-w-[360px] items-center justify-between text-[13px] text-[#536471]" aria-label={t("Ações do post no X")}>
           <span className="flex items-center gap-1"><RiChat1Line size={18} />0</span>
           <span className="flex items-center gap-1"><RiRepeat2Line size={18} />0</span>
           <span className="flex items-center gap-1"><RiHeartLine size={18} />0</span>
           <span className="flex items-center gap-1"><RiBarChartLine size={18} />0</span>
           <span className="flex items-center gap-2"><RiBookmarkLine size={18} /><RiShare2Line size={18} /></span>
         </div>
-        <p className={`mt-2 text-right text-[11px] font-medium ${length > 280 ? "text-[#f4212e]" : "text-[#536471]"}`}>{length}/280 caracteres{length > 280 ? " · passa do limite do X" : ""}</p>
-        {mediaItems.length > 4 && postType !== "TEXT" && <p className="mt-1 text-right text-[11px] font-medium text-[#f4212e]">O X mostra só as 4 primeiras mídias.</p>}
+        <p className={`mt-2 text-right text-[11px] font-medium ${length > 280 ? "text-[#f4212e]" : "text-[#536471]"}`}>{t("{count}/280 caracteres", { count: length })}{length > 280 ? t(" · passa do limite do X") : ""}</p>
+        {mediaItems.length > 4 && postType !== "TEXT" && <p className="mt-1 text-right text-[11px] font-medium text-[#f4212e]">{t("O X mostra só as 4 primeiras mídias.")}</p>}
       </div>
     </div>
   </article>
@@ -295,9 +299,9 @@ export const youtubeFormatOf = (settings: { format?: YouTubeFormat | null } | un
   settings?.format || (fitsYouTubeShort(media) ? "short" : "video")
 
 const formatSubscribers = (count?: number | null) => {
-  if (count == null) return "Inscritos ocultos"
-  const compact = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(count)
-  return `${compact} ${count === 1 ? "inscrito" : "inscritos"}`
+  if (count == null) return tr("Inscritos ocultos")
+  const compact = new Intl.NumberFormat(currentLocale(), { notation: "compact", maximumFractionDigits: 1 }).format(count)
+  return count === 1 ? tr("{count} inscrito", { count: compact }) : tr("{count} inscritos", { count: compact })
 }
 
 const HASHTAG_PATTERN = new RegExp("^#[\\p{L}\\p{N}_]+$", "u")
@@ -307,8 +311,9 @@ const HASHTAG_PATTERN = new RegExp("^#[\\p{L}\\p{N}_]+$", "u")
  * page plus the card shown in search and on the home feed.
  */
 function YouTubePreview({ account, settings, media, caption, hashtags }: { account?: PreviewYouTubeAccount; settings?: PreviewYouTubeSettings; media: MediaItem | null; caption: string; hashtags: string[] }) {
-  const channel = account?.title || "Seu canal"
-  const handle = account?.handle || "@seucanal"
+  const t = useT()
+  const channel = account?.title || t("Seu canal")
+  const handle = account?.handle || t("@seucanal")
   const title = settings?.title?.trim() || ""
   const description = [caption, hashtags.map((tag) => `#${tag}`).join(" ")].filter(Boolean).join("\n\n")
   const privacy = YOUTUBE_PRIVACY_LABEL[settings?.privacyStatus || "public"]
@@ -316,59 +321,59 @@ function YouTubePreview({ account, settings, media, caption, hashtags }: { accou
   const channelInitial = (channel[0] || "Y").toUpperCase()
 
   if (youtubeFormatOf(settings, media) === "short") {
-    return <article data-preview="youtube-short" aria-label="Prévia de YouTube Shorts" className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-xl bg-black text-white ring-1 ring-black/10 font-[Roboto,system-ui,-apple-system,'Segoe_UI',Arial,sans-serif]">
-      <PreviewMedia media={video} emptyMessage="Seu Short aparecerá aqui" fill backgroundClassName="bg-[#0f0f0f]" />
+    return <article data-preview="youtube-short" aria-label={t("Prévia de YouTube Shorts")} className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-xl bg-black text-white ring-1 ring-black/10 font-[Roboto,system-ui,-apple-system,'Segoe_UI',Arial,sans-serif]">
+      <PreviewMedia media={video} emptyMessage={t("Seu Short aparecerá aqui")} fill backgroundClassName="bg-[#0f0f0f]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/50 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
       <header className="absolute inset-x-3 top-2.5 flex items-center justify-between drop-shadow-sm">
         <span className="flex items-center gap-1.5 text-[13px] font-semibold"><SiYoutubeshorts size={18} color="#ff0033" title="YouTube Shorts" />Shorts</span>
         <span className="flex items-center gap-2"><RiSearchLine size={19} aria-hidden="true" /><RiMore2Line size={19} aria-hidden="true" /></span>
       </header>
-      {settings?.privacyStatus && settings.privacyStatus !== "public" && <span className="absolute left-3 top-11 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium"><privacy.Icon size={11} aria-hidden="true" />{privacy.label}</span>}
-      <nav aria-label="Ações do Short" className="absolute bottom-24 right-2 flex flex-col items-center gap-3 text-white drop-shadow-md">
-        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiThumbUpLine size={19} /></span><span className="text-[9px]">Gostei</span></span>
-        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiThumbDownLine size={19} /></span><span className="text-[9px]">Não gostei</span></span>
+      {settings?.privacyStatus && settings.privacyStatus !== "public" && <span className="absolute left-3 top-11 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium"><privacy.Icon size={11} aria-hidden="true" />{t(privacy.label)}</span>}
+      <nav aria-label={t("Ações do Short")} className="absolute bottom-24 right-2 flex flex-col items-center gap-3 text-white drop-shadow-md">
+        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiThumbUpLine size={19} /></span><span className="text-[9px]">{t("Gostei")}</span></span>
+        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiThumbDownLine size={19} /></span><span className="text-[9px]">{t("Não gostei")}</span></span>
         <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiChat3Line size={19} /></span><span className="text-[9px]">0</span></span>
-        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiShareForwardLine size={19} /></span><span className="text-[9px]">Compartilhar</span></span>
+        <span className="flex flex-col items-center gap-0.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><RiShareForwardLine size={19} /></span><span className="text-[9px]">{t("Compartilhar")}</span></span>
         <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md border-2 border-white/80 bg-[#272727] text-xs font-semibold"><AvatarImage src={account?.thumbnailUrl} fallback={channelInitial} /></span>
       </nav>
       <div className="absolute inset-x-3 bottom-3 pr-12 drop-shadow-sm">
-        <div className="flex min-w-0 items-center gap-2"><span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#272727] text-[11px] font-semibold"><AvatarImage src={account?.thumbnailUrl} fallback={channelInitial} /></span><p className="min-w-0 truncate text-[12px] font-semibold">{handle}</p><span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#0f0f0f]">Inscrever-se</span></div>
-        <p className="mt-2 line-clamp-2 break-words text-[12px] font-medium leading-4">{title || <span className="text-white/70">O título do Short aparecerá aqui</span>}</p>
-        <p className="mt-1.5 flex items-center gap-1 truncate text-[10px] text-white/90"><RiMusic2Line size={12} aria-hidden="true" />Som original · {channel}</p>
+        <div className="flex min-w-0 items-center gap-2"><span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#272727] text-[11px] font-semibold"><AvatarImage src={account?.thumbnailUrl} fallback={channelInitial} /></span><p className="min-w-0 truncate text-[12px] font-semibold">{handle}</p><span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#0f0f0f]">{t("Inscrever-se")}</span></div>
+        <p className="mt-2 line-clamp-2 break-words text-[12px] font-medium leading-4">{title || <span className="text-white/70">{t("O título do Short aparecerá aqui")}</span>}</p>
+        <p className="mt-1.5 flex items-center gap-1 truncate text-[10px] text-white/90"><RiMusic2Line size={12} aria-hidden="true" />{t("Som original · {channel}", { channel })}</p>
       </div>
     </article>
   }
 
   const poster = settings?.thumbnailUrl
   return <div className="flex w-full max-w-[400px] flex-col gap-4 font-[Roboto,system-ui,-apple-system,'Segoe_UI',Arial,sans-serif]">
-    <article data-preview="youtube-video" aria-label="Prévia de vídeo do YouTube" className="w-full overflow-hidden rounded-xl border border-[#e5e5e5] bg-white text-[#0f0f0f]">
-      <PreviewMedia media={video} emptyMessage="Seu vídeo aparecerá aqui" aspectRatioOverride="16 / 9" backgroundClassName="bg-black" />
+    <article data-preview="youtube-video" aria-label={t("Prévia de vídeo do YouTube")} className="w-full overflow-hidden rounded-xl border border-[#e5e5e5] bg-white text-[#0f0f0f]">
+      <PreviewMedia media={video} emptyMessage={t("Seu vídeo aparecerá aqui")} aspectRatioOverride="16 / 9" backgroundClassName="bg-black" />
       <div className="px-3 pb-3 pt-2.5">
-        <h4 className="line-clamp-2 break-words text-[15px] font-semibold leading-5">{title || <span className="font-normal text-[#606060]">O título do vídeo aparecerá aqui</span>}</h4>
-        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-[#606060]">0 visualizações · agora<span className="inline-flex items-center gap-1 rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[11px] font-medium"><privacy.Icon size={12} aria-hidden="true" />{privacy.label}</span></p>
+        <h4 className="line-clamp-2 break-words text-[15px] font-semibold leading-5">{title || <span className="font-normal text-[#606060]">{t("O título do vídeo aparecerá aqui")}</span>}</h4>
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-[#606060]">{t("0 visualizações · agora")}<span className="inline-flex items-center gap-1 rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[11px] font-medium"><privacy.Icon size={12} aria-hidden="true" />{t(privacy.label)}</span></p>
         <div className="mt-3 flex items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e5e5e5] text-sm font-semibold text-[#0f0f0f]"><AvatarImage src={account?.thumbnailUrl} fallback={channelInitial} /></span>
           <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{channel}</p><p className="truncate text-[11px] text-[#606060]">{formatSubscribers(account?.subscriberCount)}</p></div>
-          <span className="shrink-0 rounded-full bg-[#0f0f0f] px-3 py-1.5 text-[12px] font-semibold text-white">Inscrever-se</span>
+          <span className="shrink-0 rounded-full bg-[#0f0f0f] px-3 py-1.5 text-[12px] font-semibold text-white">{t("Inscrever-se")}</span>
         </div>
-        <div className="mt-3 flex gap-2 overflow-hidden text-[12px] font-medium" aria-label="Ações do vídeo no YouTube">
+        <div className="mt-3 flex gap-2 overflow-hidden text-[12px] font-medium" aria-label={t("Ações do vídeo no YouTube")}>
           <span className="flex shrink-0 items-center rounded-full bg-[#f2f2f2]"><span className="flex items-center gap-1.5 border-r border-[#d9d9d9] py-1.5 pl-3 pr-2.5"><RiThumbUpLine size={16} />0</span><span className="px-2.5 py-1.5"><RiThumbDownLine size={16} /></span></span>
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#f2f2f2] px-3 py-1.5"><RiShareForwardLine size={16} />Compartilhar</span>
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#f2f2f2] px-3 py-1.5"><RiShareForwardLine size={16} />{t("Compartilhar")}</span>
           <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#f2f2f2] px-3 py-1.5"><RiDownload2Line size={16} />Download</span>
         </div>
         <div className="mt-3 rounded-xl bg-[#f2f2f2] px-3 py-2.5 text-[12px] leading-[18px]">
-          <p className="font-semibold">0 visualizações · agora</p>
-          <p className="line-clamp-4 whitespace-pre-wrap break-words">{description ? description.split(/(\s+)/).map((part, index) => HASHTAG_PATTERN.test(part) ? <span key={index} className="text-[#065fd4]">{part}</span> : part) : <span className="text-[#606060]">A legenda vira a descrição do vídeo.</span>}</p>
+          <p className="font-semibold">{t("0 visualizações · agora")}</p>
+          <p className="line-clamp-4 whitespace-pre-wrap break-words">{description ? description.split(/(\s+)/).map((part, index) => HASHTAG_PATTERN.test(part) ? <span key={index} className="text-[#065fd4]">{part}</span> : part) : <span className="text-[#606060]">{t("A legenda vira a descrição do vídeo.")}</span>}</p>
         </div>
       </div>
     </article>
-    <article data-preview="youtube-search-card" aria-label="Prévia do vídeo na busca do YouTube" className="flex w-full gap-3 rounded-xl border border-[#e5e5e5] bg-white p-2.5 text-[#0f0f0f]">
+    <article data-preview="youtube-search-card" aria-label={t("Prévia do vídeo na busca do YouTube")} className="flex w-full gap-3 rounded-xl border border-[#e5e5e5] bg-white p-2.5 text-[#0f0f0f]">
       <div className="relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg bg-[#0f0f0f]">
-        {poster ? <img src={poster} alt="Miniatura do vídeo" className="absolute inset-0 h-full w-full object-cover" /> : video ? <video src={video.src} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" /> : null}
-        <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-[10px] font-semibold text-white">{poster ? "Miniatura" : "Quadro automático"}</span>
+        {poster ? <img src={poster} alt={t("Miniatura do vídeo")} className="absolute inset-0 h-full w-full object-cover" /> : video ? <video src={video.src} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" /> : null}
+        <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-[10px] font-semibold text-white">{poster ? t("Miniatura") : t("Quadro automático")}</span>
       </div>
-      <div className="min-w-0 flex-1"><p className="line-clamp-2 text-[13px] font-semibold leading-[18px]">{title || "Título do vídeo"}</p><p className="mt-1 truncate text-[11px] text-[#606060]">{channel}</p><p className="truncate text-[11px] text-[#606060]">0 visualizações · agora</p></div>
+      <div className="min-w-0 flex-1"><p className="line-clamp-2 text-[13px] font-semibold leading-[18px]">{title || t("Título do vídeo")}</p><p className="mt-1 truncate text-[11px] text-[#606060]">{channel}</p><p className="truncate text-[11px] text-[#606060]">{t("0 visualizações · agora")}</p></div>
       <SiYoutube size={16} color="#ff0033" title="YouTube" className="shrink-0" />
     </article>
   </div>
@@ -376,16 +381,17 @@ function YouTubePreview({ account, settings, media, caption, hashtags }: { accou
 
 /** TikTok "For You" player: the video full screen, the action rail on the right and the caption at the bottom. */
 function TikTokPreview({ account, media, caption, hashtags, privacy }: { account?: PreviewTikTokAccount; media: MediaItem | null; caption: string; hashtags: string[]; privacy?: string | null }) {
-  const name = account?.username ? `@${account.username}` : account?.nickname || "@seu_perfil"
+  const t = useT()
+  const name = account?.username ? `@${account.username}` : account?.nickname || t("@seu_perfil")
   const text = [caption, hashtags.map((tag) => `#${tag}`).join(" ")].filter(Boolean).join(" ")
   const initial = (account?.nickname || "T")[0]?.toUpperCase()
-  return <article data-preview="tiktok" aria-label="Prévia de vídeo do TikTok" className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-xl bg-black text-white ring-1 ring-black/10 font-[system-ui,-apple-system,'Segoe_UI',Roboto,Arial,sans-serif]">
-    <PreviewMedia media={media?.kind === "video" ? media : null} emptyMessage="Seu vídeo do TikTok aparecerá aqui" fill backgroundClassName="bg-[#111]" />
+  return <article data-preview="tiktok" aria-label={t("Prévia de vídeo do TikTok")} className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-xl bg-black text-white ring-1 ring-black/10 font-[system-ui,-apple-system,'Segoe_UI',Roboto,Arial,sans-serif]">
+    <PreviewMedia media={media?.kind === "video" ? media : null} emptyMessage={t("Seu vídeo do TikTok aparecerá aqui")} fill backgroundClassName="bg-[#111]" />
     <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/45 to-transparent" />
     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
-    <header className="absolute inset-x-3 top-3 flex items-center justify-center gap-4 text-[13px] font-semibold drop-shadow"><span className="text-white/70">Seguindo</span><span className="border-b-2 border-white pb-0.5">Para você</span><RiSearchLine size={18} className="absolute right-0" aria-hidden="true" /></header>
-    {privacy === "SELF_ONLY" && <span className="absolute left-3 top-11 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium"><RiLock2Line size={11} aria-hidden="true" />Só eu</span>}
-    <nav aria-label="Ações do vídeo no TikTok" className="absolute bottom-20 right-2 flex flex-col items-center gap-3.5 drop-shadow-md">
+    <header className="absolute inset-x-3 top-3 flex items-center justify-center gap-4 text-[13px] font-semibold drop-shadow"><span className="text-white/70">{t("Seguindo")}</span><span className="border-b-2 border-white pb-0.5">{t("Para você")}</span><RiSearchLine size={18} className="absolute right-0" aria-hidden="true" /></header>
+    {privacy === "SELF_ONLY" && <span className="absolute left-3 top-11 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium"><RiLock2Line size={11} aria-hidden="true" />{t("Só eu")}</span>}
+    <nav aria-label={t("Ações do vídeo no TikTok")} className="absolute bottom-20 right-2 flex flex-col items-center gap-3.5 drop-shadow-md">
       <span className="relative mb-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-[#333] text-sm font-bold"><AvatarImage src={account?.avatarUrl} fallback={initial} /></span>
       <span className="flex flex-col items-center gap-0.5"><RiHeartFill size={26} aria-hidden="true" /><span className="text-[10px] font-semibold">0</span></span>
       <span className="flex flex-col items-center gap-0.5"><RiChat3Line size={24} aria-hidden="true" /><span className="text-[10px] font-semibold">0</span></span>
@@ -394,21 +400,22 @@ function TikTokPreview({ account, media, caption, hashtags, privacy }: { account
     </nav>
     <div className="absolute inset-x-3 bottom-3 pr-14 drop-shadow-sm">
       <p className="text-[13px] font-semibold">{name}</p>
-      <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-[12px] leading-4">{text ? text.split(/(\s+)/).map((part, index) => TAG_PATTERN.test(part) ? <b key={index}>{part}</b> : part) : <span className="text-white/70">A legenda do post aparecerá aqui.</span>}</p>
-      <p className="mt-1.5 flex items-center gap-1 truncate text-[11px]"><RiMusic2Line size={12} aria-hidden="true" />som original · {account?.nickname || "seu perfil"}</p>
+      <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-[12px] leading-4">{text ? text.split(/(\s+)/).map((part, index) => TAG_PATTERN.test(part) ? <b key={index}>{part}</b> : part) : <span className="text-white/70">{t("A legenda do post aparecerá aqui.")}</span>}</p>
+      <p className="mt-1.5 flex items-center gap-1 truncate text-[11px]"><RiMusic2Line size={12} aria-hidden="true" />{t("som original · {name}", { name: account?.nickname || t("seu perfil") })}</p>
     </div>
     <SiTiktok size={16} color="#fff" title="TikTok" className="absolute bottom-3 right-3 opacity-80" />
   </article>
 }
 
 export function SocialPostPreview({ postType, previewPlatform, selectedAccount, threadsAccount, xAccount, youtubeAccount, youtubeSettings, tiktokAccount, tiktokPrivacy, media, mediaItems, activeMediaIndex, onSelectMedia, caption, hashtags, locationName }: SocialPreviewProps) {
+  const t = useT()
   if (previewPlatform === "TIKTOK") return <TikTokPreview account={tiktokAccount} media={media} caption={caption} hashtags={hashtags} privacy={tiktokPrivacy} />
   if (previewPlatform === "X") return <XPostPreview account={xAccount} caption={caption} hashtags={hashtags} mediaItems={mediaItems} postType={postType} />
   if (previewPlatform === "YOUTUBE") return <YouTubePreview account={youtubeAccount} settings={youtubeSettings} media={media} caption={caption} hashtags={hashtags} />
   const isInstagram = previewPlatform === "INSTAGRAM"
   const isFacebook = previewPlatform === "FACEBOOK"
-  const username = isFacebook ? selectedAccount?.pageName || "Sua Página" : isInstagram ? selectedAccount?.igUsername || "sua_conta" : threadsAccount?.username || "sua_conta"
-  const captionPlaceholder = "A legenda da publicação aparecerá aqui."
+  const username = isFacebook ? selectedAccount?.pageName || t("Sua Página") : isInstagram ? selectedAccount?.igUsername || t("sua_conta") : threadsAccount?.username || t("sua_conta")
+  const captionPlaceholder = t("A legenda da publicação aparecerá aqui.")
   const tagText = hashtags.map(tag => `#${tag}`).join(" ")
   const allCaption = [caption, tagText].filter(Boolean).join(" ")
   const accountPhoto = selectedAccount?.igProfilePicUrl
@@ -424,24 +431,24 @@ export function SocialPostPreview({ postType, previewPlatform, selectedAccount, 
     : undefined
 
   if (isInstagram && postType === "STORY") {
-    return <article data-preview="instagram-story" aria-label="Prévia de Instagram Story" className="relative aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-[10px] bg-[#16171b] text-white ring-1 ring-black/10 shadow-sm">
-      <PreviewMedia media={media} emptyMessage="Sua mídia de Story aparecerá aqui" fill backgroundClassName="bg-[#16171b]" />
+    return <article data-preview="instagram-story" aria-label={t("Prévia de Instagram Story")} className="relative aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-[10px] bg-[#16171b] text-white ring-1 ring-black/10 shadow-sm">
+      <PreviewMedia media={media} emptyMessage={t("Sua mídia de Story aparecerá aqui")} fill backgroundClassName="bg-[#16171b]" />
       <div className="absolute inset-x-3 top-2 flex gap-1" aria-hidden="true"><span className="h-[2px] flex-1 rounded bg-white" /><span className="h-[2px] flex-1 rounded bg-white/50" /><span className="h-[2px] flex-1 rounded bg-white/35" /></div>
       <header className="absolute inset-x-3 top-5 flex items-center gap-1.5 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
         <PreviewAvatar src={accountPhoto} name={username} ring compact />
-        <div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{username} <span className="font-normal text-white/75">· agora</span></p><p className="mt-0.5 truncate text-[9px] text-white/85">Story</p></div>
-        <button type="button" aria-label="Mais opções" className="flex h-7 w-7 items-center justify-center"><RiMore2Line size={17} /></button><button type="button" aria-label="Fechar prévia" className="flex h-7 w-7 items-center justify-center"><RiCloseLine size={18} /></button>
+        <div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{username} <span className="font-normal text-white/75">{t("· agora")}</span></p><p className="mt-0.5 truncate text-[9px] text-white/85">Story</p></div>
+        <button type="button" aria-label={t("Mais opções")} className="flex h-7 w-7 items-center justify-center"><RiMore2Line size={17} /></button><button type="button" aria-label={t("Fechar prévia")} className="flex h-7 w-7 items-center justify-center"><RiCloseLine size={18} /></button>
       </header>
       {caption && <p className="absolute inset-x-4 bottom-[56px] line-clamp-4 whitespace-pre-wrap break-words text-center text-xs font-semibold leading-[17px] text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.85)]">{caption}</p>}
       <footer className="absolute inset-x-3 bottom-2.5 flex items-center gap-1.5">
-        <div className="flex h-8 min-w-0 flex-1 items-center rounded-full border border-white/80 px-2.5 text-[10px] text-white/90">Responder...</div><RiHeartLine size={19} /><RiSendPlaneLine size={18} />
+        <div className="flex h-8 min-w-0 flex-1 items-center rounded-full border border-white/80 px-2.5 text-[10px] text-white/90">{t("Responder...")}</div><RiHeartLine size={19} /><RiSendPlaneLine size={18} />
       </footer>
     </article>
   }
 
   if (isFacebook && postType === "STORY") {
-    return <article data-preview="facebook-story" aria-label="Prévia visual de Facebook Stories" className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-[10px] bg-[#111217] text-white ring-1 ring-black/10 shadow-sm">
-      <PreviewMedia media={media} emptyMessage="Sua mídia do Story aparecerá aqui" fill backgroundClassName="bg-[#25262a]" />
+    return <article data-preview="facebook-story" aria-label={t("Prévia visual de Facebook Stories")} className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-[10px] bg-[#111217] text-white ring-1 ring-black/10 shadow-sm">
+      <PreviewMedia media={media} emptyMessage={t("Sua mídia do Story aparecerá aqui")} fill backgroundClassName="bg-[#25262a]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/55 via-black/25 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black/65 via-black/30 to-transparent" />
       <div className="absolute inset-x-3 top-2 flex gap-1.5" aria-hidden="true">
@@ -449,104 +456,104 @@ export function SocialPostPreview({ postType, previewPlatform, selectedAccount, 
       </div>
       <header className="absolute inset-x-3 top-4 flex items-center gap-1.5 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
         <PreviewAvatar src={accountPhoto} name={username} facebook compact />
-        <div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{username} <span className="font-normal text-white/75">· agora</span></p><p className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[9px] text-white/85"><RiMusic2Line size={11} aria-hidden="true" />Áudio da publicação</p></div>
-        <button type="button" aria-label="Mais opções do Story" className="flex h-7 w-7 items-center justify-center"><RiMore2Line size={17} /></button>
-        <button type="button" aria-label="Fechar prévia do Story" className="flex h-7 w-7 items-center justify-center"><RiCloseLine size={18} /></button>
+        <div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{username} <span className="font-normal text-white/75">{t("· agora")}</span></p><p className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[9px] text-white/85"><RiMusic2Line size={11} aria-hidden="true" />{t("Áudio da publicação")}</p></div>
+        <button type="button" aria-label={t("Mais opções do Story")} className="flex h-7 w-7 items-center justify-center"><RiMore2Line size={17} /></button>
+        <button type="button" aria-label={t("Fechar prévia do Story")} className="flex h-7 w-7 items-center justify-center"><RiCloseLine size={18} /></button>
       </header>
       {allCaption && <p className="absolute inset-x-5 bottom-[66px] line-clamp-3 whitespace-pre-wrap break-words text-center text-[11px] font-medium leading-[15px] [text-shadow:0_1px_4px_rgba(0,0,0,0.85)]">{allCaption}</p>}
       <footer className="absolute inset-x-2.5 bottom-2.5 flex items-center gap-1">
-        <button type="button" aria-label="Enviar mensagem" className="flex h-8 min-w-0 flex-1 items-center justify-between rounded-full border border-white/25 bg-[#3a3b3c]/90 px-2.5 text-left text-[10px] text-white/90 shadow-sm"><span className="truncate">Enviar mensagem...</span><RiEmotionHappyLine size={17} className="ml-1.5 shrink-0" /></button>
-        <button type="button" aria-label="Reagir com coração" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e1306c] text-white shadow-sm"><RiHeartFill size={17} /></button>
-        <button type="button" aria-label="Reagir com curtir" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0866ff] text-white shadow-sm"><RiThumbUpFill size={17} /></button>
-        <button type="button" aria-label="Reagir com emoção" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f7b928] text-white shadow-sm"><RiEmotionHappyLine size={17} /></button>
+        <button type="button" aria-label={t("Enviar mensagem")} className="flex h-8 min-w-0 flex-1 items-center justify-between rounded-full border border-white/25 bg-[#3a3b3c]/90 px-2.5 text-left text-[10px] text-white/90 shadow-sm"><span className="truncate">{t("Enviar mensagem...")}</span><RiEmotionHappyLine size={17} className="ml-1.5 shrink-0" /></button>
+        <button type="button" aria-label={t("Reagir com coração")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e1306c] text-white shadow-sm"><RiHeartFill size={17} /></button>
+        <button type="button" aria-label={t("Reagir com curtir")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0866ff] text-white shadow-sm"><RiThumbUpFill size={17} /></button>
+        <button type="button" aria-label={t("Reagir com emoção")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f7b928] text-white shadow-sm"><RiEmotionHappyLine size={17} /></button>
       </footer>
     </article>
   }
 
   if (isInstagram && postType === "REEL") {
-    return <article data-preview="instagram-reel" aria-label="Prévia de Instagram Reel" className="relative aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-lg bg-[#101114] text-white ring-1 ring-black/10">
-      <PreviewMedia media={media} emptyMessage="Sua capa do Reel aparecerá aqui" fill backgroundClassName="bg-[#202126]" />
-      <header className="absolute inset-x-3 top-3 flex items-center justify-between text-white drop-shadow-sm"><button type="button" aria-label="Criar" className="flex h-7 w-7 items-center justify-center rounded-full bg-black/35"><RiAddLine size={20} /></button><div className="flex items-center gap-3 text-[11px] font-semibold"><span>Seguindo</span><span className="border-b-2 border-white pb-1">Para você</span></div><button type="button" aria-label="Curtir" className="flex h-7 w-7 items-center justify-center rounded-full bg-black/35"><RiHeartLine size={19} /></button></header>
-      <nav aria-label="Ações do Reel" className="absolute right-2 top-[38%] flex flex-col items-center gap-2.5 text-white drop-shadow-sm">
-        <span className="flex flex-col items-center gap-0.5"><RiHeartLine size={21} /><span className="text-[8px]">Curtir</span></span>
-        <span className="flex flex-col items-center gap-0.5"><RiChat3Line size={20} /><span className="text-[8px]">Comentar</span></span>
-        <span className="flex flex-col items-center gap-0.5"><RiRepeat2Line size={20} /><span className="text-[8px]">Repostar</span></span>
-        <span className="flex flex-col items-center gap-0.5"><RiSendPlaneLine size={19} /><span className="text-[8px]">Enviar</span></span>
+    return <article data-preview="instagram-reel" aria-label={t("Prévia de Instagram Reel")} className="relative aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-lg bg-[#101114] text-white ring-1 ring-black/10">
+      <PreviewMedia media={media} emptyMessage={t("Sua capa do Reel aparecerá aqui")} fill backgroundClassName="bg-[#202126]" />
+      <header className="absolute inset-x-3 top-3 flex items-center justify-between text-white drop-shadow-sm"><button type="button" aria-label={t("Criar")} className="flex h-7 w-7 items-center justify-center rounded-full bg-black/35"><RiAddLine size={20} /></button><div className="flex items-center gap-3 text-[11px] font-semibold"><span>{t("Seguindo")}</span><span className="border-b-2 border-white pb-1">{t("Para você")}</span></div><button type="button" aria-label={t("Curtir")} className="flex h-7 w-7 items-center justify-center rounded-full bg-black/35"><RiHeartLine size={19} /></button></header>
+      <nav aria-label={t("Ações do Reel")} className="absolute right-2 top-[38%] flex flex-col items-center gap-2.5 text-white drop-shadow-sm">
+        <span className="flex flex-col items-center gap-0.5"><RiHeartLine size={21} /><span className="text-[8px]">{t("Curtir")}</span></span>
+        <span className="flex flex-col items-center gap-0.5"><RiChat3Line size={20} /><span className="text-[8px]">{t("Comentar")}</span></span>
+        <span className="flex flex-col items-center gap-0.5"><RiRepeat2Line size={20} /><span className="text-[8px]">{t("Repostar")}</span></span>
+        <span className="flex flex-col items-center gap-0.5"><RiSendPlaneLine size={19} /><span className="text-[8px]">{t("Enviar")}</span></span>
         <RiMore2Line size={18} />
       </nav>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent px-3 pb-3 pt-12 text-white">
-        <div className="flex items-center gap-1.5"><PreviewAvatar src={accountPhoto} name={username} ring compact /><p className="truncate text-[10px] font-semibold">@{selectedAccount?.igUsername || "sua_conta"}</p><span className="rounded border border-white/80 px-1.5 py-0.5 text-[9px] font-semibold">Seguir</span></div>
+        <div className="flex items-center gap-1.5"><PreviewAvatar src={accountPhoto} name={username} ring compact /><p className="truncate text-[10px] font-semibold">@{selectedAccount?.igUsername || t("sua_conta")}</p><span className="rounded border border-white/80 px-1.5 py-0.5 text-[9px] font-semibold">{t("Seguir")}</span></div>
         {locationName && <p className="mt-1 truncate text-[9px] text-white/90">{locationName}</p>}
-        <p className="mt-1.5 line-clamp-2 break-words pr-8 text-[10px] leading-[14px]">{allCaption || "Sua legenda aparecerá aqui."}</p>
+        <p className="mt-1.5 line-clamp-2 break-words pr-8 text-[10px] leading-[14px]">{allCaption || t("Sua legenda aparecerá aqui.")}</p>
       </div>
     </article>
   }
 
   if (isFacebook && postType === "REEL") {
-    return <article data-preview="facebook-reel" aria-label="Prévia de Facebook Reels" className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-lg bg-[#141519] text-white ring-1 ring-black/10">
-      <PreviewMedia media={media} emptyMessage="Seu vídeo do Reel aparecerá aqui" fill backgroundClassName="bg-[#202126]" />
+    return <article data-preview="facebook-reel" aria-label={t("Prévia de Facebook Reels")} className="relative isolate aspect-[9/16] w-full max-w-[340px] overflow-hidden rounded-lg bg-[#141519] text-white ring-1 ring-black/10">
+      <PreviewMedia media={media} emptyMessage={t("Seu vídeo do Reel aparecerá aqui")} fill backgroundClassName="bg-[#202126]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/75 via-black/35 to-transparent" />
-      <nav aria-label="Navegação do Facebook Reels" className="absolute inset-x-3 top-2 flex items-center justify-between text-white drop-shadow-sm">
-        <button type="button" aria-label="Voltar" className="flex h-7 w-7 items-center justify-center"><RiArrowLeftLine size={20} /></button>
-        <div className="flex items-center gap-2.5"><button type="button" aria-label="Pesquisar" className="flex h-7 w-7 items-center justify-center"><RiSearchLine size={19} /></button><button type="button" aria-label="Perfil" className="flex h-7 w-7 items-center justify-center"><RiAccountCircleLine size={19} /></button></div>
+      <nav aria-label={t("Navegação do Facebook Reels")} className="absolute inset-x-3 top-2 flex items-center justify-between text-white drop-shadow-sm">
+        <button type="button" aria-label={t("Voltar")} className="flex h-7 w-7 items-center justify-center"><RiArrowLeftLine size={20} /></button>
+        <div className="flex items-center gap-2.5"><button type="button" aria-label={t("Pesquisar")} className="flex h-7 w-7 items-center justify-center"><RiSearchLine size={19} /></button><button type="button" aria-label={t("Perfil")} className="flex h-7 w-7 items-center justify-center"><RiAccountCircleLine size={19} /></button></div>
       </nav>
-      <nav aria-label="Ações do Facebook Reel" className="absolute right-2 top-[39%] flex flex-col items-center gap-2.5 text-white drop-shadow-md">
+      <nav aria-label={t("Ações do Facebook Reel")} className="absolute right-2 top-[39%] flex flex-col items-center gap-2.5 text-white drop-shadow-md">
         <span className="flex flex-col items-center gap-0.5"><RiThumbUpLine size={20} /><span className="text-[8px] leading-3">0</span></span>
         <span className="flex flex-col items-center gap-0.5"><RiChat3Line size={20} /><span className="text-[8px] leading-3">0</span></span>
         <span className="flex flex-col items-center gap-0.5"><RiShareForwardLine size={20} /><span className="text-[8px] leading-3">0</span></span>
         <span className="flex flex-col items-center gap-0.5"><RiBookmarkLine size={19} /><span className="text-[8px] leading-3">0</span></span>
-        <RiMore2Line size={18} aria-label="Mais opções" />
+        <RiMore2Line size={18} aria-label={t("Mais opções")} />
       </nav>
       <div className="absolute inset-x-2.5 bottom-2 pr-8 text-white drop-shadow-sm">
-        <div className="flex items-center gap-1.5"><PreviewAvatar src={accountPhoto} name={username} facebook compact /><p className="min-w-0 flex-1 truncate text-[10px] font-semibold">{username}</p><span className="shrink-0 rounded-full border border-white/80 px-2 py-0.5 text-[9px] font-semibold">Seguir</span></div>
-        <p className="mt-1 flex items-center gap-1 truncate text-[9px] text-white/95"><RiMusic2Line size={11} aria-hidden="true" />Áudio original · {username}</p>
-        <p className="mt-1 line-clamp-2 break-words text-[10px] leading-[14px]">{allCaption || "Sua legenda aparecerá aqui."}</p>
+        <div className="flex items-center gap-1.5"><PreviewAvatar src={accountPhoto} name={username} facebook compact /><p className="min-w-0 flex-1 truncate text-[10px] font-semibold">{username}</p><span className="shrink-0 rounded-full border border-white/80 px-2 py-0.5 text-[9px] font-semibold">{t("Seguir")}</span></div>
+        <p className="mt-1 flex items-center gap-1 truncate text-[9px] text-white/95"><RiMusic2Line size={11} aria-hidden="true" />{t("Áudio original · {name}", { name: username })}</p>
+        <p className="mt-1 line-clamp-2 break-words text-[10px] leading-[14px]">{allCaption || t("Sua legenda aparecerá aqui.")}</p>
       </div>
     </article>
   }
 
   if (!isInstagram && !isFacebook) {
-    return <article aria-label="Prévia de publicação no Threads" className="w-full max-w-[390px] border-y border-[#e4e6eb] bg-white px-4 py-4 text-[#101114] sm:px-5">
+    return <article aria-label={t("Prévia de publicação no Threads")} className="w-full max-w-[390px] border-y border-[#e4e6eb] bg-white px-4 py-4 text-[#101114] sm:px-5">
       <div className="flex items-start gap-3">
         <div className="relative mt-0.5"><PreviewAvatar src={accountPhoto} name={username} /><span className="absolute -bottom-0.5 -right-0.5 flex h-[19px] w-[19px] items-center justify-center rounded-full border-2 border-white bg-[#101114] text-white"><Plus size={12} strokeWidth={2.7} /></span></div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5"><p className="truncate text-[13px] font-semibold">{username}</p><span className="shrink-0 text-xs text-[#777b83]">· agora</span><SiThreads className="ml-auto h-[19px] w-[19px] shrink-0 text-[#101114]" title="Threads" /></div>
-          <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-[1.48] text-[#101114]">{caption || <span className="text-[#8b9098]">Seu texto aparecerá aqui, preservando as quebras de linha.</span>}</p>
+          <div className="flex items-center gap-1.5"><p className="truncate text-[13px] font-semibold">{username}</p><span className="shrink-0 text-xs text-[#777b83]">{t("· agora")}</span><SiThreads className="ml-auto h-[19px] w-[19px] shrink-0 text-[#101114]" title="Threads" /></div>
+          <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-[1.48] text-[#101114]">{caption || <span className="text-[#8b9098]">{t("Seu texto aparecerá aqui, preservando as quebras de linha.")}</span>}</p>
           {tagText && <p className="mt-1 break-words text-[15px] leading-[1.48] text-[#101114]">{tagText}</p>}
           {media && <PreviewMedia media={media} emptyMessage="" preserveSourceRatio={postType !== "REEL" || (!isInstagram && !isFacebook)} className={`mx-auto mt-3 rounded-xl border border-[#e4e6eb] ${postType === "REEL" ? "aspect-[9/16] w-full max-w-[245px]" : "aspect-[4/5] w-full"}`} />}
-          <div className="mt-5 flex items-center gap-6 text-[#34373d]" aria-label="Ações da publicação no Threads"><RiHeartLine size={22} /><RiChat3Line size={22} /><RiRepeat2Line size={22} /><RiSendPlaneLine size={21} /></div>
+          <div className="mt-5 flex items-center gap-6 text-[#34373d]" aria-label={t("Ações da publicação no Threads")}><RiHeartLine size={22} /><RiChat3Line size={22} /><RiRepeat2Line size={22} /><RiSendPlaneLine size={21} /></div>
         </div>
       </div>
     </article>
   }
 
   if (isFacebook) {
-    return <article data-preview={postType === "CAROUSEL" ? "facebook-carousel" : "facebook-feed"} aria-label={postType === "CAROUSEL" ? "Prévia de álbum do Facebook" : "Prévia de publicação no Facebook"} className="w-full max-w-[390px] overflow-hidden rounded-[10px] border border-[#e4e6eb] bg-white text-[#1c1e21] shadow-sm">
-      <header className="flex items-center gap-2.5 px-3 py-3"><PreviewAvatar src={accountPhoto} name={username} facebook /><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{username}</p><p className="text-[11px] text-[#65676b]">Agora · <span aria-label="Público">Público</span></p></div><RiMore2Line size={21} className="text-[#65676b]" /></header>
+    return <article data-preview={postType === "CAROUSEL" ? "facebook-carousel" : "facebook-feed"} aria-label={postType === "CAROUSEL" ? t("Prévia de álbum do Facebook") : t("Prévia de publicação no Facebook")} className="w-full max-w-[390px] overflow-hidden rounded-[10px] border border-[#e4e6eb] bg-white text-[#1c1e21] shadow-sm">
+      <header className="flex items-center gap-2.5 px-3 py-3"><PreviewAvatar src={accountPhoto} name={username} facebook /><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{username}</p><p className="text-[11px] text-[#65676b]">{t("Agora ·")} <span aria-label={t("Público")}>{t("Público")}</span></p></div><RiMore2Line size={21} className="text-[#65676b]" /></header>
       {allCaption && <p className="whitespace-pre-wrap break-words px-3 pb-3 text-[13px] leading-5">{allCaption}</p>}
       <div className="relative">
-        <PreviewMedia media={media} emptyMessage="Sua foto ou vídeo aparecerá aqui" preserveSourceRatio={postType !== "REEL"} onSwipe={carouselSwipe} className={`border-y border-[#e4e6eb] ${postType === "REEL" ? "mx-auto aspect-[9/16] w-full max-w-[245px]" : "aspect-[4/5]"}`} />
+        <PreviewMedia media={media} emptyMessage={t("Sua foto ou vídeo aparecerá aqui")} preserveSourceRatio={postType !== "REEL"} onSwipe={carouselSwipe} className={`border-y border-[#e4e6eb] ${postType === "REEL" ? "mx-auto aspect-[9/16] w-full max-w-[245px]" : "aspect-[4/5]"}`} />
         {postType === "CAROUSEL" && mediaItems.length > 1 && <span className="absolute right-3 top-3 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">{activeMediaIndex + 1}/{mediaItems.length}</span>}
       </div>
-      {postType === "CAROUSEL" && mediaItems.length > 1 && <nav aria-label="Itens do álbum do Facebook" className="flex items-center justify-center gap-0.5 py-1">
-        {mediaItems.map((item, index) => <button key={item.id} type="button" aria-label={`Pré-visualizar foto ${index + 1} de ${mediaItems.length}`} aria-pressed={index === activeMediaIndex} onClick={() => onSelectMedia(index)} className="flex h-7 w-7 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0866ff]" data-testid="facebook-album-item"><span className={`h-1.5 w-1.5 rounded-full ${index === activeMediaIndex ? "bg-[#0866ff]" : "bg-[#bec3c9]"}`} /></button>)}
+      {postType === "CAROUSEL" && mediaItems.length > 1 && <nav aria-label={t("Itens do álbum do Facebook")} className="flex items-center justify-center gap-0.5 py-1">
+        {mediaItems.map((item, index) => <button key={item.id} type="button" aria-label={t("Pré-visualizar foto {index} de {total}", { index: index + 1, total: mediaItems.length })} aria-pressed={index === activeMediaIndex} onClick={() => onSelectMedia(index)} className="flex h-7 w-7 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0866ff]" data-testid="facebook-album-item"><span className={`h-1.5 w-1.5 rounded-full ${index === activeMediaIndex ? "bg-[#0866ff]" : "bg-[#bec3c9]"}`} /></button>)}
       </nav>}
-      <div className="flex items-center justify-around px-2 py-2.5 text-[12px] font-semibold text-[#65676b]"><span className="flex items-center gap-1.5"><RiHeartLine size={18} />Curtir</span><span className="flex items-center gap-1.5"><RiChat3Line size={18} />Comentar</span><span className="flex items-center gap-1.5"><RiShareForwardLine size={18} />Compartilhar</span></div>
+      <div className="flex items-center justify-around px-2 py-2.5 text-[12px] font-semibold text-[#65676b]"><span className="flex items-center gap-1.5"><RiHeartLine size={18} />{t("Curtir")}</span><span className="flex items-center gap-1.5"><RiChat3Line size={18} />{t("Comentar")}</span><span className="flex items-center gap-1.5"><RiShareForwardLine size={18} />{t("Compartilhar")}</span></div>
     </article>
   }
 
-  return <article data-preview={postType === "CAROUSEL" ? "instagram-carousel" : "instagram-feed"} aria-label={postType === "CAROUSEL" ? "Prévia de carrossel do Instagram" : "Prévia de publicação do Instagram"} className="w-full max-w-[390px] overflow-hidden rounded-[10px] border border-[#dbdbdb] bg-white text-[#0f1419] shadow-sm">
+  return <article data-preview={postType === "CAROUSEL" ? "instagram-carousel" : "instagram-feed"} aria-label={postType === "CAROUSEL" ? t("Prévia de carrossel do Instagram") : t("Prévia de publicação do Instagram")} className="w-full max-w-[390px] overflow-hidden rounded-[10px] border border-[#dbdbdb] bg-white text-[#0f1419] shadow-sm">
     <header className="flex items-center gap-2.5 px-3 py-3">
       <PreviewAvatar src={accountPhoto} name={username} ring />
       <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold">{username}</p>{locationName && <p className="truncate text-[11px] leading-4 text-[#737373]">{locationName}</p>}</div>
       <RiMore2Line size={22} className="text-[#262626]" />
     </header>
     <div className="relative">
-      <PreviewMedia media={media} emptyMessage="Sua arte aparecerá aqui" preserveSourceRatio={!instagramCarouselRatio} aspectRatioOverride={instagramCarouselRatio} onSwipe={carouselSwipe} className="aspect-[3/4]" />
+      <PreviewMedia media={media} emptyMessage={t("Sua arte aparecerá aqui")} preserveSourceRatio={!instagramCarouselRatio} aspectRatioOverride={instagramCarouselRatio} onSwipe={carouselSwipe} className="aspect-[3/4]" />
       {postType === "CAROUSEL" && mediaItems.length > 1 && <span className="absolute right-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] font-semibold text-white">{activeMediaIndex + 1}/{mediaItems.length}</span>}
     </div>
-    {postType === "CAROUSEL" && mediaItems.length > 1 && <nav aria-label="Itens do carrossel" className="flex items-center justify-center gap-0.5 py-1">{mediaItems.map((item, index) => <button key={item.id} type="button" aria-label={`Pré-visualizar item ${index + 1} de ${mediaItems.length}`} aria-pressed={index === activeMediaIndex} onClick={() => onSelectMedia(index)} className="flex h-7 w-7 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0095f6]"><span className={`h-1.5 w-1.5 rounded-full ${index === activeMediaIndex ? "bg-[#0095f6]" : "bg-[#c7c7c7]"}`} /></button>)}</nav>}
+    {postType === "CAROUSEL" && mediaItems.length > 1 && <nav aria-label={t("Itens do carrossel")} className="flex items-center justify-center gap-0.5 py-1">{mediaItems.map((item, index) => <button key={item.id} type="button" aria-label={t("Pré-visualizar item {index} de {total}", { index: index + 1, total: mediaItems.length })} aria-pressed={index === activeMediaIndex} onClick={() => onSelectMedia(index)} className="flex h-7 w-7 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0095f6]"><span className={`h-1.5 w-1.5 rounded-full ${index === activeMediaIndex ? "bg-[#0095f6]" : "bg-[#c7c7c7]"}`} /></button>)}</nav>}
     <div className="px-3 pb-3 pt-2">
       <div className="flex items-center justify-between"><div className="flex items-center gap-4 text-[#262626]"><RiHeartLine size={25} /><RiChat3Line size={24} /><RiSendPlaneLine size={23} /></div><RiBookmarkLine size={23} className="text-[#262626]" /></div>
       {allCaption ? <p className="mt-2 line-clamp-3 whitespace-pre-wrap break-words text-[12px] leading-[17px]"><span className="font-semibold">{username}</span>{" "}{allCaption}</p> : <p className="mt-2 text-[12px] leading-[17px]"><span className="font-semibold">{username}</span>{" "}<span className="text-[#737373]">{captionPlaceholder}</span></p>}

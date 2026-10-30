@@ -118,4 +118,22 @@ export const EN_COMMUNITY: Record<string, string> = {
   "Remover resposta rápida": "Remove quick reply",
   "Nova resposta...": "New reply...",
   "Adicionar resposta rápida": "Add quick reply",
+  "Comentários dos vídeos recentes do canal de": "Comments on the recent videos of the channel of",
+  "no YouTube, organizados por vídeo e prioridade.": "on YouTube, organized by video and priority.",
+  "Ocultar": "Hide",
+  "Comentários e conversas de cada rede da empresa selecionada no topo.": "Comments and conversations from each network of the company selected at the top.",
+
+  // Network tabs (community, competitors, trends)
+  "em breve": "coming soon",
+  "Depende de uma aprovação da Meta": "Depends on Meta approval",
+  "Ler Páginas de outras empresas exige a permissão Page Public Content Access, aprovada pela Meta numa revisão própria. Ela será pedida quando a revisão atual do app terminar.": "Reading other companies' Pages requires the Page Public Content Access permission, approved by Meta in a separate review. It will be requested once the app's current review is done.",
+  "A API do Threads não abre perfis de terceiros": "The Threads API does not open third-party profiles",
+  "O Threads só entrega os números do próprio perfil. Quando a Meta liberar a busca por palavra-chave para o app, dará para acompanhar os posts públicos dos concorrentes.": "Threads only provides your own profile's numbers. Once Meta enables keyword search for the app, you'll be able to follow competitors' public posts.",
+  "Depende do plano pago da API do X": "Requires a paid X API plan",
+  "Ler perfis e posts de outras contas exige o plano Basic ou superior da API do X. Com o plano contratado e uma conta do X conectada, os concorrentes passam a funcionar aqui.": "Reading other accounts' profiles and posts requires the X API Basic plan or higher. With the plan in place and an X account connected, competitors will work here.",
+  "Ler as menções e respostas do X em volume exige o plano Basic ou superior da API do X. As respostas automáticas a menções ficam em Automações.": "Reading X mentions and replies at volume requires the X API Basic plan or higher. Automatic replies to mentions are in Automations.",
+  "Ver o que está em alta em Páginas públicas exige a permissão Page Public Content Access, aprovada pela Meta numa revisão própria.": "Seeing what's trending on public Pages requires the Page Public Content Access permission, approved by Meta in a separate review.",
+  "Depende de uma permissão da Meta": "Depends on a Meta permission",
+  "A busca por palavra-chave do Threads exige a permissão threads_keyword_search, que precisa da aprovação da Meta para este app.": "Threads keyword search requires the threads_keyword_search permission, which needs Meta's approval for this app.",
+  "Busca e tendências do X exigem o plano Basic ou superior da API do X.": "X search and trends require the X API Basic plan or higher.",
 }

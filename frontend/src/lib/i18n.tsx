@@ -14,6 +14,9 @@ import { EN_ACCOUNTS } from "./locales/en-accounts"
 import { EN_COMMUNITY } from "./locales/en-community"
 import { EN_AUTOMATIONS } from "./locales/en-automations"
 import { EN_ANALYTICS } from "./locales/en-analytics"
+import { EN_COMPOSER } from "./locales/en-composer"
+import { EN_PREVIEW } from "./locales/en-preview"
+import { EN_ANALYTICS_REPORTS } from "./locales/en-analytics-reports"
 
 export type Lang = "pt" | "en"
 export type TranslateVars = Record<string, string | number | null | undefined>
@@ -24,7 +27,7 @@ export const LANG_STORAGE_KEY = "instacommand_lang"
 const PT_TITLE = "UX Code Social — Gestão de redes sociais"
 const EN_TITLE = "UX Code Social — Social account management"
 
-const EN: Record<string, string> = { ...EN_COMMON, ...EN_ACCOUNTS, ...EN_COMMUNITY, ...EN_AUTOMATIONS, ...EN_ANALYTICS }
+const EN: Record<string, string> = { ...EN_COMMON, ...EN_ACCOUNTS, ...EN_COMMUNITY, ...EN_AUTOMATIONS, ...EN_ANALYTICS, ...EN_COMPOSER, ...EN_PREVIEW, ...EN_ANALYTICS_REPORTS }
 
 // Mirrors the provider so plain functions (formatters, toasts outside React) can translate too.
 let currentLang: Lang = "pt"

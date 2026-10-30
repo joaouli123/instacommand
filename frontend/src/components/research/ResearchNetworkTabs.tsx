@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { Info } from "lucide-react"
 import { SiFacebook, SiInstagram, SiThreads, SiX, SiYoutube } from "@icons-pack/react-simple-icons"
 import { Card } from "@/components/ui/card"
+import { useT } from "@/lib/i18n"
 
 export type ResearchNetwork = "INSTAGRAM" | "YOUTUBE" | "FACEBOOK" | "THREADS" | "X"
 type Kind = "competitors" | "trends" | "community"
@@ -55,20 +56,22 @@ export function useResearchNetwork() {
 }
 
 export function ResearchNetworkTabs({ value, onChange, kind }: { value: ResearchNetwork; onChange: (network: ResearchNetwork) => void; kind: Kind }) {
-  return <div role="tablist" aria-label="Rede social" className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
+  const t = useT()
+  return <div role="tablist" aria-label={t("Rede social")} className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
     {NETWORKS.map(({ id, label, Icon, color }) => {
       const blocked = Boolean(UNAVAILABLE[kind][id])
       const selected = value === id
-      return <button key={id} type="button" role="tab" aria-selected={selected} onClick={() => onChange(id)} title={blocked ? UNAVAILABLE[kind][id]!.title : undefined}
+      return <button key={id} type="button" role="tab" aria-selected={selected} onClick={() => onChange(id)} title={blocked ? t(UNAVAILABLE[kind][id]!.title) : undefined}
         className={`flex min-w-[96px] flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition sm:text-sm ${selected ? "bg-slate-900 text-white" : blocked ? "text-slate-400 hover:bg-slate-50" : "text-slate-600 hover:bg-slate-50"}`}>
-        <Icon size={14} color={selected ? "#fff" : blocked ? "#94a3b8" : color} aria-hidden />{label}{blocked && <span className="rounded bg-slate-100 px-1 text-[9px] font-semibold uppercase text-slate-500">em breve</span>}
+        <Icon size={14} color={selected ? "#fff" : blocked ? "#94a3b8" : color} aria-hidden />{label}{blocked && <span className="rounded bg-slate-100 px-1 text-[9px] font-semibold uppercase text-slate-500">{t("em breve")}</span>}
       </button>
     })}
   </div>
 }
 
 export function UnavailableNetwork({ kind, network }: { kind: Kind; network: ResearchNetwork }) {
+  const t = useT()
   const reason = UNAVAILABLE[kind][network]
   if (!reason) return null
-  return <Card className="flex gap-3 border-slate-200 p-6"><Info className="mt-0.5 shrink-0 text-indigo-600" size={20} /><div><h2 className="font-semibold text-slate-900">{reason.title}</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{reason.text}</p></div></Card>
+  return <Card className="flex gap-3 border-slate-200 p-6"><Info className="mt-0.5 shrink-0 text-indigo-600" size={20} /><div><h2 className="font-semibold text-slate-900">{t(reason.title)}</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{t(reason.text)}</p></div></Card>
 }

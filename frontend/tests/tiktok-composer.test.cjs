@@ -8,14 +8,14 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '../src', file), 'ut
 test('TikTok options follow the Direct Post rules: fresh creator info, no default privacy, interactions off, disclosure and consent', () => {
   const options = read('components/composer/TikTokOptions.tsx');
   assert.match(options, /staleTime: 0, gcTime: 0, retry: false, refetchOnMount: "always"/);
-  assert.match(options, /<option value="" disabled>Selecione<\/option>/);
+  assert.match(options, /<option value="" disabled>\{t\("Selecione"\)\}<\/option>/);
   assert.match(options, /privacyLevel: null, allowComment: false, allowDuet: false, allowStitch: false/);
   assert.match(options, /disabled=\{creator\.commentDisabled\}/);
   assert.match(options, /const blocked = option === "SELF_ONLY" && settings\.brandedContent/);
   assert.match(options, /Declaração de Uso de Música/);
   assert.match(options, /Política de Conteúdo de Marca/);
   assert.match(options, /O vídeo será identificado como/);
-  assert.match(options, /Publicar como \{creator\.nickname\}/);
+  assert.match(options, /Publicar como \{name\}", \{ name: creator\.nickname \}/);
 });
 
 test('the composer offers TikTok only with the company profile and blocks publishing until the TikTok rules pass', () => {

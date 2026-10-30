@@ -24,13 +24,17 @@ export function periodChange(current: number | null | undefined, previous: numbe
   return { direction: percent > 0 ? "up" : "down", percent }
 }
 
-export function instagramProfileWindow(report: InstagramProfileReport | null, requestedDays: number) {
+type Translate = (pt: string, vars?: Record<string, string | number>) => string
+// Pure module (tested without React/i18n): callers pass the app's t()/tr() for English.
+const fillOnly: Translate = (text, vars) => vars ? text.replace(/\{(\w+)\}/g, (match, key: string) => key in vars ? String(vars[key]) : match) : text
+
+export function instagramProfileWindow(report: InstagramProfileReport | null, requestedDays: number, t: Translate = fillOnly) {
   const days = report?.period.days ?? Math.min(requestedDays, 30)
   return {
-    label: `Últimos ${days} dias`,
+    label: t("Últimos {days} dias", { days }),
     notice: requestedDays > days
-      ? `Resumo do perfil: últimos ${days} dias, limite desta consulta do Instagram. Publicações e histórico abaixo: últimos ${requestedDays} dias. O alcance não é somado entre janelas, para não contar a mesma pessoa várias vezes.`
-      : `Resumo do perfil nos últimos ${days} dias. Totais consultados diretamente no Instagram; podem mudar enquanto a Meta atualiza os dados.`,
+      ? t("Resumo do perfil: últimos {days} dias, limite desta consulta do Instagram. Publicações e histórico abaixo: últimos {requested} dias. O alcance não é somado entre janelas, para não contar a mesma pessoa várias vezes.", { days, requested: requestedDays })
+      : t("Resumo do perfil nos últimos {days} dias. Totais consultados diretamente no Instagram; podem mudar enquanto a Meta atualiza os dados.", { days }),
   }
 }
 
@@ -42,7 +46,9 @@ export function instagramFollowerCards(report: InstagramProfileReport | null) {
   ]
 }
 
-const countryNames = new Intl.DisplayNames(['pt-BR'], { type: 'region' })
-export function instagramCountryLabel(value: string) {
-  return /^[A-Z]{2}$/.test(value) ? countryNames.of(value) || value : value
+const countryNames = new Map<string, Intl.DisplayNames>()
+export function instagramCountryLabel(value: string, locale = 'pt-BR') {
+  if (!/^[A-Z]{2}$/.test(value)) return value
+  if (!countryNames.has(locale)) countryNames.set(locale, new Intl.DisplayNames([locale], { type: 'region' }))
+  return countryNames.get(locale)!.of(value) || value
 }
