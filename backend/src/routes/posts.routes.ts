@@ -197,6 +197,43 @@ router.post('/', async (req: any, res, next) => {
   }
 });
 
+/**
+ * Publishing health of this customer's posts (last 7 days): posts waiting for a network to
+ * process media, how long that wait took, and failures grouped by network and reason.
+ */
+router.get('/publish-metrics', async (req: any, res, next) => {
+  try {
+    const since = new Date(Date.now() - 7 * 86_400_000);
+    const [waiting, published, failed] = await Promise.all([
+      prisma.scheduledPost.count({ where: { userId: req.user.id, status: 'PROCESSING', nextCheckAt: { not: null } } }),
+      prisma.publishedPost.findMany({ where: { account: { userId: req.user.id }, publishedAt: { gte: since } }, select: { publishResults: true }, take: 2000 }),
+      prisma.scheduledPost.findMany({ where: { userId: req.user.id, updatedAt: { gte: since }, errorMessage: { not: null }, status: { in: ['FAILED', 'PUBLISHED'] } }, select: { errorMessage: true }, take: 2000 }),
+    ]);
+    const waits: Record<string, number[]> = {};
+    for (const post of published) {
+      for (const [network, result] of Object.entries((post.publishResults || {}) as Record<string, { waitedMs?: unknown }>)) {
+        if (typeof result?.waitedMs === 'number') (waits[network] ||= []).push(result.waitedMs);
+      }
+    }
+    const reasons = new Map<string, number>();
+    for (const post of failed) {
+      for (const part of String(post.errorMessage).split(' | ')) {
+        const reason = part.replace(/\d{6,}/g, '#').slice(0, 120);
+        reasons.set(reason, (reasons.get(reason) || 0) + 1);
+      }
+    }
+    res.json({
+      waitingForProcessing: waiting,
+      processingWait: Object.fromEntries(Object.entries(waits).map(([network, list]) => [network, {
+        count: list.length, averageSeconds: Math.round(list.reduce((sum, value) => sum + value, 0) / list.length / 1000), maxSeconds: Math.round(Math.max(...list) / 1000),
+      }])),
+      failures: [...reasons].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([reason, count]) => ({ reason, count })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/', async (req: any, res, next) => {
   try {
     const { status, accountId } = req.query;

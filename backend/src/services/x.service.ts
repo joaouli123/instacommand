@@ -215,13 +215,14 @@ export async function uploadXMedia(url: string, token: string): Promise<string> 
     await xRequest(`/2/media/upload/${id}/append`, token, { method: 'POST', body: form });
   }
   let info = (await xRequest<{ data: { processing_info?: { state: string; check_after_secs?: number } } }>(`/2/media/upload/${id}/finalize`, token, { method: 'POST' })).data.processing_info;
-  // Videos are processed asynchronously; wait until X says they can be attached.
-  for (let attempt = 0; info && info.state !== 'succeeded' && attempt < 60; attempt++) {
+  // Videos are processed asynchronously. Wait briefly here; a longer wait happens in the queue
+  // (see resumeInstagramPublish), so the publishing worker is not held for minutes.
+  for (let attempt = 0; info && info.state !== 'succeeded' && attempt < 6; attempt++) {
     if (info.state === 'failed') throw new AppError('O X não conseguiu processar o vídeo. Verifique formato e duração.', 400);
     await new Promise((resolve) => setTimeout(resolve, Math.min(10, info?.check_after_secs || 3) * 1000));
     info = (await xRequest<{ data: { processing_info?: { state: string; check_after_secs?: number } } }>(`/2/media/upload?command=STATUS&media_id=${encodeURIComponent(id)}`, token)).data.processing_info;
   }
-  if (info && info.state !== 'succeeded') throw new AppError('O processamento do vídeo no X demorou demais. Tente novamente.', 504);
+  if (info && info.state !== 'succeeded') throw Object.assign(new AppError('O X ainda está processando o vídeo.', 504), { pendingXMediaId: id });
   return id;
 }
 
@@ -235,11 +236,29 @@ export async function publishXPost(post: { caption?: string | null; mediaUrls?: 
   const hasVideo = urls.some(isVideoUrl);
   const mediaIds: string[] = [];
   for (const url of hasVideo ? urls.filter(isVideoUrl).slice(0, 1) : urls) mediaIds.push(await uploadXMedia(url, token));
+  return createXPost(text, mediaIds, token);
+}
+
+async function createXPost(text: string, mediaIds: string[], token: string) {
   if (!text && !mediaIds.length) throw new AppError('Publicação vazia para o X.', 400);
   const result = await xRequest<{ data: { id: string } }>('/2/tweets', token, {
     method: 'POST', body: JSON.stringify({ ...(text ? { text } : {}), ...(mediaIds.length ? { media: { media_ids: mediaIds } } : {}) }),
   });
   return result.data.id;
+}
+
+/** One status call for a video still processing at X. */
+export async function xMediaState(accountId: string, mediaId: string): Promise<'ready' | 'processing' | { error: string }> {
+  const token = await getXAccessToken(accountId);
+  const info = (await xRequest<{ data: { processing_info?: { state: string } } }>(`/2/media/upload?command=STATUS&media_id=${encodeURIComponent(mediaId)}`, token)).data.processing_info;
+  if (!info || info.state === 'succeeded') return 'ready';
+  if (info.state === 'failed') return { error: 'O X não conseguiu processar o vídeo. Verifique formato e duração.' };
+  return 'processing';
+}
+
+/** Posts the text with media that finished processing (used after a queued wait). */
+export async function publishXPostWithMedia(post: { caption?: string | null }, accountId: string, mediaIds: string[]) {
+  return createXPost((post.caption || '').trim(), mediaIds, await getXAccessToken(accountId));
 }
 
 export async function deleteXPost(postId: string, accountId: string) {

@@ -54,7 +54,10 @@ test('IN_PROGRESS makes one Graph call and queues the next, longer check', async
   assert.deepEqual(graphGets, ['/container-9']);
   assert.equal(graphPosts.length, 0);
   assert.equal(row.instagramPending.attempt, 2);
-  assert.deepEqual(queued.map((job) => [job.name, job.opts.jobId, job.opts.delay]), [['instagram-check', 'post-1-ig-2', INSTAGRAM_CHECK_DELAYS[2]]]);
+  assert.deepEqual(queued.map((job) => [job.name, job.opts.jobId]), [['instagram-check', 'post-1-ig-2']]);
+  // The base delay plus a few seconds of spread, so posts due together do not check together.
+  assert.ok(queued[0].opts.delay >= INSTAGRAM_CHECK_DELAYS[2] && queued[0].opts.delay < INSTAGRAM_CHECK_DELAYS[2] + 5000);
+  assert.ok(row.nextCheckAt instanceof Date);
 });
 
 test('ERROR keeps the post published on the other network and shows Instagram\'s reason', async () => {
@@ -69,4 +72,12 @@ test('a stale or unknown check is ignored without calling the Graph API', async 
   containerStatus = { status_code: 'FINISHED' };
   await resumeInstagramPublish('post-1', 0);
   assert.equal(graphGets.length, 0);
+});
+
+test('the first stored shape (Instagram only) is still understood', () => {
+  const { readPending } = require('../dist/services/instagram/publish.service');
+  const pending = readPending({ containerId: 'c-1', attempt: 3, results: { FACEBOOK: { id: 'fb' } }, errors: [] });
+  assert.deepEqual(pending.networks, { INSTAGRAM: { id: 'c-1' } });
+  assert.equal(pending.attempt, 3);
+  assert.equal(readPending(null), null);
 });

@@ -12,6 +12,7 @@ const prisma = getPrisma();
 // container restarted mid-send). Video processing at Meta can take minutes.
 export const STALE_PROCESSING_MS = 20 * 60_000;
 
+const RECHECK_AHEAD_MS = 30 * 60_000;
 const INTERRUPTED = 'A publicação foi interrompida durante o envio (o servidor reiniciou). Confira nas redes se ela foi ao ar antes de tentar novamente.';
 const MISSED = MISSED_SCHEDULE_MESSAGE;
 
@@ -35,13 +36,17 @@ export async function reconcileScheduledPosts(now = new Date()) {
   const summary = { interrupted: 0, requeued: 0, missed: 0, failedInQueue: 0 };
 
   const stale = await prisma.scheduledPost.findMany({
-    where: { status: 'PROCESSING', updatedAt: { lt: new Date(now.getTime() - STALE_PROCESSING_MS) } },
+    // Posts waiting for media processing carry a nextCheckAt kept fresh by their checks.
+    where: { status: 'PROCESSING', updatedAt: { lt: new Date(now.getTime() - STALE_PROCESSING_MS) },
+      OR: [{ nextCheckAt: null }, { nextCheckAt: { lt: new Date(now.getTime() - STALE_PROCESSING_MS) } }] },
     select: { id: true, userId: true, status: true, updatedAt: true },
   });
   for (const post of stale) if (await failOnce(post, INTERRUPTED)) summary.interrupted++;
 
+  // Only posts already due or due soon: far-future posts are checked as they get close, so the
+  // scan stays small with thousands of customers.
   const scheduled = await prisma.scheduledPost.findMany({
-    where: { status: 'SCHEDULED' },
+    where: { status: 'SCHEDULED', scheduledFor: { lt: new Date(now.getTime() + RECHECK_AHEAD_MS) } },
     select: { id: true, userId: true, status: true, updatedAt: true, scheduledFor: true },
   });
   for (const post of scheduled) {

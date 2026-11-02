@@ -1,5 +1,6 @@
 import { env } from '../config/env';
 import { InstagramApiError } from './errors';
+import { isTransientGraphError, jitter, recordGraphUsage } from './graph-health';
 
 const graphBaseUrl = () => `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}`;
 
@@ -34,7 +35,26 @@ const safeMetaDiagnostic = (value: unknown) => {
     .slice(0, 300);
 };
 
+// Reads are retried on temporary failures; writes never are (a retried publish could duplicate).
+const GET_RETRY_DELAYS = [1000, 3000];
+
 const requestGraph = async (
+  method: 'GET' | 'POST' | 'DELETE',
+  path: string,
+  token: string,
+  params: Record<string, unknown> = {},
+) => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await requestGraphOnce(method, path, token, params);
+    } catch (error) {
+      if (method !== 'GET' || attempt >= GET_RETRY_DELAYS.length || !isTransientGraphError(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, GET_RETRY_DELAYS[attempt] + jitter(500)));
+    }
+  }
+};
+
+const requestGraphOnce = async (
   method: 'GET' | 'POST' | 'DELETE',
   path: string,
   token: string,
@@ -59,6 +79,7 @@ const requestGraph = async (
       body: method === 'POST' ? body : undefined,
       signal: AbortSignal.timeout(30_000),
     });
+    if (response.headers) recordGraphUsage(token, response.headers);
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok || data?.error) {

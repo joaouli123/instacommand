@@ -446,4 +446,5 @@ export const EN_COMPOSER: Record<string, string> = {
   "Áudio original do vídeo:": "Original video audio:",
   "Áudio selecionado": "Selected audio",
   "Áudios originais": "Original audio",
+  "A rede ainda está processando o vídeo. A publicação sai sozinha em alguns minutos; acompanhe no calendário.": "The network is still processing the video. The post will go out on its own in a few minutes; follow it in the calendar.",
 }

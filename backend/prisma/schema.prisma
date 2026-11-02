@@ -607,8 +607,11 @@ model ScheduledPost {
   scheduledFor         DateTime
   status               PostStatus @default(DRAFT)
   errorMessage         String?
-  /// Instagram video container still processing: id, check attempt and the other networks' results.
+  /// Media still processing at Instagram, Threads or X (container/media ids per network), the check
+  /// attempt and the results of the networks already published. Null when nothing is pending.
   instagramPending     Json?
+  /// When the next check of the pending media is due; also the lease of the worker checking it.
+  nextCheckAt          DateTime?
   publishedPostId      String?    @unique
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
@@ -623,6 +626,7 @@ model ScheduledPost {
   @@index([accountId])
   @@index([userId])
   @@index([status, scheduledFor])
+  @@index([status, nextCheckAt])
   @@index([threadsAccountId])
   @@index([xAccountId])
   @@index([youtubeAccountId])

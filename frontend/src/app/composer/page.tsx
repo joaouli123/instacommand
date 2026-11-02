@@ -885,15 +885,20 @@ export default function ComposerPage() {
       }
       const created = (draftId ? await api.updatePost(draftId, payload) : await api.createPost(payload)) as { id: string }
 
+      let publishWaiting = false
       let publishSummary: { succeeded?: string[]; failed?: { platform: string; message: string }[]; warnings?: { platform: string; message: string }[] } | undefined
       if (mode === "publish") {
         publishWasRequested = true
-        const result = await api.publishPost(created.id) as { publishSummary?: typeof publishSummary }
+        const result = await api.publishPost(created.id) as { publishSummary?: typeof publishSummary; pending?: boolean }
         publishSummary = result.publishSummary
+        // The video is still processing at a network; the queue finishes the publication.
+        if (result.pending) publishWaiting = true
         setPublishOutcome({ succeeded: publishSummary?.succeeded || [], failed: publishSummary?.failed || [], warnings: publishSummary?.warnings || [] })
       }
       if (mode === "schedule") {
         toast.success(t("Publicação agendada com sucesso."))
+      } else if (publishWaiting) {
+        toast.success(t("A rede ainda está processando o vídeo. A publicação sai sozinha em alguns minutos; acompanhe no calendário."))
       } else if (publishSummary?.failed?.length) {
         const succeeded = (publishSummary.succeeded || []).map((platform) => platformNames[platform] || platform)
         const failed = publishSummary.failed.map(({ platform, message }) => `${platformNames[platform] || platform}: ${message}`)

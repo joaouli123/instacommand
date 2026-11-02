@@ -265,7 +265,8 @@ export async function publishTikTokVideo(post: { caption?: string | null; mediaU
     const upload = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType, 'Content-Length': String(part.length), 'Content-Range': `bytes ${start}-${end - 1}/${body.length}` }, body: new Uint8Array(part), signal: AbortSignal.timeout(10 * 60_000) });
     if (!upload.ok) throw new AppError(`O TikTok recusou o envio do vídeo (parte ${index + 1} de ${totalChunks}, HTTP ${upload.status}).`, 502);
   }
-  const status = await waitForTikTokPublish(token, publishId);
+  // TikTok completes the post on its own; a short wait is enough to catch an early FAILED.
+  const status = await waitForTikTokPublish(token, publishId, 4, 5000);
   const warnings: string[] = [];
   if (status.status !== 'PUBLISH_COMPLETE') warnings.push('O TikTok ainda está processando o vídeo. Ele pode levar alguns minutos para aparecer no perfil.');
   if (settings.privacyLevel === 'SELF_ONLY') warnings.push('Publicado como "Só eu": o vídeo fica visível apenas para o dono do perfil no TikTok.');

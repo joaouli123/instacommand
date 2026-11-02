@@ -1,6 +1,7 @@
 import { getPrisma } from '../lib/prisma';
 import { Queue } from 'bullmq';
 import { redisConnection } from '../config/redis';
+import { jitter } from '../utils/graph-health';
 
 
 const prisma = getPrisma();
@@ -19,7 +20,8 @@ export const schedulePost = async (scheduledPostId: string, publishAt: Date) => 
     if (await existing.getState() === 'active') return;
     await existing.remove();
   }
-  const delay = publishAt.getTime() - Date.now();
+  // A few random seconds spread the posts due in the same minute (many customers pick 12:00).
+  const delay = publishAt.getTime() - Date.now() + jitter(20_000);
   await publishQueue.add('publish', { scheduledPostId, scheduledFor: publishAt.toISOString() }, {
     jobId: scheduledPostId,
     delay: Math.max(0, delay)
@@ -49,6 +51,9 @@ export const setupRecurringJobs = async () => {
       repeat: { pattern: '*/15 * * * *' } 
     }
   );
+
+  // Re-queues checks of media still processing whose job was lost; the query is indexed and batched.
+  await publishQueue.add('instagram-sweep', {}, { jobId: 'instagram-sweep-recurring', repeat: { pattern: '* * * * *' } });
 
   // Competitors: daily at 3 AM
   await competitorsQueue.add(

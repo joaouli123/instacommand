@@ -11,6 +11,7 @@ import { assertPostReady } from '../post-readiness';
 import { normalizeMediaUrl } from '../../utils/public-media';
 import { InstagramAdvancedSettings, validateInstagramAdvancedSettings } from './advanced-settings';
 import { mediaPreviewUrl } from '../../utils/meta-media';
+import { graphUsagePercent, isTransientGraphError, jitter } from '../../utils/graph-health';
 import { LATE_PUBLISH_WINDOW_MS, MISSED_SCHEDULE_MESSAGE } from '../../utils/publish-timing';
 
 /** Keeps Meta's code and reason in the post's error, so a refusal can be acted on. */
@@ -123,9 +124,13 @@ const IMAGE_WAITS = Array(10).fill(3000);
 // in the queue (INSTAGRAM_CHECK_DELAYS) instead of holding the worker.
 const VIDEO_WAITS = [5000, 10000, 15000];
 const CAROUSEL_VIDEO_WAITS = [5000, 10000, 15000, 15000, 15000, 20000, 20000, 20000];
-/** Delays of the queued re-checks of a video container still processing (~12 min in all). */
-export const INSTAGRAM_CHECK_DELAYS = [30_000, 60_000, 120_000, 240_000, 300_000];
-export const INSTAGRAM_PENDING_MESSAGE = 'Aguardando o Instagram terminar de processar o vídeo. A publicação no Instagram sai sozinha assim que ele ficar pronto.';
+/** Delays of the queued re-checks of media still processing (~25 min in all). */
+export const INSTAGRAM_CHECK_DELAYS = [30_000, 60_000, 120_000, 240_000, 300_000, 300_000, 300_000, 300_000];
+export const INSTAGRAM_PENDING_MESSAGE = 'Aguardando a rede terminar de processar o vídeo. A publicação sai sozinha assim que ele ficar pronto.';
+/** A worker checking a pending post owns it until this lease ends; then the sweeper may retry. */
+const CHECK_LEASE_MS = 5 * 60_000;
+/** Above this share of Meta's rate limit, checks wait instead of spending calls. */
+const USAGE_DEFER_PERCENT = 90;
 
 /**
  * Waits until the container is FINISHED. Throws a ContainerNotReadyError that says whether
@@ -178,13 +183,28 @@ const threadsGet = async (path: string, token: string, params: Record<string, st
   return data;
 };
 
-const waitForThreadsContainer = async (containerId: string, token: string) => {
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const status = await threadsGet(`/${containerId}`, token, { fields: 'status,error_message' });
-    if (['FINISHED', 'PUBLISHED'].includes(status.status)) return;
-    if (status.status === 'ERROR') throw new Error(status.error_message || 'Threads não conseguiu processar a mídia');
-    await new Promise((resolve) => setTimeout(resolve, 2_500));
+/** Threads media still processing: the container stays valid and is published later. */
+export class MediaStillProcessingError extends Error {
+  constructor(public network: 'THREADS' | 'X', public mediaId: string, message: string) { super(message); }
+}
+
+const threadsContainerState = async (containerId: string, token: string) => {
+  const status = await threadsGet(`/${containerId}`, token, { fields: 'status,error_message' });
+  if (['FINISHED', 'PUBLISHED'].includes(status.status)) return 'ready' as const;
+  if (status.status === 'ERROR' || status.status === 'EXPIRED') return { error: status.error_message || 'Threads não conseguiu processar a mídia' };
+  return 'processing' as const;
+};
+
+const waitForThreadsContainer = async (containerId: string, token: string, video: boolean) => {
+  const waits = video ? VIDEO_WAITS : Array(12).fill(2_500);
+  for (let attempt = 0; ; attempt++) {
+    const state = await threadsContainerState(containerId, token);
+    if (state === 'ready') return;
+    if (state !== 'processing') throw new Error(state.error);
+    if (attempt >= waits.length) break;
+    await sleep(waits[attempt]);
   }
+  if (video) throw new MediaStillProcessingError('THREADS', containerId, 'O Threads ainda está processando o vídeo.');
   throw new Error('Threads demorou mais que o esperado para processar a mídia');
 };
 
@@ -265,7 +285,8 @@ export const publishThreadsPost = async (post: any, token: string) => {
     containerId = response.id;
   }
 
-  await waitForThreadsContainer(containerId, token);
+  const hasVideo = post.mediaType === 'REEL' || post.mediaUrls.some((url: string) => /\.(mp4|mov)(\?|$)/i.test(url));
+  await waitForThreadsContainer(containerId, token, hasVideo);
   const published = await threadsPost('/me/threads_publish', token, { creation_id: containerId });
   return published.id;
 };
@@ -293,6 +314,16 @@ const publishReadyInstagram = async (post: { accountId: string; userId: string; 
   // retryable failure (which would send the same content again).
   const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_type,media_url,thumbnail_url' }).catch(() => ({}));
   return { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaPreviewUrl(mediaDetails), advancedWarnings };
+};
+
+/** Meta allows 25 API publications per Instagram account in 24 h; say so instead of a vague failure. */
+const assertInstagramQuota = async (igUserId: string, token: string) => {
+  const limit = await graphGet(`/${igUserId}/content_publishing_limit`, token, { fields: 'quota_usage,config' }).catch(() => null);
+  const entry = Array.isArray(limit?.data) ? limit.data[0] : null;
+  const used = Number(entry?.quota_usage), total = Number(entry?.config?.quota_total);
+  if (Number.isFinite(used) && Number.isFinite(total) && total > 0 && used >= total) {
+    throw new Error(`Esta conta já fez ${used} publicações pela API nas últimas 24 h, o limite da Meta. Nada foi enviado ao Instagram; reagende para mais tarde.`);
+  }
 };
 
 const instagramSettings = (post: { advancedSettings: unknown; mediaType: any; mediaUrls: string[] }): InstagramAdvancedSettings | null => post.advancedSettings
@@ -357,6 +388,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
     const results: Record<string, unknown> = {};
     const errors: string[] = [];
     let instagramPending: string | null = null;
+    const pendingNetworks: PendingNetworks = {};
 
     if (platforms.includes('INSTAGRAM')) {
       try {
@@ -376,6 +408,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
             throw new Error('A Meta ainda não liberou o controle de comentários para este sistema. O administrador precisa pedir aprovação e reconectar a conta. Nenhum post foi enviado ao Instagram.');
           }
         }
+        await assertInstagramQuota(post.account.igUserId, token);
         const containerId = await createMediaContainer(post.account.igUserId, token, post.mediaType, post.mediaUrls, post.caption || undefined, {
           isAiGenerated: post.isAiGenerated,
           audioId: post.instagramAudioId,
@@ -389,6 +422,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         } catch (error) {
           if (!(isVideo && error instanceof ContainerStillProcessingError)) throw error;
           instagramPending = containerId;
+          pendingNetworks.INSTAGRAM = { id: containerId };
         }
         if (!instagramPending) results.INSTAGRAM = await publishReadyInstagram(post, containerId, token, settings);
       } catch (error) {
@@ -415,7 +449,8 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         const threadsPostId = await publishThreadsPost(post, token);
         results.THREADS = { id: threadsPostId };
       } catch (error) {
-        errors.push(`Threads: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+        if (error instanceof MediaStillProcessingError) pendingNetworks.THREADS = { id: error.mediaId };
+        else errors.push(`Threads: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
       }
     }
 
@@ -427,7 +462,8 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         const xPostId = await publishXPost(post, post.xAccount.id);
         results.X = { id: xPostId, url: `https://x.com/${post.xAccount.username}/status/${xPostId}` };
       } catch (error) {
-        errors.push(`X: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
+        if (error instanceof Error && (error as { pendingXMediaId?: string }).pendingXMediaId) pendingNetworks.X = { id: (error as unknown as { pendingXMediaId: string }).pendingXMediaId };
+        else errors.push(`X: ${error instanceof Error ? error.message : 'falha desconhecida'}`);
       }
     }
 
@@ -455,12 +491,10 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
       }
     }
 
-    if (instagramPending) {
-      // The other networks are done; only the Instagram container is still processing.
-      // Keep their results with the post and re-check in the queue, without a new container.
-      const pending: InstagramPending = { containerId: instagramPending, attempt: 0, results, errors };
-      await prisma.scheduledPost.update({ where: { id: scheduledPostId }, data: { errorMessage: INSTAGRAM_PENDING_MESSAGE, instagramPending: pending as any } });
-      await scheduleInstagramCheck(scheduledPostId, 0);
+    if (Object.keys(pendingNetworks).length) {
+      // The other networks are done; only media still processing is left. Keep the results with
+      // the post and re-check in the queue, without creating new containers.
+      await parkPending(scheduledPostId, { attempt: 0, since: Date.now(), networks: pendingNetworks, results, errors });
       return null;
     }
     return await recordOutcome(post, results, errors);
@@ -470,12 +504,31 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
   }
 };
 
-type InstagramPending = { containerId: string; attempt: number; results: Record<string, unknown>; errors: string[] };
+type PendingNetworkId = 'INSTAGRAM' | 'THREADS' | 'X';
+type PendingNetworks = Partial<Record<PendingNetworkId, { id: string }>>;
+type PublishPending = { attempt: number; since: number; networks: PendingNetworks; results: Record<string, unknown>; errors: string[] };
+const NETWORK_LABEL: Record<PendingNetworkId, string> = { INSTAGRAM: 'Instagram', THREADS: 'Threads', X: 'X' };
 
-const scheduleInstagramCheck = async (scheduledPostId: string, attempt: number) => {
+/** Reads the stored pending state, including the first Instagram-only shape. */
+export const readPending = (value: unknown): PublishPending | null => {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, any>;
+  const networks: PendingNetworks = raw.networks || (raw.containerId ? { INSTAGRAM: { id: String(raw.containerId) } } : {});
+  return { attempt: Number(raw.attempt) || 0, since: Number(raw.since) || Date.now(), networks, results: raw.results || {}, errors: Array.isArray(raw.errors) ? raw.errors : [] };
+};
+
+const parkPending = async (scheduledPostId: string, pending: PublishPending) => {
+  const delay = INSTAGRAM_CHECK_DELAYS[pending.attempt] + jitter(5_000);
+  await prisma.scheduledPost.update({ where: { id: scheduledPostId }, data: {
+    errorMessage: INSTAGRAM_PENDING_MESSAGE, instagramPending: pending as any, nextCheckAt: new Date(Date.now() + delay),
+  } });
+  await scheduleInstagramCheck(scheduledPostId, pending.attempt, delay);
+};
+
+const scheduleInstagramCheck = async (scheduledPostId: string, attempt: number, delay: number, suffix = '') => {
   // Loaded on demand: the queue needs Redis, which the publishing helpers do not.
   const { publishQueue } = require('../scheduler.service') as typeof import('../scheduler.service');
-  await publishQueue.add('instagram-check', { scheduledPostId, attempt }, { jobId: `${scheduledPostId}-ig-${attempt}`, delay: INSTAGRAM_CHECK_DELAYS[attempt] });
+  await publishQueue.add('instagram-check', { scheduledPostId, attempt }, { jobId: `${scheduledPostId}-ig-${attempt}${suffix}`, delay, removeOnComplete: 1000, removeOnFail: 1000 });
 };
 
 const failPost = async (post: { id: string; userId: string }, error: any) => {
@@ -485,49 +538,121 @@ const failPost = async (post: { id: string; userId: string }, error: any) => {
   });
 };
 
+type CheckState = 'ready' | 'processing' | { error: string };
+type PendingPost = { id: string; userId: string; accountId: string; caption: string | null; mediaUrls: string[]; mediaType: any; advancedSettings: unknown;
+  account: { igUserId: string }; threadsAccount: { id: string; threadsUserId: string } | null; xAccount: { id: string; username: string } | null };
+
+/** Per network: one status call, and the publication of media that is ready. */
+const PENDING_CHECKS: Record<PendingNetworkId, { usageBound: boolean; state: (post: PendingPost, id: string) => Promise<CheckState>; publish: (post: PendingPost, id: string) => Promise<Record<string, unknown>> }> = {
+  INSTAGRAM: {
+    usageBound: true,
+    state: async (post, id) => {
+      const response = await graphGet(`/${id}`, await getDecryptedToken(post.accountId), { fields: 'status_code,status' });
+      if (response.status_code === 'FINISHED') return 'ready';
+      if (response.status_code === 'ERROR' || response.status_code === 'EXPIRED') {
+        const reason = String(response.status || '').trim();
+        return { error: `O Instagram recusou a mídia${reason ? `: ${reason}` : '.'}` };
+      }
+      return 'processing';
+    },
+    publish: (post, id) => getDecryptedToken(post.accountId).then((token) => publishReadyInstagram(post, id, token, instagramSettings(post))),
+  },
+  THREADS: {
+    usageBound: false,
+    state: async (post, id) => {
+      if (!post.threadsAccount) return { error: 'Conecte uma conta do Threads antes de publicar.' };
+      return threadsContainerState(id, await getDecryptedThreadsToken(post.threadsAccount.id));
+    },
+    publish: async (post, id) => {
+      const published = await threadsPost('/me/threads_publish', await getDecryptedThreadsToken(post.threadsAccount!.id), { creation_id: id });
+      return { id: published.id };
+    },
+  },
+  X: {
+    usageBound: false,
+    state: async (post, id) => {
+      if (!post.xAccount) return { error: 'Conecte uma conta do X antes de publicar.' };
+      const { xMediaState } = require('../x.service') as typeof import('../x.service');
+      return xMediaState(post.xAccount.id, id);
+    },
+    publish: async (post, id) => {
+      const { publishXPostWithMedia } = require('../x.service') as typeof import('../x.service');
+      const xPostId = await publishXPostWithMedia(post, post.xAccount!.id, [id]);
+      return { id: xPostId, url: `https://x.com/${post.xAccount!.username}/status/${xPostId}` };
+    },
+  },
+};
+
 /**
- * One queued check of an Instagram video container (a single Graph call). Publishes the SAME
- * container when it is FINISHED; never creates another one nor re-sends the other networks.
+ * One queued check of the media still processing (one status call per pending network). Publishes
+ * the SAME container/media when it is ready; never creates new ones nor re-sends finished networks.
+ * The check first takes a lease (attempt + nextCheckAt), so replicas and duplicated jobs skip it.
  */
 export const resumeInstagramPublish = async (scheduledPostId: string, attempt: number) => {
-  const post = await prisma.scheduledPost.findUnique({ where: { id: scheduledPostId }, include: { account: true } });
-  const pending = post?.instagramPending as InstagramPending | null | undefined;
+  const post = await prisma.scheduledPost.findUnique({ where: { id: scheduledPostId }, include: { account: true, threadsAccount: true, xAccount: true } });
+  const pending = readPending(post?.instagramPending);
   if (!post || post.status !== 'PROCESSING' || !pending || pending.attempt !== attempt) return null;
-  const { results, errors } = pending;
-  let ready = false;
-  try {
-    const token = await getDecryptedToken(post.accountId);
-    const response = await graphGet(`/${pending.containerId}`, token, { fields: 'status_code,status' });
-    if (response.status_code === 'FINISHED') ready = true;
-    else if (response.status_code === 'ERROR' || response.status_code === 'EXPIRED') {
-      const reason = String(response.status || '').trim();
-      errors.push(`Instagram: O Instagram recusou a mídia${reason ? `: ${reason}` : '.'}`);
-    } else if (attempt + 1 < INSTAGRAM_CHECK_DELAYS.length) {
-      // Conditional: a duplicated check cannot schedule the next one twice.
-      const moved = await prisma.scheduledPost.updateMany({ where: { id: post.id, status: 'PROCESSING', updatedAt: post.updatedAt },
-        data: { instagramPending: { ...pending, attempt: attempt + 1 } as any } });
-      if (moved.count) await scheduleInstagramCheck(post.id, attempt + 1);
-      return null;
-    } else errors.push('Instagram: O Instagram não terminou de processar o vídeo em cerca de 12 minutos. Nada foi publicado no Instagram; confira o arquivo e tente novamente.');
-  } catch (error) {
-    errors.push(`Instagram: ${publishFailure(error)}`);
-  }
-  // Claim the outcome before publishing, so the container is published at most once.
-  const claimed = await prisma.scheduledPost.updateMany({ where: { id: post.id, status: 'PROCESSING', updatedAt: post.updatedAt }, data: { instagramPending: Prisma.DbNull } });
+  const claimed = await prisma.scheduledPost.updateMany({ where: { id: post.id, status: 'PROCESSING', updatedAt: post.updatedAt },
+    data: { instagramPending: { ...pending, attempt: attempt + 1 } as any, nextCheckAt: new Date(Date.now() + CHECK_LEASE_MS) } });
   if (!claimed.count) return null;
-  try {
-    if (ready) {
-      try {
-        results.INSTAGRAM = await publishReadyInstagram(post, pending.containerId, await getDecryptedToken(post.accountId), instagramSettings(post));
-      } catch (error) {
-        errors.push(`Instagram: ${publishFailure(error)}`);
-      }
+
+  const { results, errors } = pending;
+  const remaining: PendingNetworks = {};
+  for (const [network, entry] of Object.entries(pending.networks) as Array<[PendingNetworkId, { id: string }]>) {
+    const check = PENDING_CHECKS[network];
+    const label = NETWORK_LABEL[network];
+    // Close to Meta's rate limit: wait for the next check instead of spending a call.
+    if (check.usageBound && graphUsagePercent(await getDecryptedToken(post.accountId)) >= USAGE_DEFER_PERCENT) { remaining[network] = entry; continue; }
+    try {
+      const state = await check.state(post as PendingPost, entry.id);
+      if (state === 'processing') { remaining[network] = entry; continue; }
+      if (state !== 'ready') { errors.push(`${label}: ${state.error}`); logPublish(network, 'refused', pending.since, state.error); continue; }
+      results[network] = { ...(await check.publish(post as PendingPost, entry.id)), waitedMs: Date.now() - pending.since };
+      logPublish(network, 'published', pending.since);
+    } catch (error) {
+      if (isTransientGraphError(error)) { remaining[network] = entry; continue; }
+      errors.push(`${label}: ${publishFailure(error)}`);
+      logPublish(network, 'failed', pending.since, publishFailure(error));
     }
+  }
+
+  const left = Object.keys(remaining) as PendingNetworkId[];
+  if (left.length && attempt + 1 < INSTAGRAM_CHECK_DELAYS.length) {
+    await parkPending(post.id, { ...pending, attempt: attempt + 1, networks: remaining, results, errors });
+    return null;
+  }
+  for (const network of left) {
+    errors.push(`${NETWORK_LABEL[network]}: A rede não terminou de processar o vídeo em cerca de 25 minutos. Nada foi publicado nela; confira o arquivo e tente novamente.`);
+    logPublish(network, 'timeout', pending.since);
+  }
+  await prisma.scheduledPost.update({ where: { id: post.id }, data: { instagramPending: Prisma.DbNull, nextCheckAt: null } });
+  try {
     return await recordOutcome(post, results, errors);
   } catch (error: any) {
     await failPost(post, error);
     return null;
   }
+};
+
+/** One structured line per outcome: enough to follow waiting time and failure reasons in the logs. */
+const logPublish = (network: string, outcome: string, since: number, reason?: string) =>
+  console.info('[publish-pending]', JSON.stringify({ network, outcome, waitedMs: Date.now() - since, ...(reason ? { reason: reason.slice(0, 160) } : {}) }));
+
+/**
+ * Re-queues checks whose job was lost (Redis restart) or whose worker died mid-check: posts with
+ * pending media and an overdue nextCheckAt, in small batches. Cheap: indexed on (status, nextCheckAt).
+ */
+export const sweepPendingChecks = async (batch = 200) => {
+  const overdue = await prisma.scheduledPost.findMany({
+    where: { status: 'PROCESSING', nextCheckAt: { lt: new Date(Date.now() - 60_000) } },
+    select: { id: true, instagramPending: true }, orderBy: { nextCheckAt: 'asc' }, take: batch,
+  });
+  const minute = Math.floor(Date.now() / 60_000);
+  for (const post of overdue) {
+    const pending = readPending(post.instagramPending);
+    if (pending) await scheduleInstagramCheck(post.id, pending.attempt, jitter(10_000), `-s${minute}`);
+  }
+  return overdue.length;
 };
 
 const recordOutcome = async (post: { id: string; userId: string; accountId: string; mediaType: any; caption: string | null }, results: Record<string, unknown>, errors: string[]) => {
