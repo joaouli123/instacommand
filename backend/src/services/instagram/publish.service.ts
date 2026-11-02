@@ -88,8 +88,11 @@ export const createMediaContainer = async (
         if (tagsForMedia.length) (childParams as Record<string, unknown>).user_tags = tagsForMedia.map(({ username, x, y }) => ({ username, x, y }));
       }
       const child = await graphPost(`/${igUserId}/media`, token, childParams);
-      const childReady = await checkContainerStatus(child.id, token);
-      if (!childReady) throw new Error('Uma das mídias do carrossel não foi processada pelo Instagram.');
+      try {
+        await waitForContainer(child.id, token, Boolean(isVideo));
+      } catch (error) {
+        throw new Error(`Mídia ${index + 1} do carrossel: ${(error as Error).message}`);
+      }
       childrenContainers.push(child.id);
     }
     params.media_type = 'CAROUSEL';
@@ -104,19 +107,33 @@ export const createMediaContainer = async (
   return response.id;
 };
 
-export const checkContainerStatus = async (containerId: string, token: string): Promise<boolean> => {
-  const maxRetries = 10;
-  let retries = 0;
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  while (retries < maxRetries) {
-    const response = await graphGet(`/${containerId}`, token, { fields: 'status_code' });
-    if (response.status_code === 'FINISHED') return true;
-    if (response.status_code === 'ERROR') return false;
-    
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    retries++;
+/** Why Instagram did not finish a container; the message is shown on the post. */
+export class ContainerNotReadyError extends Error {}
+
+// Images finish in seconds; video (Reels, video Stories, video carousel items) often
+// takes from 30 s to a few minutes, so it gets a longer, growing wait.
+const IMAGE_WAITS = Array(10).fill(3000);
+const VIDEO_WAITS = [3000, 5000, 5000, 10000, 10000, ...Array(18).fill(15000)]; // ~5 min
+
+/**
+ * Waits until the container is FINISHED. Throws a ContainerNotReadyError that says whether
+ * Instagram refused the media (with its reason) or is still processing it.
+ */
+export const waitForContainer = async (containerId: string, token: string, video: boolean, waits = video ? VIDEO_WAITS : IMAGE_WAITS) => {
+  for (let attempt = 0; ; attempt++) {
+    const response = await graphGet(`/${containerId}`, token, { fields: 'status_code,status' });
+    if (response.status_code === 'FINISHED') return;
+    if (response.status_code === 'ERROR' || response.status_code === 'EXPIRED') {
+      const reason = String(response.status || '').trim();
+      throw new ContainerNotReadyError(`O Instagram recusou a mídia${reason ? `: ${reason}` : '.'}`);
+    }
+    if (attempt >= waits.length) break;
+    await sleep(waits[attempt]);
   }
-  return false;
+  const minutes = Math.round(waits.reduce((sum, ms) => sum + ms, 0) / 60000);
+  throw new ContainerNotReadyError(`O Instagram ainda está processando ${video ? 'o vídeo' : 'a mídia'} depois de ${minutes || 1} min. Nada foi publicado no Instagram; confira o arquivo e tente novamente.`);
 };
 
 export const publishContainer = async (igUserId: string, containerId: string, token: string) => {
@@ -330,8 +347,8 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
           videoVolume: post.instagramVideoVolume,
           settings,
         });
-        const isReady = await checkContainerStatus(containerId, token);
-        if (!isReady) throw new Error('A mídia não foi processada pelo Instagram.');
+        const isVideo = post.mediaType === 'REEL' || (post.mediaType === 'STORY' && /\.(mp4|mov)(\?|$)/i.test(post.mediaUrls[0] || ''));
+        await waitForContainer(containerId, token, isVideo);
         await assertConnectedForPublish('instagram', post.accountId, post.userId);
         const igMediaId = await publishContainer(post.account.igUserId, containerId, token);
         const advancedWarnings: string[] = [];
