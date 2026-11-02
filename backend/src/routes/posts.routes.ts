@@ -582,6 +582,8 @@ router.post('/:id/publish', async (req: any, res, next) => {
 
     const published = await publishPost(post.id);
     if (!published) {
+      const waiting = await prisma.scheduledPost.findFirst({ where: { id: post.id, userId: req.user.id, status: 'PROCESSING' }, select: { errorMessage: true } });
+      if (waiting) return res.status(202).json({ pending: true, message: waiting.errorMessage });
       return res.status(409).json({ error: 'Esta publicação não foi processada. Atualize o calendário e confira o estado antes de tentar novamente.' });
     }
     const latestState = await prisma.scheduledPost.findFirst({

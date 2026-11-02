@@ -30,3 +30,4 @@ test('a timeout says the video is still processing, not that it failed', async (
   statuses = [];
   await assert.rejects(waitForContainer('c1', 't', true, [1, 1]), /ainda está processando o vídeo/);
 });
+

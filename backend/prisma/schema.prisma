@@ -607,6 +607,8 @@ model ScheduledPost {
   scheduledFor         DateTime
   status               PostStatus @default(DRAFT)
   errorMessage         String?
+  /// Instagram video container still processing: id, check attempt and the other networks' results.
+  instagramPending     Json?
   publishedPostId      String?    @unique
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt

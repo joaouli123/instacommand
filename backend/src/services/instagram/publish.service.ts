@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { getPrisma } from '../../lib/prisma';
 import { assertSameWorkspace } from '../workspace-links';
 
@@ -89,7 +90,8 @@ export const createMediaContainer = async (
       }
       const child = await graphPost(`/${igUserId}/media`, token, childParams);
       try {
-        await waitForContainer(child.id, token, Boolean(isVideo));
+        // A carousel cannot be parked per item: video items get a longer (~2 min) wait here.
+        await waitForContainer(child.id, token, Boolean(isVideo), isVideo ? CAROUSEL_VIDEO_WAITS : IMAGE_WAITS);
       } catch (error) {
         throw new Error(`Mídia ${index + 1} do carrossel: ${(error as Error).message}`);
       }
@@ -111,11 +113,19 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /** Why Instagram did not finish a container; the message is shown on the post. */
 export class ContainerNotReadyError extends Error {}
+/** Instagram has not finished yet: the container is still valid and may be published later. */
+export class ContainerStillProcessingError extends ContainerNotReadyError {}
 
 // Images finish in seconds; video (Reels, video Stories, video carousel items) often
 // takes from 30 s to a few minutes, so it gets a longer, growing wait.
 const IMAGE_WAITS = Array(10).fill(3000);
-const VIDEO_WAITS = [3000, 5000, 5000, 10000, 10000, ...Array(18).fill(15000)]; // ~5 min
+// Video gets a few quick checks in the publish job; if it is still processing, the post waits
+// in the queue (INSTAGRAM_CHECK_DELAYS) instead of holding the worker.
+const VIDEO_WAITS = [5000, 10000, 15000];
+const CAROUSEL_VIDEO_WAITS = [5000, 10000, 15000, 15000, 15000, 20000, 20000, 20000];
+/** Delays of the queued re-checks of a video container still processing (~12 min in all). */
+export const INSTAGRAM_CHECK_DELAYS = [30_000, 60_000, 120_000, 240_000, 300_000];
+export const INSTAGRAM_PENDING_MESSAGE = 'Aguardando o Instagram terminar de processar o vídeo. A publicação no Instagram sai sozinha assim que ele ficar pronto.';
 
 /**
  * Waits until the container is FINISHED. Throws a ContainerNotReadyError that says whether
@@ -132,8 +142,7 @@ export const waitForContainer = async (containerId: string, token: string, video
     if (attempt >= waits.length) break;
     await sleep(waits[attempt]);
   }
-  const minutes = Math.round(waits.reduce((sum, ms) => sum + ms, 0) / 60000);
-  throw new ContainerNotReadyError(`O Instagram ainda está processando ${video ? 'o vídeo' : 'a mídia'} depois de ${minutes || 1} min. Nada foi publicado no Instagram; confira o arquivo e tente novamente.`);
+  throw new ContainerStillProcessingError(`O Instagram ainda está processando ${video ? 'o vídeo' : 'a mídia'}. Nada foi publicado no Instagram; confira o arquivo e tente novamente.`);
 };
 
 export const publishContainer = async (igUserId: string, containerId: string, token: string) => {
@@ -261,6 +270,34 @@ export const publishThreadsPost = async (post: any, token: string) => {
   return published.id;
 };
 
+/** Publishes a FINISHED container and adds the optional first comment / comment lock. */
+const publishReadyInstagram = async (post: { accountId: string; userId: string; account: { igUserId: string } }, containerId: string, token: string, settings: InstagramAdvancedSettings | null) => {
+  await assertConnectedForPublish('instagram', post.accountId, post.userId);
+  const igMediaId = await publishContainer(post.account.igUserId, containerId, token);
+  const advancedWarnings: string[] = [];
+  if (settings?.firstComment?.trim()) {
+    try {
+      await graphPost(`/${igMediaId}/comments`, token, { message: settings.firstComment.trim() });
+    } catch (error) {
+      advancedWarnings.push(`O post foi publicado, mas o primeiro comentário não foi adicionado: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+    }
+  }
+  if (settings?.disableComments) {
+    try {
+      await graphPost(`/${igMediaId}`, token, { comment_enabled: false });
+    } catch (error) {
+      advancedWarnings.push(`O post foi publicado, mas não foi possível desativar os comentários: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+    }
+  }
+  // Enrichment must not turn a successful remote publication into a
+  // retryable failure (which would send the same content again).
+  const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_type,media_url,thumbnail_url' }).catch(() => ({}));
+  return { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaPreviewUrl(mediaDetails), advancedWarnings };
+};
+
+const instagramSettings = (post: { advancedSettings: unknown; mediaType: any; mediaUrls: string[] }): InstagramAdvancedSettings | null => post.advancedSettings
+  ? validateInstagramAdvancedSettings(post.advancedSettings, post.mediaType, post.mediaUrls.length) : null;
+
 export const publishPost = async (scheduledPostId: string, trigger?: { scheduledFor?: string }) => {
   const post = await prisma.scheduledPost.findUnique({
     where: { id: scheduledPostId },
@@ -319,6 +356,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
     ]);
     const results: Record<string, unknown> = {};
     const errors: string[] = [];
+    let instagramPending: string | null = null;
 
     if (platforms.includes('INSTAGRAM')) {
       try {
@@ -326,9 +364,7 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
         const token = await getDecryptedToken(post.accountId);
         // Re-validate stored options against the current media type so a
         // draft edited elsewhere never sends a parameter Meta would reject.
-        const settings: InstagramAdvancedSettings | null = post.advancedSettings
-          ? validateInstagramAdvancedSettings(post.advancedSettings, post.mediaType, post.mediaUrls.length)
-          : null;
+        const settings = instagramSettings(post);
         if (settings?.firstComment?.trim() || settings?.disableComments) {
           let permissions: string[];
           try {
@@ -348,28 +384,13 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
           settings,
         });
         const isVideo = post.mediaType === 'REEL' || (post.mediaType === 'STORY' && /\.(mp4|mov)(\?|$)/i.test(post.mediaUrls[0] || ''));
-        await waitForContainer(containerId, token, isVideo);
-        await assertConnectedForPublish('instagram', post.accountId, post.userId);
-        const igMediaId = await publishContainer(post.account.igUserId, containerId, token);
-        const advancedWarnings: string[] = [];
-        if (settings?.firstComment?.trim()) {
-          try {
-            await graphPost(`/${igMediaId}/comments`, token, { message: settings.firstComment.trim() });
-          } catch (error) {
-            advancedWarnings.push(`O post foi publicado, mas o primeiro comentário não foi adicionado: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
-          }
+        try {
+          await waitForContainer(containerId, token, isVideo);
+        } catch (error) {
+          if (!(isVideo && error instanceof ContainerStillProcessingError)) throw error;
+          instagramPending = containerId;
         }
-        if (settings?.disableComments) {
-          try {
-            await graphPost(`/${igMediaId}`, token, { comment_enabled: false });
-          } catch (error) {
-            advancedWarnings.push(`O post foi publicado, mas não foi possível desativar os comentários: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
-          }
-        }
-        // Enrichment must not turn a successful remote publication into a
-        // retryable failure (which would send the same content again).
-        const mediaDetails = await graphGet(`/${igMediaId}`, token, { fields: 'permalink,media_type,media_url,thumbnail_url' }).catch(() => ({}));
-        results.INSTAGRAM = { id: igMediaId, permalink: mediaDetails.permalink, mediaUrl: mediaPreviewUrl(mediaDetails), advancedWarnings };
+        if (!instagramPending) results.INSTAGRAM = await publishReadyInstagram(post, containerId, token, settings);
       } catch (error) {
         errors.push(`Instagram: ${publishFailure(error)}`);
       }
@@ -434,6 +455,83 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
       }
     }
 
+    if (instagramPending) {
+      // The other networks are done; only the Instagram container is still processing.
+      // Keep their results with the post and re-check in the queue, without a new container.
+      const pending: InstagramPending = { containerId: instagramPending, attempt: 0, results, errors };
+      await prisma.scheduledPost.update({ where: { id: scheduledPostId }, data: { errorMessage: INSTAGRAM_PENDING_MESSAGE, instagramPending: pending as any } });
+      await scheduleInstagramCheck(scheduledPostId, 0);
+      return null;
+    }
+    return await recordOutcome(post, results, errors);
+  } catch (error: any) {
+    await failPost(post, error);
+    throw error;
+  }
+};
+
+type InstagramPending = { containerId: string; attempt: number; results: Record<string, unknown>; errors: string[] };
+
+const scheduleInstagramCheck = async (scheduledPostId: string, attempt: number) => {
+  // Loaded on demand: the queue needs Redis, which the publishing helpers do not.
+  const { publishQueue } = require('../scheduler.service') as typeof import('../scheduler.service');
+  await publishQueue.add('instagram-check', { scheduledPostId, attempt }, { jobId: `${scheduledPostId}-ig-${attempt}`, delay: INSTAGRAM_CHECK_DELAYS[attempt] });
+};
+
+const failPost = async (post: { id: string; userId: string }, error: any) => {
+  await prisma.scheduledPost.update({ where: { id: post.id }, data: { status: 'FAILED', errorMessage: error.message } });
+  await notifyPublishFailure(post.userId, post.id, error.message || 'A publicação não foi concluída.').catch((notificationError) => {
+    console.error('Could not create publish notification:', notificationError);
+  });
+};
+
+/**
+ * One queued check of an Instagram video container (a single Graph call). Publishes the SAME
+ * container when it is FINISHED; never creates another one nor re-sends the other networks.
+ */
+export const resumeInstagramPublish = async (scheduledPostId: string, attempt: number) => {
+  const post = await prisma.scheduledPost.findUnique({ where: { id: scheduledPostId }, include: { account: true } });
+  const pending = post?.instagramPending as InstagramPending | null | undefined;
+  if (!post || post.status !== 'PROCESSING' || !pending || pending.attempt !== attempt) return null;
+  const { results, errors } = pending;
+  let ready = false;
+  try {
+    const token = await getDecryptedToken(post.accountId);
+    const response = await graphGet(`/${pending.containerId}`, token, { fields: 'status_code,status' });
+    if (response.status_code === 'FINISHED') ready = true;
+    else if (response.status_code === 'ERROR' || response.status_code === 'EXPIRED') {
+      const reason = String(response.status || '').trim();
+      errors.push(`Instagram: O Instagram recusou a mídia${reason ? `: ${reason}` : '.'}`);
+    } else if (attempt + 1 < INSTAGRAM_CHECK_DELAYS.length) {
+      // Conditional: a duplicated check cannot schedule the next one twice.
+      const moved = await prisma.scheduledPost.updateMany({ where: { id: post.id, status: 'PROCESSING', updatedAt: post.updatedAt },
+        data: { instagramPending: { ...pending, attempt: attempt + 1 } as any } });
+      if (moved.count) await scheduleInstagramCheck(post.id, attempt + 1);
+      return null;
+    } else errors.push('Instagram: O Instagram não terminou de processar o vídeo em cerca de 12 minutos. Nada foi publicado no Instagram; confira o arquivo e tente novamente.');
+  } catch (error) {
+    errors.push(`Instagram: ${publishFailure(error)}`);
+  }
+  // Claim the outcome before publishing, so the container is published at most once.
+  const claimed = await prisma.scheduledPost.updateMany({ where: { id: post.id, status: 'PROCESSING', updatedAt: post.updatedAt }, data: { instagramPending: Prisma.DbNull } });
+  if (!claimed.count) return null;
+  try {
+    if (ready) {
+      try {
+        results.INSTAGRAM = await publishReadyInstagram(post, pending.containerId, await getDecryptedToken(post.accountId), instagramSettings(post));
+      } catch (error) {
+        errors.push(`Instagram: ${publishFailure(error)}`);
+      }
+    }
+    return await recordOutcome(post, results, errors);
+  } catch (error: any) {
+    await failPost(post, error);
+    return null;
+  }
+};
+
+const recordOutcome = async (post: { id: string; userId: string; accountId: string; mediaType: any; caption: string | null }, results: Record<string, unknown>, errors: string[]) => {
+    const scheduledPostId = post.id;
     const successfulPlatforms = Object.keys(results);
     if (!successfulPlatforms.length) throw new Error(errors.join(' | ') || 'Nenhuma plataforma publicou o conteúdo.');
 
@@ -477,16 +575,6 @@ export const publishPost = async (scheduledPostId: string, trigger?: { scheduled
     }
 
     return published;
-  } catch (error: any) {
-    await prisma.scheduledPost.update({
-      where: { id: scheduledPostId },
-      data: { status: 'FAILED', errorMessage: error.message },
-    });
-    await notifyPublishFailure(post.userId, scheduledPostId, error.message || 'A publicação não foi concluída.').catch((notificationError) => {
-      console.error('Could not create publish notification:', notificationError);
-    });
-    throw error;
-  }
 };
 
 export const deleteFacebookPost = async (facebookPostId: string, accountId: string) => {
