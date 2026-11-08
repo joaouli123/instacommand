@@ -5,7 +5,7 @@ import { DEFAULT_TIMEZONE } from './tool-kit';
 export const PUBLISHING_GUIDE = {
   workflow: [
     '1. get_workspace_overview para obter accountId (Instagram), threadsAccountId e permissões.',
-    '2. Mídias: import_media_from_url (URL pública e direta do arquivo) ou upload_media_base64. Use somente as URLs retornadas.',
+    '2. Mídias: imagem anexada no chat ou gerada → create_media_upload_link (usuário envia pelo link) + get_uploaded_media; URL pública direta → pode ir direto em mediaUrls (é importada). Nunca reutilize URLs antigas sem conferir.',
     '3. create_post com status DRAFT. Mostre ao usuário: redes, formato, legenda final (captionAsPublished), mídias e data/hora.',
     '4. Após confirmação: schedule_post (agendar) ou publish_post_now (publicar agora, confirm=true).',
     '5. Confira o resultado com get_post. Nunca repita uma publicação de resultado incerto sem checar o status.',
@@ -28,7 +28,7 @@ export const PUBLISHING_GUIDE = {
     caption: 'Até 2.200 caracteres (Instagram). No Threads, texto final de até 500 caracteres; no X, até 280.',
     hashtags: 'Até 30 no campo hashtags (recomendado 3 a 8), sem o símbolo #.',
     media: 'Até 10 mídias por post, 100 MB por arquivo. Formatos: JPG, PNG, WebP, GIF, MP4, MOV. Para Instagram, prefira JPG e vídeo MP4 (H.264/AAC); Reels e Stories em 9:16.',
-    mediaUrls: 'Sempre passe as mídias por import_media_from_url ou upload_media_base64: as redes baixam o arquivo de uma URL pública e o UX Code Social reconhece vídeos pela extensão .mp4/.mov que essas ferramentas garantem.',
+    mediaUrls: 'Use as URLs de create_media_upload_link/upload_media_base64 ou qualquer URL pública direta (create_post/update_post importam e conferem cada arquivo antes de salvar): as redes baixam o arquivo de uma URL pública e o UX Code Social reconhece vídeos pela extensão .mp4/.mov que essas ferramentas garantem.',
   },
   hashtags: 'As hashtags do campo hashtags são acrescentadas ao final da legenda (após uma linha em branco) no momento de agendar ou publicar — o mesmo comportamento do compositor. Hashtags já escritas na legenda não são duplicadas. Rascunhos guardam legenda e hashtags separadas.',
   scheduling: [

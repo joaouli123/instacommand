@@ -12,7 +12,7 @@ const EDITABLE = new Set(['DRAFT', 'SCHEDULED', 'FAILED']);
 const QUEUE_DELAY_MS = 30_000;
 
 const mediaUrlsSchema = z.array(z.string().url().max(2048)).max(10)
-  .describe('URLs públicas retornadas por import_media_from_url ou upload_media_base64, na ordem do post. TEXT não usa mídia.');
+  .describe('URLs das mídias na ordem do post: as devolvidas por create_media_upload_link/upload_media_base64 ou qualquer URL pública direta de imagem/vídeo (é baixada e hospedada automaticamente). TEXT não usa mídia.');
 const captionSchema = z.string().max(2200).describe('Legenda/texto do post. No Threads, o texto final (com hashtags) precisa ter até 500 caracteres; no X, até 280.');
 const hashtagsSchema = z.array(z.string().min(1).max(100)).max(30)
   .describe('Hashtags sem "#". São acrescentadas ao fim da legenda ao agendar/publicar (sem duplicar as que já estão no texto).');
@@ -20,6 +20,23 @@ const platformsSchema = z.array(publishPlatformSchema).min(1).max(5)
   .describe('Redes de destino. FACEBOOK publica na Página vinculada à conta do Instagram; THREADS exige threadsAccountId; X exige xAccountId (até 280 caracteres e 4 mídias); YOUTUBE exige youtubeAccountId, formato REEL e youtubeSettings.');
 
 const unique = <T>(values: T[]) => [...new Set(values)];
+
+/**
+ * Hosts every media URL on our storage before saving: external links (AI image
+ * hosts, CDNs that expire) are downloaded now, and our own URLs are checked so a
+ * post is never scheduled with a file that no longer exists.
+ */
+async function ensureHostedMedia(api: InternalApi, urls: string[] | undefined) {
+  if (!urls?.length) return urls;
+  const result = await api.post('/posts/import-url', { urls }, { timeoutMs: 15 * 60_000 }).catch((error: any) => {
+    throw new ValidationError(`Não foi possível preparar as mídias: ${error?.message || 'erro desconhecido'}`);
+  });
+  if (result.errors?.length) {
+    const details = result.errors.map((item: any) => `${item.sourceUrl}: ${item.message}`).join(' | ');
+    throw new ValidationError(`Mídia indisponível, nada foi salvo. Gere/envie de novo (create_media_upload_link). ${details}`);
+  }
+  return result.urls as string[];
+}
 
 async function loadPost(api: InternalApi, postId: string) {
   return api.get(`/posts/${encodePathSegment(postId)}`);
@@ -82,7 +99,7 @@ export const postTools = [
     name: 'create_post',
     title: 'Criar publicação',
     category: 'posts',
-    description: 'Cria uma publicação para Instagram, Facebook, Threads, X e/ou YouTube. Por padrão salva como DRAFT (rascunho, nada é publicado). Com status SCHEDULED agenda para scheduledFor (exige permissão publish e confirmação do usuário). Envie as mídias antes com import_media_from_url/upload_media_base64. Veja get_publishing_guide para formatos e limites.',
+    description: 'Cria uma publicação para Instagram, Facebook, Threads, X e/ou YouTube. Por padrão salva como DRAFT (rascunho, nada é publicado). Com status SCHEDULED agenda para scheduledFor (exige permissão publish e confirmação do usuário). Para imagem gerada no ambiente do Claude use create_media_upload_link; URLs públicas podem ir direto em mediaUrls. Veja get_publishing_guide para formatos e limites.',
     scopes: ['write'],
     scopesFor: (args) => (args.status === 'SCHEDULED' ? ['publish'] : ['write']),
     annotations: WRITE,
@@ -108,6 +125,7 @@ export const postTools = [
     handler: async (args, { api }) => {
       const hashtags = normalizeHashtags(args.hashtags) ?? [];
       const caption = args.status === 'SCHEDULED' ? mergeHashtagsIntoCaption(args.caption, hashtags) : args.caption;
+      const mediaUrls = await ensureHostedMedia(api, args.mediaUrls);
       const created = await api.post('/posts', {
         accountId: args.accountId,
         threadsAccountId: args.threadsAccountId,
@@ -118,7 +136,7 @@ export const postTools = [
         tiktokSettings: args.tiktokSettings,
         platforms: unique(args.platforms),
         mediaType: args.mediaType,
-        mediaUrls: args.mediaUrls,
+        mediaUrls,
         caption,
         hashtags,
         scheduledFor: toIso(args.scheduledFor),
@@ -177,7 +195,7 @@ export const postTools = [
       if (changes.tiktokAccountId !== undefined) body.tiktokAccountId = changes.tiktokAccountId;
       if (changes.tiktokSettings !== undefined) body.tiktokSettings = changes.tiktokSettings;
       if (changes.mediaType) body.mediaType = changes.mediaType;
-      if (changes.mediaUrls) body.mediaUrls = changes.mediaUrls;
+      if (changes.mediaUrls) body.mediaUrls = await ensureHostedMedia(api, changes.mediaUrls);
       if (changes.caption !== undefined) body.caption = changes.caption;
       if (hashtags) body.hashtags = hashtags;
       if (changes.scheduledFor) body.scheduledFor = toIso(changes.scheduledFor);
@@ -208,6 +226,7 @@ export const postTools = [
     handler: async ({ postId, scheduledFor }, { api }) => {
       const current = await loadPost(api, postId);
       assertEditable(current, 'ser agendada');
+      await ensureHostedMedia(api, current.mediaUrls);
       const caption = captionForPublication(current);
       await api.patch(`/posts/${encodePathSegment(postId)}`, {
         status: 'SCHEDULED',
@@ -248,6 +267,7 @@ export const postTools = [
     handler: async ({ postId, mode }, { api }) => {
       const current = await loadPost(api, postId);
       assertEditable(current, 'ser publicada');
+      await ensureHostedMedia(api, current.mediaUrls);
       const caption = captionForPublication(current);
       const captionChange = caption !== (current.caption ?? '') ? { caption } : {};
       const effectiveMode = mode === 'auto' ? (['IMAGE', 'TEXT'].includes(current.mediaType) ? 'wait' : 'queue') : mode;
@@ -301,7 +321,7 @@ export const postTools = [
         threadsAccountId: nextPlatforms.includes('THREADS') ? (threadsAccountId === undefined ? source.threadsAccountId : threadsAccountId) ?? undefined : undefined,
         platforms: nextPlatforms,
         mediaType: source.mediaType,
-        mediaUrls: source.mediaUrls,
+        mediaUrls: await ensureHostedMedia(api, source.mediaUrls),
         caption: source.caption ?? '',
         hashtags: source.hashtags ?? [],
         scheduledFor: toIso(scheduledFor),

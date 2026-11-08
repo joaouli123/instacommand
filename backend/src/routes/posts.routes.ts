@@ -33,6 +33,8 @@ import { hasInstagramAdvancedOptions, validateInstagramAdvancedSettings } from '
 import { searchInstagramLocations } from '../services/instagram/locations.service';
 import { detectMediaSignature, SUPPORTED_MEDIA_DESCRIPTION } from '../utils/media-signature';
 
+import { createUploadLink, dropPage, readDrop, recordDrop, verifyUploadToken } from '../services/upload-link.service';
+
 const router = Router();
 const prisma = getPrisma();
 
@@ -55,6 +57,30 @@ const upload = multer({
     if (['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime'].includes(file.mimetype)) return cb(null, true);
     return cb(new Error('Apenas imagens e vídeos são aceitos.'));
   },
+});
+
+const wantsHtml = (req: any) => !String(req.headers.accept || '').includes('application/json') && Boolean(req.accepts('html'));
+
+// Page the user opens to send images straight from their computer/phone. The
+// claude.ai chat cannot hand attached images to the connector, so the user
+// uploads here and Claude reads this exact batch with get_uploaded_media.
+router.get('/drop/:token', (req: any, res) => {
+  const token = String(req.params.token || '');
+  if (!verifyUploadToken(token)) { res.status(401).type('html').send(dropPage({ error: 'Link expirado. Peça ao Claude um novo link de envio.' })); return; }
+  res.type('html').send(dropPage({ batch: readDrop(token) }));
+});
+
+router.post('/drop/:token', (req: any, res, next) => {
+  const token = String(req.params.token || '');
+  if (!verifyUploadToken(token)) {
+    res.status(401).json({ error: 'Link de envio inválido ou expirado. Gere outro com create_media_upload_link.' });
+    return;
+  }
+  handleUpload(req, res, next, async (urls) => {
+    const batch = recordDrop(token, urls);
+    if (wantsHtml(req)) { res.status(201).type('html').send(dropPage({ batch, sent: urls.length })); return; }
+    res.status(201).json({ urls, batch: batch.map((item) => item.url) });
+  });
 });
 
 router.use(authenticate);
@@ -594,7 +620,17 @@ router.delete('/:id', async (req: any, res, next) => {
         await tx.publishedPost.deleteMany({ where: { id: post.publishedPostId } });
       }
     });
-    await Promise.all(uploadedFiles.map(async (filePath) => {
+    // Duplicated posts share the same files; keep any file another post still uses.
+    const legacyBase = env.MEDIA_PUBLIC_URL.replace(/\/$/, '');
+    const candidateUrls = uploadedFiles.flatMap((filePath) => {
+      const name = path.basename(filePath);
+      return [`${publicBase}/${name}`, `${legacyBase}/${name}`];
+    });
+    const stillUsed = candidateUrls.length
+      ? await prisma.scheduledPost.findMany({ where: { mediaUrls: { hasSome: candidateUrls } }, select: { mediaUrls: true } })
+      : [];
+    const usedNames = new Set(stillUsed.flatMap((other) => other.mediaUrls.map((url) => path.basename(url.split(/[?#]/)[0]))));
+    await Promise.all(uploadedFiles.filter((filePath) => !usedNames.has(path.basename(filePath))).map(async (filePath) => {
       try { await fs.promises.unlink(filePath); } catch (error: any) {
         if (error?.code !== 'ENOENT') console.error(`Could not remove uploaded file ${filePath}:`, error);
       }
@@ -687,7 +723,7 @@ router.post('/import-url', async (req: any, res, next) => {
   }
 });
 
-router.post('/upload', (req: any, res, next) => {
+const handleUpload = (req: any, res: any, next: any, onUrls?: (urls: string[]) => Promise<void> | void) => {
   upload.array('files')(req, res, async (uploadError) => {
     if (uploadError) { res.status(400).json({ error: `Envie até 10 arquivos ${SUPPORTED_MEDIA_DESCRIPTION}, de no máximo 100 MB cada.` }); return; }
     const files: Express.Multer.File[] = Array.isArray(req.files) ? req.files : [];
@@ -712,11 +748,31 @@ router.post('/upload', (req: any, res, next) => {
         paths.delete(file.path); paths.add(target);
         urls.push(`${publicMediaBase()}/${filename}`);
       }
-      res.json({ urls });
       paths.clear();
+      if (onUrls) { await onUrls(urls); return; }
+      res.json({ urls });
     } catch (error) { next(error); }
     finally { await Promise.all([...paths].map((file) => fs.promises.unlink(file).catch(() => undefined))); }
   });
+};
+
+router.post('/upload', (req, res, next) => handleUpload(req, res, next));
+
+// Short-lived link the MCP hands to Claude so a sandbox can send a generated file
+// with curl, without pasting megabytes of base64 into a tool call.
+router.post('/upload-link', (req: any, res) => {
+  const link = createUploadLink(req.user.id);
+  res.status(201).json(link);
+});
+
+router.get('/upload-link/media', (req: any, res) => {
+  const token = String(req.query.uploadUrl || '').split('/drop/').pop()!.split(/[?#]/)[0];
+  if (verifyUploadToken(token, { allowExpired: true }) !== req.user.id) {
+    res.status(404).json({ error: 'Link de envio não encontrado. Use o uploadUrl exato devolvido por create_media_upload_link.' });
+    return;
+  }
+  const batch = readDrop(token);
+  res.json({ urls: batch.map((item) => item.url), items: batch });
 });
 
 export default router;

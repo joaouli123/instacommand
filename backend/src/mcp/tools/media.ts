@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { detectMediaSignature, SUPPORTED_MEDIA_DESCRIPTION } from '../../utils/media-signature';
 import { ValidationError } from '../../utils/errors';
-import { accountIdSchema, defineTool, READ_LIVE, WRITE } from '../tool-kit';
+import { accountIdSchema, defineTool, READ, READ_LIVE, WRITE } from '../tool-kit';
 
 // Base64 travels inside the JSON-RPC request; the MCP route accepts 25 MB bodies.
 const MAX_BASE64_FILE_BYTES = 15 * 1024 * 1024;
@@ -19,6 +19,44 @@ export function decodeBase64Media(data: string, index: number) {
 }
 
 export const mediaTools = [
+  defineTool({
+    name: 'create_media_upload_link',
+    title: 'Link para o usuário enviar imagens',
+    category: 'media',
+    description: 'USE SEMPRE que o usuário anexar/colar imagens ou vídeos no chat: o Claude NÃO consegue repassar anexos do chat ao UX Code Social, e NUNCA deve substituir por imagens antigas. Esta ferramenta cria um link (30 min). Mostre o uploadUrl ao usuário pedindo que abra, envie os arquivos na ordem do post e responda "enviei"; depois chame get_uploaded_media com o mesmo uploadUrl e use SOMENTE aquelas URLs em mediaUrls. Em ambiente com shell (sandbox com internet), também dá para enviar com o comando curl devolvido.',
+    scopes: ['write'],
+    annotations: WRITE,
+    inputSchema: {},
+    handler: async (_args, { api }) => {
+      const link = await api.post('/posts/upload-link', {});
+      return {
+        ...link,
+        messageForUser: `Abra este link, envie as imagens na ordem do post e me avise com "enviei": ${link.uploadUrl}`,
+        next: 'Aguarde o usuário dizer que enviou e chame get_uploaded_media com este uploadUrl. Não use nenhuma outra imagem.',
+      };
+    },
+  }),
+
+  defineTool({
+    name: 'get_uploaded_media',
+    title: 'Mídias enviadas pelo link',
+    category: 'media',
+    description: 'Lista, na ordem de envio, as mídias que o usuário mandou pelo link de create_media_upload_link. Use exatamente estas URLs (e somente elas) em mediaUrls. Se vier vazio, o usuário ainda não enviou: peça para enviar, não use imagens antigas.',
+    scopes: ['read'],
+    annotations: READ,
+    inputSchema: { uploadUrl: z.string().url().max(2048).describe('O uploadUrl devolvido por create_media_upload_link.') },
+    handler: async ({ uploadUrl }, { api }) => {
+      const result = await api.get('/posts/upload-link/media', { uploadUrl });
+      return {
+        ...result,
+        count: result.urls.length,
+        next: result.urls.length
+          ? 'Mostre ao usuário a quantidade e a ordem e use exatamente estas URLs em mediaUrls.'
+          : 'Nada enviado ainda. Peça ao usuário para abrir o link e enviar; não use outras imagens.',
+      };
+    },
+  }),
+
   defineTool({
     name: 'import_media_from_url',
     title: 'Importar mídia por URL',
@@ -42,7 +80,7 @@ export const mediaTools = [
     name: 'upload_media_base64',
     title: 'Enviar mídia em base64',
     category: 'media',
-    description: `Envia arquivos pequenos codificados em base64 (até 15 MB cada, 18 MB no total) e devolve as URLs públicas para mediaUrls. Use quando o arquivo existe apenas na conversa. Para arquivos grandes ou que já estão na web, prefira import_media_from_url. Formatos: ${SUPPORTED_MEDIA_DESCRIPTION}.`,
+    description: `Envia arquivos pequenos codificados em base64 (até 15 MB cada, 18 MB no total) e devolve as URLs públicas para mediaUrls. Use só para arquivos pequenos quando não houver como rodar curl; se o arquivo está num ambiente com shell, prefira create_media_upload_link. Se já está na web, passe a URL direto em mediaUrls de create_post (é importada automaticamente). Formatos: ${SUPPORTED_MEDIA_DESCRIPTION}.`,
     scopes: ['write'],
     annotations: WRITE,
     inputSchema: {

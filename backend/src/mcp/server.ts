@@ -13,7 +13,7 @@ export const MCP_INSTRUCTIONS = `Você está conectado ao UX Code Social, plataf
 
 Fluxo recomendado:
 1. Comece com get_workspace_overview: ele traz os IDs das contas, as permissões deste token e o fuso padrão (${DEFAULT_TIMEZONE}). Cada conta do Instagram é uma empresa; os perfis do Threads, do X e do YouTube pertencem a uma empresa (companyAccountId em list_accounts). Trabalhe sempre com uma empresa por vez e nunca use num post ou relatório o perfil de outra empresa.
-2. Mídias: as redes baixam os arquivos de URLs públicas. Use import_media_from_url (link direto do arquivo) ou upload_media_base64 e use somente as URLs devolvidas em mediaUrls. Nunca invente URLs.
+2. Mídias: as redes baixam os arquivos de URLs públicas. Imagens anexadas pelo usuário no chat NÃO chegam ao conector: chame create_media_upload_link, passe o link ao usuário, espere ele enviar e use get_uploaded_media. NUNCA troque por imagens antigas de outros posts. URL pública direta: passe em mediaUrls que o create_post importa. Antes de salvar, toda mídia é conferida; se faltar, gere de novo. Nunca invente URLs.
 3. Crie como rascunho (create_post com status DRAFT). Mostre ao usuário as redes, o formato, a legenda final (captionAsPublished), as mídias e a data/hora, e só então agende (schedule_post) ou publique (publish_post_now com confirm=true) depois da confirmação explícita dele.
 4. Datas sempre em ISO 8601 com fuso explícito, ex.: 2026-10-10T18:30:00-03:00.
 5. Regras de formatos e limites: get_publishing_guide.

@@ -180,7 +180,7 @@ test('MCP endpoint challenges unauthenticated clients per RFC 9728', async () =>
 test('MCP full publishing workflow with a personal token', async () => {
   const client = await mcpClient(fullToken);
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 58);
+  assert.equal(tools.length, 60);
   assert.ok(client.getInstructions().includes('get_workspace_overview'));
   assert.equal(tools.find((t) => t.name === 'get_post').annotations.readOnlyHint, true);
   assert.ok(tools.find((t) => t.name === 'publish_post_now').inputSchema.required.includes('confirm'));
@@ -204,6 +204,14 @@ test('MCP full publishing workflow with a personal token', async () => {
   const base64 = ok(await tool(client, 'upload_media_base64', { files: [{ data: `data:image/png;base64,${PNG.toString('base64')}` }] }));
   assert.match(base64.urls[0], /\.png$/);
   assert.equal((await tool(client, 'upload_media_base64', { files: [{ data: Buffer.from('#!/bin/sh').toString('base64') }] })).isError, true);
+
+  const link = ok(await tool(client, 'create_media_upload_link', {}));
+  const form = new FormData();
+  form.append('files', new Blob([PNG], { type: 'image/png' }), 'gerada.png');
+  const dropped = await (await fetch(link.uploadUrl, { method: 'POST', body: form, headers: { Accept: 'application/json' } })).json();
+  assert.match(dropped.urls[0], /\.png$/);
+  assert.deepEqual(ok(await tool(client, 'get_uploaded_media', { uploadUrl: link.uploadUrl })).urls, dropped.urls);
+  assert.equal((await fetch(`${link.uploadUrl}x`, { method: 'POST', body: form })).status, 401);
 
   const when = new Date(Date.now() + 2 * 86_400_000).toISOString().replace('Z', '+00:00');
   const created = ok(await tool(client, 'create_post', {
@@ -461,7 +469,7 @@ test('CLI: status, local upload + create, generic call and the stdio MCP bridge'
   assert.equal(replies[1].result.protocolVersion, '2025-06-18');
   assert.equal(replies[1].result.serverInfo.name, 'instacommand');
   assert.ok(replies[2].result.tools.some((t) => t.name === 'upload_local_media'));
-  assert.equal(replies[2].result.tools.length, 59);
+  assert.equal(replies[2].result.tools.length, 61);
   assert.match(replies[3].result.structuredContent.urls[0], /\/uploads\/.+\.jpg$/);
   assert.equal(replies[4].result.structuredContent.id, ids.owner);
 });
@@ -475,6 +483,6 @@ test('the downloadable CLI embeds this server URL', async () => {
   assert.equal(body.includes('__INSTACOMMAND_DEFAULT_API_URL__'), false);
   const catalog = await (await call('GET', '/api/integrations/catalog', { token: sessionJwt })).json();
   assert.equal(catalog.urls.mcp, `${BASE}/mcp`);
-  assert.equal(catalog.tools.length, 59);
+  assert.equal(catalog.tools.length, 61);
   assert.equal(catalog.tools.find((t) => t.name === 'delete_post').requiresConfirmation, true);
 });
