@@ -1339,6 +1339,13 @@ export default function ComposerPage() {
             </div>}
           </div>}
 
+          {(postType === "REEL" || postType === "STORY" || mediaItems.some(item => item.kind === "video")) && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">
+              <strong>{t("Qualidade do vídeo:")}</strong>{" "}
+              {t("o UX Code Social envia seu arquivo original, sem nenhuma compressão. Quem recomprime é a própria Meta: Instagram e Facebook processam todo vídeo publicado (limite da Meta: Reels até 300 MB e 25 Mbps; Stories até 100 MB). Para o melhor resultado, envie MP4 H.264, 1080 × 1920, 30 fps.")}
+            </div>
+          )}
+
           <ArtworkStudio disabled={isSubmitting} onUse={async files => {
             if (mediaItems.length && !window.confirm(t('Substituir as mídias selecionadas pelas artes do editor?'))) return
             mediaItems.forEach(item => { if (item.isObjectUrl) URL.revokeObjectURL(item.src) })

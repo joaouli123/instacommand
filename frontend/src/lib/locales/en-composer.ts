@@ -9,6 +9,8 @@ export const EN_COMPOSER: Record<string, string> = {
   " · fora da faixa aceita": " · outside the accepted range",
   " · o 1º item define o corte": " · the 1st item sets the crop",
   "(até 300 MB)": "(up to 300 MB)",
+  "Qualidade do vídeo:": "Video quality:",
+  "o UX Code Social envia seu arquivo original, sem nenhuma compressão. Quem recomprime é a própria Meta: Instagram e Facebook processam todo vídeo publicado (limite da Meta: Reels até 300 MB e 25 Mbps; Stories até 100 MB). Para o melhor resultado, envie MP4 H.264, 1080 × 1920, 30 fps.": "UX Code Social sends your original file with no compression. Meta itself recompresses: Instagram and Facebook process every published video (Meta's limits: Reels up to 300 MB and 25 Mbps; Stories up to 100 MB). For the best result, upload H.264 MP4, 1080 × 1920, 30 fps.",
   "1 arquivo": "1 file",
   "1 mídia adicionada ao carrossel": "1 media item added to the carousel",
   "1080 px de largura recomendado": "1080 px width recommended",
