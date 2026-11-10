@@ -45,18 +45,18 @@ const networkFormatDetails: Record<string, Partial<Record<PostType, PlatformForm
   INSTAGRAM: {
     FEED: { name: "Foto no feed", shape: "Proporção: 1,91:1 a 3:4", dimensions: "1080 × 566 a 1440 px", note: "Fotos fora desse formato podem ser cortadas." },
     CAROUSEL: { name: "Carrossel do feed", shape: "Todas as fotos no mesmo formato", dimensions: "1080 × 1350 px · 4:5 recomendado", note: "Use o mesmo formato em todas as fotos para evitar cortes." },
-    REEL: { name: "Reel", shape: "Vertical · proporção 9:16", dimensions: "1080 × 1920 px", note: "Vídeo de 3 s a 15 min · até 100 MB." },
+    REEL: { name: "Reel", shape: "Vertical · proporção 9:16", dimensions: "1080 × 1920 px", note: "Vídeo de 3 s a 15 min · até 300 MB." },
     STORY: { name: "Story", shape: "Vertical · proporção 9:16", dimensions: "1080 × 1920 px", note: "Vídeo de 3 a 60 s · até 100 MB." },
   },
   FACEBOOK: {
     FEED: { name: "Foto da Página", shape: "Horizontal ou vertical", dimensions: "1080 × 1350 px · 4:5 recomendado", note: "A exibição pode variar conforme o local e o aparelho." },
     CAROUSEL: { name: "Álbum de fotos da Página", shape: "2 a 10 fotos", dimensions: "1080 px de largura recomendado", note: "As fotos aparecem juntas; cada uma mantém seu formato." },
-    REEL: { name: "Reel do Facebook", shape: "Vertical · proporção 9:16", dimensions: "1080 × 1920 px · mínimo 540 × 960 px", note: "Vídeo de 4 a 60 s · até 100 MB.", acceptedRatio: { min: 9 / 16, max: 9 / 16, tolerance: 0.001 } },
+    REEL: { name: "Reel do Facebook", shape: "Vertical · proporção 9:16", dimensions: "1080 × 1920 px · mínimo 540 × 960 px", note: "Vídeo de 4 a 60 s · até 300 MB.", acceptedRatio: { min: 9 / 16, max: 9 / 16, tolerance: 0.001 } },
   },
   THREADS: {
     FEED: { name: "Post com imagem", shape: "Mantém o formato original", dimensions: "Sem dimensão fixa", note: "A prévia mostra a imagem sem cortes." },
     CAROUSEL: { name: "Carrossel", shape: "Cada item mantém seu formato", dimensions: "2 a 10 fotos ou vídeos", note: "As mídias aparecem juntas na mesma publicação." },
-    REEL: { name: "Post com vídeo", shape: "Mantém o formato original", dimensions: "Até 5 min · até 100 MB", note: "No Threads, o vídeo não é publicado como Reel." },
+    REEL: { name: "Post com vídeo", shape: "Mantém o formato original", dimensions: "Até 5 min · até 300 MB", note: "No Threads, o vídeo não é publicado como Reel." },
     TEXT: { name: "Post de texto", shape: "Somente texto", dimensions: "Até 500 caracteres", note: "Sem mídia anexada." },
   },
   X: {
@@ -321,11 +321,11 @@ export default function ComposerPage() {
     accept: { "image/*": [], "video/*": [] },
     multiple: true,
     maxFiles: 10,
-    maxSize: 100 * 1024 * 1024,
+    maxSize: 300 * 1024 * 1024,
     onDrop: async (acceptedFiles, fileRejections) => {
       if (postType === "TEXT") return
       if (fileRejections.length > 0) {
-        toast.error(t("Alguns arquivos foram rejeitados. Use imagens ou vídeos de até 100MB."))
+        toast.error(t("Alguns arquivos foram rejeitados. Use imagens ou vídeos de até 300MB."))
       }
 
       const kinds = acceptedKinds(postType, platforms)
@@ -1283,7 +1283,7 @@ export default function ComposerPage() {
                       )}
                     </div>
                   ))}
-                  {mediaItems.length < (postType === "CAROUSEL" ? 10 : 1) && <div {...getRootProps()} className={`flex aspect-[1.1] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-2 text-center transition ${isDragActive ? "border-indigo-500 bg-indigo-50" : "border-indigo-200 bg-slate-50/70 hover:border-indigo-400 hover:bg-indigo-50/40"}`}><input {...getInputProps()} /><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><ImagePlus size={18} /></span><span className="mt-2 text-[11px] font-semibold text-indigo-700">{t("Adicionar mídia")}</span><span className="mt-1 text-[9px] leading-3 text-slate-500">{t("Imagem ou vídeo")}<br />{t("(até 100 MB)")}</span></div>}
+                  {mediaItems.length < (postType === "CAROUSEL" ? 10 : 1) && <div {...getRootProps()} className={`flex aspect-[1.1] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-2 text-center transition ${isDragActive ? "border-indigo-500 bg-indigo-50" : "border-indigo-200 bg-slate-50/70 hover:border-indigo-400 hover:bg-indigo-50/40"}`}><input {...getInputProps()} /><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><ImagePlus size={18} /></span><span className="mt-2 text-[11px] font-semibold text-indigo-700">{t("Adicionar mídia")}</span><span className="mt-1 text-[9px] leading-3 text-slate-500">{t("Imagem ou vídeo")}<br />{t("(até 300 MB)")}</span></div>}
                 </div>
 
                 {postType === "CAROUSEL" && (
@@ -1333,7 +1333,7 @@ export default function ComposerPage() {
                   {isDragActive ? t("Solte os arquivos aqui") : mediaItems.length > 0 ? t("Adicionar mais mídias") : t("Arraste imagens ou vídeos aqui")}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {platforms.length === 1 && platforms[0] === "THREADS" ? t("Opcional no Threads quando você publicar somente texto • PNG, JPG, MP4 ou MOV") : postType === "CAROUSEL" ? t("Até 10 itens • PNG, JPG, MP4 ou MOV") : t("PNG, JPG, MP4 ou MOV até 100MB")}
+                  {platforms.length === 1 && platforms[0] === "THREADS" ? t("Opcional no Threads quando você publicar somente texto • PNG, JPG, MP4 ou MOV") : postType === "CAROUSEL" ? t("Até 10 itens • PNG, JPG, MP4 ou MOV") : t("PNG, JPG, MP4 ou MOV até 300MB")}
                 </p>
               </div>
             </div>}

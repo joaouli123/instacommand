@@ -10,7 +10,7 @@ import { detectMediaSignature, SUPPORTED_MEDIA_DESCRIPTION, type DetectedMedia }
 import { ValidationError } from '../utils/errors';
 
 // Same ceiling as the multipart upload route.
-export const MAX_MEDIA_BYTES = 100 * 1024 * 1024;
+export const MAX_MEDIA_BYTES = 300 * 1024 * 1024;
 const DOWNLOAD_DEADLINE_MS = 5 * 60_000;
 
 export type ImportedMedia = { sourceUrl: string; url: string; mimeType: string; kind: 'image' | 'video'; bytes: number; alreadyHosted: boolean };
@@ -57,7 +57,7 @@ export async function importMediaFromUrl(sourceUrl: string): Promise<ImportedMed
       throw new ValidationError(`O servidor de origem respondeu com o status ${response.statusCode}. Use uma URL pública e direta do arquivo.`);
     }
     const declared = Number(response.headers['content-length']);
-    if (Number.isFinite(declared) && declared > MAX_MEDIA_BYTES) throw new ValidationError('A mídia é maior que 100 MB.');
+    if (Number.isFinite(declared) && declared > MAX_MEDIA_BYTES) throw new ValidationError('A mídia é maior que 300 MB.');
 
     let bytes = 0;
     let head = Buffer.alloc(0);
@@ -65,7 +65,7 @@ export async function importMediaFromUrl(sourceUrl: string): Promise<ImportedMed
     const inspector = new Transform({
       transform(chunk: Buffer, _encoding, callback) {
         bytes += chunk.length;
-        if (bytes > MAX_MEDIA_BYTES) return callback(new ValidationError('A mídia é maior que 100 MB.'));
+        if (bytes > MAX_MEDIA_BYTES) return callback(new ValidationError('A mídia é maior que 300 MB.'));
         if (!detected) {
           head = Buffer.concat([head, chunk]).subarray(0, 16);
           if (head.length >= 16 || bytes >= 16) {

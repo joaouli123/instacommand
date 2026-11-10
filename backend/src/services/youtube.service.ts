@@ -210,7 +210,7 @@ export async function disconnectYouTubeAccount(accountId: string, userId: string
   return true;
 }
 
-const MAX_VIDEO_BYTES = 256 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
 const MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024;
 
 async function download(url: string, maxBytes: number) {

@@ -18,7 +18,7 @@ const VERSION = '1.0.0';
 const EMBEDDED_API_URL = '__INSTACOMMAND_DEFAULT_API_URL__';
 const DEFAULT_API_URL = EMBEDDED_API_URL.startsWith('__') ? 'http://localhost:3001' : EMBEDDED_API_URL;
 const PROTOCOL_VERSION = '2025-11-25';
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 300 * 1024 * 1024;
 
 // ---------------------------------------------------------------- errors & output
 
@@ -248,7 +248,7 @@ function inspectLocalFile(filePath: string) {
   let stat: fs.Stats;
   try { stat = fs.statSync(resolved); } catch { throw new CliError(`${filePath}: arquivo não encontrado.`); }
   if (!stat.isFile()) throw new CliError(`${filePath}: não é um arquivo.`);
-  if (stat.size > MAX_UPLOAD_BYTES) throw new CliError(`${filePath}: maior que 100 MB.`);
+  if (stat.size > MAX_UPLOAD_BYTES) throw new CliError(`${filePath}: maior que 300 MB.`);
   const head = Buffer.alloc(16);
   const fd = fs.openSync(resolved, 'r');
   try { fs.readSync(fd, head, 0, 16, 0); } finally { fs.closeSync(fd); }
@@ -586,7 +586,7 @@ export function parseToolArgs(positionals: string[], flags: Flags): Record<strin
 const LOCAL_UPLOAD_TOOL = {
   name: 'upload_local_media',
   title: 'Enviar arquivos locais',
-  description: 'Envia imagens e vídeos deste computador para o UX Code Social e devolve URLs públicas para usar em mediaUrls (create_post/update_post). Aceita JPG, PNG, WebP, GIF, MP4 e MOV, até 100 MB cada, no máximo 10 por vez. A ordem das URLs segue a ordem dos caminhos.',
+  description: 'Envia imagens e vídeos deste computador para o UX Code Social e devolve URLs públicas para usar em mediaUrls (create_post/update_post). Aceita JPG, PNG, WebP, GIF, MP4 e MOV, até 300 MB cada, no máximo 10 por vez. A ordem das URLs segue a ordem dos caminhos.',
   inputSchema: {
     type: 'object',
     properties: { paths: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 10, description: 'Caminhos absolutos (ou relativos à pasta de trabalho) dos arquivos.' } },

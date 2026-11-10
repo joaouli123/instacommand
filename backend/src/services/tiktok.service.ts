@@ -208,7 +208,7 @@ export async function getTikTokCreatorInfo(accountId: string): Promise<TikTokCre
   }
 }
 
-const MAX_VIDEO_BYTES = 256 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
 const MIN_CHUNK = 5 * 1024 * 1024;
 const CHUNK = 10 * 1024 * 1024;
 

@@ -27,7 +27,7 @@ export const PUBLISHING_GUIDE = {
   limits: {
     caption: 'Até 2.200 caracteres (Instagram). No Threads, texto final de até 500 caracteres; no X, até 280.',
     hashtags: 'Até 30 no campo hashtags (recomendado 3 a 8), sem o símbolo #.',
-    media: 'Até 10 mídias por post, 100 MB por arquivo. Formatos: JPG, PNG, WebP, GIF, MP4, MOV. Para Instagram, prefira JPG e vídeo MP4 (H.264/AAC); Reels e Stories em 9:16.',
+    media: 'Até 10 mídias por post, 300 MB por arquivo (Stories: até 100 MB, limite da Meta). Formatos: JPG, PNG, WebP, GIF, MP4, MOV. Para Instagram, prefira JPG e vídeo MP4 (H.264/AAC); Reels e Stories em 9:16.',
     mediaUrls: 'Use as URLs de create_media_upload_link/upload_media_base64 ou qualquer URL pública direta (create_post/update_post importam e conferem cada arquivo antes de salvar): as redes baixam o arquivo de uma URL pública e o UX Code Social reconhece vídeos pela extensão .mp4/.mov que essas ferramentas garantem.',
   },
   hashtags: 'As hashtags do campo hashtags são acrescentadas ao final da legenda (após uma linha em branco) no momento de agendar ou publicar — o mesmo comportamento do compositor. Hashtags já escritas na legenda não são duplicadas. Rascunhos guardam legenda e hashtags separadas.',

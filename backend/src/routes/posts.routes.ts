@@ -52,7 +52,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024, files: 10, fields: 20, fieldSize: 64 * 1024, parts: 30 },
+  limits: { fileSize: 300 * 1024 * 1024, files: 10, fields: 20, fieldSize: 64 * 1024, parts: 30 },
   fileFilter: (_req, file, cb) => {
     if (['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime'].includes(file.mimetype)) return cb(null, true);
     return cb(new Error('Apenas imagens e vídeos são aceitos.'));
@@ -725,7 +725,7 @@ router.post('/import-url', async (req: any, res, next) => {
 
 const handleUpload = (req: any, res: any, next: any, onUrls?: (urls: string[]) => Promise<void> | void) => {
   upload.array('files')(req, res, async (uploadError) => {
-    if (uploadError) { res.status(400).json({ error: `Envie até 10 arquivos ${SUPPORTED_MEDIA_DESCRIPTION}, de no máximo 100 MB cada.` }); return; }
+    if (uploadError) { res.status(400).json({ error: `Envie até 10 arquivos ${SUPPORTED_MEDIA_DESCRIPTION}, de no máximo 300 MB cada.` }); return; }
     const files: Express.Multer.File[] = Array.isArray(req.files) ? req.files : [];
     const paths = new Set(files.map((file) => file.path));
     try {
