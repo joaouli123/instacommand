@@ -577,7 +577,7 @@ export const getInstagramGrantedPermissions = async (accountId: string): Promise
   return Array.isArray(debug.data?.scopes) ? debug.data.scopes.filter((scope: unknown): scope is string => typeof scope === 'string') : [];
 };
 
-export const getThreadsOAuthUrl = async (userId: string, state?: string, includeReplies = false) => {
+export const getThreadsOAuthUrl = async (userId: string, state?: string) => {
   const credentials = await getThreadsCredentials(userId);
   if (!credentials.appId || !credentials.appSecret) {
     throw new AppError('THREADS_OAUTH_NOT_CONFIGURED', 503);
@@ -586,9 +586,9 @@ export const getThreadsOAuthUrl = async (userId: string, state?: string, include
   const params = new URLSearchParams({
     client_id: credentials.appId,
     redirect_uri: env.THREADS_REDIRECT_URI,
-    // Keep the normal connection limited to profile, publishing and analytics.
+    // Profile, publishing, analytics and replies (Community lists, answers and hides them).
     // Deleting remote posts is not part of this consent/review flow.
-    scope: ['threads_basic', 'threads_content_publish', 'threads_manage_insights', ...(includeReplies ? ['threads_read_replies', 'threads_manage_replies'] : [])].join(','),
+    scope: ['threads_basic', 'threads_content_publish', 'threads_manage_insights', 'threads_read_replies', 'threads_manage_replies'].join(','),
     response_type: 'code',
     ...(state ? { state } : {}),
   });

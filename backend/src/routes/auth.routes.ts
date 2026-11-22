@@ -236,7 +236,7 @@ router.get('/threads/url', authenticate, async (req: any, res, next) => {
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
 
     const state = createOAuthState(user.id, 'threads', getBearerOrCookieToken(req)!, await ownedWorkspaceId(user.id, req.query.workspace));
-    return res.json({ url: await getThreadsOAuthUrl(user.id, state, req.query.automations === '1') });
+    return res.json({ url: await getThreadsOAuthUrl(user.id, state) });
   } catch (error) {
     return next(error);
   }
@@ -248,7 +248,7 @@ router.get('/threads', async (req: any, res, next) => {
     if (!user) return res.redirect(loginUrl('/accounts'));
 
     const state = createOAuthState(user.id, 'threads', getBearerOrCookieToken(req)!, await ownedWorkspaceId(user.id, req.query.workspace));
-    const url = await getThreadsOAuthUrl(user.id, state, req.query.automations === '1');
+    const url = await getThreadsOAuthUrl(user.id, state);
     return res.redirect(url);
   } catch (error) {
     return next(error);
