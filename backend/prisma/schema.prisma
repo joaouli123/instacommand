@@ -604,6 +604,8 @@ model ScheduledPost {
   advancedSettings     Json?
   // Title, privacy and audience of the YouTube upload; the description is the caption.
   youtubeSettings      Json?
+  /// Threads options chosen in the composer: who can reply (reply_control).
+  threadsSettings      Json?
   scheduledFor         DateTime
   status               PostStatus @default(DRAFT)
   errorMessage         String?

@@ -3,6 +3,7 @@ import { getPrisma } from '../../lib/prisma';
 import { assertSameWorkspace } from '../workspace-links';
 
 import { graphPost, graphGet, graphDelete as apiDelete } from '../../utils/instagram-api';
+import { threadsReplyControlParam } from '../threads-settings';
 import { getDecryptedToken, getDecryptedThreadsToken, getInstagramGrantedPermissions } from './auth.service';
 import { notifyPublishFailure } from '../notifications.service';
 import { ConflictError } from '../../utils/errors';
@@ -249,11 +250,14 @@ export const publishFacebookPost = async (post: any, token: string) => {
 
 export const publishThreadsPost = async (post: any, token: string) => {
   const caption = post.caption || '';
+  // Who can reply goes on the top-level container (not on carousel items).
+  const replyControl = threadsReplyControlParam(post.threadsSettings);
   if (!post.mediaUrls?.length) {
     const response = await threadsPost('/me/threads', token, {
       media_type: 'TEXT',
       text: caption,
       auto_publish_text: true,
+      ...replyControl,
     });
     return response.id;
   }
@@ -273,6 +277,7 @@ export const publishThreadsPost = async (post: any, token: string) => {
       media_type: 'CAROUSEL',
       children: children.join(','),
       text: caption,
+      ...replyControl,
     });
     containerId = parent.id;
   } else {
@@ -281,6 +286,7 @@ export const publishThreadsPost = async (post: any, token: string) => {
       media_type: isVideo ? 'VIDEO' : 'IMAGE',
       ...(isVideo ? { video_url: post.mediaUrls[0] } : { image_url: post.mediaUrls[0] }),
       text: caption,
+      ...replyControl,
     });
     containerId = response.id;
   }

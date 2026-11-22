@@ -82,6 +82,9 @@ export const tiktokSettingsSchema = z.object({
   aiGenerated: z.boolean().default(false),
   consent: z.literal(true).describe('O usuário confirmou a Declaração de Uso de Música do TikTok (e a Política de Conteúdo de Marca, se for o caso).'),
 }).describe('Opções do vídeo no TikTok. A legenda do post vira a legenda do TikTok (até 2.200 caracteres).');
+export const threadsSettingsSchema = z.object({
+  replyControl: z.enum(['everyone', 'accounts_you_follow', 'mentioned_only', 'parent_post_author_only', 'followers_only']).describe('Quem pode responder no Threads. Só vale na criação do post; depois de publicado não muda.'),
+}).describe('Opções do post no Threads.');
 export const youtubeSettingsSchema = z.object({
   format: z.enum(['video', 'short']).default('video').describe('video: vídeo comum (horizontal 16:9 recomendado). short: vertical ou quadrado de até 3 minutos.'),
   title: z.string().max(100).describe('Título do vídeo (obrigatório para agendar), até 100 caracteres, sem < ou >.'),
@@ -243,6 +246,7 @@ export function postDetails(post: any) {
     xAccountId: post.xAccountId ?? null,
     youtubeAccountId: post.youtubeAccountId ?? null,
     youtubeSettings: post.youtubeSettings ?? null,
+    threadsSettings: post.threadsSettings ?? null,
     scheduledFor: post.scheduledFor,
     caption: post.caption ?? '',
     hashtags: post.hashtags ?? [],

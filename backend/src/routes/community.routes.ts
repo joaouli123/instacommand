@@ -62,4 +62,18 @@ router.delete('/comments/:commentId', async (req: AuthRequest, res, next) => {
   }
 });
 
+router.post('/comments/:commentId/unhide', async (req: AuthRequest, res, next) => {
+  try {
+    const values = commentActionSchema.parse(req.body);
+    // Only Facebook and Threads can show a hidden comment again.
+    if (values.network !== 'facebook' && values.network !== 'threads') return res.status(400).json({ error: 'Só o Facebook e o Threads permitem mostrar de novo um comentário oculto.' });
+    const result = values.network === 'facebook'
+      ? await meta().unhideFacebookComment(req.user!.id, values.accountId, req.params.commentId)
+      : await meta().unhideThreadsComment(req.user!.id, values.accountId, req.params.commentId);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

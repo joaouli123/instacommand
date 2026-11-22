@@ -5,7 +5,7 @@ import {
   accountIdSchema, advancedSettingsSchema, audioFields, confirmSchema, dateTimeSchema, defineTool, DESTRUCTIVE, EXTERNAL,
   instagramAudioSchema, MEDIA_TYPES, mergeHashtagsIntoCaption, normalizeHashtags, platformSchema, POST_STATUSES,
   postDetails, postIdSchema, postSummary, publishPlatformSchema, READ, threadsAccountIdSchema, xAccountIdSchema,
-  youtubeAccountIdSchema, youtubeSettingsSchema, tiktokAccountIdSchema, tiktokSettingsSchema, toIso, WRITE,
+  youtubeAccountIdSchema, youtubeSettingsSchema, threadsSettingsSchema, tiktokAccountIdSchema, tiktokSettingsSchema, toIso, WRITE,
 } from '../tool-kit';
 
 const EDITABLE = new Set(['DRAFT', 'SCHEDULED', 'FAILED']);
@@ -107,6 +107,7 @@ export const postTools = [
       accountId: accountIdSchema.describe('Conta do Instagram dona do post (obrigatória mesmo para posts só no Facebook ou só no Threads).'),
       platforms: platformsSchema.default(['INSTAGRAM']),
       threadsAccountId: threadsAccountIdSchema.optional().describe('Obrigatório quando platforms inclui THREADS.'),
+      threadsSettings: threadsSettingsSchema.optional().describe('Quem pode responder no Threads (padrão: todos).'),
       xAccountId: xAccountIdSchema.optional().describe('Obrigatório quando platforms inclui X.'),
       youtubeAccountId: youtubeAccountIdSchema.optional().describe('Obrigatório quando platforms inclui YOUTUBE.'),
       youtubeSettings: youtubeSettingsSchema.optional().describe('Obrigatório quando platforms inclui YOUTUBE.'),
@@ -129,6 +130,7 @@ export const postTools = [
       const created = await api.post('/posts', {
         accountId: args.accountId,
         threadsAccountId: args.threadsAccountId,
+        threadsSettings: args.threadsSettings,
         xAccountId: args.xAccountId,
         youtubeAccountId: args.youtubeAccountId,
         youtubeSettings: args.youtubeSettings,
@@ -167,6 +169,7 @@ export const postTools = [
       postId: postIdSchema,
       platforms: platformsSchema.optional(),
       threadsAccountId: threadsAccountIdSchema.nullable().optional().describe('null remove a conta do Threads.'),
+      threadsSettings: threadsSettingsSchema.nullable().optional().describe('Substitui as opções do Threads; null volta ao padrão.'),
       xAccountId: xAccountIdSchema.nullable().optional().describe('null remove a conta do X.'),
       youtubeAccountId: youtubeAccountIdSchema.nullable().optional().describe('null remove o canal do YouTube.'),
       youtubeSettings: youtubeSettingsSchema.nullable().optional().describe('Substitui as opções do YouTube; null limpa.'),
@@ -189,6 +192,7 @@ export const postTools = [
       const body: Record<string, unknown> = {};
       if (changes.platforms) body.platforms = unique(changes.platforms);
       if (changes.threadsAccountId !== undefined) body.threadsAccountId = changes.threadsAccountId;
+      if (changes.threadsSettings !== undefined) body.threadsSettings = changes.threadsSettings;
       if (changes.xAccountId !== undefined) body.xAccountId = changes.xAccountId;
       if (changes.youtubeAccountId !== undefined) body.youtubeAccountId = changes.youtubeAccountId;
       if (changes.youtubeSettings !== undefined) body.youtubeSettings = changes.youtubeSettings;
@@ -319,6 +323,7 @@ export const postTools = [
       const created = await api.post('/posts', {
         accountId: accountId ?? source.accountId,
         threadsAccountId: nextPlatforms.includes('THREADS') ? (threadsAccountId === undefined ? source.threadsAccountId : threadsAccountId) ?? undefined : undefined,
+        threadsSettings: nextPlatforms.includes('THREADS') ? source.threadsSettings ?? undefined : undefined,
         platforms: nextPlatforms,
         mediaType: source.mediaType,
         mediaUrls: await ensureHostedMedia(api, source.mediaUrls),

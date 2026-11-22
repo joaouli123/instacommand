@@ -449,4 +449,11 @@ export const EN_COMPOSER: Record<string, string> = {
   "Áudio selecionado": "Selected audio",
   "Áudios originais": "Original audio",
   "A rede ainda está processando o vídeo. A publicação sai sozinha em alguns minutos; acompanhe no calendário.": "The network is still processing the video. The post will go out on its own in a few minutes; follow it in the calendar.",
+  "Quem pode responder no Threads": "Who can reply on Threads",
+  "respostas::Todos": "Everyone",
+  "Só seguidores": "Followers only",
+  "Perfis que você segue": "Profiles you follow",
+  "Só perfis mencionados": "Mentioned profiles only",
+  "respostas::Só você": "Only you",
+  "O Threads só aceita essa escolha na criação do post.": "Threads only accepts this choice when the post is created.",
 }

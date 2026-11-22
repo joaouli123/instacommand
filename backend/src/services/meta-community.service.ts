@@ -81,6 +81,14 @@ export async function hideFacebookComment(userId: string, companyId: string, com
   return { hidden: true };
 }
 
+/** Makes a hidden Page comment public again. */
+export async function unhideFacebookComment(userId: string, companyId: string, commentId: string) {
+  checkId(commentId, 'Comentário do Facebook');
+  const page = await companyPage(userId, companyId);
+  await graphPost(`/${commentId}`, page.token, { is_hidden: false });
+  return { hidden: false };
+}
+
 // ---------- Threads ----------
 
 async function companyThreads(userId: string, companyId: string) {
@@ -144,4 +152,12 @@ export async function hideThreadsComment(userId: string, companyId: string, repl
   const { token } = await companyThreads(userId, companyId);
   await threadsAutomationRequest(`/${replyId}/manage_reply`, token, { hide: 'true' }, 'POST');
   return { hidden: true };
+}
+
+/** Shows a hidden reply again. */
+export async function unhideThreadsComment(userId: string, companyId: string, replyId: string) {
+  checkId(replyId, 'Resposta do Threads');
+  const { token } = await companyThreads(userId, companyId);
+  await threadsAutomationRequest(`/${replyId}/manage_reply`, token, { hide: 'false' }, 'POST');
+  return { hidden: false };
 }

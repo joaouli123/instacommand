@@ -12,6 +12,7 @@ import { env } from '../config/env';
 import { assertPostReady, SUPPORTED_PLATFORMS, TEXT_PLATFORMS, textLimitFor, X_MAX_MEDIA, X_TEXT_LIMIT, xTextLength } from '../services/post-readiness';
 import { deleteXPost } from '../services/x.service';
 import { validateYouTubeSettings } from '../services/youtube-settings';
+import { validateThreadsSettings } from '../services/threads-settings';
 import { validateTikTokSettings } from '../services/tiktok-settings';
 import { assertSameWorkspace } from '../services/workspace-links';
 import { deleteYouTubeVideo } from '../services/youtube.service';
@@ -89,7 +90,7 @@ router.post('/', async (req: any, res, next) => {
   try {
     const { accountId, threadsAccountId, xAccountId, youtubeAccountId, mediaType, mediaUrls, caption, hashtags, platforms, scheduledFor, status,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
-      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings, tiktokAccountId, tiktokSettings } = req.body;
+      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings, tiktokAccountId, tiktokSettings, threadsSettings } = req.body;
     if (status !== undefined && !['DRAFT', 'SCHEDULED'].includes(status)) return res.status(400).json({ error: 'Status de criação inválido.' });
     const normalizedPlatforms = Array.isArray(platforms) && platforms.length ? platforms : ['INSTAGRAM'];
     const textOnlyThreads = normalizedPlatforms.every((platform: string) => TEXT_PLATFORMS.includes(platform));
@@ -129,6 +130,7 @@ router.post('/', async (req: any, res, next) => {
     ]);
     const normalizedYouTubeSettings = normalizedPlatforms.includes('YOUTUBE') ? validateYouTubeSettings(youtubeSettings) : null;
     const normalizedTikTokSettings = normalizedPlatforms.includes('TIKTOK') ? validateTikTokSettings(tiktokSettings) : null;
+    const normalizedThreadsSettings = normalizedPlatforms.includes('THREADS') ? validateThreadsSettings(threadsSettings) : null;
     if (normalizedPlatforms.includes('FACEBOOK') && !account.pageId) {
       return res.status(400).json({ error: 'A conta selecionada não possui uma Página do Facebook vinculada.' });
     }
@@ -196,6 +198,7 @@ router.post('/', async (req: any, res, next) => {
         youtubeSettings: (normalizedYouTubeSettings ?? undefined) as any,
         tiktokAccountId: tiktokAccount?.id,
         tiktokSettings: (normalizedTikTokSettings ?? undefined) as any,
+        threadsSettings: (normalizedThreadsSettings ?? undefined) as any,
         mediaType,
         mediaUrls,
         caption,
@@ -378,7 +381,7 @@ router.patch('/:id', async (req: any, res, next) => {
   try {
     const { caption, scheduledFor, status, platforms, threadsAccountId, xAccountId, youtubeAccountId, mediaUrls, mediaType, hashtags,
       isAiGenerated, instagramAudioId, instagramAudioTitle, instagramAudioArtist,
-      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings, tiktokAccountId, tiktokSettings } = req.body;
+      instagramAudioVolume, instagramVideoVolume, advancedSettings, youtubeSettings, tiktokAccountId, tiktokSettings, threadsSettings } = req.body;
     const post = await prisma.scheduledPost.findFirst({
       where: { id: req.params.id, userId: req.user.id }
     });
@@ -424,6 +427,7 @@ router.patch('/:id', async (req: any, res, next) => {
       assertSameWorkspace(post.accountId, [{ network: 'TIKTOK', account: tiktokAccount }]);
     }
     const nextTikTokSettings = tiktokSettings === undefined ? post.tiktokSettings : validateTikTokSettings(tiktokSettings);
+    const nextThreadsSettings = threadsSettings === undefined ? undefined : validateThreadsSettings(threadsSettings);
     if (nextPlatforms.includes('THREADS')) {
       const nextThreadsAccountId = threadsAccountId === undefined ? post.threadsAccountId : threadsAccountId;
       const threadsAccount = nextThreadsAccountId
@@ -511,6 +515,7 @@ router.patch('/:id', async (req: any, res, next) => {
         youtubeSettings: youtubeSettings === undefined ? undefined : (nextYouTubeSettings ?? Prisma.DbNull) as any,
         tiktokAccountId: tiktokAccountId === null ? null : tiktokAccountId || undefined,
         tiktokSettings: tiktokSettings === undefined ? undefined : (nextTikTokSettings ?? Prisma.DbNull) as any,
+        threadsSettings: threadsSettings === undefined ? undefined : (nextThreadsSettings ?? Prisma.DbNull) as any,
       }
     }).catch((error) => {
       if (error?.code === 'P2025') throw new ConflictError('Esta publicação mudou ou já está sendo enviada. Atualize a tela antes de editar.');

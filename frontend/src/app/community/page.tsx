@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import { ResearchNetworkTabs, UnavailableNetwork, useResearchNetwork } from "@/components/research/ResearchNetworkTabs"
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, Clock, ExternalLink, Heart, HelpCircle, LayoutGrid, List, MessageCircle, Plus, RefreshCw, Search, Send, Smile, Sparkles, Trash2, Users, X, Zap } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Eye, EyeOff, Clock, ExternalLink, Heart, HelpCircle, LayoutGrid, List, MessageCircle, Plus, RefreshCw, Search, Send, Smile, Sparkles, Trash2, Users, X, Zap } from "lucide-react"
 import toast from "react-hot-toast"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,7 @@ type CommentItem = {
   replyCount?: number
   answered?: boolean
   firstReplyAt?: string | null
+  hidden?: boolean
   intent?: Intent
 }
 
@@ -238,7 +239,8 @@ function AccountCommunity({ accountId, username, network, tabs }: { accountId: s
     onMutate: async (comment) => {
       await queryClient.cancelQueries({ queryKey })
       const previous = queryClient.getQueryData<CommentsResponse>(queryKey)
-      setComments((items) => items.filter((item) => item.id !== comment.id))
+      // Facebook and Threads keep the comment on screen marked as hidden, so it can be shown again.
+      setComments((items) => canUnhide(network) ? items.map((item) => item.id === comment.id ? { ...item, hidden: true } : item) : items.filter((item) => item.id !== comment.id))
       return { previous }
     },
     onError: (error, _comment, context) => {
@@ -247,6 +249,22 @@ function AccountCommunity({ accountId, username, network, tabs }: { accountId: s
     },
     onSuccess: () => toast.success(hidesComments(network) ? t("Comentário ocultado.") : t("Comentário excluído.")),
   })
+
+  const unhideMutation = useMutation({
+    mutationFn: (comment: CommentItem) => api.unhideComment({ accountId, mediaId: comment.mediaId, commentId: comment.id, network: network as "facebook" | "threads" }),
+    onMutate: async (comment) => {
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<CommentsResponse>(queryKey)
+      setComments((items) => items.map((item) => item.id === comment.id ? { ...item, hidden: false } : item))
+      return { previous }
+    },
+    onError: (error, _comment, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
+      toast.error(error instanceof Error ? error.message : t("Não foi possível mostrar o comentário de novo."))
+    },
+    onSuccess: () => toast.success(t("Comentário visível de novo.")),
+  })
+  const unhide = (comment: CommentItem) => unhideMutation.mutate(comment)
 
   const reply = async (comment: CommentItem, message: string) => {
     try { await replyMutation.mutateAsync({ comment, message }); return true } catch { return false }
@@ -306,9 +324,9 @@ function AccountCommunity({ accountId, username, network, tabs }: { accountId: s
           ) : !filtered.length ? (
             <Card className="p-10 text-center"><Search className="mx-auto mb-3 text-slate-300" size={30}/><h3 className="section-title">{t("Nada encontrado com esses filtros")}</h3>{hasFilters && <Button variant="outline" size="sm" className="mt-3" onClick={clearFilters}>{t("Limpar filtros")}</Button>}</Card>
           ) : view === "posts" ? (
-            groups.map((group) => <PostGroup key={group.mediaId} group={group} comments={sortComments(group.items)} quickReplies={quick.replies} accountId={accountId} onReply={reply} onDelete={remove} network={network}/>)
+            groups.map((group) => <PostGroup key={group.mediaId} group={group} comments={sortComments(group.items)} quickReplies={quick.replies} accountId={accountId} onReply={reply} onDelete={remove} onUnhide={unhide} network={network}/>)
           ) : (
-            <Card className="divide-y divide-slate-100 overflow-hidden">{sortComments(filtered).map((comment) => <CommentRow key={comment.id} comment={comment} showPost quickReplies={quick.replies} accountId={accountId} onReply={reply} onDelete={remove} network={network}/>)}</Card>
+            <Card className="divide-y divide-slate-100 overflow-hidden">{sortComments(filtered).map((comment) => <CommentRow key={comment.id} comment={comment} showPost quickReplies={quick.replies} accountId={accountId} onReply={reply} onDelete={remove} onUnhide={unhide} network={network}/>)}</Card>
           )}
         </div>
 
@@ -351,7 +369,7 @@ function IntentBadge({ intent }: { intent?: Intent }) {
 }
 
 type Group = { mediaId: string; first: CommentItem; items: CommentItem[]; unanswered: number }
-type RowActions = { quickReplies: string[]; accountId: string; onReply: (comment: CommentItem, message: string) => Promise<boolean>; onDelete: (comment: CommentItem) => void; network?: CommunityNetwork }
+type RowActions = { quickReplies: string[]; accountId: string; onReply: (comment: CommentItem, message: string) => Promise<boolean>; onDelete: (comment: CommentItem) => void; onUnhide?: (comment: CommentItem) => void; network?: CommunityNetwork }
 
 function PostGroup({ group, comments, ...actions }: { group: Group; comments: CommentItem[] } & RowActions) {
   const [expanded, setExpanded] = useState(false)
@@ -378,7 +396,7 @@ function PostGroup({ group, comments, ...actions }: { group: Group; comments: Co
   </Card>
 }
 
-function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDelete, network }: { comment: CommentItem; showPost?: boolean } & RowActions) {
+function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDelete, onUnhide, network }: { comment: CommentItem; showPost?: boolean } & RowActions) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState("")
   const [sending, setSending] = useState(false)
@@ -415,6 +433,7 @@ function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDel
           <p className="truncate text-sm font-bold text-slate-900">@{name}</p>
           <span className="text-xs text-slate-400">{timeAgo(comment.timestamp)}</span>
           <IntentBadge intent={comment.intent}/>
+          {comment.hidden && <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600"><EyeOff size={11}/>{t("comentário::Oculto")}</span>}
           {comment.answered ? <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={12}/>{t("Respondido")}</span> : <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700"><Clock size={12}/>{t("comentário::Aguardando")}</span>}
         </div>
         <p className="mt-1 whitespace-pre-line break-words text-sm leading-6 text-slate-700">{comment.text}</p>
@@ -423,7 +442,9 @@ function CommentRow({ comment, showPost, quickReplies, accountId, onReply, onDel
           {typeof comment.like_count === "number" && <span className="mr-2 inline-flex items-center gap-1 text-xs text-slate-500"><Heart size={12}/>{comment.like_count.toLocaleString(locale)}</span>}
           {!!comment.replyCount && <span className="mr-2 text-xs text-slate-500">{comment.replyCount === 1 ? t("1 resposta(s)") : t("{count} resposta(s)", { count: comment.replyCount })}</span>}
           <Button type="button" size="sm" variant={open ? "secondary" : "ghost"} onClick={() => setOpen(!open)} className="h-8 gap-1.5 text-indigo-700"><Send size={13}/>{t("Responder")}</Button>
-          <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(comment)} className="h-8 gap-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 size={13}/>{hidesComments(network) ? t("Ocultar") : t("Excluir")}</Button>
+          {comment.hidden && onUnhide && canUnhide(network)
+            ? <Button type="button" size="sm" variant="ghost" onClick={() => onUnhide(comment)} className="h-8 gap-1.5 text-slate-700 hover:bg-slate-100"><Eye size={13}/>{t("comentário::Mostrar")}</Button>
+            : <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(comment)} className="h-8 gap-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700">{hidesComments(network) ? <EyeOff size={13}/> : <Trash2 size={13}/>}{hidesComments(network) ? t("Ocultar") : t("Excluir")}</Button>}
           {comment.permalink && showPost && <a href={comment.permalink} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 px-2 text-xs font-semibold text-slate-500 hover:text-indigo-600">{t("Post")} <ExternalLink size={11}/></a>}
         </div>
         {open && <div className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-white p-2.5">
@@ -487,6 +508,7 @@ type CommunityNetwork = "instagram" | "youtube" | "facebook" | "threads"
 const NETWORK_LABEL: Record<CommunityNetwork, string> = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook", threads: "Threads" }
 /** Networks whose API hides other people's comments instead of deleting them. */
 const hidesComments = (network?: CommunityNetwork) => network === "youtube" || network === "facebook" || network === "threads"
+const canUnhide = (network?: CommunityNetwork) => network === "facebook" || network === "threads"
 
 /** Community per network of the company chosen at the top. */
 function CommunityNetworks({ accountId, username }: { accountId: string; username: string }) {

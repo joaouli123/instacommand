@@ -156,6 +156,8 @@ export default function ComposerPage() {
   const [allTikTokAccounts, setTikTokAccounts] = useState<TikTokAccount[]>([])
   const [tiktokAccountId, setTikTokAccountId] = useState("")
   const [tiktokSettings, setTikTokSettings] = useState<TikTokSettings>(emptyTikTokSettings)
+  // Threads only accepts who can reply when the post is created.
+  const [threadsReplyControl, setThreadsReplyControl] = useState("everyone")
   const [youtubeThumbnailUploading, setYouTubeThumbnailUploading] = useState(false)
   const [platforms, setPlatforms] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -218,7 +220,7 @@ export default function ComposerPage() {
           setDraftId(draft.id); setAccountId(draft.accountId); selectAccount(draft.accountId)
           setCaption(draft.caption || ''); setHashtags(draft.hashtags || []); setPlatforms(draft.platforms || ['INSTAGRAM'])
           setThreadsAccountId(draft.threadsAccountId || ''); if (draft.xAccountId) setXAccountId(draft.xAccountId); if (draft.youtubeAccountId) setYouTubeAccountId(draft.youtubeAccountId); if (draft.tiktokAccountId) setTikTokAccountId(draft.tiktokAccountId)
-          if (draft.youtubeSettings) setYouTubeSettings({ ...emptyYouTubeSettings(), ...draft.youtubeSettings }); if (draft.tiktokSettings) setTikTokSettings({ ...emptyTikTokSettings(), ...draft.tiktokSettings }); setPostType(draft.mediaType === 'IMAGE' ? 'FEED' : draft.mediaType)
+          if (draft.youtubeSettings) setYouTubeSettings({ ...emptyYouTubeSettings(), ...draft.youtubeSettings }); if (draft.tiktokSettings) setTikTokSettings({ ...emptyTikTokSettings(), ...draft.tiktokSettings }); if (draft.threadsSettings?.replyControl) setThreadsReplyControl(draft.threadsSettings.replyControl); setPostType(draft.mediaType === 'IMAGE' ? 'FEED' : draft.mediaType)
           setEditorialBrief(draft.editorialBrief || null)
           setIsAiGenerated(draft.isAiGenerated === true)
           const savedAdvanced = draft.advancedSettings as Partial<InstagramAdvancedSettings> | null
@@ -868,6 +870,7 @@ export default function ComposerPage() {
         youtubeSettings: platforms.includes("YOUTUBE") ? youtubeSettings : undefined,
         tiktokAccountId: platforms.includes("TIKTOK") ? selectedTikTokAccount?.id : undefined,
         tiktokSettings: platforms.includes("TIKTOK") ? tiktokSettings : undefined,
+        threadsSettings: platforms.includes("THREADS") ? { replyControl: threadsReplyControl } : undefined,
         mediaType: postType === "FEED" ? "IMAGE" : postType,
         mediaUrls,
         caption: finalCaption,
@@ -942,7 +945,7 @@ export default function ComposerPage() {
       const urls = mediaItems.map(item => item.file ? upload.urls[index++] : item.src)
       const data = { caption, hashtags, mediaUrls: urls, mediaType: postType === 'FEED' ? 'IMAGE' : postType,
         platforms, threadsAccountId: platforms.includes('THREADS') ? threadsAccountId : null, xAccountId: platforms.includes('X') ? selectedXAccount?.id ?? null : null,
-        youtubeAccountId: platforms.includes('YOUTUBE') ? selectedYouTubeAccount?.id ?? null : null, youtubeSettings: platforms.includes('YOUTUBE') ? youtubeSettings : null, tiktokAccountId: platforms.includes('TIKTOK') ? selectedTikTokAccount?.id ?? null : null, tiktokSettings: platforms.includes('TIKTOK') ? tiktokSettings : null, status: 'DRAFT',
+        youtubeAccountId: platforms.includes('YOUTUBE') ? selectedYouTubeAccount?.id ?? null : null, youtubeSettings: platforms.includes('YOUTUBE') ? youtubeSettings : null, tiktokAccountId: platforms.includes('TIKTOK') ? selectedTikTokAccount?.id ?? null : null, tiktokSettings: platforms.includes('TIKTOK') ? tiktokSettings : null, threadsSettings: platforms.includes('THREADS') ? { replyControl: threadsReplyControl } : null, status: 'DRAFT',
         isAiGenerated: platforms.includes('INSTAGRAM') && isAiGenerated,
         instagramAudioId: postType === 'REEL' && platforms.includes('INSTAGRAM') ? selectedAudioTrack?.id ?? null : null,
         instagramAudioTitle: selectedAudioTrack?.title ?? null,
@@ -1391,6 +1394,17 @@ export default function ComposerPage() {
             </div>}
           </div>
 
+          {platforms.includes("THREADS") && <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <label htmlFor="threads-reply-control" className="flex items-center gap-2 text-sm font-semibold text-slate-800"><SiThreads size={15} />{t("Quem pode responder no Threads")}</label>
+            <select id="threads-reply-control" value={threadsReplyControl} onChange={(event) => setThreadsReplyControl(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700">
+              <option value="everyone">{t("respostas::Todos")}</option>
+              <option value="followers_only">{t("Só seguidores")}</option>
+              <option value="accounts_you_follow">{t("Perfis que você segue")}</option>
+              <option value="mentioned_only">{t("Só perfis mencionados")}</option>
+              <option value="parent_post_author_only">{t("respostas::Só você")}</option>
+            </select>
+            <p className="mt-1.5 text-xs text-slate-500">{t("O Threads só aceita essa escolha na criação do post.")}</p>
+          </div>}
           {platforms.includes("YOUTUBE") && <YouTubeOptions channelId={selectedYouTubeAccount?.id} settings={youtubeSettings} onChange={setYouTubeSettings} media={activeMedia} hashtags={hashtags} onUploadThumbnail={(file) => { void uploadYouTubeThumbnail(file) }} thumbnailUploading={youtubeThumbnailUploading} />}
           {platforms.includes("TIKTOK") && <TikTokOptions accountId={selectedTikTokAccount?.id} settings={tiktokSettings} onChange={setTikTokSettings} media={activeMedia} />}
 
